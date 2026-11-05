@@ -290,7 +290,7 @@ function toggleExpand(id: string) {
   if (s.has(id)) s.delete(id); else s.add(id)
   expandedSg.value = s
 }
-const isExpanded = (id: number) => expandedSg.value.has(id)
+const isExpanded = (id: string) => expandedSg.value.has(id)
 function copyLink(link: string) {
   if (!link) return
   navigator.clipboard?.writeText(link).catch(() => {})
@@ -324,7 +324,7 @@ async function onImportFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (file.size > 20 * 1024 * 1024) {
-    toast({ type: 'error', message: '文件不能超过 20MB' })
+    toast({ type: 'error', title: '文件过大', message: '文件不能超过 20MB' })
     ;(event.target as HTMLInputElement).value = ''
     return
   }
@@ -332,7 +332,7 @@ async function onImportFile(event: Event) {
     importText.value = await file.text()
     importFileName.value = file.name
   } catch {
-    toast({ type: 'error', message: '文件读取失败，请检查文件编码' })
+    toast({ type: 'error', title: '读取失败', message: '文件读取失败，请检查文件编码' })
   }
 }
 
@@ -342,7 +342,7 @@ async function pollImportJob(jobId: string) {
     importJob.value = job
     if (job.status === 'completed' || job.status === 'failed') {
       load()
-      toast({ type: job.status === 'completed' ? 'success' : 'warning',
+      toast({ type: job.status === 'completed' ? 'success' : 'warning', title: job.status === 'completed' ? '导入完成' : '导入失败',
         message: `导入结束：入库 ${job.imported_count}，失败 ${job.failed_count}，跳过 ${job.skipped_count}` })
       return
     }
@@ -359,10 +359,10 @@ async function doImport() {
   try {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     importJob.value = job
-    toast({ type: 'success', message: `已提交后台任务，共 ${job.total_count} 条` })
+    toast({ type: 'success', title: '任务已提交', message: `已提交后台任务，共 ${job.total_count} 条` })
     pollImportJob(job.job_id)
   } catch (err: any) {
-    toast({ type: 'error', message: err?.message || '提交导入任务失败' })
+    toast({ type: 'error', title: '提交失败', message: err?.message || '提交导入任务失败' })
   } finally {
     importing.value = false
   }
@@ -376,13 +376,13 @@ async function doSearch() {
   try {
     const res = await searchLibraryGroups(filters.keyword.trim())
     if (res.count > 0) {
-      toast({ type: 'success', message: `搜到 ${res.count} 个群, 已放入群组大厅` })
+      toast({ type: 'success', title: '搜索完成', message: `搜到 ${res.count} 个群, 已放入群组大厅` })
       load()
     } else {
-      toast({ type: 'info', message: '没搜到相关群组, 换个关键词试试' })
+      toast({ type: 'info', title: '没有结果', message: '没搜到相关群组, 换个关键词试试' })
     }
   } catch (err: any) {
-    toast({ type: 'error', message: err?.message || '搜索失败' })
+    toast({ type: 'error', title: '搜索失败', message: err?.message || '搜索失败' })
   } finally {
     kwSearching.value = false
   }
