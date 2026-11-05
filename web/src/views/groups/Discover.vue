@@ -9,7 +9,8 @@
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-xs text-text-secondary">共 {{ total }} 条</span>
+        <span class="text-xs text-text-secondary">共 {{ total }} 条 · 已跨页选中 {{ selected.size }} 条</span>
+        <t-button size="small" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">{{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}</t-button>
         <t-button v-if="selected.size > 0" size="small" variant="text" @click="selected.clear()" title="清空所有勾选(含其他页)">
           清空
         </t-button>
@@ -172,8 +173,8 @@
     </div>
 
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
-    <t-dialog v-model:visible="importModalVisible" header="导入群链接" :footer="false" width="560px">
-      <div class="space-y-3">
+    <Modal v-model="importModalVisible" title="导入群链接" class="max-w-xl">
+      <div class="space-y-3 pb-2">
         <textarea v-model="importText" rows="8" class="w-full px-3 py-2 rounded-lg glow-input text-sm resize-y"
           placeholder="每行一个：t.me/群用户名、@群用户名、t.me/+邀请hash&#10;支持整段粘贴, 单次最多 500 条；超过 200 条将进入后台自动解析队列"></textarea>
         <p class="text-[11px] leading-relaxed" style="color: var(--t-text-3);">
@@ -185,12 +186,12 @@
           <div v-for="(f, i) in importResult.failed.slice(0, 5)" :key="i" class="text-text-muted truncate">{{ f }}</div>
           <div v-if="importResult.failed.length > 5" class="text-text-muted">…… 共 {{ importResult.failed.length }} 条失败</div>
         </div>
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-end gap-2 pt-2 sticky bottom-0 pb-[env(safe-area-inset-bottom)]" style="background: var(--t-modal-bg);">
           <t-button size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
           <t-button size="small" theme="primary" :loading="importing" @click="doImport">开始导入</t-button>
         </div>
       </div>
-    </t-dialog>
+    </Modal>
 
     <!-- 选账号弹层(子弹层, 保持传统模态) -->
     <t-dialog v-model:visible="joinModalVisible" header="选择执行账号" :footer="false" width="480px">
@@ -241,6 +242,7 @@ import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
 import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
+import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
 
 const router = useRouter()
@@ -408,6 +410,12 @@ function search() {
   load()
 }
 
+const currentPageIds = computed(() => aggregatedList.value.map(g => g.sg_id))
+const currentPageAllSelected = computed(() => currentPageIds.value.length > 0 && currentPageIds.value.every(id => selected.has(id)))
+function toggleCurrentPage() {
+  if (currentPageAllSelected.value) currentPageIds.value.forEach(id => selected.delete(id))
+  else currentPageIds.value.forEach(id => selected.add(id))
+}
 function toggle(id: string) {
   selected.has(id) ? selected.delete(id) : selected.add(id)
 }
