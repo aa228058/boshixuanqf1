@@ -69,19 +69,30 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 }
 
 func normalizeSystemGroupLink(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	value = strings.TrimPrefix(value, "https://")
-	value = strings.TrimPrefix(value, "http://")
-	value = strings.TrimPrefix(value, "www.")
+	value = strings.TrimSpace(value)
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "https://") {
+		value = value[len("https://"):]
+	} else if strings.HasPrefix(lower, "http://") {
+		value = value[len("http://"):]
+	}
 	value = strings.SplitN(value, "?", 2)[0]
 	value = strings.SplitN(value, "#", 2)[0]
 	value = strings.TrimRight(value, "/")
-	if strings.HasPrefix(value, "telegram.me/") || strings.HasPrefix(value, "telegram.dog/") {
-		value = "t.me/" + strings.SplitN(value, "/", 2)[1]
+	parts := strings.SplitN(value, "/", 2)
+	if len(parts) != 2 {
+		return ""
 	}
-	if value == "" { return "" }
-	if !strings.HasPrefix(value, "t.me/") && !strings.HasPrefix(value, "telegram.me/") && !strings.HasPrefix(value, "telegram.dog/") { return "" }
-	return value
+	host := strings.ToLower(strings.TrimPrefix(parts[0], "www."))
+	if host != "t.me" && host != "telegram.me" && host != "telegram.dog" {
+		return ""
+	}
+	path := parts[1]
+	if strings.HasPrefix(path, "+") || strings.HasPrefix(path, "joinchat/") {
+		// Invite hashes are case-sensitive; normalize only the host, never the hash.
+		return "t.me/" + path
+	}
+	return "t.me/" + strings.ToLower(path)
 }
 
 // UpdateResolvedInfo 后台解析器回写: 私密邀请链接经 checkChatInvite 补全群名/成员数/类型。
