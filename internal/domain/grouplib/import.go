@@ -120,7 +120,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
 					continue
 				}
-				sg.Title, sg.MemberCount, sg.GType = title, count, gtype
+				sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 			}
 		}
 		if err := e.repo.Upsert(ctx, &sg); err != nil {
