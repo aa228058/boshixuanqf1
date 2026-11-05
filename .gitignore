@@ -5,7 +5,7 @@
 
 # Go 编译产物
 /server
-app
+/app
 *.exe
 
 # Node 依赖与前端打包产物
