@@ -195,7 +195,7 @@ func (e *Engine) maybeAutoMigrate(tenantID, accountID uuid.UUID) {
 
 	hit := false
 	for _, s := range strings.Split(from, ",") {
-		if n, err := strconv.Atoi(strings.TrimSpace(s)); err == nil && int32(n) == info.dc {
+		if n, err := strconv.Atoi(strings.TrimSpace(s)); err == nil && int64(n) == int64(info.dc) {
 			hit = true
 			break
 		}
