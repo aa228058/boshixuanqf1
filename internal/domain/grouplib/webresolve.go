@@ -2,7 +2,6 @@ package grouplib
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	htmlstd "html"
 	"io"
