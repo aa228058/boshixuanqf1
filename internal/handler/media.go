@@ -65,19 +65,23 @@ func (h *MediaHandler) Upload(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "媒体目录创建失败"})
 	}
 	name := uuid.NewString() + ext
-	dst := filepath.Join(h.cfg.MediaDir, name)
+	root, err := os.OpenRoot(h.cfg.MediaDir)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "媒体目录打开失败"})
+	}
+	defer root.Close()
 	src, err := file.Open()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "读取上传文件失败"})
 	}
 	defer src.Close()
-	out, err := os.Create(dst)
+	out, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "保存文件失败"})
 	}
 	defer out.Close()
 	if _, err := io.Copy(out, src); err != nil {
-		os.Remove(dst)
+		_ = root.Remove(name)
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "写入文件失败"})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"path": name})
