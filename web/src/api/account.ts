@@ -9,6 +9,7 @@ export const accountApi = {
   create: (phone: string, remark?: string) => api.post<Account>('/accounts', { phone, remark }),
   delete: (id: string) => api.delete<void>(`/accounts/${id}`),
   connect: (id: string) => api.post<void>(`/accounts/${id}/connect`),
+  reauthenticate: (id: string) => api.post<{ status: string }>(`/accounts/${id}/reauthenticate`),
   disconnect: (id: string) => api.post<void>(`/accounts/${id}/disconnect`),
   submitCode: (id: string, code: string) => api.post<void>(`/accounts/${id}/code`, { code }),
   setRaffle: (id: string, enabled: boolean) => api.put<{ enabled: boolean }>(`/accounts/${id}/raffle`, { enabled }),
