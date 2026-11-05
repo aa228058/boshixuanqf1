@@ -575,7 +575,12 @@ func (e *Engine) GetClientByAccount(ctx context.Context, tenantID, accountID uui
 	}
 	acc, err := e.repo.GetByID(ctx, tenantID, accountID)
 	if err != nil {
-		return client, nil, nil
+		e.ReleaseClient(tenantID, accountID, client)
+		return nil, nil, fmt.Errorf("load account %s: %w", accountID, err)
+	}
+	if acc == nil {
+		e.ReleaseClient(tenantID, accountID, client)
+		return nil, nil, fmt.Errorf("account %s not found", accountID)
 	}
 	return client, acc.Level, nil
 }
