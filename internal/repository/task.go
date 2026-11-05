@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -210,7 +211,12 @@ func (r *TaskRepository) ClaimTimeoutTasks(ctx context.Context, workerID string,
 		return nil, fmt.Errorf("claim timeout tasks: %w", err)
 	}
 	defer rows.Close()
-	return r.scanTasks(rows)
+	tasks, err := r.scanTasks(rows)
+	if err != nil {
+		return nil, err
+	}
+	sortClaimedTasks(tasks)
+	return tasks, nil
 }
 
 // CountRunningGlobal 全局 running 任务总数(内存自适应的全局并发上限检查用)
@@ -240,7 +246,26 @@ func (r *TaskRepository) claimTasksWithStatus(ctx context.Context, workerID stri
 		return nil, fmt.Errorf("claim tasks: %w", err)
 	}
 	defer rows.Close()
-	return r.scanTasks(rows)
+	tasks, err := r.scanTasks(rows)
+	if err != nil {
+		return nil, err
+	}
+	sortClaimedTasks(tasks)
+	return tasks, nil
+}
+
+// sortClaimedTasks makes claim results deterministic because PostgreSQL does not
+// guarantee the order of rows returned by UPDATE ... RETURNING.
+func sortClaimedTasks(tasks []*domain.Task) {
+	sort.SliceStable(tasks, func(i, j int) bool {
+		if tasks[i].Priority != tasks[j].Priority {
+			return tasks[i].Priority > tasks[j].Priority
+		}
+		if !tasks[i].CreatedAt.Equal(tasks[j].CreatedAt) {
+			return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
+		}
+		return tasks[i].TaskID.String() < tasks[j].TaskID.String()
+	})
 }
 
 // ActivatePendingTasks converts pending tasks whose scheduled_at has passed to queued.
