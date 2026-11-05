@@ -21,7 +21,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		gtype    string
 		title    string
 	}
-	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown') AND (COALESCE(title,'')='' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
+	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown','public') AND (resolution_status='pending' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
 	if err != nil {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
