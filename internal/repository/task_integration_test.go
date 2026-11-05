@@ -40,6 +40,11 @@ func connectTestDB(t *testing.T) *pgxpool.Pool {
 func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS tenants (
+			tenant_id UUID PRIMARY KEY,
+			status TEXT NOT NULL DEFAULT 'active',
+			expires_at TIMESTAMPTZ
+		);
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id UUID PRIMARY KEY,
 			tenant_id UUID NOT NULL,
@@ -73,8 +78,15 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 
 func seedTask(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, taskType string, priority int) uuid.UUID {
 	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO tenants (tenant_id, status, expires_at) VALUES ($1, 'active', NULL)
+		ON CONFLICT (tenant_id) DO UPDATE SET status = 'active', expires_at = NULL
+	`, tenantID)
+	if err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
 	id := uuid.New()
-	_, err := pool.Exec(context.Background(),
+	_, err = pool.Exec(context.Background(),
 		`INSERT INTO tasks (task_id, tenant_id, type, status, priority) VALUES ($1,$2,$3,'queued',$4)`,
 		id, tenantID, taskType, priority)
 	if err != nil {
@@ -201,4 +213,50 @@ func TestClaimTimeoutTasks_ReclaimsExpiredLock(t *testing.T) {
 	if claimed[0].WorkerID == nil || *claimed[0].WorkerID != "rescue-worker" {
 		t.Errorf("new worker = %v, want rescue-worker", claimed[0].WorkerID)
 	}
+}
+
+
+func TestClaimTasks_SkipsInactiveAndExpiredTenants(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+
+	activeTenant := uuid.New()
+	inactiveTenant := uuid.New()
+	expiredTenant := uuid.New()
+	activeTask := seedTask(t, pool, activeTenant, string(domain.TaskTypeBroadcast), 5)
+	inactiveTask := seedTask(t, pool, inactiveTenant, string(domain.TaskTypeBroadcast), 9)
+	expiredTask := seedTask(t, pool, expiredTenant, string(domain.TaskTypeBroadcast), 8)
+
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tenants SET status = 'suspended' WHERE tenant_id = $1;
+		UPDATE tenants SET expires_at = NOW() - INTERVAL '1 minute' WHERE tenant_id = $2;
+	`, inactiveTenant, expiredTenant); err != nil {
+		t.Fatalf("deactivate test tenants: %v", err)
+	}
+
+	claimed, err := repo.ClaimTasks(context.Background(), "active-worker", 10, 5)
+	if err != nil {
+		t.Fatalf("ClaimTasks: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].TaskID != activeTask {
+		t.Fatalf("claimed tasks = %v, want only active tenant task %s", taskIDs(claimed), activeTask)
+	}
+	for _, id := range []uuid.UUID{inactiveTask, expiredTask} {
+		var status string
+		if err := pool.QueryRow(context.Background(), `SELECT status FROM tasks WHERE task_id = $1`, id).Scan(&status); err != nil {
+			t.Fatalf("read task %s: %v", id, err)
+		}
+		if status != "queued" {
+			t.Errorf("inactive tenant task %s status = %q, want queued", id, status)
+		}
+	}
+}
+
+func taskIDs(tasks []*domain.Task) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(tasks))
+	for _, task := range tasks {
+		ids = append(ids, task.TaskID)
+	}
+	return ids
 }
