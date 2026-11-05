@@ -214,6 +214,7 @@ html.theme-stripe {
   --t-z-modal: 1300;
   --t-z-toast: 1400;
   --t-z-tooltip: 1500;
+  --t-z-message: 3500;
 
   /* Shared control geometry */
   --t-control-height-sm: 32px;
