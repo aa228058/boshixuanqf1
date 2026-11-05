@@ -243,9 +243,11 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 				taskLog.Printf("[scrape] participant page exceeds Telegram int32 offset range: %d", len(participants.Participants))
 				return
 			}
+			// #nosec G115 -- page length is explicitly bounded to MaxInt32 above.
 			if int32(len(participants.Participants)) < limit {
 				break
 			}
+			// #nosec G115 -- page length is explicitly bounded to MaxInt32 above.
 			offset += int32(len(participants.Participants))
 
 			select {
@@ -722,7 +724,9 @@ func (e *Engine) executeScrapeLinksReport(ctx context.Context, task *domain.Task
 			// 统计本任务窗口内实际入库的链接数
 			total := 0
 			if e.scrapedLinkRepo != nil {
-				if cnt, err := e.scrapedLinkRepo.CountByTenantSince(ctx, task.TenantID, taskStart); err == nil {
+				if cnt, err := e.scrapedLinkRepo.CountByTenantSince(ctx, task.TenantID, taskStart); err != nil {
+					taskLog.Printf("[scrape] 统计链接数失败: %v", err)
+				} else {
 					total = cnt
 				}
 			}
@@ -735,7 +739,9 @@ func (e *Engine) executeScrapeLinksReport(ctx context.Context, task *domain.Task
 finish:
 	var finalCount int
 	if e.scrapedLinkRepo != nil {
-		if cnt, err := e.scrapedLinkRepo.CountByTenantSince(ctx, task.TenantID, taskStart); err == nil {
+		if cnt, err := e.scrapedLinkRepo.CountByTenantSince(ctx, task.TenantID, taskStart); err != nil {
+			taskLog.Printf("[scrape] 最终统计链接数失败: %v", err)
+		} else {
 			finalCount = cnt
 		}
 	}
