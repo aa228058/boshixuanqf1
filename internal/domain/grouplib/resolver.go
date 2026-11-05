@@ -88,12 +88,13 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			errText := strings.ToLower(resolveErr.Error())
 			if p.gtype=="private" && (strings.Contains(errText,"过期") || strings.Contains(errText,"无效")) {
 				_ = e.repo.MarkInvalidByDedupKey(ctx,p.dedupKey)
+				_ = e.repo.UpdateLinkValidity(ctx,p.sgID,0,"invalid")
 			}
 		} else if title!="" || count>0 {
 			if gtype=="" { gtype=p.gtype }
 			if err := e.repo.UpdateResolvedInfo(ctx,p.sgID,title,count,gtype,chatID); err != nil {
 				log.Printf("[grouplib] 回写群组资料失败 %s: %v",p.sgID,err)
-			}
+			} else { _ = e.repo.UpdateLinkValidity(ctx,p.sgID,chatID,"valid") }
 		}
 		if i<len(pending)-1 {
 			select { case <-ctx.Done(): return; case <-time.After(2*time.Second): }
