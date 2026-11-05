@@ -1,11 +1,9 @@
 package account
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"tg-sender/internal/safego"
 	"time"
