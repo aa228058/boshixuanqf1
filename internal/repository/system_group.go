@@ -32,10 +32,13 @@ type SystemGroupFilter struct {
 // Upsert 归并写入: dedup_key 冲突时热度+1、取更优标题/更大成员数、刷新最后收录时间。
 func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGroup) error {
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO system_groups (dedup_key, source, title, username, tme_link, gtype, member_count, status, ref_count, last_seen_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1,NOW())
+		INSERT INTO system_groups (dedup_key, source, title, username, tme_link, gtype, member_count, status, ref_count, last_seen_at, telegram_chat_id, resolution_status, member_count_updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1,NOW(),NULLIF($9,0),CASE WHEN COALESCE($3,'')<>'' OR $7>0 THEN 'resolved' ELSE 'pending' END,CASE WHEN $7>0 THEN NOW() ELSE NULL END)
 		ON CONFLICT (dedup_key) DO UPDATE SET
 			ref_count   = system_groups.ref_count + 1,
+			telegram_chat_id = COALESCE(system_groups.telegram_chat_id, NULLIF(EXCLUDED.telegram_chat_id,0)),
+			resolution_status = CASE WHEN EXCLUDED.resolution_status='resolved' THEN 'resolved' ELSE system_groups.resolution_status END,
+			member_count_updated_at = CASE WHEN EXCLUDED.member_count>0 THEN NOW() ELSE system_groups.member_count_updated_at END,
 			member_count= GREATEST(system_groups.member_count, EXCLUDED.member_count),
 			last_seen_at= NOW(),
 			status      = CASE WHEN system_groups.status = 'joined' THEN 'joined' ELSE EXCLUDED.status END,
@@ -44,7 +47,7 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			username    = CASE WHEN system_groups.username = '' OR system_groups.username IS NULL
 			                   THEN EXCLUDED.username ELSE system_groups.username END,
 			gtype       = CASE WHEN system_groups.gtype = 'unknown' THEN EXCLUDED.gtype ELSE system_groups.gtype END
-	`, sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status)
+	`, sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status, sg.TelegramChatID)
 	return err
 }
 
