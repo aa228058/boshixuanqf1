@@ -2,6 +2,7 @@ package account
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -32,7 +33,19 @@ func (e *Engine) backupSessionFiles() {
 		log.Printf("[BACKUP] 创建备份目录失败: %v", err)
 		return
 	}
-	entries, err := os.ReadDir(".")
+	backupRoot, err := os.OpenRoot(e.backupDir)
+	if err != nil {
+		log.Printf("[BACKUP] 打开备份目录失败: %v", err)
+		return
+	}
+	defer backupRoot.Close()
+	sourceRoot, err := os.OpenRoot(".")
+	if err != nil {
+		log.Printf("[BACKUP] 打开会话目录失败: %v", err)
+		return
+	}
+	defer sourceRoot.Close()
+	entries, err := sourceRoot.ReadDir(".")
 	if err != nil {
 		log.Printf("[BACKUP] 读取目录失败: %v", err)
 		return
@@ -42,15 +55,24 @@ func (e *Engine) backupSessionFiles() {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".session") {
 			continue
 		}
-		src := filepath.Join(".", entry.Name())
-		dst := filepath.Join(e.backupDir, entry.Name()+"_"+time.Now().Format("20060102_150405.000"))
-		data, err := os.ReadFile(src)
+		src, err := sourceRoot.Open(entry.Name())
 		if err != nil {
-			log.Printf("[BACKUP] 读取 %s 失败: %v", src, err)
+			log.Printf("[BACKUP] 读取 %s 失败: %v", entry.Name(), err)
 			continue
 		}
-		if err := os.WriteFile(dst, data, 0o600); err != nil {
-			log.Printf("[BACKUP] 写入 %s 失败: %v", dst, err)
+		dstName := entry.Name() + "_" + time.Now().Format("20060102_150405.000")
+		dst, err := backupRoot.OpenFile(dstName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			_ = src.Close()
+			log.Printf("[BACKUP] 创建 %s 失败: %v", dstName, err)
+			continue
+		}
+		_, copyErr := io.Copy(dst, src)
+		closeDstErr := dst.Close()
+		closeSrcErr := src.Close()
+		if copyErr != nil || closeDstErr != nil || closeSrcErr != nil {
+			log.Printf("[BACKUP] 写入 %s 失败: copy=%v close_dst=%v close_src=%v", dstName, copyErr, closeDstErr, closeSrcErr)
+			_ = backupRoot.Remove(dstName)
 			continue
 		}
 		backedUp++
