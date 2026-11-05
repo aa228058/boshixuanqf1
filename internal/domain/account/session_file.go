@@ -33,11 +33,21 @@ func ParseTelethonSessionFile(ctx context.Context, path string) (*storage.Sessio
 		return nil, "", "", fmt.Errorf("打开文件失败: %w", err)
 	}
 	if _, err := io.Copy(tmp, src); err != nil {
-		src.Close()
+		closeErr := src.Close()
+		if closeErr != nil {
+			return nil, "", "", fmt.Errorf("读取文件失败: %v; 关闭源文件失败: %w", err, closeErr)
+		}
 		return nil, "", "", fmt.Errorf("读取文件失败: %w", err)
 	}
-	src.Close()
-	tmp.Close()
+	if err := src.Close(); err != nil {
+		return nil, "", "", fmt.Errorf("关闭会话源文件失败: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return nil, "", "", fmt.Errorf("同步临时会话文件失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, "", "", fmt.Errorf("关闭临时会话文件失败: %w", err)
+	}
 
 	db, err := sql.Open("sqlite", tmp.Name())
 	if err != nil {
