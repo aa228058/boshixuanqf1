@@ -42,6 +42,8 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS tenants (
 			tenant_id UUID PRIMARY KEY,
+			name TEXT NOT NULL DEFAULT '',
+			api_key_hash TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'active',
 			expires_at TIMESTAMPTZ
 		)`)
@@ -83,9 +85,10 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 func seedTask(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, taskType string, priority int) uuid.UUID {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		INSERT INTO tenants (tenant_id, status, expires_at) VALUES ($1, 'active', NULL)
+		INSERT INTO tenants (tenant_id, name, api_key_hash, status, expires_at)
+		VALUES ($1, $2, $3, 'active', NULL)
 		ON CONFLICT (tenant_id) DO UPDATE SET status = 'active', expires_at = NULL
-	`, tenantID)
+	`, tenantID, tenantID.String(), tenantID.String())
 	if err != nil {
 		t.Fatalf("seed tenant: %v", err)
 	}
