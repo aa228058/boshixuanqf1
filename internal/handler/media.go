@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -75,20 +76,40 @@ func (h *MediaHandler) Upload(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "媒体目录打开失败"})
 	}
-	defer root.Close()
+	defer func() {
+		if err := root.Close(); err != nil {
+			log.Printf("[media] close upload root failed: %v", err)
+		}
+	}()
 	src, err := file.Open()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "读取上传文件失败"})
 	}
-	defer src.Close()
+	defer func() {
+		if err := src.Close(); err != nil {
+			log.Printf("[media] close upload source failed: %v", err)
+		}
+	}()
 	out, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "保存文件失败"})
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			log.Printf("[media] close uploaded file failed: %v", err)
+		}
+	}()
 	if _, err := io.Copy(out, src); err != nil {
-		_ = root.Remove(name)
+		if removeErr := root.Remove(name); removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Printf("[media] remove incomplete upload failed: %v", removeErr)
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "写入文件失败"})
+	}
+	if err := out.Sync(); err != nil {
+		if removeErr := root.Remove(name); removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Printf("[media] remove unsynced upload failed: %v", removeErr)
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]any{"error": "保存文件失败"})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"path": name})
 }
