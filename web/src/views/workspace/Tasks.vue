@@ -10,7 +10,7 @@
       <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
         <button v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
                 class="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
-                :class="typeFilter === t.value ? 'bg-cyan-glow/50 text-cyan font-medium' : 'text-text-secondary hover:bg-bg-hover'">
+                :class="typeFilter === t.value ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] font-medium' : 'text-text-secondary hover:bg-bg-hover'">
           {{ t.label }}
         </button>
       </div>
@@ -18,7 +18,7 @@
   <button v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="px-3 py-1 rounded-full text-xs transition-colors"
-    :class="range === r[0] ? 'bg-cyan text-white font-semibold shadow-sm' : 'bg-bg border border-border text-text-secondary hover:text-text-primary'">
+    :class="range === r[0] ? 'bg-[var(--t-brand)] text-white font-semibold shadow-sm' : 'bg-bg border border-border text-text-secondary hover:text-text-primary'">
     {{ r[1] }}
   </button>
 </div>
@@ -36,10 +36,10 @@
           <option value="cancelled">已取消</option>
         </select>
         <button @click="clearFinished" title="清空已完成任务"
-                class="p-2 rounded-lg bg-rose/10 text-rose hover:bg-rose/20 transition-colors">
+                class="p-2 rounded-lg bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)] transition-colors">
           <Trash2 class="w-4 h-4" />
         </button>
-        <button @click="fetchTasks" class="p-2 rounded-lg bg-cyan-glow/50 text-cyan hover:bg-cyan/20 transition-colors">
+        <button @click="fetchTasks" class="p-2 rounded-lg bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20 transition-colors">
           <RefreshCw class="w-4 h-4" />
         </button>
       </div>
@@ -84,18 +84,18 @@
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <div class="w-[120px] h-1.5 bg-bg-secondary rounded-full overflow-hidden shrink-0 flex">
-                  <div class="h-full bg-cyan transition-all duration-500" :style="{ width: donePct(row) + '%' }" />
-                  <div class="h-full bg-rose transition-all duration-500" :style="{ width: failedPct(row) + '%' }" />
+                  <div class="h-full bg-[var(--t-brand)] transition-all duration-500" :style="{ width: donePct(row) + '%' }" />
+                  <div class="h-full bg-[var(--t-err)] transition-all duration-500" :style="{ width: failedPct(row) + '%' }" />
                 </div>
-                <span v-if="progressOf(row.progress).failed > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-amber/10 text-amber whitespace-nowrap">部分失败</span>
+                <span v-if="progressOf(row.progress).failed > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] whitespace-nowrap">部分失败</span>
               </div>
               <div class="text-xs text-text-secondary whitespace-nowrap">
-                成功 <span class="text-emerald font-medium">{{ progressOf(row.progress).done }}</span>
-                / 失败 <span class="text-rose font-medium">{{ progressOf(row.progress).failed }}</span>
-                / 等待 <span class="text-amber">{{ Math.max(0, progressOf(row.progress).total - progressOf(row.progress).done - progressOf(row.progress).failed) }}</span>
+                成功 <span class="text-[var(--t-ok)] font-medium">{{ progressOf(row.progress).done }}</span>
+                / 失败 <span class="text-[var(--t-err)] font-medium">{{ progressOf(row.progress).failed }}</span>
+                / 等待 <span class="text-[var(--t-warn)]">{{ Math.max(0, progressOf(row.progress).total - progressOf(row.progress).done - progressOf(row.progress).failed) }}</span>
               </div>
               <!-- R118: 等待倒计时(仅运行中) -->
-              <div v-if="row.status === 'running' && waitInfo[row.task_id]" class="text-[11px] text-amber whitespace-nowrap">
+              <div v-if="row.status === 'running' && waitInfo[row.task_id]" class="text-[11px] text-[var(--t-warn)] whitespace-nowrap">
                 <span class="tabular-nums font-medium">{{ waitInfo[row.task_id].remaining }}s</span>
                 <span class="text-text-secondary"> · 账号 {{ accNameById(waitInfo[row.task_id].account_id) }} 等待中</span>
               </div>
@@ -106,13 +106,13 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <button v-if="row.status === 'running'" @click.stop="cancelTask(row.task_id)" class="px-2 py-1 rounded text-xs bg-rose/10 text-rose hover:bg-rose/20">停止</button>
-              <button v-if="row.status === 'failed'" @click.stop="retryTask(row.task_id)" class="px-2 py-1 rounded text-xs bg-cyan-glow/50 text-cyan hover:bg-cyan/20">重试</button>
+              <button v-if="row.status === 'running'" @click.stop="cancelTask(row.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">停止</button>
+              <button v-if="row.status === 'failed'" @click.stop="retryTask(row.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20">重试</button>
               <button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
-                      @click.stop="retryTask(row.task_id, 'failed')" class="px-2 py-1 rounded text-xs bg-amber/10 text-amber hover:bg-amber/20">重试失败 ({{ progressOf(row.progress).failed }})</button>
+                      @click.stop="retryTask(row.task_id, 'failed')" class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progressOf(row.progress).failed }})</button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
-                <button @click.stop="showAccStats(row)" class="px-2 py-1 rounded text-xs bg-ink-01 text-text-secondary hover:text-cyan hover:bg-cyan-glow/30">
+                <button @click.stop="showAccStats(row)" class="px-2 py-1 rounded text-xs bg-ink-01 text-text-secondary hover:text-[var(--t-brand)] hover:bg-[color:var(--t-brand-dim)]">
                   <BarChart3 class="w-3.5 h-3.5" />
                 </button>
               </t-tooltip>
@@ -133,26 +133,26 @@
             </span>
             <span class="text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
             <!-- R112: 执行账号列 —— 全租户汇总后标识每条任务属于哪个号 -->
-            <span v-if="accountNameOf(task)" class="text-[10.5px] px-1.5 py-0.5 rounded bg-cyan-glow/30 text-cyan whitespace-nowrap"
+            <span v-if="accountNameOf(task)" class="text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
                   :title="'执行账号: ' + accountNameOf(task)">
               {{ accountNameOf(task) }}
             </span>
           </div>
           <span class="text-xs text-text-secondary">{{ formatDate(task.created_at) }}</span>
-          <span v-if="task.status === 'queued'" class="text-xs text-amber">已等待 {{ elapsed(task.created_at) }}</span>
-          <span v-else-if="task.status === 'running'" class="text-xs text-cyan">已运行 {{ elapsed(task.created_at) }}</span>
+          <span v-if="task.status === 'queued'" class="text-xs text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
+          <span v-else-if="task.status === 'running'" class="text-xs text-[var(--t-brand)]">已运行 {{ elapsed(task.created_at) }}</span>
         </div>
         <div class="mt-2">
           <div class="flex items-center justify-between text-xs text-text-secondary mb-1">
             <span>成功 {{ progressOf(task.progress).done }} / 失败 {{ progressOf(task.progress).failed }} / 等待 {{ Math.max(0, progressOf(task.progress).total - progressOf(task.progress).done - progressOf(task.progress).failed) }}</span>
-            <span v-if="progressOf(task.progress).failed > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-amber/10 text-amber">部分失败</span>
+            <span v-if="progressOf(task.progress).failed > 0" class="px-1.5 py-0.5 rounded text-[10px] bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]">部分失败</span>
           </div>
           <div class="w-full h-1.5 bg-bg-secondary rounded-full overflow-hidden flex">
-            <div class="h-full bg-cyan transition-all duration-500" :class="task.status === 'running' ? 'bar-animated' : ''" :style="{ width: donePct(task.progress) + '%' }" />
-            <div class="h-full bg-rose transition-all duration-500" :style="{ width: failedPct(task.progress) + '%' }" />
+            <div class="h-full bg-[var(--t-brand)] transition-all duration-500" :class="task.status === 'running' ? 'bar-animated' : ''" :style="{ width: donePct(task.progress) + '%' }" />
+            <div class="h-full bg-[var(--t-err)] transition-all duration-500" :style="{ width: failedPct(task.progress) + '%' }" />
           </div>
           <!-- R118: 等待倒计时 —— 等待过程每秒可见 -->
-          <div v-if="task.status === 'running' && waitInfo[task.task_id]" class="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber">
+          <div v-if="task.status === 'running' && waitInfo[task.task_id]" class="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--t-warn)]">
             <span class="tabular-nums font-medium">{{ waitInfo[task.task_id].remaining }}s</span>
             <span class="text-text-secondary">· 账号 {{ accNameById(waitInfo[task.task_id].account_id) }} 等待中</span>
             <span v-if="waitInfo[task.task_id].total" class="text-text-muted">({{ waitInfo[task.task_id].next_index }}/{{ waitInfo[task.task_id].total }})</span>
@@ -160,12 +160,12 @@
         </div>
         <div class="mt-2 flex items-center gap-2">
           <button v-if="task.status === 'running'" @click.stop="cancelTask(task.task_id)"
-                  class="px-2 py-1 rounded text-xs bg-rose/10 text-rose hover:bg-rose/20">取消</button>
+                  class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">取消</button>
           <button v-if="task.status === 'failed'" @click.stop="retryTask(task.task_id)"
-                  class="px-2 py-1 rounded text-xs bg-cyan-glow/50 text-cyan hover:bg-cyan/20">重试</button>
+                  class="px-2 py-1 rounded text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20">重试</button>
           <button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                   @click.stop="retryTask(task.task_id, 'failed')"
-                  class="px-2 py-1 rounded text-xs bg-amber/10 text-amber hover:bg-amber/20">重试失败 ({{ progressOf(task.progress).failed }})</button>
+                  class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progressOf(task.progress).failed }})</button>
           <button @click.stop="showAccStats(task)" class="px-2 py-1 rounded text-xs bg-ink-01 text-text-secondary">统计</button>
         </div>
       </div>
@@ -188,25 +188,25 @@
         <thead>
           <tr class="text-left text-xs text-text-muted border-b border-border">
             <th class="py-2 pr-2 font-medium">执行账号</th>
-            <th class="py-2 pr-2 text-right font-medium text-emerald">成功</th>
-            <th class="py-2 pr-2 text-right font-medium text-rose">失败</th>
+            <th class="py-2 pr-2 text-right font-medium text-[var(--t-ok)]">成功</th>
+            <th class="py-2 pr-2 text-right font-medium text-[var(--t-err)]">失败</th>
             <th class="py-2 text-right font-medium">跳过</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in accStatsData" :key="row.phone" class="border-b border-border/50 row-hover">
             <td class="py-2.5 pr-2 text-text-primary">{{ row.phone }}</td>
-            <td class="py-2.5 pr-2 text-right tabular-nums text-emerald">{{ row.success }}</td>
-            <td class="py-2.5 pr-2 text-right tabular-nums text-rose">{{ row.failed }}</td>
+            <td class="py-2.5 pr-2 text-right tabular-nums text-[var(--t-ok)]">{{ row.success }}</td>
+            <td class="py-2.5 pr-2 text-right tabular-nums text-[var(--t-err)]">{{ row.failed }}</td>
             <td class="py-2.5 text-right tabular-nums text-text-secondary">{{ row.skipped }}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr class="text-text-primary font-medium">
             <td class="py-2.5 pr-2">合计</td>
-            <td class="py-2.5 pr-2 text-right tabular-nums text-emerald">
+            <td class="py-2.5 pr-2 text-right tabular-nums text-[var(--t-ok)]">
               {{ accStatsData.reduce((s, r) => s + r.success, 0) }}</td>
-            <td class="py-2.5 pr-2 text-right tabular-nums text-rose">
+            <td class="py-2.5 pr-2 text-right tabular-nums text-[var(--t-err)]">
               {{ accStatsData.reduce((s, r) => s + r.failed, 0) }}</td>
             <td class="py-2.5 text-right tabular-nums text-text-secondary">
               {{ accStatsData.reduce((s, r) => s + r.skipped, 0) }}</td>
@@ -395,10 +395,10 @@ async function retryTask(id: string, scope?: 'failed') {
 
 function statusClass(s: string) {
   const map: Record<string, string> = {
-    running: 'bg-cyan-glow/50 text-cyan', queued: 'bg-amber/10 text-amber',
-    completed: 'bg-emerald/10 text-emerald', failed: 'bg-rose/10 text-rose',
+    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
+    completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]', failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]',
     cancelled: 'bg-text-muted/15 text-text-muted', paused: 'bg-text-muted/15 text-text-muted',
-    pending: 'bg-amber/10 text-amber'
+    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'
   }
   return map[s] || 'bg-text-muted/15 text-text-muted'
 }
@@ -421,7 +421,7 @@ function taskTypeLabel(t: string) {
 }
 
 function progressBarClass(s: string) {
-  return s === 'failed' ? 'bg-rose' : s === 'completed' ? 'bg-emerald' : 'bg-cyan'
+  return s === 'failed' ? 'bg-[var(--t-err)]' : s === 'completed' ? 'bg-[var(--t-ok)]' : 'bg-[var(--t-brand)]'
 }
 
 
