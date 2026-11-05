@@ -755,11 +755,6 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		// Create a cancellable context for this specific task
 		taskCtx, cancel := context.WithCancel(ctx)
 		e.taskCtxs.Store(taskKey, cancel)
-		defer func() {
-			cancel()
-			e.taskCtxs.Delete(taskKey)
-		}()
-
 		// Check if task was cancelled before starting
 		freshTask, err := e.repo.GetByID(ctx, task.TenantID, task.TaskID)
 		if err != nil {
@@ -771,9 +766,52 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 			taskLog.Printf("[task] 任务启动前查询为空，暂不执行 %s", task.TaskID)
 			return
 		}
-		if freshTask.Status == domain.TaskStatusCancelled {
+		if freshTask.Status != domain.TaskStatusRunning || freshTask.WorkerID == nil || *freshTask.WorkerID != e.workerID {
+			taskLog.Printf("[task] 任务执行权已变化，跳过旧认领 task=%s status=%s", task.TaskID, freshTask.Status)
 			return
 		}
+
+		// 续租任务锁，避免长任务运行超过锁超时后被其他 worker 重复认领。
+		leaseDuration := time.Duration(e.cfg.TaskLockTimeoutMin) * time.Minute
+		if leaseDuration <= 0 {
+			leaseDuration = 5 * time.Minute
+		}
+		heartbeatInterval := leaseDuration / 3
+		if heartbeatInterval > time.Minute {
+			heartbeatInterval = time.Minute
+		}
+		if heartbeatInterval < 5*time.Second {
+			heartbeatInterval = 5 * time.Second
+		}
+		heartbeatDone := make(chan struct{})
+		safego.Go(func() {
+			defer close(heartbeatDone)
+			ticker := time.NewTicker(heartbeatInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-taskCtx.Done():
+					return
+				case <-ticker.C:
+					owned, refreshErr := e.repo.RefreshTaskLock(taskCtx, task.TenantID, task.TaskID, e.workerID)
+					if refreshErr != nil {
+						taskLog.Printf("[task] 续租任务锁失败，取消执行 task=%s: %v", task.TaskID, refreshErr)
+						cancel()
+						return
+					}
+					if !owned {
+						taskLog.Printf("[task] 任务锁已被其他 worker 接管，取消旧执行 task=%s", task.TaskID)
+						cancel()
+						return
+					}
+				}
+			}
+		})
+		defer func() {
+			cancel()
+			<-heartbeatDone
+			e.taskCtxs.Delete(taskKey)
+		}()
 
 		e.executeTask(taskCtx, task)
 	})
