@@ -50,7 +50,7 @@
         </select>
         <select v-model="filters.status" class="px-3 py-2 rounded-lg text-sm bg-bg-card" @change="search">
           <option value="">全部状态</option>
-          <option value="active">可加入</option>
+          <option value="active">可用链接 / 待验证</option>
                     <option value="invalid">已失效</option>
         </select>
         <select v-model="filters.source" class="px-3 py-2 rounded-lg text-sm bg-bg-card" @change="search">
@@ -87,6 +87,7 @@
               </div>
               <div class="text-[10.5px] text-text-muted truncate mt-0.5">{{ row.tme_link || row.username }}</div>
               <div class="text-[10.5px] text-text-muted mt-0.5">{{ Number(row.member_count).toLocaleString() }} 成员</div>
+              <div v-if="row.contributor_name" class="text-[10.5px] text-text-muted mt-0.5">贡献者：{{ row.contributor_name }}</div>
             </div>
             <span v-if="row.source" class="text-[10px] text-text-muted/70 shrink-0 whitespace-nowrap">{{ sourceLabel(row.source) }}</span>
           </div>
@@ -132,6 +133,9 @@
                未加入的群在标题行内已有"可加入"入口标识 -->
           <template #source="{ row }">
             <span class="text-xs text-text-secondary whitespace-nowrap">{{ sourceLabel(row.source) }}</span>
+          </template>
+          <template #contributor_name="{ row }">
+            <span class="text-xs text-text-secondary">{{ row.contributor_name || "—" }}</span>
           </template>
           <template #last_seen_at="{ row }">
             <span class="text-xs text-text-muted whitespace-nowrap">{{ fmtTime(row.last_seen_at) }}</span>
@@ -401,6 +405,7 @@ const tableCols = [
   { colKey: 'member_count', title: '成员', width: 70 },
   // R87-M8: 删除"状态"列(已加入标识对租户是误导, 切账号后不跟随)
   { colKey: 'source', title: '来源', width: 110 },
+  { colKey: 'contributor_name', title: '最早贡献者', width: 120 },
   { colKey: 'last_seen_at', title: '最近收录', width: 132 },
 ]
 
