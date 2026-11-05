@@ -98,7 +98,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	// 策略: 全部先占位入库, 群名交给后台解析器(resolver.go)低速补齐。
 	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
-		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link}
+		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link, ContributorTenantID: tenantID}
 		if en.private {
 			sg.GType = "private"
 		} else {
