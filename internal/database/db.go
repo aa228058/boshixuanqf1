@@ -27,7 +27,9 @@ func New(ctx context.Context, cfg *config.Config) (*DB, error) {
 	if cfg.DBMaxIdle < 0 || cfg.DBMaxIdle > cfg.DBMaxConns {
 		return nil, fmt.Errorf("DB_MAX_IDLE must be between 0 and DB_MAX_CONNS")
 	}
+	// #nosec G115 -- DBMaxConns is checked against MaxInt32 immediately above.
 	poolCfg.MaxConns = int32(cfg.DBMaxConns)
+	// #nosec G115 -- DBMaxIdle is non-negative and bounded by the validated DBMaxConns.
 	poolCfg.MinConns = int32(cfg.DBMaxIdle)
 	poolCfg.MaxConnLifetime = cfg.DBMaxLife
 	poolCfg.MaxConnIdleTime = cfg.DBMaxIdleTime
