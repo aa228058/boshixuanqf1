@@ -393,7 +393,7 @@ onUnmounted(() => {
   flex-direction: row !important;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: var(--t-space-2);
   flex-wrap: nowrap;
 }
 :deep(.t-dialog__footer .t-button) {
@@ -403,6 +403,6 @@ onUnmounted(() => {
 }
 /* toast 浮在弹窗遮罩之上, 保存成功提示不被盖住 */
 :deep(.t-message) {
-  z-index: 3500;
+  z-index: var(--t-z-message);
 }
 </style>
