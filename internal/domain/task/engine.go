@@ -762,7 +762,16 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 
 		// Check if task was cancelled before starting
 		freshTask, err := e.repo.GetByID(ctx, task.TenantID, task.TaskID)
-		if err == nil && freshTask.Status == domain.TaskStatusCancelled {
+		if err != nil {
+			// 无法确认任务是否已被取消时必须失败关闭，避免继续执行已取消任务。
+			taskLog.Printf("[task] 无法确认任务启动前状态，暂不执行 %s: %v", task.TaskID, err)
+			return
+		}
+		if freshTask == nil {
+			taskLog.Printf("[task] 任务启动前查询为空，暂不执行 %s", task.TaskID)
+			return
+		}
+		if freshTask.Status == domain.TaskStatusCancelled {
 			return
 		}
 
