@@ -170,7 +170,7 @@ onUnmounted(() => {
 /* ===== 运行中进度条流光 ===== */
 @keyframes bar-shimmer { to { background-position: -200% 0; } }
 .bar-animated {
-  background-image: linear-gradient(90deg, currentColor 0%, rgb(255 255 255 / .35) 50%, currentColor 100%);
+  background-image: linear-gradient(90deg, currentColor 0%, var(--t-shimmer-highlight) 50%, currentColor 100%);
   background-size: 200% 100%;
   animation: bar-shimmer 1.6s linear infinite;
 }
@@ -244,7 +244,7 @@ button { transition: transform .12s ease, background-color .2s ease, color .2s e
 .skeleton-shimmer { position: relative; overflow: hidden; background: var(--t-surface-2); }
 .skeleton-shimmer::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / .06), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--t-brand-ink) 6%, transparent), transparent);
   transform: translateX(-100%); animation: shimmer-slide 1.6s infinite;
 }
 @keyframes shimmer-slide { to { transform: translateX(100%); } }
