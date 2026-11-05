@@ -1486,7 +1486,7 @@ func (h *AccountHandler) TransferGroups(c echo.Context) error {
 	}
 
 	if h.auditRepo != nil {
-		_ = h.auditRepo.Create(ctx, &domain.AuditLog{
+		if err := h.auditRepo.Create(ctx, &domain.AuditLog{
 			LogID:     uuid.New(),
 			TenantID:  tenantID,
 			UserID:    tenantID.String(),
@@ -1494,7 +1494,9 @@ func (h *AccountHandler) TransferGroups(c echo.Context) error {
 			Target:    fmt.Sprintf("source=%s target=%s groups=%d", sourceID, targetID, len(export.Links)),
 			IP:        c.RealIP(),
 			CreatedAt: time.Now(),
-		})
+		}); err != nil {
+			log.Printf("[audit] 记录群转移操作失败 tenant=%s: %v", tenantID, err)
+		}
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
