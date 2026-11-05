@@ -64,11 +64,25 @@
     <Modal v-model="showCreate" title="新建加群任务">
     <div class="space-y-4">
       <!-- R108: 执行账号选择(普通号模式) —— 不再依赖顶栏切换器 -->
-      <div>
+      <div v-if="joinMode === 'invite'">
         <label class="block text-sm font-medium mb-2">执行账号</label>
         <select v-model="phoneAccId" class="input-box w-full h-10 px-3 text-sm rounded-lg">
           <option v-for="a in onlineAccounts" :key="a.account_id" :value="a.account_id">{{ a.first_name || a.phone }}</option>
         </select>
+      </div>
+      <div v-else class="space-y-2">
+        <div class="flex items-center justify-between"><label class="block text-sm font-medium">执行账号（可多选）</label><span class="text-xs text-text-muted">已选 {{ joinAccounts.length }} 个在线账号</span></div>
+        <div class="max-h-36 overflow-y-auto rounded-lg border border-border p-2 space-y-1">
+          <label v-for="a in onlineAccounts" :key="a.account_id" class="flex items-center gap-2 p-2 rounded hover:bg-bg-hover cursor-pointer">
+            <input type="checkbox" :value="a.account_id" v-model="joinAccounts" class="accent-[var(--t-brand)]" />
+            <span class="text-sm">{{ a.remark || a.first_name || a.phone }}</span><span class="text-xs text-text-muted ml-auto">{{ a.phone }}</span>
+          </label>
+          <p v-if="!onlineAccounts.length" class="text-xs text-text-muted text-center py-3">没有在线账号，请先启动账号。</p>
+        </div>
+        <div v-if="joinAccounts.length > 1" class="space-y-1">
+          <label class="block text-xs text-text-secondary">多账号分配方式</label>
+          <select v-model="joinDistribution" class="input-box w-full h-9 px-3 text-sm rounded-lg"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
+        </div>
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
       <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 mb-4" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
@@ -182,7 +196,12 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 const showCreate = ref(false)
 // R108: 手机号模式的执行账号(默认当前账号, 可下拉改选, 不必切换顶栏)
 const phoneAccId = ref('')
-watch(currentAccount, (acc: any) => { if (acc?.account_id && !phoneAccId.value) phoneAccId.value = acc.account_id }, { immediate: true })
+const joinAccounts = ref<string[]>([])
+const joinDistribution = ref<'all' | 'round_robin'>('round_robin')
+watch(currentAccount, (acc: any) => {
+  if (acc?.account_id && !phoneAccId.value) phoneAccId.value = acc.account_id
+  if (acc?.account_id && joinAccounts.value.length === 0) joinAccounts.value = [acc.account_id]
+}, { immediate: true })
 const onlineAccounts = computed(() => (accountStore.accounts || []).filter((a: any) => a.status === 'online'))
 const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
@@ -360,8 +379,8 @@ async function submit() {
     }
     return
   }
-  if (!phoneAccId.value) {
-    toast({ type: 'warning', title: '请选择执行账号' })
+  if (joinAccounts.value.length === 0) {
+    toast({ type: 'warning', title: '请至少选择一个执行账号' })
     return
   }
   if (validLinks.value.length === 0) {
@@ -370,17 +389,23 @@ async function submit() {
   }
   submitting.value = true
   try {
-    await taskApi.create({
-      type: 'join_groups',
-      account_id: phoneAccId.value,
-      links: validLinks.value,
-      interval_min_minutes: joinIntervalMin.value || undefined,
-      interval_max_minutes: joinIntervalMax.value || undefined,
-    })
-    // 创建后留在本页: 关闭模态框, 列表与实时面板立即出现新任务
+    const links = [...new Set(validLinks.value)]
+    const assignments = joinDistribution.value === 'round_robin' && joinAccounts.value.length > 1
+      ? joinAccounts.value.map((accountId, accountIndex) => ({ accountId, links: links.filter((_, linkIndex) => linkIndex % joinAccounts.value.length === accountIndex) })).filter(x => x.links.length > 0)
+      : joinAccounts.value.map(accountId => ({ accountId, links }))
+    let created = 0
+    const errors: string[] = []
+    for (const assignment of assignments) {
+      try {
+        await taskApi.create({ type: 'join_groups', account_id: assignment.accountId, links: assignment.links,
+          interval_min_minutes: joinIntervalMin.value || undefined, interval_max_minutes: joinIntervalMax.value || undefined })
+        created++
+      } catch (err: any) { errors.push(err?.message || '任务创建失败') }
+    }
+    if (created === 0) throw new Error(errors[0] || '所有账号任务创建失败')
     linksInput.value = ''
     showCreate.value = false
-    toast({ type: 'success', title: '加群任务已创建', message: validLinks.value.length + ' 个目标已排队' })
+    toast({ type: errors.length ? 'warning' : 'success', title: '已创建 ' + created + '/' + assignments.length + ' 个加群任务', message: (joinDistribution.value === 'round_robin' ? '链接已按账号均分' : '每个账号执行全部链接') + (errors.length ? '；失败：' + errors.join('；') : '') })
     fetchTasks()
   } catch (e: any) {
     toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
