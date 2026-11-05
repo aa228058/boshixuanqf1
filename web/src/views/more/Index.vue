@@ -68,13 +68,7 @@ const groups = computed(() => {
       { path: '/help', label: '帮助中心', desc: '常见问题与指引', icon: HelpCircle },
     ]},
   ]
-  // 管理员追加管理端分组
-  if (authStore.isAdmin || String(authStore.tenant?.role) === 'admin') {
-    base.push({ label: '管理后台', items: [
-      { path: '/admin/dashboard', label: '运营总览', desc: '平台数据一览', icon: Megaphone },
-      { path: '/admin/tenants', label: '租户管理', desc: '租户与套餐', icon: KeyRound },
-    ]})
-  }
+  // 管理后台使用独立管理员登录入口，不根据租户资料推断管理员身份。
   return base
 })
 
