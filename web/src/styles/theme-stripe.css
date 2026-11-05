@@ -44,16 +44,10 @@ html.theme-stripe {
   --surf-01: color-mix(in srgb, var(--t-text-1) 9%, transparent);
   --surf-016: color-mix(in srgb, var(--t-text-1) 14%, transparent);
   --surf-02: color-mix(in srgb, var(--t-text-1) 18%, transparent);
-  /* Spacing tokens per spec: 2/4/8/12/16/24/32/64 */
-  --sp-xxs: 2px; --sp-xs: 4px; --sp-sm: 8px; --sp-md: 12px;
-  --sp-lg: 16px; --sp-xl: 24px; --sp-xxl: 32px; --sp-huge: 64px;
-
   /* Elevation per spec — rgba(0,55,112,…) blue-tinted shadows */
   --elev-1: rgba(0, 55, 112, 0.08) 0 1px 3px;
   --elev-2: rgba(0, 55, 112, 0.08) 0 8px 24px, rgba(0, 55, 112, 0.04) 0 2px 6px;
 
-  /* Radius scale per spec */
-  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 9999px;
 }
 
 /* P1-18 审计修复: 原 theme-stripe 用 --sp-* 变量覆盖 main 的 padding——
