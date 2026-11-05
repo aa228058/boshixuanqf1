@@ -832,10 +832,27 @@ func (s *TaskService) Cancel(ctx context.Context, tenantID, taskID uuid.UUID) er
 	if !validTransitions[task.Status][domain.TaskStatusCancelled] {
 		return fmt.Errorf("cannot cancel task with status %s", task.Status)
 	}
+
+	// Compare-and-set: a task may finish after the read above. Never let a late
+	// cancellation overwrite completed/failed, and never report success on a no-op.
+	cancelled, err := s.repo.CancelIfActive(ctx, tenantID, taskID)
+	if err != nil {
+		return err
+	}
+	if !cancelled {
+		fresh, getErr := s.repo.GetByID(ctx, tenantID, taskID)
+		if getErr != nil {
+			return getErr
+		}
+		if fresh.Status == domain.TaskStatusCancelled {
+			return nil
+		}
+		return fmt.Errorf("cannot cancel task with status %s", fresh.Status)
+	}
 	if s.engine != nil {
 		s.engine.CancelTask(taskID)
 	}
-	return s.repo.UpdateStatus(ctx, tenantID, taskID, domain.TaskStatusCancelled)
+	return nil
 }
 
 // Retry retries a failed task.
