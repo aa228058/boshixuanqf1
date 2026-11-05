@@ -938,7 +938,7 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 JSON 附件 %q 失败: %v", zf.Name, openErr))
 					}
 					data, readErr := io.ReadAll(io.LimitReader(rc, (1<<20)+1))
-					closeErr := logImportClose("archive entry", rc)
+					closeErr := rc.Close()
 					if readErr != nil || closeErr != nil {
 						if readErr != nil {
 							return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 JSON 附件 %q 失败: %v", zf.Name, readErr))
@@ -1064,7 +1064,7 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				}
 				written, cerr := io.Copy(dest, io.LimitReader(in, (10<<20)+1))
 				logImportClose("extracted session source", in)
-				closeErr := logImportClose("extracted session destination", dest)
+				closeErr := dest.Close()
 				if cerr != nil || closeErr != nil || written > 10<<20 {
 					logImportRemove(dest.Name())
 					if cerr != nil {
