@@ -10,7 +10,7 @@
         { label: '未激活', value: 'inactive' },
         { label: '已停用', value: 'suspended' }
       ]" class="w-24 shrink-0" />
-      <input v-model="search" placeholder="搜索租户..." class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm flex-1 min-w-[100px]" aria-label="租户..." />
+      <input v-model="search" placeholder="搜索租户..." class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm flex-1 min-w-[100px]" aria-label="租户..." />
     </div>
 
     <!-- 桌面端表格 -->
@@ -43,8 +43,8 @@
               </button>
             </t-tooltip>
             <t-tooltip content="删除" position="top">
-              <button @click="confirmDelete(row as any)" class="p-1.5 rounded hover:bg-rose/10" aria-label="删除">
-                <Trash2 class="w-4 h-4 text-text-muted hover:text-rose" />
+              <button @click="confirmDelete(row as any)" class="p-1.5 rounded hover:bg-[color:var(--t-err-dim)]" aria-label="删除">
+                <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
               </button>
             </t-tooltip>
           </div>
@@ -82,8 +82,8 @@
               </button>
             </t-tooltip>
             <t-tooltip content="删除" position="top">
-              <button @click="confirmDelete(t)" class="p-2 rounded-lg hover:bg-rose/10 min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="删除">
-                <Trash2 class="w-4 h-4 text-text-muted hover:text-rose" />
+              <button @click="confirmDelete(t)" class="p-2 rounded-lg hover:bg-[color:var(--t-err-dim)] min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="删除">
+                <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
               </button>
             </t-tooltip>
           </div>
@@ -97,15 +97,15 @@
       <div class="space-y-4">
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">租户名称</label>
-          <input v-model="createForm.name" placeholder="请输入租户名称" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="请输入租户名称" />
+          <input v-model="createForm.name" placeholder="请输入租户名称" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="请输入租户名称" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">登录用户名</label>
-          <input v-model="createForm.username" placeholder="租户登录用的用户名" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="租户登录用的用户名" />
+          <input v-model="createForm.username" placeholder="租户登录用的用户名" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="租户登录用的用户名" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">登录密码</label>
-          <input v-model="createForm.password" type="password" placeholder="租户登录用的密码" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="租户登录用的密码" />
+          <input v-model="createForm.password" type="password" placeholder="租户登录用的密码" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="租户登录用的密码" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">套餐</label>
