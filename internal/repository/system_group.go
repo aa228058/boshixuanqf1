@@ -57,7 +57,7 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 		if link != "" {
 			linkType := "public"
 			if strings.Contains(link, "/+") || strings.Contains(link, "/joinchat/") { linkType = "private_invite" }
-			_, err = r.db.Exec(ctx, "INSERT INTO system_group_links (sg_id,original_link,normalized_link,link_type,validity_status,source) VALUES ($1,$2,$3,$4,'pending',$5) ON CONFLICT (normalized_link) DO NOTHING", sgID, sg.TmeLink, link, linkType, sg.Source)
+			_, err = r.db.Exec(ctx, "INSERT INTO system_group_links (sg_id,original_link,normalized_link,link_type,validity_status,source,last_verified_at) VALUES ($1,$2,$3,$4,CASE WHEN $6<>'' OR $7>0 OR $8<>0 THEN 'valid' ELSE 'pending' END,$5,CASE WHEN $6<>'' OR $7>0 OR $8<>0 THEN NOW() ELSE NULL END) ON CONFLICT (normalized_link) DO UPDATE SET validity_status=CASE WHEN EXCLUDED.validity_status='valid' THEN 'valid' ELSE system_group_links.validity_status END,last_verified_at=COALESCE(EXCLUDED.last_verified_at,system_group_links.last_verified_at)", sgID, sg.TmeLink, link, linkType, sg.Source, sg.Title, sg.MemberCount, sg.TelegramChatID)
 			if err != nil { return err }
 			_, err = r.db.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source) SELECT $1,tenant_id,name,$2,$3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", sgID, sg.TmeLink, sg.Source, sg.ContributorTenantID)
 			if err != nil { return err }
