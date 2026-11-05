@@ -56,7 +56,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./web
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Design token guard
         working-directory: ./web
