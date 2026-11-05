@@ -47,7 +47,8 @@
                 <span v-else class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-text-muted/10 text-text-muted">全部账号</span>
               </div>
               <div class="text-xs mt-1" style="color: var(--t-text-3);">
-                匹配: {{ matchTypeLabel(rule.match_type) }} | 动作: {{ actionLabel(rule.type) }}{{ rule.type === 'dm' ? dmSummary(rule) : '' }}
+                来源: {{ !(rule.source_chat_ids || []).length ? '全部消息' : (rule.source_chat_ids || []).length + ' 个指定群组' }}
+                | 匹配: {{ matchTypeLabel(rule.match_type) }} | 动作: {{ actionLabel(rule.type) }}{{ rule.type === 'dm' ? dmSummary(rule) : '' }}
                 <span v-if="rule.keywords"> | 关键词: {{ rule.keywords }}</span>
               </div>
             </div>
