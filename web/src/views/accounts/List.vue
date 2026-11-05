@@ -238,11 +238,11 @@
                     style="background: var(--t-surface-2); color: var(--t-text-2);"
                     aria-label="更多操作">更多</button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
-            <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-40 sm:hidden"
+            <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
             <!-- 更多菜单(R141): 移动端 = 底部 ActionSheet(圆角上提, 遮罩关闭); 桌面端 = 向上弹出菜单 -->
             <div v-if="openMenuId === acc?.account_id"
-                 class="acc-menu absolute right-0 bottom-full mb-1 w-44 z-50 py-1.5 rounded-xl"
+                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1 sm:w-44 sm:z-50"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
               <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
@@ -2014,6 +2014,28 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 }
 
 /* R176: "更多"菜单 = 锚定按钮上方的小弹层(全平台一致, 与桌面端相同体验) */
-.acc-menu { border-radius: 12px; max-height: 65vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-@media (min-width: 640px) { .acc-menu { border-radius: 12px; } }
+.acc-menu {
+  left: 12px;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  width: auto;
+  max-height: min(68dvh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .28);
+}
+@media (min-width: 640px) {
+  .acc-menu {
+    left: auto;
+    right: 0;
+    bottom: 100%;
+    width: 11rem;
+    max-height: 65vh;
+    margin-bottom: .25rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+  }
+}
 </style>
