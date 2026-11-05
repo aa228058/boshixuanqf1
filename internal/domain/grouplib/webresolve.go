@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	metaTagRe   = regexp.MustCompile(\`(?is)<meta\\b[^>]*>\`)
-	attrRe      = regexp.MustCompile(\`(?is)([a-z_:][-a-z0-9_:]*)\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))\`)
-	htmlTitleRe = regexp.MustCompile(\`(?is)<title[^>]*>(.*?)</title>\`)
-	pageExtraRe = regexp.MustCompile(\`(?is)<[^>]+class=["'][^"']*tgme_page_extra[^"']*["'][^>]*>(.*?)</[^>]+>\`)
-	htmlTagRe   = regexp.MustCompile(\`<[^>]+>\`)
-	digitsRe    = regexp.MustCompile(\`[0-9][0-9\\s,.\\x{00a0}\\x{202f}]*\`)
+	metaTagRe   = regexp.MustCompile(`(?is)<meta\b[^>]*>`)
+	attrRe      = regexp.MustCompile(`(?is)([a-z_:][-a-z0-9_:]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+	htmlTitleRe = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+	pageExtraRe = regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*tgme_page_extra[^"']*["'][^>]*>(.*?)</[^>]+>`)
+	htmlTagRe   = regexp.MustCompile(`<[^>]+>`)
+	digitsRe    = regexp.MustCompile(`[0-9][0-9\s,.\x{00a0}\x{202f}]*`)
 )
 
 const telegramMobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
