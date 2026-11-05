@@ -82,6 +82,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			}
 			if resolveErr == nil && (webTitle!="" || webCount>0) {
 				title,count,gtype,chatID = webTitle,webCount,p.gtype,0
+				if p.gtype=="unknown" { gtype="public" }
 			}
 		}
 		if resolveErr != nil {
