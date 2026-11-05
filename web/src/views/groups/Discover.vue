@@ -5,7 +5,7 @@
       <div>
         <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
         <p class="text-xs text-text-secondary mt-1">
-          群组大厅汇聚全平台采集到的私密/公开群、已加入的公开群和从成员简介里发现的群；勾选后可批量加入。
+          所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -51,14 +51,12 @@
         <select v-model="filters.status" class="px-3 py-2 rounded-lg text-sm bg-bg-card" @change="search">
           <option value="">全部状态</option>
           <option value="active">可加入</option>
-          <option value="joined">已加入</option>
-          <option value="invalid">已失效</option>
+                    <option value="invalid">已失效</option>
         </select>
         <select v-model="filters.source" class="px-3 py-2 rounded-lg text-sm bg-bg-card" @change="search">
           <option value="">全部来源</option>
           <option value="scraped">链接采集</option>
-          <option value="joined">已加入公开群</option>
-          <option value="bio">简介里发现</option>
+                    <option value="bio">简介里发现</option>
         </select>
         <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
         <t-button size="small" theme="primary" @click="search">群库内搜索</t-button>
@@ -88,7 +86,7 @@
                 </span>
               </div>
               <div class="text-[10.5px] text-text-muted truncate mt-0.5">{{ row.tme_link || row.username }}</div>
-              <div class="text-[10.5px] text-text-muted mt-0.5">{{ Number(row.member_count).toLocaleString() }} 成员 · 热度 {{ row.heat }}</div>
+              <div class="text-[10.5px] text-text-muted mt-0.5">{{ Number(row.member_count).toLocaleString() }} 成员</div>
             </div>
             <span v-if="row.source" class="text-[10px] text-text-muted/70 shrink-0 whitespace-nowrap">{{ sourceLabel(row.source) }}</span>
           </div>
@@ -146,7 +144,7 @@
                 </svg>
               </div>
               <p class="text-sm">群库还是空的</p>
-              <p class="text-xs">先去任意账号的 TG 里加一些群，群库会自动采集</p>
+              <p class="text-xs">导入公开链接或邀请链接，帮助所有租户共同完善群组资料</p>
             </div>
           </template>
         </t-table>
@@ -186,11 +184,11 @@
           <div v-for="(f, i) in importResult.failed.slice(0, 5)" :key="i" class="text-text-muted truncate">{{ f }}</div>
           <div v-if="importResult.failed.length > 5" class="text-text-muted">…… 共 {{ importResult.failed.length }} 条失败</div>
         </div>
-        <div class="flex justify-end gap-2 pt-2 sticky bottom-0 pb-[env(safe-area-inset-bottom)]" style="background: var(--t-modal-bg);">
-          <t-button size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
-          <t-button size="small" theme="primary" :loading="importing" @click="doImport">开始导入</t-button>
-        </div>
       </div>
+      <template #footer>
+        <t-button size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
+        <t-button size="small" theme="primary" :loading="importing" @click="doImport">开始导入</t-button>
+      </template>
     </Modal>
 
     <!-- 选账号弹层(子弹层, 保持传统模态) -->
@@ -362,7 +360,6 @@ const tableCols = [
   { colKey: 'member_count', title: '成员', width: 70 },
   // R87-M8: 删除"状态"列(已加入标识对租户是误导, 切账号后不跟随)
   { colKey: 'source', title: '来源', width: 110 },
-  { colKey: 'ref_count', title: '热度', width: 76 },
   { colKey: 'last_seen_at', title: '最近收录', width: 132 },
 ]
 
@@ -375,10 +372,10 @@ function gtypeLabel(t: string) {
   return t === 'private' ? '私密群' : t === 'channel' ? '频道' : t === 'public' ? '公开群' : '未知'
 }
 function statusLabel(s: string) {
-  return s === 'joined' ? '已加入' : s === 'invalid' ? '已失效' : '可加入'
+  return s === 'invalid' ? '链接无效' : '待验证'
 }
 function sourceLabel(s: string) {
-  return s === 'joined' ? '已加入公开群' : s === 'bio' ? '简介里发现' : '链接采集'
+  return s === 'bio' ? '简介发现' : s === 'import' ? '手动/文件导入' : s === 'search' ? 'Telegram 搜索' : '链接采集'
 }
 function fmtTime(t: string) {
   if (!t) return '—'
