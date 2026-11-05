@@ -7,7 +7,7 @@
       </div>
       <div class="flex items-center gap-2 shrink-0 ml-auto">
         <button v-if="tasks.length" @click="clearLogs"
-                class="px-3 py-2 rounded-lg text-sm text-rose/70 border border-rose/20 hover:bg-rose/10 hover:text-rose transition-colors flex items-center gap-2">
+                class="px-3 py-2 rounded-lg text-sm text-[var(--t-err)]/70 border border-[color:var(--t-err)]/20 hover:bg-[color:var(--t-err-dim)] hover:text-[var(--t-err)] transition-colors flex items-center gap-2">
           <Trash2 class="w-4 h-4" />
           清空记录
         </button>
@@ -26,7 +26,7 @@
           <button v-for="a in accountStore.accounts" :key="a.account_id" type="button"
                   @click="scrapeAccId = a.account_id"
                   class="px-3 py-1.5 rounded-full border text-xs transition-colors"
-                  :class="scrapeAccId === a.account_id ? 'border-cyan text-cyan bg-cyan/10' : 'border-border text-text-secondary hover:border-cyan/30'">
+                  :class="scrapeAccId === a.account_id ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[color:var(--t-brand-dim)]' : 'border-border text-text-secondary hover:border-[color:var(--t-brand)]/30'">
             {{ accName(a) }}
           </button>
         </div>
@@ -34,7 +34,7 @@
       <div>
         <label class="block text-sm font-medium mb-2">选择要采集的群组</label>
         <div @click="showGroupSelector = true"
-             class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-cyan/30 transition-colors">
+             class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
           <MessageSquare class="w-5 h-5 text-text-muted" />
           <span v-if="!selectedGroup" class="text-text-muted">点击选择群组</span>
           <span v-else class="text-sm">{{ selectedGroup.title }} ({{ selectedGroup.member_count }} 成员)</span>
@@ -45,12 +45,12 @@
         <div class="flex gap-2 mb-1.5">
           <button type="button" @click="scrapeMode = 'members'"
             class="flex-1 px-3 py-2 rounded-lg border text-sm transition-colors"
-            :class="scrapeMode === 'members' ? 'border-cyan text-cyan bg-cyan/5' : 'border-border text-text-secondary'">
+            :class="scrapeMode === 'members' ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[var(--t-brand)]/5' : 'border-border text-text-secondary'">
             普通成员列表
           </button>
           <button type="button" @click="scrapeMode = 'history'"
             class="flex-1 px-3 py-2 rounded-lg border text-sm transition-colors"
-            :class="scrapeMode === 'history' ? 'border-cyan text-cyan bg-cyan/5' : 'border-border text-text-secondary'">
+            :class="scrapeMode === 'history' ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[var(--t-brand)]/5' : 'border-border text-text-secondary'">
             历史消息活跃用户
           </button>
         </div>
@@ -68,11 +68,11 @@
       <!-- 采集过滤: 死号/无头像不入库(仅普通模式) -->
       <div v-if="scrapeMode === 'members'" class="space-y-2 pt-1">
         <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" v-model="filterRecent" class="accent-cyan" />
+          <input type="checkbox" v-model="filterRecent" class="accent-[var(--t-brand)]" />
           仅最近上线
           <!-- 天数选择: 原生 select 移动端自动唤起系统滚轮, 零依赖零报错 -->
           <select v-if="filterRecent" v-model.number="filterRecentDays"
-                  class="bg-bg-card border border-border rounded px-2 py-0.5 text-xs text-cyan appearance-none cursor-pointer">
+                  class="bg-bg-card border border-border rounded px-2 py-0.5 text-xs text-[var(--t-brand)] appearance-none cursor-pointer">
             <option :value="3">3 天内</option>
             <option :value="7">7 天内</option>
             <option :value="30">30 天内</option>
@@ -80,7 +80,7 @@
           <span class="text-xs text-text-muted">滤掉长期离线的死号</span>
         </label>
         <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" v-model="filterPhoto" class="accent-cyan" />
+          <input type="checkbox" v-model="filterPhoto" class="accent-[var(--t-brand)]" />
           仅带头像用户
           <span class="text-xs text-text-muted">无头像多为小号/机器号</span>
         </label>
@@ -98,17 +98,17 @@
     <!-- 采集任务列表 -->
     <div class="space-y-3">
       <div v-if="taskLoading" class="py-12 text-center">
-        <div class="animate-spin w-6 h-6 border-2 border-cyan border-t-transparent rounded-full mx-auto mb-3" />
+        <div class="animate-spin w-6 h-6 border-2 border-[color:var(--t-brand)] border-t-transparent rounded-full mx-auto mb-3" />
         <p class="text-sm text-text-muted">加载中...</p>
       </div>
       <EmptyState v-else-if="!tasks.length" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
-           class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-cyan/30" :style="{ '--i': ti }">
+           class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
         <div class="flex items-center justify-between gap-3 cursor-pointer" @click="toggleExpand(task.task_id)">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-amber-glow/30 flex items-center justify-center shrink-0">
-              <Users class="w-5 h-5 text-amber" />
+            <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-[color:var(--t-warn-dim)] flex items-center justify-center shrink-0">
+              <Users class="w-5 h-5 text-[var(--t-warn)]" />
             </div>
             <div class="min-w-0">
               <div class="text-sm font-medium truncate">{{ task.config?.group_title || '成员采集' }} #{{ task.task_id?.slice(-6) }}</div>
@@ -120,8 +120,8 @@
                 <span v-else-if="task.status === 'completed'">点击展开查看结果</span>
                 <!-- R112: 导出前置 —— 完成后无需展开即可导出名单 -->
                 <template v-if="task.status === 'completed'">
-                  <button @click.stop="exportCSV(task.task_id)" class="text-[10.5px] px-2 py-0.5 rounded bg-emerald/10 text-emerald border border-emerald/25 hover:bg-emerald/20 transition-colors">导出 CSV</button>
-                  <button @click.stop="exportExcel(task.task_id)" class="text-[10.5px] px-2 py-0.5 rounded bg-cyan-glow/30 text-cyan border border-cyan/25 hover:bg-cyan-glow/50 transition-colors">Excel</button>
+                  <button @click.stop="exportCSV(task.task_id)" class="text-[10.5px] px-2 py-0.5 rounded bg-[color:var(--t-ok-dim)] text-[var(--t-ok)] border border-[color:var(--t-ok)]/25 hover:bg-[var(--t-ok)]/20 transition-colors">导出 CSV</button>
+                  <button @click.stop="exportExcel(task.task_id)" class="text-[10.5px] px-2 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand)]/25 hover:bg-[color:var(--t-brand-dim)] transition-colors">Excel</button>
                 </template>
                 <span v-else>{{ task.result_count || task.config?.member_count || 0 }} 成员</span>
               </div>
@@ -129,7 +129,7 @@
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <span class="px-2 py-0.5 rounded text-xs font-medium"
-                  :class="task.status === 'completed' ? 'bg-emerald/10 text-emerald' : task.status === 'running' ? 'bg-cyan/10 text-cyan' : task.status === 'failed' ? 'bg-rose/10 text-rose' : 'bg-text-muted/10 text-text-muted'">
+                  :class="task.status === 'completed' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : task.status === 'running' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : task.status === 'failed' ? 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]' : 'bg-text-muted/10 text-text-muted'">
               {{ statusText(task.status) }}
             </span>
             <ChevronDown class="w-4 h-4 text-text-muted transition-transform" :class="expanded[task.task_id] ? 'rotate-180' : ''" />
@@ -138,10 +138,10 @@
         <div v-if="task.status === 'running' && task.progress" class="mt-2">
           <div class="flex items-center justify-between text-xs mb-1">
             <span class="text-text-secondary">进度</span>
-            <span class="text-amber">{{ progressOf(task).done }} / {{ progressOf(task).total }}</span>
+            <span class="text-[var(--t-warn)]">{{ progressOf(task).done }} / {{ progressOf(task).total }}</span>
           </div>
           <div class="h-1.5 bg-bg-card rounded-full overflow-hidden">
-            <div class="h-full bg-amber rounded-full transition-all" :style="{ width: progressPct(task) + '%' }" />
+            <div class="h-full bg-[var(--t-warn)] rounded-full transition-all" :style="{ width: progressPct(task) + '%' }" />
           </div>
         </div>
 
@@ -155,7 +155,7 @@
             </div>
             <div class="max-h-56 overflow-y-auto space-y-1">
               <div v-for="(m, idx) in members[task.task_id]" :key="idx" class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bg-hover/50 text-sm">
-                <span class="text-cyan font-mono text-xs w-32 shrink-0">{{ m.tg_user_id || m.user_id }}</span>
+                <span class="text-[var(--t-brand)] font-mono text-xs w-32 shrink-0">{{ m.tg_user_id || m.user_id }}</span>
                 <span class="truncate">{{ m.username || m.first_name || '未设置用户名' }}</span>
                 <span class="ml-auto flex items-center gap-2 shrink-0 text-xs text-text-muted">
                   <span v-if="m.has_photo" title="有头像">👤</span>
@@ -164,8 +164,8 @@
               </div>
             </div>
             <div class="flex justify-end gap-2 mt-3">
-              <button @click="exportCSV(task.task_id)" class="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-cyan/40 transition-colors">导出 CSV</button>
-              <button @click="exportExcel(task.task_id)" class="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-cyan/40 transition-colors">导出 Excel</button>
+              <button @click="exportCSV(task.task_id)" class="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-[color:var(--t-brand)] transition-colors">导出 CSV</button>
+              <button @click="exportExcel(task.task_id)" class="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-[color:var(--t-brand)] transition-colors">导出 Excel</button>
             </div>
           </template>
         </div>
