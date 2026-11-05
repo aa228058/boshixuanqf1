@@ -368,8 +368,11 @@ export interface Announcement {
   title: string
   content: string
   target_plans: string[]
-  pinned: boolean
-  start_at?: string
+  pinned?: boolean
+  priority?: 'normal' | 'urgent' | string
+  target_type?: 'all' | 'specific_plan' | string
+  is_active?: boolean
+  start_at: string
   end_at?: string
   created_at: string
 }
@@ -691,6 +694,11 @@ export interface Webhook {
 
 // ============ 仪表盘统计数据 ============
 export interface DashboardStats {
+  completed_tasks_today?: number
+  total_groups?: number
+  risk_events_24h?: number
+  task_trend?: Array<{ date?: string; count?: number; value?: number; [key: string]: unknown }>
+  account_distribution?: Array<{ name: string; value: number }>
   total_accounts: number
   online_accounts: number
   total_tasks: number
