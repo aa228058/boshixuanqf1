@@ -47,7 +47,7 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 			if err := e.approvalRepo.UpdateStatus(ctx, p.TenantID, p.TaskID, "timeout"); err != nil {
 				log.Printf("[approval] 更新状态失败: %v", err)
 			}
-			if err := e.repo.UpdateStatus(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
+			if err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
 				taskLog.Printf("[task] UpdateStatus failed: %v", err)
 			}
 			continue
@@ -71,7 +71,7 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 				if err := e.approvalRepo.UpdateStatus(ctx, p.TenantID, p.TaskID, "approved"); err != nil {
 					log.Printf("[approval] 更新状态失败: %v", err)
 				}
-				if err := e.repo.UpdateStatus(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
+				if err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 			} else {
