@@ -147,6 +147,7 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 	}
 
 	clientCfg := &telegram.Config{
+		// #nosec G115 -- TGAPIID is range-validated by Config.Validate before auth starts.
 		APIID:       int32(e.cfg.TGAPIID),
 		APIHash:     e.cfg.TGAPIHash,
 		SessionName: effectiveSessionName,
@@ -241,6 +242,7 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 		},
 	}
 
+	// #nosec G115 -- TGAPIID is range-validated by Config.Validate before auth starts.
 	client, err := telegram.NewClient(int32(e.cfg.TGAPIID), e.cfg.TGAPIHash, clientCfg)
 	if err != nil {
 		cancel()
