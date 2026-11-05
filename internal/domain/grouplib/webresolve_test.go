@@ -2,6 +2,8 @@ package grouplib
 
 import (
 	"net/http"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -68,4 +70,47 @@ func TestRandomResolveDelayBounds(t *testing.T) {
 			t.Fatalf("randomResolveDelay()=%s, want range [5s,15s]", delay)
 		}
 	}
+}
+
+func TestParseTelegramRetryAfter(t *testing.T) {
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	date := now.Add(90 * time.Second).Format(http.TimeFormat)
+	cases := []struct {
+		name  string
+		value string
+		want  time.Duration
+	}{
+		{name: "seconds", value: "45", want: 45 * time.Second},
+		{name: "http date", value: date, want: 90 * time.Second},
+		{name: "past date", value: now.Add(-time.Minute).Format(http.TimeFormat), want: time.Second},
+		{name: "missing", value: "", want: defaultTelegramRetryAfter},
+		{name: "invalid", value: "later", want: defaultTelegramRetryAfter},
+		{name: "negative", value: "-5", want: defaultTelegramRetryAfter},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseTelegramRetryAfter(tc.value, now); got != tc.want {
+				t.Fatalf("parseTelegramRetryAfter(%q)=%s, want %s", tc.value, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTelegramHTTPStatusErrorRateLimit(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     http.Header{"Retry-After": []string{"30"}},
+	}
+	err := telegramHTTPStatusError(resp, "test")
+	var rateLimitErr *TelegramRateLimitError
+	if !errors.As(err, &rateLimitErr) {
+		t.Fatalf("expected TelegramRateLimitError, got %T: %v", err, err)
+	}
+	if rateLimitErr.RetryAfter != 30*time.Second {
+		t.Fatalf("RetryAfter=%s, want 30s", rateLimitErr.RetryAfter)
+	}
+	if rateLimitErr.Endpoint != "test" {
+		t.Fatalf("Endpoint=%q, want test", rateLimitErr.Endpoint)
+	}
+	_ = fmt.Sprintf("%v", rateLimitErr)
 }
