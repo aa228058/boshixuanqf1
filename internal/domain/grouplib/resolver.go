@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"log"
 	"math/rand"
 	"strings"
@@ -105,11 +106,29 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 					gtype = "public"
 				}
 				resolveErr = nil
-			} else if mtprotoErr != nil {
-				resolveErr = mtprotoErr
 			} else {
-				resolveErr = webErr
+				var rateLimitErr *TelegramRateLimitError
+				if errors.As(webErr, &rateLimitErr) {
+					resolveErr = webErr
+				} else if mtprotoErr != nil {
+					resolveErr = mtprotoErr
+				} else {
+					resolveErr = webErr
+				}
 			}
+		}
+		var rateLimitErr *TelegramRateLimitError
+		if errors.As(resolveErr, &rateLimitErr) {
+			log.Printf("[grouplib] Telegram 网页限流，暂停本轮解析队列 %s: %v", rateLimitErr.RetryAfter, rateLimitErr)
+			timer := time.NewTimer(rateLimitErr.RetryAfter)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+			case <-timer.C:
+			}
+			return
 		}
 		if resolveErr != nil {
 			errText := strings.ToLower(resolveErr.Error())
