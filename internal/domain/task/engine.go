@@ -700,7 +700,7 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		// 必须回滚为 queued，让后续轮询重新认领（"retry later"落到实处）。
 		e.runningTasks.Delete(taskKey)
 		taskLog.Printf("[task] 租户配额已满/系统限压，任务 %s 回滚为 queued 等待重试", task.TaskID)
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusQueued); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusQueued); err != nil {
 			taskLog.Printf("[task] 回滚任务状态失败 %s: %v", task.TaskID, err)
 		}
 		return
@@ -746,7 +746,7 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("task panic: %v\n%s\n", r, debug.Stack())
-				if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+				if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 			}
@@ -859,7 +859,7 @@ func (e *Engine) executeTask(ctx context.Context, task *domain.Task) {
 		e.executeBroadcast(ctx, task)
 		e.rescheduleLoopTask(ctx, task)
 	default:
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 	}
@@ -909,7 +909,7 @@ func (e *Engine) recordRiskEvent(ctx context.Context, tenantID, accountID uuid.U
 // executeMonitorScrape listens to group messages and scrapes usernames from matching messages.
 // executeMonitorScrape listens to group messages via OnMessage and scrapes usernames from matching messages.
 func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
-	if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusRunning); err != nil {
+	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusRunning); err != nil {
 		taskLog.Printf("[task] failed to update status to running: %v", err)
 	}
 
@@ -922,14 +922,14 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	groupID, err := uuid.Parse(groupIDStr)
 	if err != nil {
 		taskLog.Printf("[monitor_scrape] 无效 group_id %q: %v", groupIDStr, err)
-		if uerr := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); uerr != nil {
+		if uerr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); uerr != nil {
 			taskLog.Printf("[task] failed to update status to failed: %v", uerr)
 		}
 		return
 	}
 
 	if matchContent == "" {
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] failed to update status to failed: %v", err)
 		}
 		return
@@ -942,7 +942,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		re, err := regexp.Compile(matchContent)
 		if err != nil {
 			taskLog.Printf("[monitor_scrape] invalid regex: %v", err)
-			if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 				taskLog.Printf("[task] failed to update status to failed: %v", err)
 			}
 			return
@@ -982,7 +982,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 
 	if len(task.AccountIDs) == 0 {
 		taskLog.Printf("[monitor_scrape] 任务缺少账号，无法执行")
-		if uerr := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); uerr != nil {
+		if uerr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); uerr != nil {
 			taskLog.Printf("[task] failed to update status to failed: %v", uerr)
 		}
 		return
@@ -991,7 +991,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	client, err := e.accEngine.GetClient(ctx, task.TenantID, accountID)
 	if err != nil {
 		taskLog.Printf("[monitor_scrape] get client failed: %v", err)
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] failed to update status to failed: %v", err)
 		}
 		return
@@ -1001,7 +1001,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	group, err := e.groupRepo.GetByID(ctx, task.TenantID, groupID)
 	if err != nil {
 		taskLog.Printf("[monitor_scrape] get group failed: %v", err)
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] failed to update status to failed: %v", err)
 		}
 		return
@@ -1122,7 +1122,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 
 		// Check if max results reached
 		if maxResults > 0 && currentCount >= int(maxResults) {
-			if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusCompleted); err != nil {
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusCompleted); err != nil {
 				taskLog.Printf("[task] failed to update status to completed: %v", err)
 			}
 		}
@@ -1144,7 +1144,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	finalCount := scrapedCount
 	countMu.Unlock()
 
-	if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusCompleted); err != nil {
+	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusCompleted); err != nil {
 		taskLog.Printf("[task] failed to update status to completed: %v", err)
 	}
 
