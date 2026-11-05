@@ -3,7 +3,7 @@
        v-if 链顺序: invalidId 先行, tenant 内容 v-else-if 跟随 -->
   <main v-if="invalidId" class="max-w-4xl mx-auto py-16 text-center space-y-4">
     <p class="text-text-muted">租户 ID 无效或链接已损坏</p>
-    <button @click="router.replace('/admin/tenants')" class="px-4 py-2 rounded-lg bg-cyan-glow/20 text-cyan hover:bg-cyan-glow/30">返回租户列表</button>
+    <button @click="router.replace('/admin/tenants')" class="px-4 py-2 rounded-lg bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[color:var(--t-brand-dim)]">返回租户列表</button>
   </main>
   <main class="max-w-4xl mx-auto space-y-6" v-else-if="tenant">
     <Breadcrumb :items="[{ path: '/admin/tenants', label: '租户管理' }, { path: '', label: '租户详情' }]" />
@@ -26,7 +26,7 @@
         </div>
         <div>
           <p class="text-xs text-text-secondary">当前套餐</p>
-          <p class="text-lg font-medium text-cyan mt-1">{{ planLabel(tenant.plan_id) }}</p>
+          <p class="text-lg font-medium text-[var(--t-brand)] mt-1">{{ planLabel(tenant.plan_id) }}</p>
         </div>
         <div>
           <p class="text-xs text-text-secondary">状态</p>
@@ -69,7 +69,7 @@
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">到期时间</label>
-          <input v-model="editForm.expires_at" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="选择时间" />
+          <input v-model="editForm.expires_at" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="选择时间" />
         </div>
       </div>
       <template #footer>
@@ -173,7 +173,7 @@ async function toggleStatus() {
 }
 
 function statusClass(s: string) {
-  const map: Record<string, string> = { active: 'bg-emerald/10 text-emerald', inactive: 'bg-text-muted/15 text-text-muted', suspended: 'bg-rose/10 text-rose' }
+  const map: Record<string, string> = { active: 'bg-[var(--t-ok)]/10 text-[var(--t-ok)]', inactive: 'bg-text-muted/15 text-text-muted', suspended: 'bg-[var(--t-err)]/10 text-[var(--t-err)]' }
   return map[s] || ''
 }
 
