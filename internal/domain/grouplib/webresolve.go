@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	htmlstd "html"
 	"io"
@@ -23,6 +24,54 @@ var (
 )
 
 const telegramMobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+
+const defaultTelegramRetryAfter = time.Minute
+
+// TelegramRateLimitError signals that Telegram asked the resolver to slow down.
+// RetryAfter is derived from the server response when available.
+type TelegramRateLimitError struct {
+	RetryAfter time.Duration
+	Endpoint   string
+}
+
+func (e *TelegramRateLimitError) Error() string {
+	return fmt.Sprintf("Telegram 网页请求触发限流（%s），建议等待 %s", e.Endpoint, e.RetryAfter)
+}
+
+func parseTelegramRetryAfter(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultTelegramRetryAfter
+	}
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		if seconds < 0 {
+			return defaultTelegramRetryAfter
+		}
+		maxSeconds := int64((time.Duration(1<<63 - 1)) / time.Second)
+		if seconds > maxSeconds {
+			return time.Duration(1<<63 - 1)
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if retryAt, err := http.ParseTime(value); err == nil {
+		delay := retryAt.Sub(now)
+		if delay > 0 {
+			return delay
+		}
+		return time.Second
+	}
+	return defaultTelegramRetryAfter
+}
+
+func telegramHTTPStatusError(resp *http.Response, endpoint string) error {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return &TelegramRateLimitError{
+			RetryAfter: parseTelegramRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
+			Endpoint:   endpoint,
+		}
+	}
+	return fmt.Errorf("Telegram 网页返回 %d", resp.StatusCode)
+}
 
 // applyTelegramWebHeaders uses a stable, internally consistent request profile.
 // We intentionally do not forge Referer or rotate browser fingerprints.
@@ -70,7 +119,7 @@ func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", 0, fmt.Errorf("t.me 返回 %d", resp.StatusCode)
+		return "", 0, telegramHTTPStatusError(resp, "t.me 邀请预览")
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024+1))
 	if err != nil {
@@ -193,16 +242,14 @@ func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string,
 	if err != nil {
 		return "", 0, err
 	}
-	req.Header.Set("User-Agent", telegramMobileUA)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	applyTelegramWebHeaders(req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", 0, fmt.Errorf("请求 Telegram 公开群页面失败: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", 0, fmt.Errorf("Telegram 网页返回 %d", resp.StatusCode)
+		return "", 0, telegramHTTPStatusError(resp, "Telegram 公开群页面")
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024+1))
 	if err != nil {
