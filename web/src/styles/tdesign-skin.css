@@ -8,7 +8,7 @@
   background: var(--t-surface-2) !important;
   border: 1px solid var(--t-line) !important;
   color: var(--t-text-1) !important;
-  border-radius: var(--t-r-sm) !important;
+  border-radius: var(--t-control-radius) !important;
   transition: all 0.15s ease !important;
 }
 .t-button:hover { border-color: var(--t-brand) !important; }
@@ -16,8 +16,8 @@
 .t-button.t-button--variant-primary {
   background: linear-gradient(135deg, var(--t-brand-active), var(--t-brand)) !important;
   border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 6px 18px var(--t-brand-dim) !important;
+  color: var(--t-brand-ink) !important;
+  box-shadow: var(--t-shadow-sm) !important;
 }
 .t-button.t-is-disabled { opacity: 0.45 !important; }
 
@@ -40,9 +40,9 @@
 
 /* 下拉面板: 玻璃浮层 */
 .t-select__dropdown, .t-popup__content {
-  background: rgba(20, 25, 52, 0.96) !important;
+  background: var(--t-card) !important;
   border: 1px solid var(--t-line) !important;
-  border-radius: var(--t-r-md) !important;
+  border-radius: var(--t-radius-md) !important;
   backdrop-filter: blur(20px) !important;
   color: var(--t-text-1) !important;
 }
@@ -54,8 +54,8 @@
   background: var(--t-surface-2) !important;
   border: 1px solid var(--t-line) !important;
   color: var(--t-text-2) !important;
-  border-radius: 99px !important;
-  font-size: 12px !important;
+  border-radius: var(--t-radius-pill) !important;
+  font-size: var(--t-font-xs) !important;
 }
 
 /* 加载: 紫转圈 */
