@@ -6,11 +6,11 @@
 
 /* ========== 1. 形状与阴影令牌(供各主题覆盖) ========== */
 :root {
-  --radius: 14px;
-  --radius-sm: 9px;
-  --shadow-card: 0 1px 2px rgba(16,24,40,.04), 0 12px 32px rgba(16,24,40,.07);
-  --shadow-pop: 0 1px 2px rgba(16,24,40,.05), 0 20px 48px rgba(16,24,40,.12);
-  --ring-primary: 0 0 0 3px color-mix(in srgb, var(--color-cyan, #0891b2) 16%, transparent);
+  --radius: var(--t-radius-md);
+  --radius-sm: var(--t-radius-sm);
+  --shadow-card: var(--t-shadow-sm);
+  --shadow-pop: var(--t-shadow-pop);
+  --ring-primary: var(--t-shadow-focus);
 }
 
 /* ========== 2. TDesign 输入框: 根治"双框"
@@ -24,18 +24,18 @@
 /* 主按钮: 纯色, 无渐变无发光 */
 /* 精确匹配 glow-btn 类, 不用属性选择器(会误伤类名带 glow 的菜单项/图标, 造成实心色块盖字) */
 .glow-btn {
-  background: var(--color-cyan, #0891b2) !important;
+  background: var(--t-brand) !important;
   background-image: none !important;
   border: 1px solid transparent !important;
-  border-radius: var(--radius-sm) !important;
+  border-radius: var(--t-radius-sm) !important;
   box-shadow: none !important;
   transition: transform .12s ease, filter .15s ease, background-color .15s ease;
 }
 .glow-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .glow-btn:active { transform: translateY(0); }
 /* 成功/失败态(useAsyncBtn 用) */
-.btn-success { background: var(--color-emerald, #10b981) !important; background-image: none !important; }
-.btn-error { background: var(--color-rose, #ef4444) !important; background-image: none !important; }
+.btn-success { background: var(--t-ok) !important; background-image: none !important; }
+.btn-error { background: var(--t-err) !important; background-image: none !important; }
 /* 标题去渐变: 纯色主色 */
 .text-gradient-cyan {
   background: none !important;
@@ -52,16 +52,16 @@
 
 /* ========== 5. 卡片: 静态安静, 悬浮才动 ========== */
 .glass {
-  border: 1px solid var(--color-border, #e6e8f0);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius-md);
+  box-shadow: var(--t-shadow-sm);
   backdrop-filter: none; /* 玻璃层叠是深色对比度杀手, 全部弃用 */
 }
 .glass.lift, .glass[class*="lift"] { transition: transform .18s cubic-bezier(.2,.9,.3,1), border-color .18s ease, box-shadow .18s ease; }
 .glass.lift:hover, .glass[class*="lift"]:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--color-cyan, #0891b2) 45%, var(--color-border, #e6e8f0));
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--t-shadow-pop);
 }
 
 /* ========== 6. 弹窗入场(统一) ========== */
@@ -78,7 +78,7 @@
 }
 
 /* ========== 8. 滚动条(全端统一细条) ========== */
-* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-text, #1a1d29) 22%, transparent) transparent; }
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--t-text-1) 22%, transparent) transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-text, #1a1d29) 18%, transparent); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-text, #1a1d29) 32%, transparent); }
