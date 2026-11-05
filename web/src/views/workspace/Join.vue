@@ -37,7 +37,7 @@
                 <span v-if="t.status === 'running'" class="w-1.5 h-1.5 rounded-full bg-current dot-pulse" />
                 {{ statusLabel(t.status) }}
               </span>
-              <span class="text-xs text-text-muted truncate">目标 {{ (t.target_ids || []).length || progOf(t).total || '-' }} 个群</span>
+              <span class="text-xs text-text-muted truncate">账号 {{ accountStore.accounts.find((a: any) => a.account_id === t.account_id)?.remark || accountStore.accounts.find((a: any) => a.account_id === t.account_id)?.phone || t.account_id?.slice(0, 8) }} · 目标 {{ (t.target_ids || []).length || progOf(t).total || '-' }} 个群</span>
             </div>
             <span class="text-xs text-text-muted shrink-0">{{ formatTime(t.created_at) }}</span>
           </div>
@@ -211,7 +211,7 @@ async function fetchTasks() {
   if (!currentAccount.value) { tasks.value = []; return }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'join_groups', account_id: currentAccount.value.account_id, page: 1, page_size: 20, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any)
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
