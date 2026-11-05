@@ -7,8 +7,9 @@ package repository
 
 import (
 	"context"
-	"path/filepath"
+	"io"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -65,6 +66,17 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("goose dialect: %v", err)
 	}
 	if err := goose.Up(stdlib.OpenDBFromPool(pool), migDir); err != nil {
+		// 连接在迁移期间被远端重置时，附带 PostgreSQL 容器日志，
+		// 区分迁移 SQL 错误、服务进程崩溃和容器被外部终止。
+		logs, logErr := pg.Logs(ctx)
+		if logErr == nil {
+			if raw, readErr := io.ReadAll(logs); readErr == nil {
+				t.Logf("postgres container logs:\\n%s", raw)
+			}
+			_ = logs.Close()
+		} else {
+			t.Logf("read postgres container logs: %v", logErr)
+		}
 		t.Fatalf("apply migrations: %v", err)
 	}
 	return pool
