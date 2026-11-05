@@ -194,6 +194,10 @@ html.theme-stripe {
   --t-disabled-bg: var(--t-surface-2);
   --t-disabled-text: var(--t-text-3);
   --t-overlay: color-mix(in srgb, #000000 48%, transparent);
+  --t-toast-bg: #141626;
+  --t-toast-fg: rgba(255, 255, 255, 0.95);
+  --t-toast-line: rgba(255, 255, 255, 0.14);
+  --t-shimmer-highlight: color-mix(in srgb, #ffffff 35%, transparent);
   --t-focus: var(--t-brand);
 
   /* Motion */
