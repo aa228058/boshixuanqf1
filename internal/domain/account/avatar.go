@@ -186,12 +186,12 @@ func (e *Engine) storeAvatar(ctx context.Context, tenantID, accountID uuid.UUID,
 	if len(data) < 100 { // 异常小图( stripped/占位 ), 丢弃
 		return fmt.Errorf("avatar too small: %d bytes", len(data))
 	}
-	if err := os.MkdirAll(e.cfg.AvatarDir, 0755); err != nil {
+	if err := os.MkdirAll(e.cfg.AvatarDir, 0750); err != nil {
 		logAvatarErrf("mkdir:"+e.cfg.AvatarDir, "创建头像目录 %s 失败: %v", e.cfg.AvatarDir, err)
 		return fmt.Errorf("mkdir avatar dir: %w", err)
 	}
 	name := accountID.String() + ".jpg"
-	if err := os.WriteFile(filepath.Join(e.cfg.AvatarDir, name), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(e.cfg.AvatarDir, name), data, 0600); err != nil {
 		logAvatarErrf("write:"+accountID.String(), "账号 %s 头像写入失败: %v", accountID, err)
 		return fmt.Errorf("write avatar: %w", err)
 	}
