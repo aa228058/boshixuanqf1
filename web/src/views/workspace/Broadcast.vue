@@ -241,7 +241,7 @@
                   @click="isLoop = false">只发一次</button>
           <button type="button" class="px-4 py-1.5 rounded-md text-sm transition-colors relative"
                   :class="[isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary', !loopFeature && 'opacity-60']"
-                  @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', message: '当前套餐未开通循环群发, 请联系管理员升级' })">
+                  @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', title: '套餐未开通循环群发', message: '请联系管理员升级' })">
             循环群发
             <span v-if="!loopFeature" class="absolute -top-1 -right-1 text-[9px] px-1 rounded bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/40">锁</span>
           </button>
@@ -314,7 +314,7 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 // ===== tab 与发送模式状态(2026-10-20: 此前多轮编辑事故把这块定义整体冲丢, 模板引用 undefined
 // 导致 tab 栏/循环开关静默不显示。此处集中补回, 以后动这个文件先看这里) =====
 const activeTab = ref<'tasks' | 'calendar'>('tasks')
-const pageTabs = [{ key: 'tasks', label: '任务列表' }, { key: 'calendar', label: '发送日历' }]
+const pageTabs = [{ key: 'tasks', label: '任务列表' }, { key: 'calendar', label: '发送日历' }] as const
 const isLoop = ref(false)
 const loopIntervalMin = ref(60)
 const authStore = useAuthStore()
@@ -460,7 +460,7 @@ onMounted(() => {
     const d = localStorage.getItem(DRAFT_KEY)
     if (d && d.trim() && !message.value.trim()) {
       message.value = d
-      toast({ type: 'info', message: '已恢复上次未发送的草稿' })
+      toast({ type: 'info', title: '草稿已恢复', message: '已恢复上次未发送的草稿' })
     }
   } catch {}
 })
