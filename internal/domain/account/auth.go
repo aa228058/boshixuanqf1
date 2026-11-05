@@ -19,6 +19,22 @@ import (
 
 func (e *Engine) ConnectAccount(ctx context.Context, tenantID, accountID uuid.UUID, phone string, sessionName string, level domain.AccountLevel, keepOnline ...bool) error {
 	keep := len(keepOnline) > 0 && keepOnline[0]
+	return e.connectAccount(ctx, tenantID, accountID, phone, sessionName, level, keep, false)
+}
+
+// ReauthenticateAccount starts a fresh phone-code login without reading the old session.
+// The previous session is kept until the new login succeeds and takes it over.
+func (e *Engine) ReauthenticateAccount(ctx context.Context, tenantID, accountID uuid.UUID, phone string, sessionName string, level domain.AccountLevel) error {
+	if strings.TrimSpace(phone) == "" {
+		return fmt.Errorf("账号没有绑定手机号，无法发起验证码登录")
+	}
+	if err := e.DisconnectAccount(ctx, tenantID, accountID); err != nil {
+		return fmt.Errorf("停止旧连接失败: %w", err)
+	}
+	return e.connectAccount(ctx, tenantID, accountID, phone, sessionName, level, false, true)
+}
+
+func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UUID, phone string, sessionName string, level domain.AccountLevel, keep bool, forceFresh bool) error {
 
 	// R181: 用户主动发起重新登录 → 立即解除死密钥熔断。此前要等 30 分钟 TTL 到期才放行，
 	// 用户重新登录成功后任务仍被熔断表挡住，表现为"登录好了但任务死活不跑"。
@@ -116,7 +132,7 @@ func (e *Engine) ConnectAccount(ctx context.Context, tenantID, accountID uuid.UU
 	if newSessionName == "" {
 		newSessionName = fmt.Sprintf("acc_%s", accountID.String())
 	}
-	if hasStored, serr := e.repo.SessionExists(ctx, newSessionName); serr == nil && hasStored {
+	if hasStored, serr := e.repo.SessionExists(ctx, newSessionName); !forceFresh && serr == nil && hasStored {
 		effectiveSessionName = newSessionName
 		phoneNumber = ""
 		log.Printf("[AUTH] 账号 %s 已有存档会话, 读档直连(不发码)\n", accountID)
