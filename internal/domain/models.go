@@ -49,7 +49,14 @@ func (g SystemGroup) DedupKey() string {
 	if g.Username != "" {
 		return "u:" + strings.ToLower(strings.TrimPrefix(g.Username, "@"))
 	}
-	return "l:" + strings.ToLower(strings.TrimSpace(g.TmeLink))
+	link := strings.TrimSpace(g.TmeLink)
+	link = strings.SplitN(link, "?", 2)[0]
+	link = strings.SplitN(link, "#", 2)[0]
+	if strings.Contains(link, "/+") || strings.Contains(link, "/joinchat/") {
+		// Telegram invite hashes are case-sensitive.
+		return "l:" + link
+	}
+	return "l:" + strings.ToLower(link)
 }
 
 // TextDict 文案变量(数据字典): 群发消息里写 {变量名}, 发送时随机取词条替换。
