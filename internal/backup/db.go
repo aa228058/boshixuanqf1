@@ -207,6 +207,8 @@ func pruneOldDBBackups(dir string, keep int) {
 		if err := root.Remove(old); err == nil {
 			log.Printf("[db-backup] 清理旧备份: %s", old)
 		}
-		_ = root.Remove(old + ".err")
+		if err := root.Remove(old + ".err"); err != nil && !os.IsNotExist(err) {
+			log.Printf("[db-backup] 清理旧备份错误日志失败: %v", err)
+		}
 	}
 }
