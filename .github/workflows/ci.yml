@@ -111,10 +111,6 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Temporary format app container and export source
-        run: |
-          gofmt -w internal/app/container.go
-          base64 -w0 internal/app/container.go
       - name: Check formatting
         run: |
           UNFORMATTED=$(gofmt -l internal/ cmd/)
