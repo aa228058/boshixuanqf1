@@ -6,7 +6,7 @@ import { toast as sonner } from 'vue-sonner'
 export interface Toast {
   id: string
   type: 'success' | 'error' | 'info' | 'warning'
-  title: string
+  title?: string
   message?: string
   duration?: number
   // 撤销按钮(删除类操作 5 秒撤销窗)
@@ -40,8 +40,9 @@ export function useToast() {
       }
     }
     const fn = sonner[typeMap[t.type] || 'info']
-    fn(t.title, {
-      description: t.message,
+    const title = t.title || t.message || '提示'
+    fn(title, {
+      description: t.title ? t.message : undefined,
       duration: t.duration || 4000,
       action: t.action,
     })
