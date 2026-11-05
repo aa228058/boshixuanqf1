@@ -70,12 +70,14 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 
 			inGroup := e.isAccountInGroup(ctx, client, p.ChatID, p.AccessHash, p.TargetLink)
 			if inGroup {
-				if err := e.approvalRepo.UpdateStatus(ctx, p.TenantID, p.TaskID, "approved"); err != nil {
-					log.Printf("[approval] 更新状态失败: %v", err)
-				}
-				if err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
-					taskLog.Printf("[task] UpdateStatus failed: %v", err)
-				}
+				resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "approved")
+                if err != nil {
+                    log.Printf("[approval] 更新状态失败: %v", err)
+                } else if resolved {
+                    if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
+                        taskLog.Printf("[task] UpdateStatus failed: %v", err)
+                    }
+                }
 			} else {
 				if err := e.approvalRepo.IncrementCheck(ctx, p.TenantID, p.TaskID); err != nil {
 					log.Printf("[approval] 增加检查次数失败: %v", err)
