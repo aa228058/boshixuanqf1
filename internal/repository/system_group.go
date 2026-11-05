@@ -73,7 +73,12 @@ func normalizeSystemGroupLink(value string) string {
 	value = strings.TrimPrefix(value, "https://")
 	value = strings.TrimPrefix(value, "http://")
 	value = strings.TrimPrefix(value, "www.")
+	value = strings.SplitN(value, "?", 2)[0]
+	value = strings.SplitN(value, "#", 2)[0]
 	value = strings.TrimRight(value, "/")
+	if strings.HasPrefix(value, "telegram.me/") || strings.HasPrefix(value, "telegram.dog/") {
+		value = "t.me/" + strings.SplitN(value, "/", 2)[1]
+	}
 	if value == "" { return "" }
 	if !strings.HasPrefix(value, "t.me/") && !strings.HasPrefix(value, "telegram.me/") && !strings.HasPrefix(value, "telegram.dog/") { return "" }
 	return value
