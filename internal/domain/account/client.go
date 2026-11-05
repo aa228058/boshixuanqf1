@@ -408,6 +408,15 @@ func (e *Engine) ReleaseClient(tenantID, accountID uuid.UUID, client *telegram.C
 		managedMc.mu.Unlock()
 		return
 	}
+	// 保活 entry 已从 clients 摘除时，也必须能按客户端身份归还其锁。
+	e.orphanMu.Lock()
+	if orphan, ok := e.managedOrphans[client]; ok {
+		delete(e.managedOrphans, client)
+		e.orphanMu.Unlock()
+		orphan.mu.Unlock()
+		return
+	}
+	e.orphanMu.Unlock()
 	// L修复(兜底): 池内 entry 已被断开/清理摘除, 但本 goroutine 仍握着它的锁。
 	// 从孤儿锁表认领并解锁, 否则锁永久泄漏(该账号后续所有 GetClient 永远阻塞)。
 	e.orphanMu.Lock()
@@ -423,6 +432,18 @@ func (e *Engine) ReleaseClient(tenantID, accountID uuid.UUID, client *telegram.C
 
 // registerOrphan 登记"entry 已摘除但持有者可能仍握锁"的客户端,
 // 供 ReleaseClient 兜底认领解锁。调用前必须已把 entry 从 poolClients 摘除。
+func (e *Engine) registerManagedOrphan(mc *managedClient) {
+	if mc == nil || mc.client == nil {
+		return
+	}
+	e.orphanMu.Lock()
+	if e.managedOrphans == nil {
+		e.managedOrphans = make(map[*telegram.Client]*managedClient)
+	}
+	e.managedOrphans[mc.client] = mc
+	e.orphanMu.Unlock()
+}
+
 func (e *Engine) registerOrphan(pc *pooledClient) {
 	if pc == nil || pc.client == nil {
 		return
@@ -496,6 +517,7 @@ func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid
 	}
 	e.mu.Unlock()
 	if hadManaged && mc != nil {
+		e.registerManagedOrphan(mc)
 		mc.cancel()
 		mc.finish()
 		go stopManagedAsync(mc)
