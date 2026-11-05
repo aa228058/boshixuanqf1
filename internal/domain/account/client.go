@@ -14,6 +14,7 @@ import (
 	"tg-sender/internal/safego"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 func (e *Engine) GetClient(ctx context.Context, tenantID, accountID uuid.UUID) (*telegram.Client, error) {
@@ -280,6 +281,8 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	var serverAddr string
 	if err := e.pool.QueryRow(ctx, `SELECT server_address FROM sessions WHERE session_id = $1`, acc.SessionName).Scan(&serverAddr); err == nil && serverAddr != "" {
 		clientCfg.ServerAddr = serverAddr
+	} else if err != nil && err != pgx.ErrNoRows {
+		log.Printf("[client] 读取账号 %s 的原始 DC 地址失败，改用内置地址: %v", accountID, err)
 	}
 
 	// HTTP 回退端点：按会话所属 DC 生成 5222/80 双端口候选，传输层自动轮转
