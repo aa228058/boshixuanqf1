@@ -16,6 +16,7 @@ import (
 type SystemGroup struct {
 	SGID uuid.UUID `json:"sg_id"`
 	TelegramChatID int64 `json:"telegram_chat_id,omitempty"`
+	ContributorTenantID uuid.UUID `json:"-"`
 	Source string `json:"source"`
 	Title string `json:"title"`
 	Username string `json:"username,omitempty"`
