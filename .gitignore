@@ -1,0 +1,21 @@
+# 敏感环境变量（绝对不要传）
+.env
+*.env
+.env.*
+
+# Go 编译产物
+/server
+app
+*.exe
+
+# Node 依赖与前端打包产物
+node_modules/
+dist/
+web/node_modules/
+web/dist/
+
+# 日志与临时文件
+*.log
+logs/
+tmp/
+.DS_Store
