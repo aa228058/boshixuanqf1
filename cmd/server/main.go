@@ -208,7 +208,15 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 		}
 	}
 
-	e.Use(echomiddleware.BodyLimit(defaultBodyLimit))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			limit := defaultBodyLimit
+			if c.Request().URL.Path == "/api/v1/group-library/import" {
+				limit = "21M"
+			}
+			return echomiddleware.BodyLimit(limit)(next)(c)
+		}
+	})
 
 	// Security headers
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
