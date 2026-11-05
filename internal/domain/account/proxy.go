@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -67,7 +68,9 @@ func (e *Engine) TestProxy(ctx context.Context, tenantID, accountID uuid.UUID) (
 	if err != nil {
 		return map[string]interface{}{"ok": false, "error": "经代理连接 Telegram 失败: " + err.Error()}, nil
 	}
-	conn.Close()
+	if err := conn.Close(); err != nil {
+		log.Printf("[proxy] close test connection failed: %v", err)
+	}
 	return map[string]interface{}{"ok": true, "latency_ms": time.Since(start).Milliseconds(), "proxy": maskProxy(acc.ProxyURL)}, nil
 }
 
