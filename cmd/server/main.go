@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof" // E-05: pprof 剖析端点（ENABLE_PPROF=1 时生效）；仅回环监听 // #nosec G108
+	// #nosec G108 -- pprof is registered on DefaultServeMux but served only by an opt-in loopback-only listener below.
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
