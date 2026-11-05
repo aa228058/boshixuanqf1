@@ -71,7 +71,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			hash = strings.TrimPrefix(hash, "+")
 			title, count, werr := resolveInviteInfoViaWeb(ctx, hash)
 			if werr == nil && (title != "" || count > 0) {
-				_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, "private")
+				_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, "private", 0)
 			}
 		}
 		return
@@ -102,7 +102,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			}
 			continue
 		}
-		if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, gtype); err != nil {
+		if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, gtype, chatID); err != nil {
 			log.Printf("[grouplib] 回写群名失败 %s: %v", p.sgID, err)
 		}
 		// 间隔 2s: 比导入接口更保守, 批量场景宁可慢不可封
