@@ -595,7 +595,7 @@ onUnmounted(() => {
 .shimmer-bar {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  background: linear-gradient(90deg, transparent, var(--t-shimmer-highlight), transparent);
   animation: shimmer-slide 1.5s infinite;
 }
 @keyframes shimmer-slide {
