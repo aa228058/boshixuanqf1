@@ -3,7 +3,9 @@ package grouplib
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
+	"strconv"
 	"net/http"
 	"regexp"
 	"strings"
@@ -15,6 +17,8 @@ import (
 var (
 	ogTitleRe   = regexp.MustCompile(`(?i)<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']`)
 	htmlTitleRe = regexp.MustCompile(`(?is)<title[^>]*>([^<]+)</title>`)
+	pageExtraRe = regexp.MustCompile(`(?is)<[^>]+class=["\'][^"\']*tgme_page_extra[^"\']*["\'][^>]*>(.*?)</[^>]+>`)
+	digitsRe = regexp.MustCompile(`[0-9][0-9\\s,.\\x{00a0}\\x{202f}]*`)
 )
 
 // resolveInviteTitleViaWeb 兜底解析: MTProto checkChatInvite 拿不到(如被踢/CHANNEL_PRIVATE)时,
@@ -27,7 +31,7 @@ func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("请求 t.me 失败: %w", err)
@@ -41,6 +45,10 @@ func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) 
 		return "", err
 	}
 	html := string(body)
+	memberCount := 0
+	if extra := pageExtraRe.FindStringSubmatch(html); len(extra) > 1 {
+		memberCount = parseWebMemberCount(html.UnescapeString(regexp.MustCompile(`<[^>]+>`).ReplaceAllString(extra[1], " ")))
+	}
 	title := ""
 	if m := ogTitleRe.FindStringSubmatch(html); len(m) > 1 {
 		title = strings.TrimSpace(m[1])
@@ -59,6 +67,7 @@ func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) 
 	}
 	// t.me 标题常带 "Telegram: " 前缀, 去掉
 	title = strings.TrimSpace(strings.TrimPrefix(title, "Telegram: "))
+	if title == "" && memberCount == 0 { return "", fmt.Errorf("页面未暴露群组资料(可能隐藏预览)") }
 	return title, nil
 }
 
@@ -74,4 +83,22 @@ func isGenericTitle(t string) bool {
 		}
 	}
 	return false
+}
+
+
+// parseWebMemberCount 只识别成员/订阅者标签，不把在线人数当成员数。
+func parseWebMemberCount(value string) int {
+	lower := strings.ToLower(value)
+	labels := []string{" member", " members", " subscriber", " subscribers", " участник", " участника", " участников", " membre", " membres"}
+	found := false
+	for _, label := range labels {
+		if strings.Contains(lower, label) { found = true; break }
+	}
+	if !found { return 0 }
+	raw := digitsRe.FindString(value)
+	if raw == "" { return 0 }
+	raw = strings.NewReplacer(" ", "", ",", "", ".", "", "\u00a0", "", "\u202f", "").Replace(raw)
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 { return 0 }
+	return n
 }
