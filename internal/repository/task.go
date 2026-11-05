@@ -458,11 +458,18 @@ func (r *TaskRepository) UpdateStatusUnlessCancelled(ctx context.Context, tenant
 
 // ResetToQueued resets a failed task to queued for retry.
 func (r *TaskRepository) ResetToQueued(ctx context.Context, tenantID, taskID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, `
+	res, err := r.db.Exec(ctx, `
 		UPDATE tasks SET status = 'queued', locked_at = NULL, worker_id = NULL,
-		                 retry_count = retry_count + 1, completed_at = NULL
-		WHERE tenant_id = $1 AND task_id = $2`, tenantID, taskID)
-	return err
+		                 retry_count = retry_count + CASE WHEN status = 'failed' THEN 1 ELSE 0 END,
+		                 completed_at = NULL
+		WHERE tenant_id = $1 AND task_id = $2 AND status IN ('failed', 'paused')`, tenantID, taskID)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("task is no longer failed or paused")
+	}
+	return nil
 }
 
 // Delete removes a task.
@@ -665,8 +672,18 @@ func (r *TaskRepository) SetLoopConfig(ctx context.Context, tenantID, taskID uui
 
 // StopLoop 停止循环任务: 关闭循环标记并置为暂停, 调度器不再激活它。
 func (r *TaskRepository) StopLoop(ctx context.Context, tenantID, taskID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, `UPDATE tasks SET is_loop = FALSE, status = 'paused' WHERE tenant_id = $1 AND task_id = $2`, tenantID, taskID)
-	return err
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks SET is_loop = FALSE, status = 'paused'
+		WHERE tenant_id = $1 AND task_id = $2 AND is_loop = TRUE
+		  AND status IN ('pending', 'queued', 'scheduled', 'paused')
+	`, tenantID, taskID)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("loop task is no longer pending or queued")
+	}
+	return nil
 }
 
 // RescheduleLoopTask resets a finished loop task back to scheduled with a new run time.
