@@ -97,7 +97,11 @@ func (e *Engine) getAllDialogs(ctx context.Context, client *telegram.Client) ([]
 			offsetDate = 0 // First call: get latest
 		} else {
 			// Use progressively older dates
-			offsetDate = int32(now.AddDate(0, 0, -page*windowDays).Unix())
+			offsetUnix := now.AddDate(0, 0, -page*windowDays).Unix()
+			if offsetUnix < -2147483648 || offsetUnix > 2147483647 {
+				return allResults, fmt.Errorf("dialog offset date out of Telegram int32 range: %d", offsetUnix)
+			}
+			offsetDate = int32(offsetUnix)
 		}
 
 		chats, err := client.GetDialogs(ctx, batchSize, offsetDate)
