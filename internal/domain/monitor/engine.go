@@ -173,6 +173,10 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 			// 旧回调仍可能挂在 Telegram client 上。未确认退出前不能启动
 			// 新会话，否则同一账号会重复注册消息处理器。
 			log.Printf("[monitor] 等待旧监听退出超时，取消本次启动 tenant=%s account=%s", tenantID, accountID)
+			clientKey := tenantID.String() + ":" + accountID.String()
+			e.reloadMu.Lock()
+			delete(e.reloadChs, clientKey)
+			e.reloadMu.Unlock()
 			return fmt.Errorf("previous monitor session did not stop within 35 seconds")
 		}
 	}
@@ -279,11 +283,17 @@ func (e *Engine) StopAll() {
 
 // ReloadRules triggers rule reload for all active monitoring sessions of a tenant.
 func (e *Engine) ReloadRules(ctx context.Context, tenantID uuid.UUID) error {
+	// 在锁内复制账号 ID；不能把 sessions 子 map 的引用带出锁后遍历，
+	// StartMonitoring/StopMonitoring 会并发写入该 map。
 	e.mu.RLock()
 	tenantSessions := e.sessions[tenantID]
+	accountIDs := make([]uuid.UUID, 0, len(tenantSessions))
+	for accountID := range tenantSessions {
+		accountIDs = append(accountIDs, accountID)
+	}
 	e.mu.RUnlock()
 
-	for accountID := range tenantSessions {
+	for _, accountID := range accountIDs {
 		clientKey := tenantID.String() + ":" + accountID.String()
 		e.reloadMu.Lock()
 		if ch, exists := e.reloadChs[clientKey]; exists {
