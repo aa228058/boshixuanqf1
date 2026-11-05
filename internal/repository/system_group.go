@@ -137,7 +137,9 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 		}
 		out = append(out, g)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil { return nil, err }
+	if err := r.attachLinks(ctx, out); err != nil { return nil, err }
+	return out, nil
 }
 
 // List 分页查询
@@ -204,5 +206,7 @@ func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) (
 		}
 		out = append(out, g)
 	}
-	return out, total, rows.Err()
+	if err := rows.Err(); err != nil { return nil, 0, err }
+	if err := r.attachLinks(ctx, out); err != nil { return nil, 0, err }
+	return out, total, nil
 }
