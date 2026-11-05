@@ -699,7 +699,7 @@ export interface DashboardStats {
   completed_tasks_today?: number
   total_groups?: number
   risk_events_24h?: number
-  task_trend?: Array<{ date?: string; count?: number; value?: number; [key: string]: unknown }>
+  task_trend?: number[]
   account_distribution?: Array<{ name: string; value: number }>
   total_accounts: number
   online_accounts: number
