@@ -5,12 +5,12 @@
       <input
         v-model="startDate"
         type="date"
-        class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm shrink-0" aria-label="输入" />
+        class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm shrink-0" aria-label="输入" />
       <span class="text-text-muted shrink-0">至</span>
       <input
         v-model="endDate"
         type="date"
-        class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm shrink-0" aria-label="输入" />
+        class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm shrink-0" aria-label="输入" />
       <t-button theme="primary" size="sm" class="shrink-0" @click="fetchLogs">查询</t-button>
     </div>
 
@@ -100,10 +100,10 @@ function auditActionLabel(action: string): string {
 }
 function actionClass(action: string) {
   // 按英文码前缀分类(值可能带动态后缀, 用 test 而非 includes)
-  if (/delete|purge|revoke|ban/.test(action)) return 'bg-rose/10 text-rose'
-  if (/create|enable|activate|import|login/.test(action)) return 'bg-emerald/10 text-emerald'
-  if (/update|modify|edit/.test(action)) return 'bg-amber/10 text-amber'
-  return 'bg-cyan-glow/50 text-cyan'
+  if (/delete|purge|revoke|ban/.test(action)) return 'bg-[var(--t-err)]/10 text-[var(--t-err)]'
+  if (/create|enable|activate|import|login/.test(action)) return 'bg-[var(--t-ok)]/10 text-[var(--t-ok)]'
+  if (/update|modify|edit/.test(action)) return 'bg-[var(--t-warn)]/10 text-[var(--t-warn)]'
+  return 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]'
 }
 
 async function fetchLogs() {
