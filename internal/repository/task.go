@@ -411,29 +411,32 @@ func (r *TaskRepository) UpdateStatus(ctx context.Context, tenantID, taskID uuid
 // CancelIfActive atomically cancels only non-terminal tasks. A late cancel request
 // must never overwrite a task that has already completed or failed.
 func (r *TaskRepository) CancelIfActive(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
- res, err := r.db.Exec(ctx, `
-  UPDATE tasks SET status = 'cancelled', completed_at = NOW(), locked_at = NULL, worker_id = NULL
-  WHERE tenant_id = $1 AND task_id = $2
-    AND status NOT IN ('completed', 'failed', 'cancelled')
- `, tenantID, taskID)
- if err != nil { return false, fmt.Errorf("cancel task: %w", err) }
- return res.RowsAffected() == 1, nil
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks SET status = 'cancelled', completed_at = NOW(), locked_at = NULL, worker_id = NULL
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND status NOT IN ('completed', 'failed', 'cancelled')
+	`, tenantID, taskID)
+	if err != nil {
+		return false, fmt.Errorf("cancel task: %w", err)
+	}
+	return res.RowsAffected() == 1, nil
 }
 
 // UpdateStatusUnlessCancelled is reserved for asynchronous approval resolution.
 // Approval polling may finish after a user cancellation; cancellation wins that race.
 func (r *TaskRepository) UpdateStatusUnlessCancelled(ctx context.Context, tenantID, taskID uuid.UUID, status domain.TaskStatus) (bool, error) {
- var completedAt interface{}
- if status == domain.TaskStatusCompleted || status == domain.TaskStatusFailed {
-  completedAt = time.Now()
- }
- res, err := r.db.Exec(ctx, `
-  UPDATE tasks SET status = $3, completed_at = $4,
-   locked_at = NULL, worker_id = NULL
-  WHERE tenant_id = $1 AND task_id = $2 AND status <> 'cancelled'
- `, tenantID, taskID, status, completedAt)
- if err != nil { return false, fmt.Errorf("update task approval status: %w", err) }
- return res.RowsAffected() == 1, nil
+	if status != domain.TaskStatusCompleted && status != domain.TaskStatusFailed {
+		return false, fmt.Errorf("invalid approval task status %q", status)
+	}
+	var completedAt interface{} = time.Now()
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks SET status = $3, completed_at = $4, locked_at = NULL, worker_id = NULL
+		WHERE tenant_id = $1 AND task_id = $2 AND status <> 'cancelled'
+	`, tenantID, taskID, status, completedAt)
+	if err != nil {
+		return false, fmt.Errorf("update task approval status: %w", err)
+	}
+	return res.RowsAffected() == 1, nil
 }
 
 // ResetToQueued resets a failed task to queued for retry.
