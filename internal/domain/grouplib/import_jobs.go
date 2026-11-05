@@ -84,7 +84,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW() WHERE job_id=$1`, jobID)
 			continue
 		}
-		end := offset + 1000
+		end := offset + 5000
 		if end > len(lines) {
 			end = len(lines)
 		}
