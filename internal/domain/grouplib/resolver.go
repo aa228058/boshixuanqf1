@@ -19,101 +19,85 @@ const resolveBatchSize = 30
 // 挂进 Engine.runOnce, 导入 1 万条后无需任何手工操作, 群名自动逐批补齐。
 func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	type row struct {
-		sgID     uuid.UUID
-		link     string
+		sgID uuid.UUID
+		link string
 		dedupKey string
+		username string
+		gtype string
 	}
-	rows, err := e.pool.Query(ctx, `
-		SELECT sg_id, tme_link, dedup_key FROM system_groups
-		WHERE gtype = 'private' AND COALESCE(title, '') = '' AND status = 'active'
-		ORDER BY last_seen_at ASC LIMIT $1`, resolveBatchSize)
+	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype FROM system_groups WHERE gtype IN ('private','unknown') AND COALESCE(title,'')='' AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
 	if err != nil {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
 	}
 	var pending []row
 	for rows.Next() {
-		var r row
-		if err := rows.Scan(&r.sgID, &r.link, &r.dedupKey); err == nil {
-			pending = append(pending, r)
-		}
+		var item row
+		if err := rows.Scan(&item.sgID,&item.link,&item.dedupKey,&item.username,&item.gtype); err == nil { pending = append(pending,item) }
 	}
 	rows.Close()
-	if len(pending) == 0 {
-		return
-	}
+	if len(pending)==0 { return }
 
-	// 随机借一个在线账号做校验(避免单号高频): 每轮重选, 天然轮换
-	type accRef struct {
-		tenantID  uuid.UUID
-		accountID uuid.UUID
-	}
-	accRows, err := e.pool.Query(ctx, `
-		SELECT tenant_id, account_id FROM accounts
-		WHERE status = 'online' AND (blocked_until IS NULL OR blocked_until < NOW())
-		ORDER BY RANDOM() LIMIT 5`)
-	if err != nil {
-		log.Printf("[grouplib] 扫描在线账号失败: %v", err)
-		return
-	}
+	type accRef struct { tenantID uuid.UUID; accountID uuid.UUID }
+	accRows, err := e.pool.Query(ctx, "SELECT tenant_id,account_id FROM accounts WHERE status='online' AND (blocked_until IS NULL OR blocked_until<NOW()) ORDER BY RANDOM() LIMIT 5")
+	if err != nil { log.Printf("[grouplib] 扫描在线账号失败: %v",err); return }
 	var accs []accRef
 	for accRows.Next() {
 		var a accRef
-		if err := accRows.Scan(&a.tenantID, &a.accountID); err == nil {
-			accs = append(accs, a)
-		}
+		if err := accRows.Scan(&a.tenantID,&a.accountID); err == nil { accs=append(accs,a) }
 	}
 	accRows.Close()
-	if len(accs) == 0 {
-		// 没有任何在线账号时仍可尝试 Telegram 网页预览；这不需要加入群组。
-		for _, p := range pending {
-			hash := strings.TrimPrefix(strings.TrimPrefix(p.link, "https://"), "t.me/+")
-			hash = strings.TrimPrefix(hash, "+")
-			title, count, werr := resolveInviteInfoViaWeb(ctx, hash)
-			if werr == nil && (title != "" || count > 0) {
-				_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, "private", 0)
+
+	for i,p := range pending {
+		var title string
+		var count int
+		var gtype string
+		var chatID int64
+		var resolveErr error
+		if len(accs)>0 {
+			a := accs[rand.Intn(len(accs))]
+			client, clientErr := e.acc.GetClient(ctx,a.tenantID,a.accountID)
+			if clientErr == nil {
+				if p.gtype=="private" {
+					hash := strings.TrimPrefix(strings.TrimPrefix(p.link,"https://"),"t.me/+")
+					hash = strings.TrimPrefix(hash,"+")
+					title,count,gtype,chatID,resolveErr = resolveInviteInfo(ctx,client,hash)
+				} else {
+					title,count,gtype,chatID,resolveErr = resolveGroupInfo(ctx,client,p.username)
+				}
+				e.acc.ReleaseClient(a.tenantID,a.accountID,client)
+			} else { resolveErr=clientErr }
+		}
+		if resolveErr != nil || len(accs)==0 {
+			var webTitle string
+			var webCount int
+			if p.gtype=="private" {
+				hash := strings.TrimPrefix(strings.TrimPrefix(p.link,"https://"),"t.me/+")
+				hash = strings.TrimPrefix(hash,"+")
+				webTitle,webCount,resolveErr = resolveInviteInfoViaWeb(ctx,hash)
+			} else {
+				webTitle,webCount,resolveErr = resolvePublicGroupInfoViaWeb(ctx,p.username)
+			}
+			if resolveErr == nil && (webTitle!="" || webCount>0) {
+				title,count,gtype,chatID = webTitle,webCount,p.gtype,0
 			}
 		}
-		return
+		if resolveErr != nil {
+			errText := strings.ToLower(resolveErr.Error())
+			if p.gtype=="private" && (strings.Contains(errText,"过期") || strings.Contains(errText,"无效")) {
+				_ = e.repo.MarkInvalidByDedupKey(ctx,p.dedupKey)
+			}
+		} else if title!="" || count>0 {
+			if gtype=="" { gtype=p.gtype }
+			if err := e.repo.UpdateResolvedInfo(ctx,p.sgID,title,count,gtype,chatID); err != nil {
+				log.Printf("[grouplib] 回写群组资料失败 %s: %v",p.sgID,err)
+			}
+		}
+		if i<len(pending)-1 {
+			select { case <-ctx.Done(): return; case <-time.After(2*time.Second): }
+		}
 	}
 
-	for i, p := range pending {
-		a := accs[rand.Intn(len(accs))]
-		client, err := e.acc.GetClient(ctx, a.tenantID, a.accountID)
-		if err != nil {
-			continue
-		}
-		hash := strings.TrimPrefix(strings.TrimPrefix(p.link, "https://"), "t.me/+")
-		hash = strings.TrimPrefix(hash, "+")
-		title, count, gtype, chatID, rerr := resolveInviteInfo(ctx, client, hash)
-		e.acc.ReleaseClient(a.tenantID, a.accountID, client)
-		if rerr != nil {
-			errStr := strings.ToLower(rerr.Error())
-			switch {
-			case strings.Contains(rerr.Error(), "过期") || strings.Contains(rerr.Error(), "无效"):
-				// 过期/无效: 直接标记失效, 不再反复解析
-				_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
-			case strings.Contains(errStr, "channel_private") || strings.Contains(errStr, "chat_private") ||
-				strings.Contains(errStr, "kicked") || strings.Contains(errStr, "banned"):
-				// 主路径拿不到(被踢/私密不可见): 降级抓 t.me 网页 og:title 兜底补名
-				if title, webCount, werr := resolveInviteInfoViaWeb(ctx, hash); werr == nil && (title != "" || webCount > 0) {
-					_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, webCount, "private", 0)
-				}
-			}
-			continue
-		}
-		if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, gtype, chatID); err != nil {
-			log.Printf("[grouplib] 回写群名失败 %s: %v", p.sgID, err)
-		}
-		// 间隔 2s: 比导入接口更保守, 批量场景宁可慢不可封
-		if i < len(pending)-1 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(2 * time.Second):
-			}
-		}
-	}
 	log.Printf("[grouplib] 本轮解析补名 %d 条(待解析队列滚动处理)", len(pending))
 }
 
