@@ -1038,7 +1038,16 @@ func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client
 		if verr != nil {
 			return verr
 		}
-		f, err := os.Open(path)
+		relPath, relErr := filepath.Rel(e.cfg.MediaDir, path)
+		if relErr != nil || relPath == "." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) || filepath.IsAbs(relPath) {
+			return fmt.Errorf("媒体文件路径不在允许目录内")
+		}
+		mediaRoot, rootErr := os.OpenRoot(e.cfg.MediaDir)
+		if rootErr != nil {
+			return fmt.Errorf("打开媒体目录失败: %w", rootErr)
+		}
+		defer mediaRoot.Close()
+		f, err := mediaRoot.Open(relPath)
 		if err != nil {
 			return fmt.Errorf("打开媒体文件失败: %w", err)
 		}
