@@ -12,6 +12,13 @@ import (
 
 const resolveBatchSize = 30
 
+// randomResolveDelay adds bounded jitter to keep background Telegram lookups
+// from creating a fixed, burst-like request pattern. It is rate control, not
+// a mechanism for bypassing Telegram access restrictions.
+func randomResolveDelay() time.Duration {
+	return 5*time.Second + time.Duration(rand.Int63n(int64(10*time.Second)+1))
+}
+
 func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	type row struct {
 		sgID     uuid.UUID
@@ -124,7 +131,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(2 * time.Second):
+			case <-time.After(randomResolveDelay()):
 			}
 		}
 	}
