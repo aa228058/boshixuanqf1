@@ -46,7 +46,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		message = fmt.Sprint(v)
 	}
 	if message == "" {
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 		return
@@ -354,7 +354,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 
 			if len(task.AccountIDs) == 0 || len(targets) == 0 {
 				taskLog.Printf("[task] broadcast task %s has empty account_ids or target_ids, marking failed", task.TaskID)
-				if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+				if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 				if err := e.logRepo.Create(ctx, &domain.TaskLog{
@@ -388,7 +388,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
 					}
-					if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusPaused); err != nil {
+					if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusPaused); err != nil {
 						taskLog.Printf("[task] UpdateStatus failed: %v", err)
 					}
 					return
@@ -764,11 +764,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	if failed == total && total > 0 {
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 	} else {
-		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusCompleted); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusCompleted); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 	}
