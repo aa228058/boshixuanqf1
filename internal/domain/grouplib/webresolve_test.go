@@ -26,3 +26,16 @@ func TestParseWebMemberCount(t *testing.T) {
 		}
 	}
 }
+
+func TestInviteHashFromLink(t *testing.T) {
+	cases := map[string]string{
+		"https://t.me/+AbCdEf?single": "AbCdEf",
+		"t.me/joinchat/AbCdEf":        "AbCdEf",
+		"https://telegram.me/+XyZ":    "XyZ",
+	}
+	for input, want := range cases {
+		if got := inviteHashFromLink(input); got != want {
+			t.Errorf("inviteHashFromLink(%q)=%q, want %q", input, got, want)
+		}
+	}
+}
