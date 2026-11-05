@@ -3,7 +3,7 @@
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
-      <button @click="fetchTask" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-cyan hover:border-cyan/40 transition-colors">重新加载</button>
+      <button @click="fetchTask" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] transition-colors">重新加载</button>
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
     <div v-if="task" class="flex flex-wrap items-center gap-3">
@@ -40,16 +40,16 @@
           <div>
             <p class="text-sm text-text-secondary max-w-[60ch]">
               <span class="tabular-nums">{{ formatNumber((task?.progress.done || 0) + (task?.progress.failed || 0)) }}</span>/<span class="tabular-nums">{{ formatNumber(task?.progress.total || 0) }}</span> 已处理
-              <span class="text-emerald ml-2"><span class="tabular-nums">{{ formatNumber(task?.progress.done || 0) }}</span> 成功</span>
-              <span v-if="task?.progress.failed" class="text-rose ml-2"><span class="tabular-nums">{{ formatNumber(task.progress.failed) }}</span> 失败</span>
+              <span class="text-[var(--t-ok)] ml-2"><span class="tabular-nums">{{ formatNumber(task?.progress.done || 0) }}</span> 成功</span>
+              <span v-if="task?.progress.failed" class="text-[var(--t-err)] ml-2"><span class="tabular-nums">{{ formatNumber(task.progress.failed) }}</span> 失败</span>
             </p>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button v-if="task?.status === 'running'" @click="pause" class="px-3 py-2 rounded-lg bg-amber/10 text-amber border border-amber/20 text-sm">暂停</button>
-          <button v-else-if="task?.status === 'paused'" @click="resume" class="px-3 py-2 rounded-lg bg-emerald/10 text-emerald border border-emerald/20 text-sm">恢复</button>
-          <button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="px-3 py-2 rounded-lg bg-rose/10 text-rose border border-rose/20 text-sm" aria-label="取消">取消</button>
-          <button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="px-3 py-2 rounded-lg bg-cyan/10 text-cyan border border-cyan/20 text-sm">重试失败目标 ({{ task?.progress?.failed }})</button>
+          <button v-if="task?.status === 'running'" @click="pause" class="px-3 py-2 rounded-lg bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/20 text-sm">暂停</button>
+          <button v-else-if="task?.status === 'paused'" @click="resume" class="px-3 py-2 rounded-lg bg-[color:var(--t-ok-dim)] text-[var(--t-ok)] border border-[color:var(--t-ok)]/20 text-sm">恢复</button>
+          <button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="px-3 py-2 rounded-lg bg-[color:var(--t-err-dim)] text-[var(--t-err)] border border-[color:var(--t-err)]/20 text-sm" aria-label="取消">取消</button>
+          <button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="px-3 py-2 rounded-lg bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand-dim)] text-sm">重试失败目标 ({{ task?.progress?.failed }})</button>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
@@ -66,10 +66,10 @@
       <!-- R118: 等待倒计时 —— task_wait 帧驱动, 等待过程每秒可见 -->
       <div v-if="waitState && task?.status === 'running'" class="mt-3 flex items-center gap-2 text-xs text-text-secondary">
         <span class="relative flex h-2 w-2 shrink-0">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber opacity-60" />
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-amber" />
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--t-warn)] opacity-60" />
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-[var(--t-warn)]" />
         </span>
-        <span class="tabular-nums text-amber font-medium">{{ waitState.remaining }}s</span>
+        <span class="tabular-nums text-[var(--t-warn)] font-medium">{{ waitState.remaining }}s</span>
         <span>·</span>
         <span class="truncate">账号 {{ accountMap[waitState.account_id] || '...' }}</span>
         <span>等待后进入下一目标</span>
@@ -85,16 +85,16 @@
           <h3 class="text-sm font-medium">采集到的成员</h3>
           <span class="text-xs text-text-secondary">({{ members.length }})</span>
         </div>
-        <button @click="fetchMembers" :disabled="membersLoading" class="text-xs px-3 py-1 rounded-lg border border-border hover:border-cyan/40 transition-colors disabled:opacity-40">
+        <button @click="fetchMembers" :disabled="membersLoading" class="text-xs px-3 py-1 rounded-lg border border-border hover:border-[color:var(--t-brand)] transition-colors disabled:opacity-40">
           {{ membersLoading ? '加载中...' : '刷新' }}
         </button>
       </div>
       <div v-if="membersLoading" class="py-6 text-center text-sm text-text-muted">加载中...</div>
-      <div v-else-if="membersError" class="py-6 text-center text-sm text-red">{{ membersError }}</div>
+      <div v-else-if="membersError" class="py-6 text-center text-sm text-[var(--t-err)]">{{ membersError }}</div>
       <div v-else-if="!members.length" class="py-6 text-center text-sm text-text-muted">暂无成员数据</div>
       <div v-else class="space-y-1 max-h-80 overflow-y-auto">
         <div v-for="m in members" :key="m.member_id || m.tg_user_id" class="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bg-hover/50 text-sm">
-          <span class="text-cyan font-mono text-xs w-32 shrink-0">{{ m.tg_user_id }}</span>
+          <span class="text-[var(--t-brand)] font-mono text-xs w-32 shrink-0">{{ m.tg_user_id }}</span>
           <span class="truncate">{{ m.username || m.first_name || '未设置用户名' }}</span>
         </div>
       </div>
@@ -111,17 +111,17 @@
           <span class="text-xs text-text-secondary">({{ logs.length }})</span>
         </div>
         <div class="flex items-center gap-2">
-          <span v-if="connState === 'connected'" class="flex items-center gap-1 text-xs text-emerald">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald animate-pulse" />
+          <span v-if="connState === 'connected'" class="flex items-center gap-1 text-xs text-[var(--t-ok)]">
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-ok)] animate-pulse" />
             实时连接中
           </span>
           <span v-else-if="connState === 'connecting'" class="flex items-center gap-1 text-xs text-text-secondary">
-            <span class="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse" />
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-brand)] animate-pulse" />
             连接中…
           </span>
           <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
           <!-- R128 语义修正: 仅清除前端显示, 不动服务端已保存的记录 -->
-          <button @click="clearLogs" class="text-xs px-2.5 py-1 rounded-lg border border-border text-text-muted hover:text-red hover:border-red/40 transition-colors" title="仅清除当前显示">清除显示</button>
+          <button @click="clearLogs" class="text-xs px-2.5 py-1 rounded-lg border border-border text-text-muted hover:text-[var(--t-err)] hover:border-[color:var(--t-err)]/40 transition-colors" title="仅清除当前显示">清除显示</button>
         </div>
       </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
@@ -133,8 +133,8 @@
         >
           <!-- 状态图标 -->
           <div class="shrink-0 mt-0.5">
-            <CheckCircle2 v-if="log.status === 'success'" class="w-3.5 h-3.5 text-emerald" />
-            <XCircle v-else-if="log.status === 'failed'" class="w-3.5 h-3.5 text-rose" />
+            <CheckCircle2 v-if="log.status === 'success'" class="w-3.5 h-3.5 text-[var(--t-ok)]" />
+            <XCircle v-else-if="log.status === 'failed'" class="w-3.5 h-3.5 text-[var(--t-err)]" />
             <AlertCircle v-else class="w-3.5 h-3.5 text-text-muted" />
           </div>
           <div class="flex-1 min-w-0">
@@ -143,7 +143,7 @@
               <!-- R87-M8: 操作标签弱化(去底色, 与内容拉开主次) -->
               <span class="text-[10.5px] font-medium text-text-muted/70 shrink-0 w-14">{{ getActionLabel(log.action) }}</span>
               <span class="flex items-center gap-1 text-text-primary truncate">
-                <Send class="w-3 h-3 text-cyan shrink-0" />
+                <Send class="w-3 h-3 text-[var(--t-brand)] shrink-0" />
                 <span class="truncate">{{ log.target_name || groupMap[normId(log.target_id)] || log.target_id }}</span>
               </span>
             </div>
@@ -153,7 +153,7 @@
               {{ log.message }}
               <span v-if="log._waitMsg" class="ml-1 text-text-muted/60">⏳ {{ log._waitMsg }}</span>
             </div>
-            <div v-if="log.error_code" class="mt-1 text-rose text-xs bg-rose/5 rounded px-2 py-1 inline-block">
+            <div v-if="log.error_code" class="mt-1 text-[var(--t-err)] text-xs bg-[var(--t-err)]/5 rounded px-2 py-1 inline-block">
               {{ statusLabel(log.error_code) }}
             </div>
           </div>
@@ -375,18 +375,18 @@ progressPercent = computed(() => {
 })
 
 const progressColor = computed(() => {
-  if (!task.value) return 'bg-cyan'
-  if (task.value.status === 'failed') return 'bg-rose'
-  if (task.value.status === 'completed') return 'bg-emerald'
-  return 'bg-cyan'
+  if (!task.value) return 'bg-[var(--t-brand)]'
+  if (task.value.status === 'failed') return 'bg-[var(--t-err)]'
+  if (task.value.status === 'completed') return 'bg-[var(--t-ok)]'
+  return 'bg-[var(--t-brand)]'
 })
 
 function logCardClass(log: TaskLog) {
   // 如果任务已完成，wait/pending 的日志视为成功
   const effectiveStatus = (task.value?.status === 'completed' && (log.status === 'wait' || log.status === 'pending'))
     ? 'success' : log.status
-  if (effectiveStatus === 'success') return 'bg-emerald/5 hover:bg-emerald/10 border border-emerald/10'
-  if (effectiveStatus === 'failed') return 'bg-rose/5 hover:bg-rose/10 border border-rose/10'
+  if (effectiveStatus === 'success') return 'bg-[var(--t-ok)]/5 hover:bg-[color:var(--t-ok-dim)] border border-[color:var(--t-ok)]/10'
+  if (effectiveStatus === 'failed') return 'bg-[var(--t-err)]/5 hover:bg-[color:var(--t-err-dim)] border border-[color:var(--t-err)]/10'
   return 'bg-ink-01 hover:bg-bg-card border border-transparent'
 }
 
