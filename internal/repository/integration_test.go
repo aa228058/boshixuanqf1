@@ -200,3 +200,66 @@ func TestUpdateStatusGuardMatrix(t *testing.T) {
 		t.Fatal("legal transition running->paused should affect 1 row")
 	}
 }
+
+
+func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	tenantID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	accountID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+	approvedTaskID := "cccccccc-cccc-cccc-cccc-cccccccccccc"
+	cancelledTaskID := "dddddddd-dddd-dddd-dddd-dddddddddddd"
+
+	_, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, 'approvaltest', 'x', 'Approval Test', 'approval-test-key', 'free');
+		INSERT INTO tasks (tenant_id, task_id, type, status)
+		VALUES ($1, $2, 'join_groups', 'completed'), ($1, $3, 'join_groups', 'pending');
+		INSERT INTO pending_approvals (task_id, tenant_id, account_id, target_link)
+		VALUES ($2, $1, $4, 'https://t.me/example_approval'),
+		       ($3, $1, $4, 'https://t.me/example_cancel');
+	`, tenantID, approvedTaskID, cancelledTaskID, accountID)
+	if err != nil {
+		t.Fatalf("seed approval fixtures: %v", err)
+	}
+
+	approvalRepo := NewPendingApprovalRepository(pool)
+	resolved, err := approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), uuid.MustParse(approvedTaskID), "approved")
+	if err != nil || !resolved {
+		t.Fatalf("first approval resolution = (%t, %v), want (true, nil)", resolved, err)
+	}
+	resolved, err = approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), uuid.MustParse(approvedTaskID), "timeout")
+	if err != nil {
+		t.Fatalf("second approval resolution: %v", err)
+	}
+	if resolved {
+		t.Fatal("second resolution must not overwrite the first result")
+	}
+
+	taskRepo := NewTaskRepository(pool)
+	cancelled, err := taskRepo.CancelIfActive(ctx, uuid.MustParse(tenantID), uuid.MustParse(cancelledTaskID))
+	if err != nil || !cancelled {
+		t.Fatalf("cancel pending task = (%t, %v), want (true, nil)", cancelled, err)
+	}
+	if err := approvalRepo.CancelPendingForTask(ctx, uuid.MustParse(tenantID), uuid.MustParse(cancelledTaskID)); err != nil {
+		t.Fatalf("cancel pending approval: %v", err)
+	}
+	updated, err := taskRepo.UpdateStatusUnlessCancelled(ctx, uuid.MustParse(tenantID), uuid.MustParse(cancelledTaskID), domain.TaskStatusCompleted)
+	if err != nil {
+		t.Fatalf("late approval task update: %v", err)
+	}
+	if updated {
+		t.Fatal("late approval must not overwrite cancelled task")
+	}
+
+	var approvedStatus, cancelledStatus string
+	if err := pool.QueryRow(ctx, `SELECT status FROM pending_approvals WHERE task_id = $1`, approvedTaskID).Scan(&approvedStatus); err != nil {
+		t.Fatalf("read approved status: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT status FROM pending_approvals WHERE task_id = $1`, cancelledTaskID).Scan(&cancelledStatus); err != nil {
+		t.Fatalf("read cancelled approval status: %v", err)
+	}
+	if approvedStatus != "approved" || cancelledStatus != "cancelled" {
+		t.Fatalf("approval statuses = %q/%q, want approved/cancelled", approvedStatus, cancelledStatus)
+	}
+}
