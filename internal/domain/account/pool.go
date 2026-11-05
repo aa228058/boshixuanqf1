@@ -56,9 +56,9 @@ func (e *Engine) cleanupIdleConnections() {
 	}
 	e.poolMu.Unlock()
 	for _, pc := range toStop {
-		if pc.client != nil {
-			pc.client.Stop()
-		}
+		// Use the same panic-safe, client-lock-aware shutdown path as eviction
+		// and explicit disconnects. A Stop panic must not terminate the cleaner.
+		go e.stopPooledAsync(pc)
 	}
 }
 

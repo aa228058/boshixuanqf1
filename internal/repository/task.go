@@ -302,17 +302,14 @@ func (r *TaskRepository) CountOwnedAccounts(ctx context.Context, tenantID uuid.U
 	if len(accountIDs) == 0 {
 		return 0, nil
 	}
-	rows, err := r.db.Query(ctx,
-		`SELECT COUNT(*)::int FROM accounts WHERE tenant_id=$1 AND account_id = ANY($2)`, tenantID, accountIDs)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
 	var n int
-	if rows.Next() {
-		_ = rows.Scan(&n)
+	err := r.db.QueryRow(ctx,
+		`SELECT COUNT(*)::int FROM accounts WHERE tenant_id=$1 AND account_id = ANY($2)`, tenantID, accountIDs,
+	).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count accounts owned by tenant: %w", err)
 	}
-	return n, rows.Err()
+	return n, nil
 }
 
 // UpdateProgress atomically increments task progress counters.
