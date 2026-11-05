@@ -75,17 +75,27 @@
             <input v-model="ruleForm.name" class="w-full px-3 py-2 rounded-lg glow-input" />
           </div>
           <div>
-            <label class="block text-sm text-text-secondary mb-1">源群组（监控来源）</label>
-            <div @click="showSourceSelector = true"
-                 class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
-              <Users class="w-4 h-4 text-text-muted" />
-              <span v-if="!selectedSourceGroups.length" class="text-text-muted text-sm">点击选择源群组</span>
-              <span v-else class="text-sm">已选 {{ selectedSourceGroups.length }} 个群组</span>
-            </div>
-            <div v-if="selectedSourceGroups.length" class="flex flex-wrap gap-1.5 mt-2">
-              <span v-for="g in selectedSourceGroups" :key="g.group_id"
-                    class="px-2 py-0.5 rounded-full text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand-dim)]">{{ g.title }}</span>
-            </div>
+            <label class="block text-sm text-text-secondary mb-2">源群组（监控来源）</label>
+            <label class="flex items-start gap-2.5 p-3 rounded-lg border border-border cursor-pointer">
+              <input v-model="monitorAllMessages" type="checkbox" class="mt-0.5 accent-[var(--t-brand)]" />
+              <span class="min-w-0">
+                <span class="block text-sm font-medium">监控全部消息</span>
+                <span class="block text-xs text-text-muted mt-0.5">开启后不限制来源群组，监听该账号收到的所有消息</span>
+              </span>
+            </label>
+            <template v-if="!monitorAllMessages">
+              <div @click="showSourceSelector = true"
+                   class="flex items-center gap-2 p-3 mt-2 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
+                <Users class="w-4 h-4 text-text-muted" />
+                <span v-if="!selectedSourceGroups.length" class="text-text-muted text-sm">点击选择源群组</span>
+                <span v-else class="text-sm">已选 {{ selectedSourceGroups.length }} 个群组</span>
+              </div>
+              <div v-if="selectedSourceGroups.length" class="flex flex-wrap gap-1.5 mt-2">
+                <span v-for="g in selectedSourceGroups" :key="g.group_id"
+                      class="px-2 py-0.5 rounded-full text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand-dim)]">{{ g.title }}</span>
+              </div>
+              <p v-if="!selectedSourceGroups.length" class="text-xs text-[var(--t-warn)] mt-1">请至少选择一个来源群组，或开启“监控全部消息”</p>
+            </template>
           </div>
           <!-- R112 表单分组② -->
           <div class="flex items-center gap-2 pt-1"><span class="text-[10.5px] font-semibold text-text-muted uppercase tracking-wider">匹配条件与动作</span><span class="flex-1 h-px bg-border/60"></span></div>
@@ -193,7 +203,7 @@
       :groups="groups"
       :account-id="monAccId"
       mode="multiple"
-      @select="(gs: Group[]) => selectedSourceGroups = gs"
+      @select="(gs: Group[]) => { selectedSourceGroups = gs; if (gs.length) monitorAllMessages = false }"
       @refresh="fetchGroups"
     />
     <GroupSelector
@@ -240,6 +250,8 @@ const groups = ref<Group[]>([])
 const showSourceSelector = ref(false)
 const showTargetSelector = ref(false)
 const selectedSourceGroups = ref<Group[]>([])
+// 空 source_chat_ids 在后端表示不限制来源；编辑旧规则时兼容该语义。
+const monitorAllMessages = ref(true)
 const selectedTargetGroups = ref<Group[]>([])
 
 async function fetchGroups() {
@@ -349,6 +361,7 @@ function editRule(rule: any) {
     dm_call_seconds: rule.dm_call_seconds || 5,
   }
   // 恢复选中的源群组和目标群组
+  monitorAllMessages.value = !(rule.source_chat_ids || []).length
   selectedSourceGroups.value = (rule.source_chat_ids || []).map((id: string) => {
     const found = groups.value.find(g => g.group_id === id || String(g.tg_chat_id) === id)
     return found || { group_id: id, title: id, tg_chat_id: id }
@@ -367,6 +380,10 @@ function openAddRule() {
 }
 
 async function saveRule() {
+  if (!monitorAllMessages.value && !selectedSourceGroups.value.length) {
+    toast({ type: 'warning', title: '请选择监控来源', message: '请至少选择一个源群组，或开启“监控全部消息”' })
+    return
+  }
   // dm 规则: 子动作开关勾选但内容为空时按未勾选处理, 交给后端兜底校验
   const isDM = ruleForm.value.type === 'dm'
   const dmContent = isDM && ruleForm.value.dmContentEnabled ? ruleForm.value.dm_content.trim() : ''
@@ -385,7 +402,7 @@ async function saveRule() {
     dm_contact_phone: dmContact ? ruleForm.value.dm_contact_phone.trim() : '',
     dm_contact_first_name: dmContact ? ruleForm.value.dm_contact_first_name.trim() : '',
     dm_contact_last_name: dmContact ? ruleForm.value.dm_contact_last_name.trim() : '',
-    source_chat_ids: selectedSourceGroups.value.map(g => String(g.tg_chat_id || g.group_id)),
+    source_chat_ids: monitorAllMessages.value ? [] : selectedSourceGroups.value.map(g => String(g.tg_chat_id || g.group_id)),
     target_chat_ids: ruleForm.value.type === 'forward' ? selectedTargetGroups.value.map(g => String(g.tg_chat_id || g.group_id)) : [],
     enabled: true,
     // R109: 规则归属下拉所选账号(原绑 currentAccount=全局切换器, 已删除)
@@ -403,6 +420,7 @@ async function saveRule() {
     editingRule.value = null
     ruleForm.value = emptyRuleForm()
     selectedSourceGroups.value = []
+    monitorAllMessages.value = true
     selectedTargetGroups.value = []
     toast({ type: 'success', title: wasEditing ? '规则已更新' : '监控规则已创建', message: '规则即时生效' })
     fetchRules()
