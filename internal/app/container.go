@@ -20,15 +20,15 @@ import (
 	"tg-sender/internal/config"
 	"tg-sender/internal/crypto"
 	"tg-sender/internal/database"
-	"tg-sender/internal/domain/grouplib"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/domain/account"
+	"tg-sender/internal/domain/grouplib"
 	// R114: domain/campaign 导入已删(协议协同旧系统整包移除)
 	"tg-sender/internal/domain/monitor"
 	"tg-sender/internal/domain/task"
-	"tg-sender/internal/notify"
 	"tg-sender/internal/handler"
 	"tg-sender/internal/middleware"
+	"tg-sender/internal/notify"
 	"tg-sender/internal/repository"
 	"tg-sender/internal/service"
 	"tg-sender/internal/sse"
@@ -58,9 +58,9 @@ type Container struct {
 	AccountGroupRepo *repository.AccountGroupRepository
 	SupportRepo      *repository.SupportConfigRepository
 	// R119: 探测配置(管理端全局, 单行)
-	ProbeRepo        *repository.ProbeConfigRepository
-	AnnounceRepo     *repository.AnnouncementRepository
-	AdminRepo        *repository.AdminRepository
+	ProbeRepo    *repository.ProbeConfigRepository
+	AnnounceRepo *repository.AnnouncementRepository
+	AdminRepo    *repository.AdminRepository
 
 	// Infrastructure
 	SSEBroker *sse.Broker
@@ -78,32 +78,32 @@ type Container struct {
 	LinkScraper     *task.LinkScraper
 
 	// Services
-	AccountService   *service.AccountService
+	AccountService *service.AccountService
 	// R114: SquadRepo/SquadService 已删(小队系统整建制尸体)
-	GroupService     *service.GroupService
-	TaskService      *service.TaskService
-	SystemGroupRepo  *repository.SystemGroupRepository
-	GroupLibEngine   *grouplib.Engine
+	GroupService        *service.GroupService
+	TaskService         *service.TaskService
+	SystemGroupRepo     *repository.SystemGroupRepository
+	GroupLibEngine      *grouplib.Engine
 	GroupLibraryHandler *handler.GroupLibraryHandler
 	TextDictRepo        *repository.TextDictRepository // R116: Handler 已删, repo 供 engine 用
 	AIConfigRepo        *repository.AIConfigRepository
 	VerificationLogRepo *repository.VerificationLogRepository
 	AIConfigHandler     *handler.AIConfigHandler
 	PlanLimitRepo       *repository.PlanLimitRepository
-	MonitorService   *service.MonitorService
-	DashboardService *service.DashboardService
-	SettingsService  *service.SettingsService
-	AdminService     *service.AdminService
+	MonitorService      *service.MonitorService
+	DashboardService    *service.DashboardService
+	SettingsService     *service.SettingsService
+	AdminService        *service.AdminService
 
 	// Plan Checker
 	PlanChecker *middleware.PlanChecker
 
 	// Handlers
-	AuthHandler      *handler.AuthHandler
+	AuthHandler *handler.AuthHandler
 	// R119: 通知中心邮件发送器(SMTP 未配置时为未配置状态, 静默跳过)
-	Mailer           *notify.Mailer
+	Mailer          *notify.Mailer
 	RaffleMailBatch *notify.Batcher // R148: 抽奖邮件聚合器(同活动多账号合一封)
-	AccountHandler   *handler.AccountHandler
+	AccountHandler  *handler.AccountHandler
 	// R114: CampaignService/Handler 与 SquadHandler 已删
 	GroupHandler     *handler.GroupHandler
 	MediaHandler     *handler.MediaHandler
@@ -113,8 +113,8 @@ type Container struct {
 	DashboardHandler *handler.DashboardHandler
 	SettingsHandler  *handler.SettingsHandler
 	// R119: 通知中心邮件发送器(SMTP 未配置时静默跳过)
-	ExportHandler    *handler.ExportHandler
-	AdminHandler     *handler.AdminHandler
+	ExportHandler *handler.ExportHandler
+	AdminHandler  *handler.AdminHandler
 
 	// Lifecycle
 	stopCh chan struct{}
@@ -351,9 +351,9 @@ func (c *Container) initServices() {
 	c.AIConfigRepo = repository.NewAIConfigRepository(c.DB.Pool)
 	c.VerificationLogRepo = repository.NewVerificationLogRepository(c.DB.Pool)
 	// R119: 验证通过邮件通知(verify_solved 事件)
-	
+
 	// R153: 登录验证码捕获 → 落库 + SSE 实时推送 + 邮件(走 need_verify 订阅, 设置里可关)
-		// R164: 启动时清理历史遗留的登录临时会话(sessions 表防膨胀, 含已删账号残留旧密钥)
+	// R164: 启动时清理历史遗留的登录临时会话(sessions 表防膨胀, 含已删账号残留旧密钥)
 	if n, err := c.AccountRepo.CleanupLoginSessions(context.Background()); err != nil {
 		log.Printf("[cleanup] 登录临时会话清理失败: %v", err)
 	} else if n > 0 {
@@ -366,7 +366,7 @@ func (c *Container) initServices() {
 		_, err := c.AccountRepo.GetByID(ctx2, tenantID, accountID)
 		return err == nil
 	})
-c.MonitorEngine.SetLoginCodeCallback(func(tenantID, accountID uuid.UUID, code string) {
+	c.MonitorEngine.SetLoginCodeCallback(func(tenantID, accountID uuid.UUID, code string) {
 		ctx2, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := c.AccountRepo.UpdateLoginCode(ctx2, tenantID, accountID, code); err != nil {
@@ -403,7 +403,7 @@ c.MonitorEngine.SetLoginCodeCallback(func(tenantID, accountID uuid.UUID, code st
 		log.Printf("[monitor] 假在线告警: tenant=%s account=%s(%s)", tenantID, accountID, accName)
 		c.SSEBroker.BroadcastToTenant(tenantID, "flow_dead", map[string]any{"account_id": accountID, "name": accName})
 	})
-c.MonitorEngine.SetVerifyNotifier(func(tenantID, accountID uuid.UUID, groupTitle, status, reason string) {
+	c.MonitorEngine.SetVerifyNotifier(func(tenantID, accountID uuid.UUID, groupTitle, status, reason string) {
 		if status != "pass" || c.Mailer == nil {
 			return
 		}
@@ -496,11 +496,11 @@ c.MonitorEngine.SetVerifyNotifier(func(tenantID, accountID uuid.UUID, groupTitle
 				"kind": kind, "account": accName, "keyword": keyword, "prize": prize, "message": msg,
 			})
 		}
-				// R150: 开奖通知 = 机器人开奖原文转发 + 群号(租户要求: 完整名单自己看, 不按自己号过滤)
+		// R150: 开奖通知 = 机器人开奖原文转发 + 群号(租户要求: 完整名单自己看, 不按自己号过滤)
 		if kind == "draw" && c.RaffleMailBatch != nil {
 			c.RaffleMailBatch.Draw(tenantID, chatID, keyword, detail)
 		}
-// R148: 发起通知聚合 —— 同一活动 40s 内合并为一封
+		// R148: 发起通知聚合 —— 同一活动 40s 内合并为一封
 		if kind == "joined" && c.RaffleMailBatch != nil && keyword != "" {
 			c.RaffleMailBatch.Joined(tenantID, chatID, keyword, accName)
 		}
@@ -734,7 +734,7 @@ func (c *Container) seedData(ctx context.Context) error {
 			AdminID:      uuid.New(),
 			Username:     "admin",
 			PasswordHash: string(hash),
-			Role:         "super",  // 设计修复: 种子(唯一)管理员必须是最高权限, 否则套餐保存等 super 操作被自己 403
+			Role:         "super", // 设计修复: 种子(唯一)管理员必须是最高权限, 否则套餐保存等 super 操作被自己 403
 		}
 		if err := c.AdminRepo.Create(ctx, admin); err != nil {
 			log.Printf("[seed] 创建管理员失败: %v", err)
