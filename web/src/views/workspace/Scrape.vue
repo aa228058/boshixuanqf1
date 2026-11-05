@@ -366,7 +366,7 @@ function exportExcel(taskId: string) {
   const list = members.value[taskId] || []
   if (!list.length) return
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-    <head><meta charset="UTF-8"><style>td,th{border:1px solid #ccc;padding:6px}</style></head>
+    <head><meta charset="UTF-8"><style>td,th{border:1px solid var(--t-line);padding:var(--t-space-1-5)}</style></head>
     <body><table>
       <tr><th>User ID</th><th>Username</th><th>First Name</th><th>Last Name</th><th>Last Seen</th><th>Has Photo</th><th>Is Bot</th></tr>
       ${list.map((m: any) => `<tr><td>${m.user_id}</td><td>${m.username || ''}</td><td>${m.first_name || ''}</td><td>${m.last_name || ''}</td><td>${m.last_seen || ''}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
