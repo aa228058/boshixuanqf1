@@ -65,8 +65,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				WHERE status='pending'
 				   OR (status='processing' AND updated_at < NOW() - INTERVAL '2 minutes')
 				ORDER BY created_at
-				FOR UPDATE SKIP LOCKED
 				LIMIT 1
+				FOR UPDATE SKIP LOCKED
 			)
 			RETURNING job_id, tenant_id, payload, processed_count, total_count`).Scan(
 			&jobID, &tenantID, &payload, &offset, &total)
@@ -99,7 +99,11 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 
 func splitImportLines(payload string) []string {
 	return strings.FieldsFunc(payload, func(r rune) bool {
-		return r == '
-' || r == '' || r == ' ' || r == '	' || r == ',' || r == '；' || r == ';'
+		switch r {
+		case 10, 13, 32, 9, ',', '；', ';':
+			return true
+		default:
+			return false
+		}
 	})
 }
