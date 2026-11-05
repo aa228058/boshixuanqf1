@@ -123,9 +123,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			timer := time.NewTimer(rateLimitErr.RetryAfter)
 			select {
 			case <-ctx.Done():
-				if !timer.Stop() {
-					<-timer.C
-				}
+				timer.Stop()
 			case <-timer.C:
 			}
 			return
