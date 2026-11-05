@@ -83,16 +83,20 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		return &ImportResult{Skipped: skipped}, fmt.Errorf("没有解析到任何有效链接(支持 t.me/xxx、@xxx、t.me/+邀请hash)")
 	}
 
-	client, err := e.acc.GetClient(ctx, tenantID, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("取账号连接失败: %w", err)
+	var client *telegram.Client
+	if accountID != uuid.Nil {
+		var err error
+		client, err = e.acc.GetClient(ctx, tenantID, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("取账号连接失败: %w", err)
+		}
+		defer e.acc.ReleaseClient(tenantID, accountID, client)
 	}
-	defer e.acc.ReleaseClient(tenantID, accountID, client)
 
 	res := &ImportResult{Skipped: skipped}
 	// 大批量(>200条)不在导入请求内逐条调 TG——同步解析 1 万条必然超时且撞 flood。
 	// 策略: 全部先占位入库, 群名交给后台解析器(resolver.go)低速补齐。
-	bulkMode := len(entries) > 200
+	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
 		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link}
 		if en.private {
