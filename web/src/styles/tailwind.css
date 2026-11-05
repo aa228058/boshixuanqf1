@@ -80,11 +80,11 @@
   html {
     opacity: 1 !important;
     /* R87-M2 TDesign 瘦身: 压缩组件尺寸与圆角, 去"企业库味" */
-    --td-comp-size-m: 34px;
-    --td-comp-paddingLR-m: 12px;
-    --td-radius-default: 8px;
-    --td-radius-medium: 10px;
-    --td-radius-large: 14px;
+    --td-comp-size-m: var(--t-control-height-sm);
+    --td-comp-paddingLR-m: var(--t-control-padding-x);
+    --td-radius-default: var(--t-control-radius);
+    --td-radius-medium: var(--t-radius-md);
+    --td-radius-large: var(--t-radius-lg);
   }
   body {
     background-color: var(--color-bg-primary);
@@ -168,7 +168,7 @@
       max-width: 100% !important;
       transform: none !important;
       margin: 0 !important;
-      border-radius: 14px 14px 0 0 !important;
+      border-radius: var(--t-modal-radius) var(--t-modal-radius) 0 0 !important;
       max-height: 60dvh !important;
       overflow-y: auto !important;
       box-shadow: var(--t-shadow-pop) !important;
@@ -189,7 +189,7 @@
       width: 100% !important;
       max-width: 100% !important;
       margin: 0 !important;
-      border-radius: 16px 16px 0 0 !important;
+      border-radius: var(--t-modal-radius) var(--t-modal-radius) 0 0 !important;
       border-bottom: none !important;
       max-height: 88dvh !important;
       display: flex !important;
