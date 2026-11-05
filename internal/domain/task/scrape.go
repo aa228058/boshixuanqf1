@@ -682,7 +682,9 @@ func (e *Engine) executeScrapeLinksReport(ctx context.Context, task *domain.Task
 	}()
 
 	if len(task.AccountIDs) == 0 {
-		e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed)
+		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus failed: %v", err)
+		}
 		return
 	}
 
@@ -731,7 +733,9 @@ func (e *Engine) executeScrapeLinksReport(ctx context.Context, task *domain.Task
 				}
 			}
 			progress := domain.TaskProgress{Total: total, Done: total}
-			e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progress)
+			if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progress); err != nil {
+				taskLog.Printf("[task] UpdateProgressExact failed: %v", err)
+			}
 			e.publishProgress(task.TenantID, task.TaskID, progress)
 		}
 	}
@@ -747,7 +751,9 @@ finish:
 	}
 
 	finalProgress := domain.TaskProgress{Total: finalCount, Done: finalCount}
-	e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, finalProgress)
+	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, finalProgress); err != nil {
+		taskLog.Printf("[task] UpdateProgressExact failed: %v", err)
+	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusCompleted); err != nil {
@@ -820,12 +826,16 @@ func (e *Engine) executeScrapeActiveUsers(ctx context.Context, task *domain.Task
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	if len(task.AccountIDs) == 0 {
-		e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed)
+		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus failed: %v", err)
+		}
 		return
 	}
 	groupID, err := uuid.Parse(fmt.Sprint(task.Payload["group_id"]))
 	if err != nil {
-		e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed)
+		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus failed: %v", err)
+		}
 		return
 	}
 	accID := task.AccountIDs[0]
@@ -837,19 +847,25 @@ func (e *Engine) executeScrapeActiveUsers(ctx context.Context, task *domain.Task
 	acc, err := e.accEngine.GetByID(ctx, task.TenantID, accID)
 	// 待机号也执行：GetClient 现场建连。只排除真正不可用的状态。
 	if err != nil || acc == nil || acc.Status == domain.AccountStatusBanned || acc.Status == domain.AccountStatusRestricted || acc.Status == domain.AccountStatusPendingAuth {
-		e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed)
+		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus failed: %v", err)
+		}
 		return
 	}
 	client, err := e.accEngine.GetClient(ctx, task.TenantID, accID)
 	if err != nil || client == nil {
-		e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed)
+		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus failed: %v", err)
+		}
 		return
 	}
 	defer e.accEngine.ReleaseClient(task.TenantID, accID, client)
 
 	g, _ := e.groupRepo.GetByID(ctx, task.TenantID, groupID)
 	if g == nil {
-		e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed)
+		if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus failed: %v", err)
+		}
 		return
 	}
 	var peer tg.InputPeerClass
@@ -932,5 +948,7 @@ func (e *Engine) executeScrapeActiveUsers(ctx context.Context, task *domain.Task
 		}
 	}
 	taskLog.Printf("[scrape] 历史消息采集完成: 扫描 %d 条消息, %d 个用户", scanned, len(collected))
-	e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusCompleted)
+	if err := e.repo.UpdateStatus(ctx, task.TenantID, task.TaskID, domain.TaskStatusCompleted); err != nil {
+		taskLog.Printf("[task] UpdateStatus failed: %v", err)
+	}
 }
