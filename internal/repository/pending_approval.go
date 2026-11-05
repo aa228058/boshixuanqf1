@@ -125,6 +125,20 @@ func (r *PendingApprovalRepository) ResolvePending(ctx context.Context, tenantID
 	return res.RowsAffected() == 1, nil
 }
 
+// CancelPendingForTask stops background polling after its task is cancelled.
+func (r *PendingApprovalRepository) CancelPendingForTask(ctx context.Context, tenantID, taskID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE pending_approvals
+		SET status = 'cancelled', checked_at = NOW()
+		WHERE tenant_id = $1 AND task_id = $2 AND status = 'pending'
+		  AND EXISTS (
+			SELECT 1 FROM tasks t
+			WHERE t.tenant_id = $1 AND t.task_id = $2 AND t.status = 'cancelled'
+		  )
+	`, tenantID, taskID)
+	return err
+}
+
 func (r *PendingApprovalRepository) IncrementCheck(ctx context.Context, tenantID, taskID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE pending_approvals
