@@ -411,7 +411,7 @@ function statusLabel(s: string) {
   return s === 'valid' ? '链接有效' : s === 'invalid' ? '链接无效' : '待验证'
 }
 function sourceLabel(s: string) {
-  return s === 'bio' ? '简介发现' : s === 'import' ? '手动/文件导入' : s === 'search' ? 'Telegram 搜索' : '链接采集'
+  return s === 'bio' ? '简介发现' : s === 'import' ? '手动/文件导入' : s === 'search' ? 'Telegram 搜索' : s === 'joined' ? '群组同步' : '链接采集'
 }
 function fmtTime(t: string) {
   if (!t) return '—'
