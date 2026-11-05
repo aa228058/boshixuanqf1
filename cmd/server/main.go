@@ -265,6 +265,7 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	api.GET("/accounts/:id", c.AccountHandler.GetByID)
 	api.DELETE("/accounts/:id", c.AccountHandler.Delete)
 	api.POST("/accounts/:id/connect", c.AccountHandler.Connect)
+	api.POST("/accounts/:id/reauthenticate", c.AccountHandler.Reauthenticate)
 	api.POST("/accounts/:id/disconnect", c.AccountHandler.Disconnect)
 	api.POST("/accounts/:id/code", c.AccountHandler.SubmitCode)
 	api.GET("/accounts/:id/auth-state", c.AccountHandler.GetAuthState)
