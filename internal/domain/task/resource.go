@@ -37,7 +37,7 @@ func (e *Engine) checkAndAlertResources(ctx context.Context) {
 	memMB := m.Alloc / 1024 / 1024
 
 	// Memory alert: > threshold
-	if int64(memMB) > int64(e.cfg.MemAlertThresholdMB) {
+	if e.cfg.MemAlertThresholdMB > 0 && memMB > uint64(e.cfg.MemAlertThresholdMB) {
 		e.sseBroker.Broadcast("resource_alert", map[string]any{
 			"type":    "memory_high",
 			"message": fmt.Sprintf("内存占用过高: %d MB，建议降低并发或重启服务", memMB),
