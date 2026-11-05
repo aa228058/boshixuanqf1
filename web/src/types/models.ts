@@ -3,6 +3,10 @@ export interface SystemGroup {
   sg_id: string
   source: string // scraped | joined | bio | import
   contributor_name?: string
+  telegram_chat_id?: number
+  resolution_status?: string
+  entry_count?: number
+  entries?: Array<{ link_id?: string; sg_id?: string; tme_link?: string; username?: string; source: string; status: string; link_type?: string }>
   title: string
   username?: string
   tme_link?: string
