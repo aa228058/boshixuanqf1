@@ -88,14 +88,14 @@ function showErrBanner(msg: string) {
   if (!document.getElementById('err-banner-css')) {
     const st = document.createElement('style')
     st.id = 'err-banner-css'
-    st.textContent = '#err-banner.err-banner-friendly{background:var(--color-amber,#b45309)}#err-banner{background:var(--color-error,#b91c1c)}'
+    st.textContent = '#err-banner.err-banner-friendly{background:var(--t-warn)}#err-banner{background:var(--t-err)}'
     document.head.appendChild(st)
   }
   let el = document.getElementById('err-banner')
   if (!el) {
     el = document.createElement('div')
     el.id = 'err-banner'
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;color:#fff;font-size:12px;line-height:1.5;padding:8px 36px 8px 12px;white-space:pre-wrap;word-break:break-all;max-height:45vh;overflow:auto;box-shadow:0 4px 16px rgba(0,0,0,0.4);cursor:pointer;'
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:var(--t-z-toast);color:var(--t-brand-ink);font-size:var(--t-font-xs);line-height:var(--t-leading-normal);padding:var(--t-space-2) 36px var(--t-space-2) var(--t-space-3);white-space:pre-wrap;word-break:break-all;max-height:45vh;overflow:auto;box-shadow:var(--t-shadow-md);cursor:pointer;'
     el.title = '点击关闭'
     el.onclick = () => el?.remove()
     document.body.appendChild(el)
