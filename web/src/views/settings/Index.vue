@@ -4,7 +4,7 @@
     <div class="flex gap-1 p-1 rounded-[var(--t-r-md)] bg-bg-card border border-border/50 mb-2 overflow-x-auto">
       <button v-for="t in tabs" :key="t.key"
               class="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
-              :class="activeTab === t.key ? 'bg-cyan-glow/25 text-cyan' : 'text-text-secondary hover:text-text-primary'"
+              :class="activeTab === t.key ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'"
               @click="switchTab(t.key)">{{ t.label }}</button>
     </div>
     <!-- 套餐信息 -->
@@ -15,7 +15,7 @@
           <span class="text-xl font-semibold text-gradient">{{ planName }}</span>
         </div>
         <div class="flex items-baseline gap-1 shrink-0">
-          <span class="text-2xl tracking-tight font-bold text-cyan">{{ planPrice }}</span>
+          <span class="text-2xl tracking-tight font-bold text-[var(--t-brand)]">{{ planPrice }}</span>
           <span class="text-xs text-text-secondary">/月</span>
         </div>
       </div>
@@ -29,7 +29,7 @@
           <p class="text-lg font-mono font-semibold">{{ tenant?.max_concurrent_tasks || 1 }}</p>
         </div>
       </div>
-      <div v-if="tenant?.expires_at" class="text-xs text-amber mb-4">
+      <div v-if="tenant?.expires_at" class="text-xs text-[var(--t-warn)] mb-4">
         到期时间: {{ formatDate(tenant.expires_at) }}
       </div>
       <t-button theme="primary" @click="showUpgrade = true">
@@ -49,7 +49,7 @@
       <template v-else>
         <!-- R122: 删旧"管理员未配置 SMTP"分支 —— r120 起 SMTP 由租户自己配置,
              原分支把整个表单挡住了且文案是旧架构遗留。改为常显表单 + 未配置小提示。 -->
-        <div v-if="!smtpConfigured" class="flex items-start gap-2.5 rounded-lg border border-amber/30 bg-amber/10 p-3.5 text-xs text-amber leading-relaxed mb-4">
+        <div v-if="!smtpConfigured" class="flex items-start gap-2.5 rounded-lg border border-[color:var(--t-warn)]/30 bg-[color:var(--t-warn-dim)] p-3.5 text-xs text-[var(--t-warn)] leading-relaxed mb-4">
           <svg class="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>尚未配置发件邮箱 —— 在下方选择服务商并填写授权码后，通知功能即生效。</span>
         </div>
@@ -58,7 +58,7 @@
         <p class="text-xs text-text-muted mt-1">中奖、任务等事件将推送到此邮箱（手机邮箱 App 可实时提醒）</p>
         <div class="flex gap-2 mt-3">
           <input v-model="notifyEmail" type="email" placeholder="you@example.com"
-                 class="flex-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50" />
+                 class="flex-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50" />
         </div>
 
         <!-- R120: 发件邮箱 —— 租户自己的邮箱服务商, 通知从你自己的邮箱发出 -->
@@ -67,7 +67,7 @@
         <div class="flex flex-wrap gap-1.5 mt-3">
           <button v-for="p in smtpProviders" :key="p.key" type="button" @click="pickProvider(p.key)"
                   class="px-3 py-1.5 rounded-full border text-xs transition-colors"
-                  :class="smtpProvider === p.key ? 'border-cyan text-cyan bg-cyan/10' : 'border-border text-text-secondary hover:border-cyan/30'">
+                  :class="smtpProvider === p.key ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[var(--t-brand)]/10' : 'border-border text-text-secondary hover:border-[color:var(--t-brand)]/30'">
             {{ p.label }}
           </button>
         </div>
@@ -81,19 +81,19 @@
         <!-- 配置表单 -->
         <div class="grid grid-cols-2 gap-2 mt-3">
           <input v-model="smtpForm.user" :placeholder="smtpProvider === 'tinkmail' ? '完整邮箱地址' : '发件邮箱账号'"
-                 class="col-span-2 sm:col-span-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50" />
+                 class="col-span-2 sm:col-span-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50" />
           <input v-model="smtpForm.pass" type="password" :placeholder="smtpPassSet ? '授权码（已设置, 留空则不变）' : '授权码 / 应用专用密码'"
-                 class="col-span-2 sm:col-span-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50" />
+                 class="col-span-2 sm:col-span-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50" />
           <input v-model="smtpForm.host" placeholder="SMTP 服务器"
-                 class="px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50 font-mono" />
+                 class="px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
           <input v-model.number="smtpForm.port" type="number" placeholder="端口(465)"
-                 class="px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50 font-mono" />
+                 class="px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
         </div>
 
         <div class="flex gap-2 mt-4">
-          <button class="px-4 py-2.5 rounded-lg bg-cyan text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50" :disabled="notifyLoading || !notifyEmail" @click="saveNotify">保存全部设置</button>
-          <button class="px-4 py-2.5 rounded-lg border border-border text-sm text-text-secondary hover:border-cyan/40 active:scale-[0.97] transition-transform disabled:opacity-50" :disabled="notifyLoading" @click="testNotifyMail">发送测试邮件</button>
-          <span v-if="smtpConfigured" class="self-center text-[11px] text-emerald flex items-center gap-1">
+          <button class="px-4 py-2.5 rounded-lg bg-[var(--t-brand)] text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50" :disabled="notifyLoading || !notifyEmail" @click="saveNotify">保存全部设置</button>
+          <button class="px-4 py-2.5 rounded-lg border border-border text-sm text-text-secondary hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-transform disabled:opacity-50" :disabled="notifyLoading" @click="testNotifyMail">发送测试邮件</button>
+          <span v-if="smtpConfigured" class="self-center text-[11px] text-[var(--t-ok)] flex items-center gap-1">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>发件配置已完成
           </span>
         </div>
@@ -104,7 +104,7 @@
           <div v-for="(label, key) in notifyEvents" :key="key" class="flex items-center justify-between py-2.5">
             <span class="text-sm text-text-primary">{{ label }}</span>
             <button class="relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0"
-                    :class="notifySettings[key] ? 'bg-cyan' : 'bg-bg-secondary border border-border'"
+                    :class="notifySettings[key] ? 'bg-[var(--t-brand)]' : 'bg-bg-secondary border border-border'"
                     @click="toggleNotifyEvent(String(key))">
               <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
                     :class="notifySettings[key] ? 'left-[22px]' : 'left-0.5'" />
@@ -119,8 +119,8 @@
       <div class="flex items-center justify-between mb-1">
         <h3 class="text-sm font-medium text-text-secondary">入群验证（自动过验证）</h3>
         <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-          <input type="checkbox" v-model="vfEnabled" class="accent-cyan w-4 h-4" @change="saveToggle" />
-          <span :class="vfEnabled ? 'text-emerald' : 'text-text-muted'">{{ vfEnabled ? '已开启' : '已关闭' }}</span>
+          <input type="checkbox" v-model="vfEnabled" class="accent-[var(--t-brand)] w-4 h-4" @change="saveToggle" />
+          <span :class="vfEnabled ? 'text-[var(--t-ok)]' : 'text-text-muted'">{{ vfEnabled ? '已开启' : '已关闭' }}</span>
         </label>
       </div>
       <p class="text-xs text-text-muted mb-4">
@@ -156,7 +156,7 @@
           <Loader2 v-if="aiTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
           测试连通
         </t-button>
-        <span v-if="aiTestResult" class="text-xs" :class="aiTestResult.ok ? 'text-emerald' : 'text-rose'">
+        <span v-if="aiTestResult" class="text-xs" :class="aiTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
           {{ aiTestResult.ok ? `连通正常 · 回答「${aiTestResult.answer}」` : aiTestResult.error }}
         </span>
       </div>
@@ -187,7 +187,7 @@
         </div>
         <!-- R122: tdesign outline 按钮在深色下是白底白字 —— 改用令牌类 -->
         <button :disabled="exporting" @click="exportMyData"
-                class="px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-cyan/40 active:scale-[0.97] transition-all disabled:opacity-50">
+                class="px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50">
           {{ exporting ? '导出中…' : '导出 JSON' }}
         </button>
       </div>
@@ -197,7 +197,7 @@
     <div v-show="activeTab === 'templates'" class="glass rounded-[var(--t-r-md)] p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">消息模板</h3>
-        <button @click="showTemplateModal = true" class="text-xs text-cyan hover:text-cyan-bright transition-colors">管理模板</button>
+        <button @click="showTemplateModal = true" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">管理模板</button>
       </div>
       <div class="space-y-2">
         <div
@@ -215,14 +215,14 @@
     <div v-show="activeTab === 'support'" class="glass rounded-[var(--t-r-md)] p-5 lift">
       <h3 class="text-sm font-medium text-text-secondary mb-4">联系客服</h3>
       <div v-if="supportConfig" class="flex items-center gap-4">
-        <div class="w-12 h-12 rounded-lg bg-cyan-glow/50 flex items-center justify-center">
-          <MessageCircle class="w-6 h-6 text-cyan" />
+        <div class="w-12 h-12 rounded-lg bg-[color:var(--t-brand-dim)] flex items-center justify-center">
+          <MessageCircle class="w-6 h-6 text-[var(--t-brand)]" />
         </div>
         <div>
           <p class="font-medium">{{ supportConfig.display_name }}</p>
           <p class="text-sm text-text-secondary font-mono max-w-[65ch]">{{ supportConfig.contact_value }}</p>
         </div>
-        <button @click="copyContact" class="ml-auto px-3 py-1.5 rounded-lg border border-border text-xs hover:border-cyan/30 hover:text-cyan transition-colors h-8 inline-flex items-center" aria-label="复制">
+        <button @click="copyContact" class="ml-auto px-3 py-1.5 rounded-lg border border-border text-xs hover:border-[color:var(--t-brand)]/30 hover:text-[var(--t-brand)] transition-colors h-8 inline-flex items-center" aria-label="复制">
           {{ copied ? '已复制' : '复制' }}
         </button>
       </div>
@@ -235,7 +235,7 @@
           v-for="plan in plans"
           :key="plan.plan_id"
           class="p-4 rounded-lg border transition-all cursor-pointer"
-          :class="selectedPlan === plan.plan_id ? 'border-cyan/50 bg-cyan/5' : 'border-border hover:border-cyan/30'"
+          :class="selectedPlan === plan.plan_id ? 'border-[color:var(--t-brand)]/50 bg-[var(--t-brand)]/5' : 'border-border hover:border-[color:var(--t-brand)]/30'"
           @click="selectedPlan = plan.plan_id"
          tabindex="0" role="button">
           <div class="flex items-center justify-between">
@@ -249,7 +249,7 @@
               </div>
             </div>
             <div class="text-right">
-              <p class="text-xl tracking-tight font-bold text-cyan truncate">{{ formatPrice(plan.price_monthly) }}</p>
+              <p class="text-xl tracking-tight font-bold text-[var(--t-brand)] truncate">{{ formatPrice(plan.price_monthly) }}</p>
               <p class="text-xs text-text-secondary">/月</p>
             </div>
           </div>
@@ -282,10 +282,10 @@
               class="bg-transparent text-sm font-medium focus:outline-none flex-1 min-w-0" 
             />
             <div class="flex items-center gap-1 shrink-0">
-              <button @click="saveTemplate(t)" class="text-xs px-2 py-1 rounded bg-cyan-glow/50 text-cyan hover:bg-cyan/20">
+              <button @click="saveTemplate(t)" class="text-xs px-2 py-1 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20">
                 保存
               </button>
-              <button @click="deleteTemplate(t.template_id)" class="p-1 rounded hover:bg-rose/10 text-rose">
+              <button @click="deleteTemplate(t.template_id)" class="p-1 rounded hover:bg-[color:var(--t-err-dim)] text-[var(--t-err)]">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
@@ -301,7 +301,7 @@
             <!-- R121: 删掉手写计数 —— tdesign textarea 的 maxlength 自带右下角计数器, 双份叠印成"重影" -->
           </div>
         </div>
-        <button @click="addTemplate" class="w-full py-2 rounded-lg border border-dashed border-border text-sm text-text-secondary hover:border-cyan/30 hover:text-cyan transition-colors">
+        <button @click="addTemplate" class="w-full py-2 rounded-lg border border-dashed border-border text-sm text-text-secondary hover:border-[color:var(--t-brand)]/30 hover:text-[var(--t-brand)] transition-colors">
           + 添加模板
         </button>
       </div>
