@@ -243,10 +243,11 @@ func (e *Engine) executeRound(ctx context.Context, client *telegram.Client, st *
 			var correct []int32
 			voted := 0
 			for _, opt := range correct {
-				if opt < 0 || int(opt) >= len(cand.poll.Answers) {
+				idx := int(opt)
+				if idx < 0 || idx >= len(cand.poll.Answers) {
 					continue
 				}
-				pa, ok := cand.poll.Answers[opt].(*tg.PollAnswer)
+				pa, ok := cand.poll.Answers[idx].(*tg.PollAnswer)
 				if !ok {
 					continue
 				}
