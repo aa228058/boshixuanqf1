@@ -224,6 +224,7 @@ func (e *Engine) executeRound(ctx context.Context, client *telegram.Client, st *
 	// 1. 原生 Poll: 本地算答案 → 按原始选项字节投票
 	if cand.poll != nil {
 		if ans := solvePoll(cand.poll); ans >= 0 && ans < len(cand.poll.Answers) {
+			// #nosec G602 -- ans is checked against the slice length in the enclosing condition.
 			pa, ok := cand.poll.Answers[ans].(*tg.PollAnswer)
 			if !ok {
 				st.addStep("poll_skip", "Poll 选项类型异常")
@@ -247,6 +248,7 @@ func (e *Engine) executeRound(ctx context.Context, client *telegram.Client, st *
 				if idx < 0 || idx >= len(cand.poll.Answers) {
 					continue
 				}
+				// #nosec G602 -- idx is checked against the slice length immediately above.
 				pa, ok := cand.poll.Answers[idx].(*tg.PollAnswer)
 				if !ok {
 					continue
