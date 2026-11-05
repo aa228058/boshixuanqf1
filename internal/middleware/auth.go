@@ -26,7 +26,7 @@ const TenantContextKey = "tenant_id"
 // 可防止令牌被误用于其他环境/服务。
 const (
 	TokenIssuer   = "tg-sender"
-	TokenAudience = "tg-sender-api"
+	TokenAudience = "tg-sender-api" // #nosec G101 -- public JWT audience identifier, not a credential
 )
 
 // isSSETokenPath reports whether the path may receive a JWT via ?token= query
