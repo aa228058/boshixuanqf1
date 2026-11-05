@@ -170,7 +170,10 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 		select {
 		case <-oldDone:
 		case <-time.After(35 * time.Second):
-			log.Printf("[monitor] 等待旧监听退出超时 tenant=%s account=%s", tenantID, accountID)
+			// 旧回调仍可能挂在 Telegram client 上。未确认退出前不能启动
+			// 新会话，否则同一账号会重复注册消息处理器。
+			log.Printf("[monitor] 等待旧监听退出超时，取消本次启动 tenant=%s account=%s", tenantID, accountID)
+			return fmt.Errorf("previous monitor session did not stop within 35 seconds")
 		}
 	}
 
@@ -189,9 +192,8 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 	// Create reload channel for this account
 	clientKey := tenantID.String() + ":" + accountID.String()
 	e.reloadMu.Lock()
-	if oldCh, exists := e.reloadChs[clientKey]; exists {
-		close(oldCh)
-	}
+	// 旧会话通过 ctx.Done() 退出；不要关闭它正在监听的 channel，
+	// 因为关闭后的 channel 会持续可读，可能让未退出的旧 loop 空转。
 	e.reloadChs[clientKey] = make(chan struct{}, 1)
 	e.reloadMu.Unlock()
 
@@ -234,10 +236,9 @@ func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
 	// Cleanup reload channel
 	clientKey := tenantID.String() + ":" + accountID.String()
 	e.reloadMu.Lock()
-	if ch, exists := e.reloadChs[clientKey]; exists {
-		close(ch)
-		delete(e.reloadChs, clientKey)
-	}
+	// monitorLoop 通过 ctx.Done() 退出。不要 close 它持有的 reload channel：
+	// channel 关闭后会一直可读，若 loop 尚未完全退出可能导致忙循环。
+	delete(e.reloadChs, clientKey)
 	e.reloadMu.Unlock()
 }
 
