@@ -143,7 +143,12 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 		return // 目录不存在或不可读: 静默跳过
 	}
 	defer root.Close()
-	entries, err := root.ReadDir(".")
+	dirFile, err := root.Open(".")
+	if err != nil {
+		return
+	}
+	entries, err := dirFile.ReadDir(-1)
+	_ = dirFile.Close()
 	if err != nil {
 		return
 	}
