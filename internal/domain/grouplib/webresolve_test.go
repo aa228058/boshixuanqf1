@@ -3,6 +3,7 @@ package grouplib
 import (
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestExtractTelegramMetaAttributeOrder(t *testing.T) {
@@ -57,5 +58,14 @@ func TestApplyTelegramWebHeaders(t *testing.T) {
 	}
 	if req.Header.Get("Referer") != "" {
 		t.Fatal("Referer should not be fabricated")
+	}
+}
+
+func TestRandomResolveDelayBounds(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		delay := randomResolveDelay()
+		if delay < 5*time.Second || delay > 15*time.Second {
+			t.Fatalf("randomResolveDelay()=%s, want range [5s,15s]", delay)
+		}
 	}
 }
