@@ -233,7 +233,10 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	// 4. Lazy load: restore from saved session
 	acc, err := e.repo.GetByID(ctx, tenantID, accountID)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("load account %s: %w", accountID, err)
+	}
+	if acc == nil {
+		return nil, false, fmt.Errorf("account %s not found", accountID)
 	}
 	if acc.Status != domain.AccountStatusAuthenticated && acc.Status != domain.AccountStatusOnline && acc.Status != domain.AccountStatusOffline {
 		return nil, false, fmt.Errorf("account %s not authenticated (status: %s)", accountID, acc.Status)
