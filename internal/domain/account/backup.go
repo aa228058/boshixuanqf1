@@ -28,7 +28,7 @@ func (e *Engine) StartSessionBackup() {
 }
 
 func (e *Engine) backupSessionFiles() {
-	if err := os.MkdirAll(e.backupDir, 0o755); err != nil {
+	if err := os.MkdirAll(e.backupDir, 0o700); err != nil {
 		log.Printf("[BACKUP] 创建备份目录失败: %v", err)
 		return
 	}
@@ -43,13 +43,13 @@ func (e *Engine) backupSessionFiles() {
 			continue
 		}
 		src := filepath.Join(".", entry.Name())
-		dst := fmt.Sprintf("%s/%s_%s", e.backupDir, entry.Name(), time.Now().Format("20060102_150405.000"))
+		dst := filepath.Join(e.backupDir, entry.Name()+"_"+time.Now().Format("20060102_150405.000"))
 		data, err := os.ReadFile(src)
 		if err != nil {
 			log.Printf("[BACKUP] 读取 %s 失败: %v", src, err)
 			continue
 		}
-		if err := os.WriteFile(dst, data, 0644); err != nil {
+		if err := os.WriteFile(dst, data, 0o600); err != nil {
 			log.Printf("[BACKUP] 写入 %s 失败: %v", dst, err)
 			continue
 		}
