@@ -750,7 +750,7 @@ func (h *AccountHandler) UploadAvatar(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "open file failed")
 	}
-	defer src.Close()
+	defer logImportClose("uploaded archive", src)
 	photo, err := io.ReadAll(io.LimitReader(src, 5<<20)) // 5MB 上限
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "read file failed")
@@ -810,7 +810,7 @@ func readArchiveSidecar(root *os.Root, sessionPath string) ([]byte, error) {
 		return nil, err
 	}
 	entries, err := dirFile.ReadDir(-1)
-	_ = dirFile.Close()
+	logImportClose("import directory", dirFile)
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +834,7 @@ func readArchiveSidecar(root *os.Root, sessionPath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer logImportClose("uploaded session", file)
 	data, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
 	if err != nil {
 		return nil, err
@@ -864,6 +864,20 @@ func extractArchiveCLI(archivePath, ext string) (string, error) {
 }
 
 // ImportSessionFiles 上传 .session 文件批量导入（multipart，字段名 files，可多选）
+// logImportClose records cleanup failures without masking the primary import result.
+func logImportClose(label string, closer io.Closer) {
+	if err := closer.Close(); err != nil {
+		log.Printf("[account-import] close %s failed: %v", label, err)
+	}
+}
+
+// logImportRemove records temporary-file cleanup failures.
+func logImportRemove(path string) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		log.Printf("[account-import] remove temporary file %q failed: %v", path, err)
+	}
+}
+
 func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
 	if err != nil {
@@ -887,8 +901,8 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 	var paths []string
 	defer func() {
 		for _, p := range paths {
-			_ = os.Remove(p)
-			_ = os.Remove(strings.TrimSuffix(p, ".session") + ".json")
+			logImportRemove(p)
+			logImportRemove(strings.TrimSuffix(p, ".session") + ".json")
 		}
 	}()
 	for _, fh := range files {
@@ -898,7 +912,7 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 		}
 		if strings.HasSuffix(strings.ToLower(fh.Filename), ".zip") {
 			data, err := io.ReadAll(io.LimitReader(src, (50<<20)+1)) // +1 用于识别超限
-			src.Close()
+			logImportClose("uploaded file", src)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "读取压缩包失败: "+err.Error())
 			}
@@ -924,7 +938,7 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 JSON 附件 %q 失败: %v", zf.Name, openErr))
 					}
 					data, readErr := io.ReadAll(io.LimitReader(rc, (1<<20)+1))
-					closeErr := rc.Close()
+					closeErr := logImportClose("archive entry", rc)
 					if readErr != nil || closeErr != nil {
 						if readErr != nil {
 							return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 JSON 附件 %q 失败: %v", zf.Name, readErr))
@@ -954,28 +968,28 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				// R182: 原始文件名放前缀, service 端据此兜底解析手机号
 				tmp, err := os.CreateTemp("", tempPrefixFromName(zf.Name)+"*.session")
 				if err != nil {
-					rc.Close()
+					logImportClose("archive entry", rc)
 					return echo.NewHTTPError(http.StatusInternalServerError, "创建临时会话文件失败: "+err.Error())
 				}
 				// P2-50 审计修复: 原来 LimitReader 到限返回 EOF——Copy 视为成功, 超 10MB
 				// 的文件被静默截断当完整 session 导入。+1 探测: 超限时拒绝。
 				written, err := io.Copy(tmp, io.LimitReader(rc, (10<<20)+1))
 				if err != nil || written > 10<<20 {
-					rc.Close()
-					tmp.Close()
-					_ = os.Remove(tmp.Name())
+					logImportClose("archive entry", rc)
+					logImportClose("temporary session", tmp)
+					logImportRemove(tmp.Name())
 					if err != nil {
 						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 %q 失败: %v", zf.Name, err))
 					}
 					return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%q 超过单文件 10MB 限制", zf.Name))
 				}
-				rc.Close()
-				tmp.Close()
+				logImportClose("archive entry", rc)
+				logImportClose("temporary session", tmp)
 				// R182: 同 stem 的 sidecar json 写出(2FA 密码/手机号), service 端 readSidecarJSON 读取
 				if key := archiveEntryKey(zf.Name); key != "" {
 					if data, ok := sidecars[key]; ok {
 						if err := os.WriteFile(strings.TrimSuffix(tmp.Name(), ".session")+".json", data, 0600); err != nil {
-							_ = os.Remove(tmp.Name())
+							logImportRemove(tmp.Name())
 							return echo.NewHTTPError(http.StatusInternalServerError, "写入会话附加信息失败: "+err.Error())
 						}
 					}
@@ -993,7 +1007,7 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 			lowerName := strings.ToLower(fh.Filename)
 			ext := filepath.Ext(lowerName)
 			data, err := io.ReadAll(io.LimitReader(src, (50<<20)+1))
-			src.Close()
+			logImportClose("uploaded file", src)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "读取压缩包失败: "+err.Error())
 			}
@@ -1005,22 +1019,22 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				return echo.NewHTTPError(http.StatusInternalServerError, "创建临时文件失败")
 			}
 			if _, err := archiveTmp.Write(data); err != nil {
-				archiveTmp.Close()
-				os.Remove(archiveTmp.Name())
+				logImportClose("temporary archive", archiveTmp)
+				logImportRemove(archiveTmp.Name())
 				return echo.NewHTTPError(http.StatusInternalServerError, "写入临时包失败")
 			}
-			archiveTmp.Close()
+			logImportClose("temporary archive", archiveTmp)
 			outDir, err := extractArchiveCLI(archiveTmp.Name(), ext)
-			os.Remove(archiveTmp.Name())
+			logImportRemove(archiveTmp.Name())
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, ext+" 解压失败: "+err.Error())
 			}
-			defer os.RemoveAll(outDir)
+			defer func() { if err := os.RemoveAll(outDir); err != nil { log.Printf("[account-import] remove extracted directory %q failed: %v", outDir, err) } }()
 			archiveRoot, err := os.OpenRoot(outDir)
 			if err != nil {
 				return fmt.Errorf("打开解压目录失败: %w", err)
 			}
-			defer archiveRoot.Close()
+			defer logImportClose("extracted archive root", archiveRoot)
 			arcCount := 0
 			walkErr := filepath.Walk(outDir, func(p string, info os.FileInfo, werr error) error {
 				if werr != nil {
@@ -1038,21 +1052,21 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				}
 				relPath, relErr := filepath.Rel(outDir, p)
 				if relErr != nil {
-					dest.Close()
-					_ = os.Remove(dest.Name())
+					logImportClose("extracted session destination", dest)
+					logImportRemove(dest.Name())
 					return fmt.Errorf("解析压缩包内路径失败: %w", relErr)
 				}
 				in, ierr := archiveRoot.Open(relPath)
 				if ierr != nil {
-					dest.Close()
-					_ = os.Remove(dest.Name())
+					logImportClose("extracted session destination", dest)
+					logImportRemove(dest.Name())
 					return fmt.Errorf("打开 %q 失败: %w", relPath, ierr)
 				}
 				written, cerr := io.Copy(dest, io.LimitReader(in, (10<<20)+1))
-				in.Close()
-				closeErr := dest.Close()
+				logImportClose("extracted session source", in)
+				closeErr := logImportClose("extracted session destination", dest)
 				if cerr != nil || closeErr != nil || written > 10<<20 {
-					_ = os.Remove(dest.Name())
+					logImportRemove(dest.Name())
 					if cerr != nil {
 						return fmt.Errorf("读取 %q 失败: %w", p, cerr)
 					}
@@ -1064,11 +1078,11 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				// R182: 同 stem .json 跟随拷贝(rar/7z 包内 sidecar, 同 zip 规则)
 				if jdata, jerr := readArchiveSidecar(archiveRoot, relPath); jerr == nil {
 					if werr := os.WriteFile(strings.TrimSuffix(dest.Name(), ".session")+".json", jdata, 0600); werr != nil {
-						_ = os.Remove(dest.Name())
+						logImportRemove(dest.Name())
 						return fmt.Errorf("写入 %q 的附加 JSON 失败: %w", p, werr)
 					}
 				} else if !os.IsNotExist(jerr) {
-					_ = os.Remove(dest.Name())
+					logImportRemove(dest.Name())
 					return fmt.Errorf("读取 %q 的附加 JSON 失败: %w", p, jerr)
 				}
 				paths = append(paths, dest.Name())
@@ -1091,23 +1105,23 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 		// R182: 原始文件名放前缀, service 端据此兜底解析手机号
 		tmp, err := os.CreateTemp("", tempPrefixFromName(fh.Filename)+"*.session")
 		if err != nil {
-			src.Close()
+			logImportClose("uploaded file", src)
 			return echo.NewHTTPError(http.StatusInternalServerError, "创建临时文件失败")
 		}
 		// P2-50 审计修复: 同 zip 分支——LimitReader 到限返回 EOF 被当成功, 超 10MB
 		// 文件被静默截断。+1 探测: 超限拒绝。
 		written, err := io.Copy(tmp, io.LimitReader(src, (10<<20)+1)) // 单文件 10MB 上限
 		if err != nil || written > 10<<20 {
-			src.Close()
-			tmp.Close()
-			_ = os.Remove(tmp.Name())
+			logImportClose("uploaded file", src)
+			logImportClose("temporary session", tmp)
+			logImportRemove(tmp.Name())
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "读取会话文件失败: "+err.Error())
 			}
 			return echo.NewHTTPError(http.StatusBadRequest, "文件过大（单文件限 10MB）")
 		}
-		src.Close()
-		tmp.Close()
+		logImportClose("uploaded file", src)
+		logImportClose("temporary session", tmp)
 		paths = append(paths, tmp.Name())
 	}
 	result, err := h.svc.ImportSessionFiles(c.Request().Context(), tenantID, paths, remark)
