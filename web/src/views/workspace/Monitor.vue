@@ -14,7 +14,7 @@
       <!-- 监控状态(自动模式: 规则即开关) -->
       <div class="p-4 rounded-lg border border-border bg-bg-card">
         <div class="flex items-center gap-3">
-          <div class="w-3 h-3 rounded-full shrink-0" :class="anyRuleActive ? 'bg-emerald animate-pulse' : 'bg-text-muted'" />
+          <div class="w-3 h-3 rounded-full shrink-0" :class="anyRuleActive ? 'bg-[var(--t-ok)] animate-pulse' : 'bg-text-muted'" />
           <span class="text-sm font-medium whitespace-nowrap">{{ anyRuleActive ? '监控运行中' : '监控已停止' }}</span>
         </div>
         <p class="text-xs text-text-muted mt-1.5 pl-6">启用任意规则即自动开始，全部停用自动停止</p>
@@ -37,7 +37,7 @@
                 <span class="text-sm font-extrabold">{{ rule.name }}</span>
                 <!-- R126 示例2 badge 语言: 圆点+文字胶囊 -->
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                      :class="rule.is_active ? 'bg-emerald/10 text-emerald' : 'bg-text-muted/15 text-text-muted'">
+                      :class="rule.is_active ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : 'bg-text-muted/15 text-text-muted'">
                   <i class="w-1.5 h-1.5 rounded-full bg-current"></i>{{ rule.is_active ? '启用' : '停用' }}
                 </span>
                 <!-- 2026-09-22 隔离改造: 显示规则归属账号 -->
@@ -56,8 +56,8 @@
               <button @click="editRule(rule)" class="p-1.5 rounded hover:bg-bg-secondary transition-colors" title="编辑">
                 <Edit3 class="w-4 h-4 text-text-muted" />
               </button>
-              <button @click="deleteRule(rule.rule_id)" class="p-1.5 rounded hover:bg-rose/10 transition-colors" title="删除">
-                <Trash2 class="w-4 h-4 text-rose" />
+              <button @click="deleteRule(rule.rule_id)" class="p-1.5 rounded hover:bg-[color:var(--t-err-dim)] transition-colors" title="删除">
+                <Trash2 class="w-4 h-4 text-[var(--t-err)]" />
               </button>
             </div>
           </div>
@@ -77,14 +77,14 @@
           <div>
             <label class="block text-sm text-text-secondary mb-1">源群组（监控来源）</label>
             <div @click="showSourceSelector = true"
-                 class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-cyan/30 transition-colors">
+                 class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
               <Users class="w-4 h-4 text-text-muted" />
               <span v-if="!selectedSourceGroups.length" class="text-text-muted text-sm">点击选择源群组</span>
               <span v-else class="text-sm">已选 {{ selectedSourceGroups.length }} 个群组</span>
             </div>
             <div v-if="selectedSourceGroups.length" class="flex flex-wrap gap-1.5 mt-2">
               <span v-for="g in selectedSourceGroups" :key="g.group_id"
-                    class="px-2 py-0.5 rounded-full text-xs bg-cyan-glow/30 text-cyan border border-cyan/20">{{ g.title }}</span>
+                    class="px-2 py-0.5 rounded-full text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand-dim)]">{{ g.title }}</span>
             </div>
           </div>
           <!-- R112 表单分组② -->
@@ -117,7 +117,7 @@
           <!-- 私聊触达: 命中后由监控号私聊触发人, 子动作可任意组合 -->
           <div v-if="ruleForm.type === 'dm'" class="space-y-3 p-3 rounded-lg border border-border">
             <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
-              <input type="checkbox" v-model="ruleForm.dmContentEnabled" class="accent-emerald" />
+              <input type="checkbox" v-model="ruleForm.dmContentEnabled" class="accent-[var(--t-ok)]" />
               发送私聊消息
             </label>
             <div v-if="ruleForm.dmContentEnabled">
@@ -125,7 +125,7 @@
                         class="w-full px-3 py-2 rounded-lg glow-input resize-none" />
             </div>
             <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
-              <input type="checkbox" v-model="ruleForm.dmContactEnabled" class="accent-emerald" />
+              <input type="checkbox" v-model="ruleForm.dmContactEnabled" class="accent-[var(--t-ok)]" />
               发送联系人名片
             </label>
             <div v-if="ruleForm.dmContactEnabled" class="space-y-2">
@@ -146,7 +146,7 @@
                   {{ ct.first_name }} {{ ct.last_name || '' }} · {{ ct.phone }}
                 </option>
               </select>
-              <p v-if="contactPick && !ruleForm.dm_contact_phone" class="text-xs text-amber-500">该联系人资料未返回手机号，Telegram 名片发送必须提供手机号；请手动补充，或选择有手机号的联系人。</p>
+              <p v-if="contactPick && !ruleForm.dm_contact_phone" class="text-xs text-[var(--t-warn)]">该联系人资料未返回手机号，Telegram 名片发送必须提供手机号；请手动补充，或选择有手机号的联系人。</p>
               <div class="grid grid-cols-2 gap-2">
                 <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码（自动带入；缺失时需补充）" class="col-span-2 px-3 py-2 rounded-lg glow-input" />
                 <input v-model="ruleForm.dm_contact_first_name" placeholder="名(必填)" class="px-3 py-2 rounded-lg glow-input" />
@@ -154,7 +154,7 @@
               </div>
             </div>
             <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
-              <input type="checkbox" v-model="ruleForm.dmCallEnabled" class="accent-emerald" />
+              <input type="checkbox" v-model="ruleForm.dmCallEnabled" class="accent-[var(--t-ok)]" />
               弹语音通话
             </label>
             <div v-if="ruleForm.dmCallEnabled" class="flex items-center gap-2 text-sm text-text-muted">
@@ -170,14 +170,14 @@
           <div v-if="ruleForm.type === 'forward'">
             <label class="block text-sm text-text-secondary mb-1">目标群组（转发目的地）</label>
             <div @click="showTargetSelector = true"
-                 class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-cyan/30 transition-colors">
+                 class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
               <Users class="w-4 h-4 text-text-muted" />
               <span v-if="!selectedTargetGroups.length" class="text-text-muted text-sm">点击选择目标群组</span>
               <span v-else class="text-sm">已选 {{ selectedTargetGroups.length }} 个群组</span>
             </div>
             <div v-if="selectedTargetGroups.length" class="flex flex-wrap gap-1.5 mt-2">
               <span v-for="g in selectedTargetGroups" :key="g.group_id"
-                    class="px-2 py-0.5 rounded-full text-xs bg-emerald-glow/30 text-emerald border border-emerald/20">{{ g.title }}</span>
+                    class="px-2 py-0.5 rounded-full text-xs bg-[color:var(--t-ok-dim)] text-[var(--t-ok)] border border-[color:var(--t-ok)]/20">{{ g.title }}</span>
             </div>
           </div>
         </div>
