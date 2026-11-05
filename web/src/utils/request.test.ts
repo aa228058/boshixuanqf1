@@ -78,4 +78,27 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
     expect(await p).toBe('ok')
     expect(spy).toHaveBeenCalledTimes(2)
   })
+
+  it('POST 网络错误不重试：避免结果未知时重复提交写操作', async () => {
+    const spy = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', spy)
+    const p = request('/tasks', { method: 'POST', body: '{}' }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toBeInstanceOf(Error)
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('请求超时会 abort 底层请求', async () => {
+    let signal: AbortSignal | undefined
+    const spy = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      signal = init.signal as AbortSignal
+      return new Promise<Response>(() => {})
+    })
+    vi.stubGlobal('fetch', spy)
+    const p = request('/slow', { timeout: 10 }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10)
+    expect(await p).toBeInstanceOf(Error)
+    expect(signal?.aborted).toBe(true)
+    expect(spy).toHaveBeenCalledTimes(3)
+  })
 })
