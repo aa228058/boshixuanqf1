@@ -14,8 +14,8 @@ import (
 var loginCodeRe = regexp.MustCompile(`(?i)(?:login code|登录验证码|登入驗證碼|verification code|验证码|确认码|c[oó]digo(?: de (?:inicio de sesi[oó]n|acesso|confirmaci[oó]n|verificaci[oó]n))?|код(?:\s*подтверждения|(?:\s*для)?\s*входа)?|رمز(?:\s*الدخول)?)[^\d]{0,20}(\d{5,6})`)
 
 // extractLoginCode 只采信两类来源, 防群里的伪造消息:
-//   1) TG 官方服务号 777000
-//   2) 私聊(chatID > 0)里的验证码文本
+//  1. TG 官方服务号 777000
+//  2. 私聊(chatID > 0)里的验证码文本
 func extractLoginCode(text string, fromID any, chatID int64) string {
 	if text == "" {
 		return ""

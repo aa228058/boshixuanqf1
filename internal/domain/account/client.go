@@ -552,8 +552,8 @@ func (e *Engine) removeClient(key string) {
 	e.mu.Unlock()
 }
 
- // removeClientIfSame prevents a cancelled, older auth goroutine from deleting
- // a newer auth flow that has already registered under the same account key.
+// removeClientIfSame prevents a cancelled, older auth goroutine from deleting
+// a newer auth flow that has already registered under the same account key.
 func (e *Engine) removeClientIfSame(key string, expected *managedClient) {
 	e.mu.Lock()
 	if current, ok := e.clients[key]; ok && current == expected {
@@ -633,7 +633,6 @@ func (e *Engine) WarmClient(ctx context.Context, tenantID, accountID uuid.UUID) 
 	})
 }
 
-
 // --- mtgo 断线自愈层（2026-09-21 源码交叉审计新增） ---
 
 // isConnLoss: mtgo 连接类哨兵错误。语义是"连接没了"而非"账号死了"，
@@ -675,15 +674,15 @@ func (e *Engine) InvalidatePooledClient(tenantID, accountID uuid.UUID) {
 	e.poolMu.Unlock()
 	if ok && pc != nil && pc.client != nil {
 		// 崩溃类修复: 裸 go 里 Stop() panic 会崩进程, 自带 recover
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("[client] InvalidatePooledClient stop panic: %v", r)
-			}
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[client] InvalidatePooledClient stop panic: %v", r)
+				}
+			}()
+			pc.mu.Lock()
+			pc.client.Stop()
+			pc.mu.Unlock()
 		}()
-		pc.mu.Lock()
-		pc.client.Stop()
-		pc.mu.Unlock()
-	}()
 	}
 }

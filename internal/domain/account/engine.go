@@ -90,7 +90,7 @@ type Engine struct {
 // If caching is reintroduced, use a TTL-backed map with proper locking.
 
 type managedClient struct {
-	keepOnline bool // 导入协议号时置 true: 认证成功后不断开, 保活常驻(用于连通性验证)
+	keepOnline    bool // 导入协议号时置 true: 认证成功后不断开, 保活常驻(用于连通性验证)
 	client        *telegram.Client
 	accountID     uuid.UUID
 	tenantID      uuid.UUID
@@ -104,18 +104,18 @@ type managedClient struct {
 	mu            sync.Mutex
 	// R182.2: 登录会话名(rename 前暂存), 统一空闲退出时用于二次搬运 gotd 最终 flush 的密钥
 	finalMoveSession string
-	closeOnce     sync.Once
+	closeOnce        sync.Once
 	// 错误重试计数: gotd 在码/密码被 TG 拒绝后重新回调 CodeFunc/PasswordFunc,
 	// 通过 submitted 标志区分"首次等待"与"错误后重试", 驱动前端错误提示.
 	codeSubmitted bool
 	codeRetries   int
 	// R158: 传输重试时自动复用上次的验证码
-	lastCode       string
-	codeAutoResend int
+	lastCode         string
+	codeAutoResend   int
 	loginSessionName string // R160
-	probeFails         int    // R162/R163: 探活连续失败计数(≥2 才摘除): 登录流程用临时会话名, 成功后改名接管(防覆盖正式会话)
-	pwdSubmitted  bool
-	pwdRetries    int
+	probeFails       int    // R162/R163: 探活连续失败计数(≥2 才摘除): 登录流程用临时会话名, 成功后改名接管(防覆盖正式会话)
+	pwdSubmitted     bool
+	pwdRetries       int
 	// finished: 认证流程已结束(成功/失败/断开)。置位后 SubmitCode/SubmitPassword
 	// 拒绝提交, 防止向已关闭的 channel 发送(panic)。
 	finished bool
@@ -184,10 +184,10 @@ func NewEngine(cfg *config.Config, pool *pgxpool.Pool, repo domain.AccountReposi
 		migrateAttempts: make(map[string]time.Time),
 		deadKey:         make(map[uuid.UUID]time.Time),
 		authGrace:       make(map[uuid.UUID]time.Time),
-		backupDir:   backupDir,
-		pgStorage:   pgStorage,
-		pool:        pool,
-		stopCh:      make(chan struct{}),
+		backupDir:       backupDir,
+		pgStorage:       pgStorage,
+		pool:            pool,
+		stopCh:          make(chan struct{}),
 	}
 	e.wg.Add(1)
 	safego.Go(func() { e.refreshBanRateLoop() })

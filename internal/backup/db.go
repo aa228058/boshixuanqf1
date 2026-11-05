@@ -55,7 +55,11 @@ func dbBackupLoop(cfg *config.Config, dir string, stop <-chan struct{}) {
 	for {
 		if _, err := exec.LookPath("pg_dump"); err != nil {
 			log.Printf("[db-backup] 未找到 pg_dump, 60s 后重试(安装: apt install postgresql-client)")
-			select { case <-stop: return; case <-time.After(time.Minute): }
+			select {
+			case <-stop:
+				return
+			case <-time.After(time.Minute):
+			}
 			continue
 		}
 		if err := runDBDump(cfg, dir); err != nil {
@@ -64,7 +68,11 @@ func dbBackupLoop(cfg *config.Config, dir string, stop <-chan struct{}) {
 		pruneOldDBBackups(dir, dbBackupRetention)
 		// 顺带清理过期媒体文件(群发上传的附件, 默认保留 30 天, 防止 media 目录无限膨胀)
 		pruneOldMediaFiles(30 * 24 * time.Hour)
-		select { case <-stop: return; case <-time.After(dbBackupInterval): }
+		select {
+		case <-stop:
+			return
+		case <-time.After(dbBackupInterval):
+		}
 	}
 }
 

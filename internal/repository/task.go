@@ -307,7 +307,6 @@ func (r *TaskRepository) UpdateProgress(ctx context.Context, tenantID, taskID uu
 	return err
 }
 
-
 // UpdateProgressExact sets progress to exact values (use only for final status).
 func (r *TaskRepository) UpdateProgressExact(ctx context.Context, tenantID, taskID uuid.UUID, progress domain.TaskProgress) error {
 	_, err := r.db.Exec(ctx, `

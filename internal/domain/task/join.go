@@ -15,7 +15,6 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 )
 
-
 // classifyJoinError 把 Telegram 拒绝原因细化成可读错误码（原 join_failed 吞掉真因）
 func classifyJoinError(err error) string {
 	if err == nil {

@@ -52,11 +52,10 @@ type AuthHandler struct {
 	planRepo    domain.PlanRepository
 	refreshRepo domain.RefreshTokenRepository
 	auditRepo   *repository.AuditRepository
-	taskEngine interface {
+	taskEngine  interface {
 		RegisterTenantQuota(tenantID [16]byte, maxConcurrent int)
 	}
 }
-
 
 func NewAuthHandler(
 	cfg *config.Config,

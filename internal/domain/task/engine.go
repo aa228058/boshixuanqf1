@@ -97,7 +97,7 @@ type Engine struct {
 	scrapeRegMu sync.Mutex
 	// scrapeRegistered tracks which clients have active OnMessage handlers for monitor scrape
 	scrapeRegistered map[string]bool
-	globalSem chan struct{} // P1-01: 全局任务并发原子锁(容量=cfg.GlobalTaskConcurrency)
+	globalSem        chan struct{} // P1-01: 全局任务并发原子锁(容量=cfg.GlobalTaskConcurrency)
 }
 
 // SetFinishNotifier R119: 注入任务结束通知回调(container 接线用)
@@ -288,6 +288,7 @@ func (e *Engine) publishLog(tenantID uuid.UUID, taskID uuid.UUID, log *domain.Ta
 		})
 	}
 }
+
 // startLogCleanup 每 24 小时自动删除 7 天前的历史日志, 防表膨胀。
 func (e *Engine) startLogCleanup(ctx context.Context) {
 	safego.Go(func() {

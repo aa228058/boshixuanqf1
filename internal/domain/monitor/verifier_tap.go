@@ -5,14 +5,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mtgo-labs/mtgo/telegram"
-	"github.com/mtgo-labs/mtgo/tg"
 	"github.com/mtgo-labs/mtgo/telegram/types"
+	"github.com/mtgo-labs/mtgo/tg"
 )
 
 // tapVerification 消息分发处的验证入口(挂在 monitorLoop 的 OnMessage 回调里)。
 // mtgo 的 types.Message 是蒸馏类型, 各 fork 字段不同:
 //   - 已确认通用: ChatID / Text
 //   - 内联键盘/原生投票/图片: 见 rawTG() 适配点
+//
 // 即使拿不到原始消息, 「文字算式类」验证(回复答案即可)也能直接处理。
 func (e *Engine) tapVerification(ctx context.Context, cl *telegram.Client, tenantID, accountID uuid.UUID, chatID int64, chatTitle, fromName, text string, raw *tg.Message) {
 	if e.vstates == nil || e.aiKeyProvider == nil {

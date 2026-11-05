@@ -20,8 +20,8 @@ func TestValidateMediaPath(t *testing.T) {
 		{"多级上级", "../../etc/passwd", "越界"},
 		{"绝对路径", "/etc/passwd", "越界"},
 		{"伪装绝对", "//etc/passwd", "越界"},
-		{"前缀混淆 a/../b", "a/../b.png", ""},     // Clean 后是 b.png，合法
-		{"前缀混淆 ..x/y", "..x/y.png", ""},       // 不是 .. 路径段，合法
+		{"前缀混淆 a/../b", "a/../b.png", ""}, // Clean 后是 b.png，合法
+		{"前缀混淆 ..x/y", "..x/y.png", ""},   // 不是 .. 路径段，合法
 		{"空路径放行（Clean 后为目录本身，后续 Open 会失败）", "", ""},
 	}
 	for _, tc := range cases {

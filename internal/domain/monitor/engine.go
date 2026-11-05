@@ -79,14 +79,14 @@ type Engine struct {
 	reloadMu  sync.Mutex
 
 	// 入群验证(verifier.go): 依赖由 SetVerifierDeps 注入
-	vlRepo      VerifierLogStore
+	vlRepo        VerifierLogStore
 	aiKeyProvider func(tenantID uuid.UUID) (provider, apiKey, model string, enabled bool)
-	vstates     *verifierState
+	vstates       *verifierState
 	// R119: 验证结果通知回调(pass→verify_solved 邮件, container 注入)
-	verifyNotify func(tenantID, accountID uuid.UUID, groupTitle, status, reason string)
+	verifyNotify    func(tenantID, accountID uuid.UUID, groupTitle, status, reason string)
 	loginCodeNotify func(tenantID, accountID uuid.UUID, code string) // R153: 登录验证码捕获
-	flowDeadNotify  func(tenantID, accountID uuid.UUID)                 // R154: 假在线(流停滞)告警
-	accountExists   func(tenantID, accountID uuid.UUID) bool                   // R159: 账号删除后监控会话自清理
+	flowDeadNotify  func(tenantID, accountID uuid.UUID)              // R154: 假在线(流停滞)告警
+	accountExists   func(tenantID, accountID uuid.UUID) bool         // R159: 账号删除后监控会话自清理
 
 	// 抽奖助手(raffle.go): 开关由 SetRaffleProvider 注入
 	raffleEnabled func(tenantID uuid.UUID) bool
@@ -114,8 +114,8 @@ type Engine struct {
 type monitorSession struct {
 	// R154: 上次收到消息时间(Unix秒), 假在线检测用 —— 探活只证明连接活着, 不证明消息流活着
 	lastMsgAt atomic.Int64
-	cancel context.CancelFunc
-	done   chan struct{} // closed when the goroutine fully exits
+	cancel    context.CancelFunc
+	done      chan struct{} // closed when the goroutine fully exits
 }
 
 // NewEngine creates a new monitor engine.
@@ -706,72 +706,72 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 	// ② 联系人名片(即客户端回形针→联系人生成的绿色卡片: inputMediaContact)
 	if rule.DMContact {
-        dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-        
-        cleanPhone := strings.Map(func(r rune) rune {
-            if r >= '0' && r <= '9' {
-                return r
-            }
-            return -1
-        }, rule.DMContactPhone)
+		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
-        firstName := rule.DMContactFirst
-        if firstName == "" {
-            firstName = "User"
-        }
-        lastName := rule.DMContactLast
+		cleanPhone := strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return r
+			}
+			return -1
+		}, rule.DMContactPhone)
 
-        peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
-        if perr != nil {
-            log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
-        } else {
-            // 1. 尝试把号码导入到监控号的通讯录（已存在则秒过，不删除）
-            imported, ierr := c.Raw().ContactsImportContacts(dmCtx, &tg.ContactsImportContactsRequest{
-                Contacts: []*tg.InputPhoneContact{
-                    {
-                        ClientID:  time.Now().UnixNano(),
-                        Phone:     cleanPhone,
-                        FirstName: firstName,
-                        LastName:  lastName,
-                    },
-                },
-            })
+		firstName := rule.DMContactFirst
+		if firstName == "" {
+			firstName = "User"
+		}
+		lastName := rule.DMContactLast
 
-            if ierr == nil && len(imported.Users) > 0 {
-                if u, ok := imported.Users[0].(*tg.User); ok {
-                    log.Printf("[monitor] 确认联系人(复用): %s (TG ID: %d)", firstName, u.ID)
-                }
-            } else if ierr != nil {
-                log.Printf("[monitor] 导入联系人失败: %v", ierr)
-            }
+		peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
+		if perr != nil {
+			log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
+		} else {
+			// 1. 尝试把号码导入到监控号的通讯录（已存在则秒过，不删除）
+			imported, ierr := c.Raw().ContactsImportContacts(dmCtx, &tg.ContactsImportContactsRequest{
+				Contacts: []*tg.InputPhoneContact{
+					{
+						ClientID:  time.Now().UnixNano(),
+						Phone:     cleanPhone,
+						FirstName: firstName,
+						LastName:  lastName,
+					},
+				},
+			})
 
-            // 2. 发送联系人名片
-            ridBytes := make([]byte, 8)
-            if _, rerr := crand.Read(ridBytes); rerr == nil {
-                mediaContact := &tg.InputMediaContact{
-                    PhoneNumber: cleanPhone,
-                    FirstName:   firstName,
-                    LastName:    lastName,
-                    Vcard:       "",
-                }
+			if ierr == nil && len(imported.Users) > 0 {
+				if u, ok := imported.Users[0].(*tg.User); ok {
+					log.Printf("[monitor] 确认联系人(复用): %s (TG ID: %d)", firstName, u.ID)
+				}
+			} else if ierr != nil {
+				log.Printf("[monitor] 导入联系人失败: %v", ierr)
+			}
 
-                _, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
-                    Peer:     peer,
-                    Media:    mediaContact,
-                    RandomID: int64(binary.LittleEndian.Uint64(ridBytes)),
-                })
-                
-                if merr != nil {
-                    log.Printf("[monitor] 联系人名片发送失败 target=%d: %v", targetUser, merr)
-                } else {
-                    log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
-                }
-            }
-        }
-        cancel()
-    }
-    
-    // ③ 语音振铃(只振铃不接通, 走通话信令: requestCall→响 N 秒→discardCall)
+			// 2. 发送联系人名片
+			ridBytes := make([]byte, 8)
+			if _, rerr := crand.Read(ridBytes); rerr == nil {
+				mediaContact := &tg.InputMediaContact{
+					PhoneNumber: cleanPhone,
+					FirstName:   firstName,
+					LastName:    lastName,
+					Vcard:       "",
+				}
+
+				_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
+					Peer:     peer,
+					Media:    mediaContact,
+					RandomID: int64(binary.LittleEndian.Uint64(ridBytes)),
+				})
+
+				if merr != nil {
+					log.Printf("[monitor] 联系人名片发送失败 target=%d: %v", targetUser, merr)
+				} else {
+					log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
+				}
+			}
+		}
+		cancel()
+	}
+
+	// ③ 语音振铃(只振铃不接通, 走通话信令: requestCall→响 N 秒→discardCall)
 	if rule.DMCall {
 		if !e.callAllowed(tenantID, accountID, targetUser) {
 			log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)

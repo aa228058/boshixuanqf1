@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"sync"
 	"context"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"tg-sender/internal/safego"
 	"time"
 

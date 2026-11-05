@@ -189,9 +189,9 @@ func (s *AccountService) Create(ctx context.Context, tenantID uuid.UUID, phone s
 
 // ImportResult 批量导入结果
 type ImportResult struct {
-	Created   int      `json:"created"`
-	Failed    int      `json:"failed"`
-	Errors    []string `json:"errors"`
+	Created    int         `json:"created"`
+	Failed     int         `json:"failed"`
+	Errors     []string    `json:"errors"`
 	AccountIDs []uuid.UUID `json:"account_ids"`
 }
 
@@ -731,8 +731,9 @@ func (s *AccountService) BatchSetPool(ctx context.Context, tenantID uuid.UUID, a
 }
 
 // SetPoolStatus 启用/备用 切换(056):
-//   standby → active(转正): 校验套餐额度余量, 满额拒绝
-//   active → standby(转备用): 停止该账号业务(断开连接), 释放额度
+//
+//	standby → active(转正): 校验套餐额度余量, 满额拒绝
+//	active → standby(转备用): 停止该账号业务(断开连接), 释放额度
 func (s *AccountService) SetPoolStatus(ctx context.Context, tenantID, accountID uuid.UUID, target string) error {
 	if target != "active" && target != "standby" {
 		return fmt.Errorf("无效的池状态: %s", target)

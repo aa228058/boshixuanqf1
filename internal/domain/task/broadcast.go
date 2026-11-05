@@ -493,9 +493,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					if obfEnabled {
 						// 混淆每条重新随机 — TG按内容查重时每条都是"不同消息"
 						if autoVary {
-						personalizedMsg = autoVaryMessage(personalizedMsg)
-					}
-					personalizedMsg = obfuscateMessage(personalizedMsg)
+							personalizedMsg = autoVaryMessage(personalizedMsg)
+						}
+						personalizedMsg = obfuscateMessage(personalizedMsg)
 					}
 					// R104+R118: 拟人化 —— 发送前模拟"正在输入..." 1~3 秒再发(风控规避,
 					// 真实用户行为: 先打字后发送, 机器人则消息凭空出现)
@@ -608,16 +608,16 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					}
 				}
 				tl := &domain.TaskLog{
-					LogID:       uuid.New(),
-					TaskID:      task.TaskID,
-					TenantID:    task.TenantID,
-					AccountID:   accID,
-					TargetID:    targetID,
-					TargetName:  targetName,
-					Action:      "send_message",
-					Status:      status,
+					LogID:      uuid.New(),
+					TaskID:     task.TaskID,
+					TenantID:   task.TenantID,
+					AccountID:  accID,
+					TargetID:   targetID,
+					TargetName: targetName,
+					Action:     "send_message",
+					Status:     status,
 					// 2026-10-21: 目标级耗时——用户要的完整日志 时间-群名-状态-耗时
-					Message: fmt.Sprintf("耗时 %.1fs", time.Since(targetStart).Seconds()),
+					Message:     fmt.Sprintf("耗时 %.1fs", time.Since(targetStart).Seconds()),
 					ErrorCode:   errCode,
 					TGMessageID: sentMsgID,
 					ExecutedAt:  time.Now(),
@@ -819,20 +819,20 @@ func (b *dictBag) fill(msg string) string {
 
 // autoVarySynonyms 内置同义变换池: 命中即随机换, 让每条消息措辞不同(无需用户配置)
 var autoVarySynonyms = map[string][]string{
-	"你好":   {"您好", "你好", "Hi", "哈喽", "嗨"},
-	"您好":   {"你好", "您好", "Hi", "哈喽"},
-	"欢迎":   {"欢迎", "歡迎", "喜迎"},
-	"加入":   {"加入", "进", "加入", "入"},
-	"进群":   {"进群", "加群", "加入群聊"},
-	"免费":   {"免费", "免費", "无偿"},
-	"需要":   {"需要", "要", "想用"},
-	"可以":   {"可以", "能", "可"},
-	"点击":   {"点击", "点", "戳"},
-	"了解":   {"了解", "看下", "看看"},
-	"回复":   {"回复", "回", "回信"},
-	"咨询":   {"咨询", "问", "询问"},
-	"感谢":   {"感谢", "谢谢", "谢啦"},
-	"现在":   {"现在", "眼下", "如今"},
+	"你好": {"您好", "你好", "Hi", "哈喽", "嗨"},
+	"您好": {"你好", "您好", "Hi", "哈喽"},
+	"欢迎": {"欢迎", "歡迎", "喜迎"},
+	"加入": {"加入", "进", "加入", "入"},
+	"进群": {"进群", "加群", "加入群聊"},
+	"免费": {"免费", "免費", "无偿"},
+	"需要": {"需要", "要", "想用"},
+	"可以": {"可以", "能", "可"},
+	"点击": {"点击", "点", "戳"},
+	"了解": {"了解", "看下", "看看"},
+	"回复": {"回复", "回", "回信"},
+	"咨询": {"咨询", "问", "询问"},
+	"感谢": {"感谢", "谢谢", "谢啦"},
+	"现在": {"现在", "眼下", "如今"},
 }
 
 // varyPuncts 标点抖动: 句末语气词随机后缀

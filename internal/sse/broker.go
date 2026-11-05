@@ -187,7 +187,7 @@ func (b *Broker) Handler(topic string) echo.HandlerFunc {
 			token, err := jwt.ParseWithClaims(tokenStr, &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 				return []byte(b.cfg.JWTSecret), nil
 			}, jwt.WithValidMethods([]string{"HS256"}),
-			jwt.WithIssuer(middleware.TokenIssuer), jwt.WithAudience(middleware.TokenAudience))
+				jwt.WithIssuer(middleware.TokenIssuer), jwt.WithAudience(middleware.TokenAudience))
 			if err != nil || !token.Valid {
 				return c.NoContent(http.StatusUnauthorized)
 			}

@@ -16,11 +16,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
-	"tg-sender/internal/safego"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/domain/task"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/repository"
+	"tg-sender/internal/safego"
 	"tg-sender/internal/service"
 	"tg-sender/internal/sse"
 )

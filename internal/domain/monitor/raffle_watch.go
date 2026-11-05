@@ -496,4 +496,3 @@ func extractPrize(text string, winners winnerSet) string {
 	}
 	return ""
 }
-

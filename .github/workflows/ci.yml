@@ -111,21 +111,6 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: TEMP format and export Go sources
-        run: |
-          files=$(gofmt -l internal/ cmd/)
-          if [ -z "$files" ]; then
-            echo "GOFMT_NONE"
-            exit 0
-          fi
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            gofmt -w "$file"
-            printf 'GOFMT_BEGIN:%s\\n' "$file"
-            base64 -w0 "$file" | fold -w 3000 | sed 's/^/GOFMT_DATA:/'
-            printf 'GOFMT_END\\n'
-          done <<< "$files"
-
       - name: Check formatting
         run: |
           UNFORMATTED=$(gofmt -l internal/ cmd/)

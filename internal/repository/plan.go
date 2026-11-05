@@ -83,7 +83,7 @@ func (r *PlanRepository) GetByID(ctx context.Context, planID string) (*domain.Pl
 		FROM plans WHERE plan_id = $1`, planID,
 	).Scan(&p.PlanID, &p.Name, &p.PriceMonthly, &p.MaxAccounts, &p.MaxConcurrent, &p.Description, &featuresJSON, &p.IsActive, &p.UpdatedAt,
 		&p.CanBroadcast, &p.CanScrapeMembers, &p.CanScrapeLinks, &p.CanJoinGroups, &p.CanMonitor, &p.CanExport, &p.CanUseTemplates,
-			&p.MaxDailyBroadcasts, &p.MaxDailyScrapes, &p.MaxMonitorRules, &p.DailySearchLimit)
+		&p.MaxDailyBroadcasts, &p.MaxDailyScrapes, &p.MaxMonitorRules, &p.DailySearchLimit)
 	if err != nil {
 		return nil, fmt.Errorf("get plan: %w", err)
 	}

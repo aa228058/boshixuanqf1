@@ -110,4 +110,3 @@ func (h *ExportHandler) ExportMyData(c echo.Context) error {
 	c.Response().Header().Set(echo.HeaderContentDisposition, `attachment; filename="my-data-export.json"`)
 	return c.JSON(http.StatusOK, export)
 }
-

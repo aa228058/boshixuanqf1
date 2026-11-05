@@ -56,7 +56,6 @@ func main() {
 	// Set memory limit to prevent OOM killer (默认 2800MiB，可用 MEMORY_LIMIT_MB 调整)
 	debug.SetMemoryLimit(int64(cfg.MemoryLimitMB) * 1024 * 1024)
 
-
 	// Panic → TG 告警: 任何后台 goroutine panic 时推送给你(需配 TG_ALERT_BOT_TOKEN/CHAT_ID)
 	if cfg.AlertBotToken != "" && cfg.AlertChatID != "" {
 		safego.SetPanicHook(func(msg string) {
@@ -297,17 +296,17 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	api.GET("/accounts/:id/avatar", c.AccountHandler.GetAvatar) // 拉取账号TG头像(前端走 axios blob)
 	// Echo v4: 中间件以"调用"方式包裹 handler —— mw(handler), 不是逗号并列
 	// 能力体检/SpamBot申诉 后端已随前端一并移除(2026-10-21)
-	api.PUT("/accounts/:id/proxy", c.AccountHandler.SetProxy)   // 设置账号代理
-	api.PUT("/accounts/:id/profile", c.AccountHandler.UpdateProfile) // 修改 TG 资料(名字/签名/用户名)
+	api.PUT("/accounts/:id/proxy", c.AccountHandler.SetProxy)          // 设置账号代理
+	api.PUT("/accounts/:id/profile", c.AccountHandler.UpdateProfile)   // 修改 TG 资料(名字/签名/用户名)
 	api.POST("/accounts/clone-profile", c.AccountHandler.CloneProfile) // 批量克隆他人资料
-	api.POST("/accounts/:id/proxy/test", c.AccountHandler.TestProxy) // 代理连通性检测
+	api.POST("/accounts/:id/proxy/test", c.AccountHandler.TestProxy)   // 代理连通性检测
 	// 找群: 平台级群组库(所有租户采集汇总, 平台共享)
 	// 群库浏览平台共享(引流): 登录即可看; 批量加入(discover)与搜群(search)才需套餐权限
 	api.GET("/group-library", c.GroupLibraryHandler.List)
 	api.POST("/group-library/join", c.PlanChecker.RequirePlanFeature(middleware.FeatureDiscover)(c.GroupLibraryHandler.JoinSelected))
 	api.POST("/group-library/search", c.GroupLibraryHandler.Search) // 关键词搜群(借在线账号TG搜索, 入库)
 	groupImportAPI := api.Group("", echomiddleware.BodyLimit("21M"))
-	groupImportAPI.POST("/group-library/import", c.GroupLibraryHandler.Import) // 文件/文本批量导入，后台异步处理
+	groupImportAPI.POST("/group-library/import", c.GroupLibraryHandler.Import)               // 文件/文本批量导入，后台异步处理
 	groupImportAPI.GET("/group-library/import-jobs/:id", c.GroupLibraryHandler.GetImportJob) // 查询导入进度
 	// R116: /text-dicts 词典管理 API 七端点已删(前端词典管理 UI 消亡后零调用;
 	// 词典数据本身仍服务群发变量 {{词典名}} —— engine 直读 TextDictRepo, 不经过 HTTP 层)
@@ -600,5 +599,5 @@ func (w *rotatingLogWriter) rotate() error {
 	}
 	w.f = f
 	return nil
-			// R169: img-src 补 blob: —— 账号头像是前端 blob:ObjectURL, 原 CSP 缺 blob: 会被浏览器拦截
+	// R169: img-src 补 blob: —— 账号头像是前端 blob:ObjectURL, 原 CSP 缺 blob: 会被浏览器拦截
 }

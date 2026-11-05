@@ -131,15 +131,20 @@ func (r *RaffleResultRepository) List(ctx context.Context, tenantID uuid.UUID, l
 		if err := rows.Scan(&id, &accID, &chatID, &kind, &keyword, &prize, &detail, &createdAt, &phone, &remark, &firstName, &lastName, &groupTitle); err != nil {
 			continue
 		}
-		strOr := func(p *string) string { if p != nil { return *p }; return "" }
+		strOr := func(p *string) string {
+			if p != nil {
+				return *p
+			}
+			return ""
+		}
 		tgName := strings.TrimSpace(strOr(firstName) + " " + strOr(lastName))
 		out = append(out, map[string]interface{}{
 			"id": id, "account_id": accID, "tg_chat_id": chatID,
 			"kind": kind, "keyword": keyword, "prize": prize, "detail": detail,
 			"created_at": createdAt,
-			"phone":    strOr(phone),
-			"remark":   strOr(remark),
-			"tg_name":  tgName, // 061+: 前端显示真实 TG 名, 不再靠手机号/备注
+			"phone":      strOr(phone),
+			"remark":     strOr(remark),
+			"tg_name":    tgName,            // 061+: 前端显示真实 TG 名, 不再靠手机号/备注
 			"chat_title": strOr(groupTitle), // R121: 来源群名(LATERAL join, 一群多账号只取一条)
 		})
 	}

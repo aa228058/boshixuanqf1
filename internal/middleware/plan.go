@@ -39,14 +39,14 @@ const (
 	FeatureScheduledTasks = "scheduled_tasks"
 	FeatureLoopBroadcast  = "loop_broadcast" // 循环群发(群发页双 tab: 只发一次/循环)
 	// 2026-10 新增功能 key(套餐后台按 key 控制)
-	FeatureDiscover  = "discover"    // 发现群组·群库
-	FeatureSearch    = "search"      // 关键词搜群
-	FeatureProxy     = "proxy"       // 代理设置
-	FeatureInvite    = "invite"      // 邀请入群
-	FeatureVerifier  = "verifier"    // 入群验证(按钮类)
-	FeatureAIVerify  = "ai_verify"   // AI 图片验证
-	FeatureDict      = "dict"        // 文案变量(高级语法)
-	FeatureRaffle    = "raffle"      // 抽奖助手(三层控制: 套餐→租户→账号)
+	FeatureDiscover = "discover"  // 发现群组·群库
+	FeatureSearch   = "search"    // 关键词搜群
+	FeatureProxy    = "proxy"     // 代理设置
+	FeatureInvite   = "invite"    // 邀请入群
+	FeatureVerifier = "verifier"  // 入群验证(按钮类)
+	FeatureAIVerify = "ai_verify" // AI 图片验证
+	FeatureDict     = "dict"      // 文案变量(高级语法)
+	FeatureRaffle   = "raffle"    // 抽奖助手(三层控制: 套餐→租户→账号)
 )
 
 // PlanChecker provides manual plan feature checking (used by handlers).

@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mtgo-labs/mtgo/tg"
-	"github.com/mtgo-labs/storage"
 	sessionconverter "github.com/mtgo-labs/session-converter"
+	"github.com/mtgo-labs/storage"
 
 	"strings"
 )

@@ -1,13 +1,13 @@
 package service
 
 import (
-	"tg-sender/internal/domain/task"
 	"context"
 	"fmt"
 	"log"
 	"regexp"
 	"strconv"
 	"strings"
+	"tg-sender/internal/domain/task"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,20 +29,20 @@ type TaskEngine interface {
 
 // TaskService handles task business logic.
 type TaskService struct {
-	cfg         *config.Config
-	repo        *repository.TaskRepository
-	logRepo     *repository.TaskLogRepository
-	quota       *repository.QuotaRepository
-	accountRepo *repository.AccountRepository
-	tenantRepo  *repository.TenantRepository
-	groupRepo   *repository.GroupRepository
-	planLimits  *repository.PlanLimitRepository
+	cfg              *config.Config
+	repo             *repository.TaskRepository
+	logRepo          *repository.TaskLogRepository
+	quota            *repository.QuotaRepository
+	accountRepo      *repository.AccountRepository
+	tenantRepo       *repository.TenantRepository
+	groupRepo        *repository.GroupRepository
+	planLimits       *repository.PlanLimitRepository
 	raffleResultRepo *repository.RaffleResultRepository
-	planRepo    *repository.PlanRepository
-	memberRepo  domain.MemberRepository
-	batchRepo   domain.BatchTaskRepository
-	sseBroker   *sse.Broker
-	engine      TaskEngine
+	planRepo         *repository.PlanRepository
+	memberRepo       domain.MemberRepository
+	batchRepo        domain.BatchTaskRepository
+	sseBroker        *sse.Broker
+	engine           TaskEngine
 
 	scrapedLinkRepo domain.ScrapedLinkRepository
 
@@ -168,12 +168,12 @@ func (s *TaskService) List(ctx context.Context, tenantID uuid.UUID, status *doma
 // Create dispatches to specific task creation based on type.
 // taskTypeFeature 任务类型 → 套餐功能 key(服务端强制, 防止绕过前端直接调 API)
 var taskTypeFeature = map[domain.TaskType]string{
-	domain.TaskTypeBroadcast:        "broadcast",
-	domain.TaskTypeScrapeMembers:    "scrape_members",
-	domain.TaskTypeScrapeLinks:      "scrape_links",
-	domain.TaskTypeJoinGroups:       "join_groups",
-	domain.TaskTypeMonitorScrape:    "monitor",
-	domain.TaskTypeInviteMembers:    "invite",
+	domain.TaskTypeBroadcast:          "broadcast",
+	domain.TaskTypeScrapeMembers:      "scrape_members",
+	domain.TaskTypeScrapeLinks:        "scrape_links",
+	domain.TaskTypeJoinGroups:         "join_groups",
+	domain.TaskTypeMonitorScrape:      "monitor",
+	domain.TaskTypeInviteMembers:      "invite",
 	domain.TaskTypeScheduledBroadcast: "scheduled_tasks",
 }
 

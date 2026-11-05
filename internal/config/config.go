@@ -41,7 +41,7 @@ type Config struct {
 	JWTRefreshExp time.Duration
 
 	// Telegram
-	TGAPIID   int
+	TGAPIID    int
 	TGAPIHash  string
 	TGProxyURL string // 代理 socks5://user:pass@host:port，被墙/拉黑 IP 的服务器必配
 
@@ -54,7 +54,7 @@ type Config struct {
 	// DC 自动迁移：保活连上后, 会话 DC 在黑名单里 → 后台自动迁到目标 DC。
 	// TG_AUTO_MIGRATE_FROM=1 或 "1,4"（逗号分隔, 空=关闭）; TG_AUTO_MIGRATE_TO 默认 2。
 	TGAutoMigrateFrom string
-	DefaultProxy        string  // 批次2: 默认代理(env DEFAULT_PROXY)
+	DefaultProxy      string // 批次2: 默认代理(env DEFAULT_PROXY)
 	TGAutoMigrateTo   int32
 
 	// R119: SMTP 通知邮件(SMTP_HOST 留空 = 通知功能静默关闭)
@@ -342,14 +342,14 @@ func Load() *Config {
 		JWTExpiry:     getDuration("JWT_EXPIRY", 2*time.Hour), // F-21: 默认缩短至2h，refresh轮换兜底
 		JWTRefreshExp: getDuration("JWT_REFRESH_EXP", 7*24*time.Hour),
 
-		TGAPIID:   getIntFallback("TG_API_ID", "TELEGRAM_API_ID", 0),
+		TGAPIID: getIntFallback("TG_API_ID", "TELEGRAM_API_ID", 0),
 		// R119: SMTP 通知邮件(PORT 默认 465 兼容多数服务商; Host 留空=通知关闭)
-		SMTPHost: os.Getenv("SMTP_HOST"),
-		SMTPPort: getIntFallback("SMTP_PORT", "SMTP_PORT", 465),
-		SMTPUser: os.Getenv("SMTP_USER"),
-		SMTPPass: os.Getenv("SMTP_PASS"),
-		SMTPFrom: os.Getenv("SMTP_FROM"),
-		TGAPIHash: getEnvFallback("TG_API_HASH", "TELEGRAM_API_HASH", ""),
+		SMTPHost:   os.Getenv("SMTP_HOST"),
+		SMTPPort:   getIntFallback("SMTP_PORT", "SMTP_PORT", 465),
+		SMTPUser:   os.Getenv("SMTP_USER"),
+		SMTPPass:   os.Getenv("SMTP_PASS"),
+		SMTPFrom:   os.Getenv("SMTP_FROM"),
+		TGAPIHash:  getEnvFallback("TG_API_HASH", "TELEGRAM_API_HASH", ""),
 		TGProxyURL: getEnv("TG_PROXY_URL", ""),
 
 		TGTransport:      getEnv("TG_TRANSPORT", "auto"),
@@ -358,16 +358,16 @@ func Load() *Config {
 
 		TGAutoMigrateFrom: getEnv("TG_AUTO_MIGRATE_FROM", ""),
 		TGAutoMigrateTo:   int32(getIntFallback("TG_AUTO_MIGRATE_TO", "", 2)),
-	// 批次2(v1.19/1.27): 默认代理——新注册/导入的账号未指定代理时自动挂这个
-	// 支持 socks5://user:pass@host:port / http://... 格式
-	DefaultProxy: getEnv("DEFAULT_PROXY", ""),
+		// 批次2(v1.19/1.27): 默认代理——新注册/导入的账号未指定代理时自动挂这个
+		// 支持 socks5://user:pass@host:port / http://... 格式
+		DefaultProxy: getEnv("DEFAULT_PROXY", ""),
 
 		ProtocolPlanIDs: getEnv("PROTOCOL_PLAN_IDS", "pro,enterprise"),
 
 		GlobalTaskConcurrency: getIntFallback("GLOBAL_TASK_CONCURRENCY", "", 20),
 		RiskRetentionDays:     getIntFallback("RISK_RETENTION_DAYS", "", 7),
 		// G-01: 审计保留期默认 90 天（原 7 天不足以支撑安全事件调查与合规要求）
-		AuditRetentionDays:    getIntFallback("AUDIT_RETENTION_DAYS", "", 90),
+		AuditRetentionDays: getIntFallback("AUDIT_RETENTION_DAYS", "", 90),
 		// G-02: 活动记录保留期默认 90 天（原 7 天静默硬删租户历史活动数据）
 		CampaignRetentionDays: getIntFallback("CAMPAIGN_RETENTION_DAYS", "", 90),
 

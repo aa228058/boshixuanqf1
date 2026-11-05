@@ -14,31 +14,31 @@ import (
 // AccountLevel represents the manual account tier selected by user.
 // SystemGroup 平台级群组库条目(找群功能), 跨租户共享, 不含来源租户身份。
 type SystemGroup struct {
-	SGID uuid.UUID `json:"sg_id"`
-	TelegramChatID int64 `json:"telegram_chat_id,omitempty"`
-	ContributorTenantID uuid.UUID `json:"-"`
-	Source string `json:"source"`
-	Title string `json:"title"`
-	Username string `json:"username,omitempty"`
-	TmeLink string `json:"tme_link,omitempty"`
-	GType string `json:"gtype"`
-	MemberCount int `json:"member_count"`
-	Status string `json:"status"`
-	ResolutionStatus string `json:"resolution_status,omitempty"`
-	FirstContributorTenantName string `json:"contributor_name,omitempty"`
-	RefCount int `json:"-" db:"ref_count"`
-	LastSeenAt time.Time `json:"last_seen_at"`
-	MemberCountUpdatedAt *time.Time `json:"member_count_updated_at,omitempty"`
-	EntryCount int `json:"entry_count,omitempty"`
-	Entries []SystemGroupLink `json:"entries,omitempty"`
+	SGID                       uuid.UUID         `json:"sg_id"`
+	TelegramChatID             int64             `json:"telegram_chat_id,omitempty"`
+	ContributorTenantID        uuid.UUID         `json:"-"`
+	Source                     string            `json:"source"`
+	Title                      string            `json:"title"`
+	Username                   string            `json:"username,omitempty"`
+	TmeLink                    string            `json:"tme_link,omitempty"`
+	GType                      string            `json:"gtype"`
+	MemberCount                int               `json:"member_count"`
+	Status                     string            `json:"status"`
+	ResolutionStatus           string            `json:"resolution_status,omitempty"`
+	FirstContributorTenantName string            `json:"contributor_name,omitempty"`
+	RefCount                   int               `json:"-" db:"ref_count"`
+	LastSeenAt                 time.Time         `json:"last_seen_at"`
+	MemberCountUpdatedAt       *time.Time        `json:"member_count_updated_at,omitempty"`
+	EntryCount                 int               `json:"entry_count,omitempty"`
+	Entries                    []SystemGroupLink `json:"entries,omitempty"`
 }
 
 type SystemGroupLink struct {
-	LinkID uuid.UUID `json:"link_id"`
-	TmeLink string `json:"tme_link"`
-	Source string `json:"source"`
-	Status string `json:"status"`
-	LinkType string `json:"link_type"`
+	LinkID   uuid.UUID `json:"link_id"`
+	TmeLink  string    `json:"tme_link"`
+	Source   string    `json:"source"`
+	Status   string    `json:"status"`
+	LinkType string    `json:"link_type"`
 }
 
 // DedupKey 优先使用 Telegram Chat ID；身份尚未解析时使用公开 username 或邀请链接。
@@ -111,12 +111,12 @@ const (
 type AccountStatus string
 
 const (
-	AccountStatusOnline        AccountStatus = "online"        // Currently connected (in pool)
-	AccountStatusOffline       AccountStatus = "offline"       // Not authenticated or auth failed
-	AccountStatusPendingAuth   AccountStatus = "pending_auth"  // Waiting for code/2FA
-	AccountStatusAuthenticated AccountStatus = "authenticated" // Auth success, session saved, not connected
-	AccountStatusRestricted    AccountStatus = "restricted"    // Flood wait or rate limited
-	AccountStatusBanned        AccountStatus = "banned"        // Account banned by Telegram
+	AccountStatusOnline         AccountStatus = "online"          // Currently connected (in pool)
+	AccountStatusOffline        AccountStatus = "offline"         // Not authenticated or auth failed
+	AccountStatusPendingAuth    AccountStatus = "pending_auth"    // Waiting for code/2FA
+	AccountStatusAuthenticated  AccountStatus = "authenticated"   // Auth success, session saved, not connected
+	AccountStatusRestricted     AccountStatus = "restricted"      // Flood wait or rate limited
+	AccountStatusBanned         AccountStatus = "banned"          // Account banned by Telegram
 	AccountStatusSessionRevoked AccountStatus = "session_revoked" // R157: 会话被 TG 吊销(AUTH_KEY_UNREGISTERED), 需重新登录
 )
 
@@ -124,10 +124,10 @@ const (
 type TaskType string
 
 const (
-	TaskTypeBroadcast          TaskType = "broadcast"
-	TaskTypeScrapeMembers      TaskType = "scrape_members"
-	TaskTypeScrapeLinks        TaskType = "scrape_links"
-	TaskTypeJoinGroups         TaskType = "join_groups"
+	TaskTypeBroadcast     TaskType = "broadcast"
+	TaskTypeScrapeMembers TaskType = "scrape_members"
+	TaskTypeScrapeLinks   TaskType = "scrape_links"
+	TaskTypeJoinGroups    TaskType = "join_groups"
 	// P2-1 审计清理: TaskTypeMonitorForward/MonitorReply 死类型已删——
 	// 从未有创建/执行入口(监控任务走 monitor_rules 表, 不走 tasks 表)
 	TaskTypeScheduledBroadcast TaskType = "scheduled_broadcast"
@@ -209,10 +209,10 @@ func (t *Tenant) NotifyEnabled(event string) bool {
 
 // Account represents a Telegram account.
 type Account struct {
-	AccountID     uuid.UUID      `json:"account_id" db:"account_id"`
-	TenantID      uuid.UUID      `json:"tenant_id" db:"tenant_id"`
-	Phone         string         `json:"phone" db:"phone"`
-	Source        string         `json:"source" db:"source"` // phone=正常号 | protocol=协议号
+	AccountID uuid.UUID `json:"account_id" db:"account_id"`
+	TenantID  uuid.UUID `json:"tenant_id" db:"tenant_id"`
+	Phone     string    `json:"phone" db:"phone"`
+	Source    string    `json:"source" db:"source"` // phone=正常号 | protocol=协议号
 
 	SessionName   string         `json:"session_name" db:"session_name"`
 	Status        AccountStatus  `json:"status" db:"status"`
@@ -412,27 +412,27 @@ type Member struct {
 // AccountID 为 nil 表示规则属于"全部账号"（老数据兼容）；
 // 非 nil 时只有该账号的监听会话应用此规则（2026-09-22 修复 A 号规则触发 B 号的问题）。
 type MonitorRule struct {
-	RuleID        uuid.UUID `json:"rule_id" db:"rule_id"`
-	TenantID      uuid.UUID `json:"tenant_id" db:"tenant_id"`
+	RuleID        uuid.UUID  `json:"rule_id" db:"rule_id"`
+	TenantID      uuid.UUID  `json:"tenant_id" db:"tenant_id"`
 	AccountID     *uuid.UUID `json:"account_id,omitempty" db:"account_id"`
-	Name          string    `json:"name" db:"name"`
-	Type          string    `json:"type" db:"type"` // forward | reply
-	SourceChatIDs []string  `json:"source_chat_ids" db:"source_chat_ids"`
-	TargetChatIDs []string  `json:"target_chat_ids" db:"target_chat_ids"`
-	MatchType     string    `json:"match_type" db:"match_type"` // contains | regex | exact | from_user
-	Keywords      []string  `json:"keywords" db:"keywords"`
-	ReplyContent  string    `json:"reply_content" db:"reply_content"`
+	Name          string     `json:"name" db:"name"`
+	Type          string     `json:"type" db:"type"` // forward | reply
+	SourceChatIDs []string   `json:"source_chat_ids" db:"source_chat_ids"`
+	TargetChatIDs []string   `json:"target_chat_ids" db:"target_chat_ids"`
+	MatchType     string     `json:"match_type" db:"match_type"` // contains | regex | exact | from_user
+	Keywords      []string   `json:"keywords" db:"keywords"`
+	ReplyContent  string     `json:"reply_content" db:"reply_content"`
 	// type=dm(私聊触达): 命中后监控号对触发人执行勾选的子动作(可组合):
 	// 私聊文本 / 联系人名片 / 语音振铃
-	DMContent      string `json:"dm_content" db:"dm_content"`
-	DMCall         bool   `json:"dm_call" db:"dm_call"`
-	DMCallSeconds  int    `json:"dm_call_seconds" db:"dm_call_seconds"`
-	DMContact      bool   `json:"dm_contact" db:"dm_contact"`
-	DMContactPhone string `json:"dm_contact_phone" db:"dm_contact_phone"`
-	DMContactFirst string `json:"dm_contact_first_name" db:"dm_contact_first_name"`
-	DMContactLast  string `json:"dm_contact_last_name" db:"dm_contact_last_name"`
-	IsActive      bool      `json:"is_active" db:"is_active"`
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+	DMContent      string    `json:"dm_content" db:"dm_content"`
+	DMCall         bool      `json:"dm_call" db:"dm_call"`
+	DMCallSeconds  int       `json:"dm_call_seconds" db:"dm_call_seconds"`
+	DMContact      bool      `json:"dm_contact" db:"dm_contact"`
+	DMContactPhone string    `json:"dm_contact_phone" db:"dm_contact_phone"`
+	DMContactFirst string    `json:"dm_contact_first_name" db:"dm_contact_first_name"`
+	DMContactLast  string    `json:"dm_contact_last_name" db:"dm_contact_last_name"`
+	IsActive       bool      `json:"is_active" db:"is_active"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 }
 
 // AccountQuota tracks usage quotas per account.

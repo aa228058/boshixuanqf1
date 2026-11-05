@@ -12,12 +12,12 @@ import (
 
 // DashboardService handles dashboard business logic.
 type DashboardService struct {
-	accountRepo  *repository.AccountRepository
-	taskRepo     *repository.TaskRepository
-	groupRepo    *repository.GroupRepository
-	riskRepo     *repository.RiskRepository
-	auditRepo    *repository.AuditRepository
-	taskLogRepo  *repository.TaskLogRepository
+	accountRepo *repository.AccountRepository
+	taskRepo    *repository.TaskRepository
+	groupRepo   *repository.GroupRepository
+	riskRepo    *repository.RiskRepository
+	auditRepo   *repository.AuditRepository
+	taskLogRepo *repository.TaskLogRepository
 }
 
 // NewDashboardService creates a new dashboard service.

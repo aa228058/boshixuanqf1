@@ -107,9 +107,9 @@ type vcandidate struct {
 	buttons   []vbutton // 全部内联按钮
 	poll      *tg.Poll  // 原生投票(可能为nil)
 	hasImage  bool
-	imageData []byte   // 已下载的图片/GIF首帧(AI 识别用)
+	imageData []byte // 已下载的图片/GIF首帧(AI 识别用)
 	imageMime string
-	rawPhoto  *tg.Photo   // 原始照片(下载用)
+	rawPhoto  *tg.Photo    // 原始照片(下载用)
 	rawDoc    *tg.Document // 原始GIF文档(下载首帧用)
 }
 

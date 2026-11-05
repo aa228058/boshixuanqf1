@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	_ "modernc.org/sqlite"
 	"github.com/mtgo-labs/storage"
+	_ "modernc.org/sqlite"
 )
 
 // ParseTelethonSessionFile 从 Telethon 导出的 .session 文件（SQLite 格式）提取会话。
@@ -41,10 +41,10 @@ func ParseTelethonSessionFile(ctx context.Context, path string) (*storage.Sessio
 
 	// Telethon sessions 表：dc_id, server_address, port, auth_key
 	var (
-		dcID      int
-		server    string
-		port      int
-		authKey   []byte
+		dcID    int
+		server  string
+		port    int
+		authKey []byte
 	)
 	row := db.QueryRowContext(ctx,
 		`SELECT dc_id, server_address, port, auth_key FROM sessions ORDER BY dc_id LIMIT 1`)

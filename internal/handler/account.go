@@ -806,23 +806,37 @@ func readArchiveSidecar(sessionPath string) ([]byte, error) {
 	dir := filepath.Dir(sessionPath)
 	stem := strings.TrimSuffix(filepath.Base(sessionPath), filepath.Ext(sessionPath))
 	entries, err := os.ReadDir(dir)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var match string
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".json") { continue }
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".json") {
+			continue
+		}
 		candidateStem := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
 		if strings.EqualFold(candidateStem, stem) {
-			if match != "" { return nil, fmt.Errorf("存在多个同名 JSON 附件") }
+			if match != "" {
+				return nil, fmt.Errorf("存在多个同名 JSON 附件")
+			}
 			match = filepath.Join(dir, entry.Name())
 		}
 	}
-	if match == "" { return nil, os.ErrNotExist }
+	if match == "" {
+		return nil, os.ErrNotExist
+	}
 	file, err := os.Open(match)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
-	if err != nil { return nil, err }
-	if len(data) > 1<<20 { return nil, fmt.Errorf("JSON 附件超过 1MB 限制") }
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > 1<<20 {
+		return nil, fmt.Errorf("JSON 附件超过 1MB 限制")
+	}
 	return data, nil
 }
 
@@ -1249,13 +1263,13 @@ func (h *AccountHandler) BatchUpdateProfile(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "未登录")
 	}
 	var req struct {
-		AccountIDs      []string `json:"account_ids"`
-		FirstName       string   `json:"first_name"`
-		LastName        string   `json:"last_name"`
-		About           string   `json:"about"`
-		Username        string   `json:"username"`
-		Remark          string   `json:"remark"`
-		RandomUsername  bool     `json:"random_username"`
+		AccountIDs     []string `json:"account_ids"`
+		FirstName      string   `json:"first_name"`
+		LastName       string   `json:"last_name"`
+		About          string   `json:"about"`
+		Username       string   `json:"username"`
+		Remark         string   `json:"remark"`
+		RandomUsername bool     `json:"random_username"`
 	}
 	if err := c.Bind(&req); err != nil || len(req.AccountIDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "参数错误")

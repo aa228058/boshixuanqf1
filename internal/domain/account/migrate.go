@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mtgo-labs/storage"
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
+	"github.com/mtgo-labs/storage"
 	"tg-sender/internal/safego"
 )
 

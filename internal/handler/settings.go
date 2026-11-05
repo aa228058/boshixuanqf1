@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"log"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/google/uuid"

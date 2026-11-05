@@ -261,11 +261,11 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 	e.clients[key] = mc
 	e.mu.Unlock()
 
-		mc.mu.Lock()
+	mc.mu.Lock()
 	mc.loginSessionName = loginSessionName
 	mc.mu.Unlock()
 
-safego.Go(func() { e.runAuth(authCtx, mc, key, newSessionName, keep) })
+	safego.Go(func() { e.runAuth(authCtx, mc, key, newSessionName, keep) })
 	return nil
 }
 
@@ -370,14 +370,14 @@ func (e *Engine) runAuth(ctx context.Context, mc *managedClient, key, sessionNam
 				dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				if err := e.repo.UpdateSessionName(dbCtx, tenantID, accountID, sessionName); err != nil {
 					log.Printf("[AUTH] 更新账号 %s 的会话名称失败: %v\n", accountID, err)
-				// R160: 登录成功 —— 临时会话存储改名为正式名(先删旧正式记录), 完成接管
-				if mc.loginSessionName != "" {
-					if err := e.repo.RenameSessionStorage(dbCtx, mc.loginSessionName, sessionName); err != nil {
-						log.Printf("[AUTH] 会话改名失败 account=%s: %v(不影响本次登录)", accountID, err)
-					} else {
-						log.Printf("[AUTH] 会话已接管 account=%s(%s → %s)", accountID, mc.loginSessionName, sessionName)
+					// R160: 登录成功 —— 临时会话存储改名为正式名(先删旧正式记录), 完成接管
+					if mc.loginSessionName != "" {
+						if err := e.repo.RenameSessionStorage(dbCtx, mc.loginSessionName, sessionName); err != nil {
+							log.Printf("[AUTH] 会话改名失败 account=%s: %v(不影响本次登录)", accountID, err)
+						} else {
+							log.Printf("[AUTH] 会话已接管 account=%s(%s → %s)", accountID, mc.loginSessionName, sessionName)
+						}
 					}
-				}
 				}
 				if err := e.updateStatus(dbCtx, tenantID, accountID, domain.AccountStatusOnline); err != nil {
 					log.Printf("[AUTH] 更新账号 %s 为已认证状态失败: %v\n", accountID, err)
@@ -473,12 +473,12 @@ func (e *Engine) handleConnectError(mc *managedClient, key string, err error) {
 			log.Printf("[auth] 更新账号状态失败: %v", err)
 		}
 		e.recordRiskEvent(dbCtx, tenantID, accountID, "session_revoked", "high", err.Error())
-		case strings.Contains(errStr, "auth key invalidated") || strings.Contains(errStr, "AUTH_KEY_UNREGISTERED"):
+	case strings.Contains(errStr, "auth key invalidated") || strings.Contains(errStr, "AUTH_KEY_UNREGISTERED"):
 		// R157: 会话被 TG 吊销 —— 重试无意义, 标记"需重新登录"
 		e.updateStatus(dbCtx, tenantID, accountID, domain.AccountStatusSessionRevoked)
 		e.recordRiskEvent(dbCtx, tenantID, accountID, "auth_key_revoked", "high", errStr)
 
-case strings.Contains(errStr, "flood_wait"):
+	case strings.Contains(errStr, "flood_wait"):
 		waitSec := extractFloodSeconds(errStr)
 		if waitSec >= 60 {
 			if err := e.updateStatus(dbCtx, tenantID, accountID, domain.AccountStatusRestricted); err != nil {

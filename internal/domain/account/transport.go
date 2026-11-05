@@ -3,9 +3,9 @@ package account
 import (
 	"fmt"
 	"log"
-	"sync"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mtgo-labs/mtgo/telegram"
@@ -91,8 +91,9 @@ func dcHTTPURLs(dc int32, serverAddr string) []string {
 // httpTransportCfg 构造 HTTP 传输配置；urls 为空时库按 DC 自动生成 80 端点。
 // applyProxy 把账号级 socks5/http 代理应用到客户端配置。
 // 已对照 mtgo v0.19.0 源码(github.com/mtgo-labs/mtgo, telegram/config.go):
-//   Config.Proxy *Proxy — "routes all MTProto traffic through the specified proxy"
-//   telegram.ProxyFromURL(raw) 解析 socks5/socks4/http/https/mtproxy 返回 *Proxy 或 *MTProxyConfig。
+//
+//	Config.Proxy *Proxy — "routes all MTProto traffic through the specified proxy"
+//	telegram.ProxyFromURL(raw) 解析 socks5/socks4/http/https/mtproxy 返回 *Proxy 或 *MTProxyConfig。
 func applyProxy(cfg *telegram.Config, proxyURL string) {
 	raw := strings.TrimSpace(proxyURL)
 	if raw == "" {

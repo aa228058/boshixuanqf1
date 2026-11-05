@@ -121,7 +121,9 @@ func (h *GroupLibraryHandler) List(c echo.Context) error {
 // 公开群/频道自动解析群名、成员数、类型; 私密邀请链接占位入库, 后台解析器自动补名。
 func (h *GroupLibraryHandler) Import(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	const maxImportBytes = 20 << 20
 	var payload, fileName string
 	if strings.HasPrefix(strings.ToLower(c.Request().Header.Get(echo.HeaderContentType)), "multipart/form-data") {
@@ -129,35 +131,55 @@ func (h *GroupLibraryHandler) Import(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, "无法读取导入文件")
 		}
 		file, header, err := c.Request().FormFile("file")
-		if err != nil { return echo.NewHTTPError(http.StatusBadRequest, "请选择 txt/csv 文件") }
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "请选择 txt/csv 文件")
+		}
 		defer file.Close()
-		if header.Size > maxImportBytes { return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "文件不能超过 20MB") }
+		if header.Size > maxImportBytes {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "文件不能超过 20MB")
+		}
 		body, err := io.ReadAll(io.LimitReader(file, maxImportBytes+1))
-		if err != nil || len(body) > maxImportBytes { return echo.NewHTTPError(http.StatusBadRequest, "文件读取失败或超过 20MB") }
+		if err != nil || len(body) > maxImportBytes {
+			return echo.NewHTTPError(http.StatusBadRequest, "文件读取失败或超过 20MB")
+		}
 		payload, fileName = string(body), header.Filename
 	} else {
 		var req struct {
-			Text string `json:"text"`
+			Text     string `json:"text"`
 			FileName string `json:"file_name"`
 		}
-		if err := c.Bind(&req); err != nil { return echo.NewHTTPError(http.StatusBadRequest, "导入内容格式错误") }
+		if err := c.Bind(&req); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "导入内容格式错误")
+		}
 		payload, fileName = req.Text, req.FileName
-		if len(payload) > maxImportBytes { return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "导入内容不能超过 20MB") }
+		if len(payload) > maxImportBytes {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "导入内容不能超过 20MB")
+		}
 	}
-	if strings.TrimSpace(payload) == "" { return echo.NewHTTPError(http.StatusBadRequest, "导入内容不能为空") }
+	if strings.TrimSpace(payload) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "导入内容不能为空")
+	}
 	job, err := h.lib.CreateImportJob(c.Request().Context(), tenantID, fileName, payload)
-	if err != nil { return echo.NewHTTPError(http.StatusBadRequest, err.Error()) }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
 	return c.JSON(http.StatusAccepted, job)
 }
 
 // GetImportJob handles GET /group-library/import-jobs/:id.
 func (h *GroupLibraryHandler) GetImportJob(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	jobID, err := uuid.Parse(c.Param("id"))
-	if err != nil { return echo.NewHTTPError(http.StatusBadRequest, "invalid job id") }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
 	job, err := h.lib.GetImportJob(c.Request().Context(), tenantID, jobID)
-	if err != nil { return echo.NewHTTPError(http.StatusNotFound, "导入任务不存在") }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "导入任务不存在")
+	}
 	return c.JSON(http.StatusOK, job)
 }
 
