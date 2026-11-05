@@ -27,15 +27,18 @@ func NewActivationCodeRepository(db *pgxpool.Pool) *ActivationCodeRepository {
 
 const codeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
-func generateCode() string {
+func generateCode() (string, error) {
 	var sb strings.Builder
 	max := big.NewInt(int64(len(codeChars)))
 	for i := 0; i < 16; i++ {
 		// 无横杠: 整串可一次双击/长按全选复制(带分隔符时双击只能选中一段)
-		n, _ := rand.Int(rand.Reader, max)
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", fmt.Errorf("generate secure activation code: %w", err)
+		}
 		sb.WriteByte(codeChars[n.Int64()])
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
 // Generate creates batch activation codes.
@@ -50,7 +53,10 @@ func (r *ActivationCodeRepository) Generate(ctx context.Context, planID string, 
 	defer tx.Rollback(ctx)
 
 	for i := 0; i < count; i++ {
-		code := generateCode()
+		code, err := generateCode()
+		if err != nil {
+			return nil, err
+		}
 		var expiresAt *time.Time
 		// 无论 immediate 还是 on_use，只要管理员填写了有效期就写入过期时间
 		if expiresDays != nil {
@@ -121,9 +127,12 @@ func (r *ActivationCodeRepository) List(ctx context.Context, status string, plan
 	for rows.Next() {
 		var c domain.ActivationCode
 		if err := rows.Scan(&c.CodeID, &c.Code, &c.PlanID, &c.Status, &c.UsedBy, &c.UsedAt, &c.ExpiresAt, &c.TimingType, &c.CreatedBy, &c.CreatedAt, &c.Notes, &c.UsedByTenantName); err != nil {
-			continue
+			return nil, 0, fmt.Errorf("scan activation code: %w", err)
 		}
 		codes = append(codes, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate activation codes: %w", err)
 	}
 	return codes, total, nil
 }
@@ -204,7 +213,7 @@ func (r *ActivationCodeRepository) Export(ctx context.Context) ([]domain.Activat
 	for rows.Next() {
 		var c domain.ActivationCode
 		if err := rows.Scan(&c.CodeID, &c.Code, &c.PlanID, &c.Status, &c.UsedBy, &c.UsedAt, &c.ExpiresAt, &c.TimingType, &c.CreatedBy, &c.CreatedAt, &c.Notes); err != nil {
-			continue
+			return nil, fmt.Errorf("scan exported activation code: %w", err)
 		}
 		codes = append(codes, c)
 	}
