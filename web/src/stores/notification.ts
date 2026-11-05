@@ -7,6 +7,8 @@ interface LocalNotification {
   title: string
   message: string
   read: boolean
+  tenant_id?: string
+
   created_at: string
 }
 
@@ -14,9 +16,10 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref<LocalNotification[]>([])
   const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
-  function addNotification(n: Omit<LocalNotification, 'id' | 'created_at'>) {
+  function addNotification(n: Omit<LocalNotification, 'id' | 'created_at'> & { notification_id?: string; is_read?: boolean }) {
     notifications.value.unshift({
       ...n,
+      read: n.is_read ?? n.read,
       id: Math.random().toString(36).slice(2) + Date.now().toString(36),
       created_at: new Date().toISOString(),
     })
