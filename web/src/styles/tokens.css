@@ -144,6 +144,7 @@ html.theme-stripe {
   /* Spacing: 4px base */
   --t-space-0: 0;
   --t-space-1: 4px;
+  --t-space-1-5: 6px;
   --t-space-2: 8px;
   --t-space-3: 12px;
   --t-space-4: 16px;
