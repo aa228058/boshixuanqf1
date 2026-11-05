@@ -1,5 +1,5 @@
 <template>
-  <span class="absolute top-2 right-2 text-xs text-amber bg-amber/10 px-2 py-0.5 rounded-full z-10">演示数据</span>
+  <span class="absolute top-2 right-2 text-xs text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] px-2 py-0.5 rounded-full z-10">演示数据</span>
   <!-- R128 relative: 演示数据角标(第2行)绝对定位需要定位上下文 -->
   <main class="relative space-y-6">
     <!-- 首页不显示面包屑 -->
@@ -25,7 +25,7 @@
     <div class="glass rounded-[var(--t-r-md)] p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">最近注册租户</h3>
-        <router-link to="/admin/tenants" class="text-xs text-cyan hover:underline">查看全部</router-link>
+        <router-link to="/admin/tenants" class="text-xs text-[var(--t-brand)] hover:underline">查看全部</router-link>
       </div>
       <!-- 桌面端表格 -->
       <div class="hidden sm:block">
@@ -139,7 +139,7 @@ const revenueChartOption = computed(() => ({
 }))
 
 function statusClass(s: string) {
-  const map: Record<string, string> = { active: 'bg-emerald/10 text-emerald', inactive: 'bg-text-muted/15 text-text-muted', suspended: 'bg-rose/10 text-rose' }
+  const map: Record<string, string> = { active: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]', inactive: 'bg-text-muted/15 text-text-muted', suspended: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]' }
   return map[s] || ''
 }
 
