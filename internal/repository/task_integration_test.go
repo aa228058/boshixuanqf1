@@ -228,11 +228,13 @@ func TestClaimTasks_SkipsInactiveAndExpiredTenants(t *testing.T) {
 	inactiveTask := seedTask(t, pool, inactiveTenant, string(domain.TaskTypeBroadcast), 9)
 	expiredTask := seedTask(t, pool, expiredTenant, string(domain.TaskTypeBroadcast), 8)
 
-	if _, err := pool.Exec(context.Background(), `
-		UPDATE tenants SET status = 'suspended' WHERE tenant_id = $1;
-		UPDATE tenants SET expires_at = NOW() - INTERVAL '1 minute' WHERE tenant_id = $2;
-	`, inactiveTenant, expiredTenant); err != nil {
-		t.Fatalf("deactivate test tenants: %v", err)
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE tenants SET status = 'suspended' WHERE tenant_id = $1`, inactiveTenant); err != nil {
+		t.Fatalf("suspend test tenant: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE tenants SET expires_at = NOW() - INTERVAL '1 minute' WHERE tenant_id = $1`, expiredTenant); err != nil {
+		t.Fatalf("expire test tenant: %v", err)
 	}
 
 	claimed, err := repo.ClaimTasks(context.Background(), "active-worker", 10, 5)
