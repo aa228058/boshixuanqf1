@@ -16,10 +16,11 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref<LocalNotification[]>([])
   const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
-  function addNotification(n: Omit<LocalNotification, 'id' | 'created_at'> & { notification_id?: string; is_read?: boolean }) {
+  function addNotification(n: Omit<LocalNotification, 'id' | 'created_at' | 'read'> & { read?: boolean; notification_id?: string; is_read?: boolean }) {
+    const { notification_id: _notificationId, is_read, read, ...data } = n
     notifications.value.unshift({
-      ...n,
-      read: n.is_read ?? n.read,
+      ...data,
+      read: is_read ?? read ?? false,
       id: Math.random().toString(36).slice(2) + Date.now().toString(36),
       created_at: new Date().toISOString(),
     })
