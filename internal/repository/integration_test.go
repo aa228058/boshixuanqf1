@@ -44,7 +44,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
-		t.Logf("postgres connection string host: %s", pgHostFromDSN(dsn))
+		t.Log("postgres container ping failed; see container logs above")
 		logCtx, cancelLogs := context.WithTimeout(ctx, 5*time.Second)
 		logs, logErr := pg.Logs(logCtx)
 		if logErr == nil {
