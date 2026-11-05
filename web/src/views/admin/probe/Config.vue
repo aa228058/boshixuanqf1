@@ -6,27 +6,27 @@
 
       <div class="glass rounded-[var(--t-r-md)] p-5 space-y-5">
         <div>
-          <label class="text-sm font-medium text-text-secondary">主动私聊测试号 <span class="text-rose">*</span></label>
+          <label class="text-sm font-medium text-text-secondary">主动私聊测试号 <span class="text-[var(--t-err)]">*</span></label>
           <p class="text-[11px] text-text-muted mt-1 mb-2">必须是<b class="text-text-secondary">真实用户小号</b>（不能用 bot——被限制私聊的号仍能和 bot 聊天，会误判）。探测时给此号发一条消息并立即撤回。</p>
           <input v-model="form.test_username" placeholder="@your_test_account 或 your_test_account"
-                 class="w-full px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50 font-mono" />
+                 class="w-full px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
         </div>
         <div>
-          <label class="text-sm font-medium text-text-secondary">私有群永久邀请链接 <span class="rose text-rose">*</span></label>
+          <label class="text-sm font-medium text-text-secondary">私有群永久邀请链接 <span class="rose text-[var(--t-err)]">*</span></label>
           <p class="text-[11px] text-text-muted mt-1 mb-2">必须是<b class="text-text-secondary">永久链接</b>（群设置里生成，勿设有效期/次数）。被测号通过此链接加入→发消息→撤回→退群。</p>
           <input v-model="form.private_invite" placeholder="https://t.me/+AbCdEfGhIjK"
-                 class="w-full px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50 font-mono" />
+                 class="w-full px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
         </div>
         <div>
-          <label class="text-sm font-medium text-text-secondary">公开群链接 <span class="text-rose">*</span></label>
+          <label class="text-sm font-medium text-text-secondary">公开群链接 <span class="text-[var(--t-err)]">*</span></label>
           <p class="text-[11px] text-text-muted mt-1 mb-2">一个你持有的公开群 username 或链接。用于检测"公开群发言"能力（L2 梯度限制的关键判定项）。</p>
           <input v-model="form.public_link" placeholder="https://t.me/your_public_group"
-                 class="w-full px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-cyan/50 font-mono" />
+                 class="w-full px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
         </div>
         <div class="flex items-center justify-between pt-1">
           <span class="text-[11px] text-text-muted">最后更新：{{ form.updated_at?.slice(0, 16).replace('T', ' ') || '—' }}</span>
           <button @click="save" :disabled="saving"
-                  class="px-5 py-2.5 rounded-lg bg-cyan text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5">
+                  class="px-5 py-2.5 rounded-lg bg-[var(--t-brand)] text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5">
             <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />{{ saving ? '保存中…' : '保存配置' }}
           </button>
         </div>
