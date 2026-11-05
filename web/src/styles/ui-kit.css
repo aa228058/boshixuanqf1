@@ -63,11 +63,11 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .ui-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: var(--t-space-1);
+  padding: 2px var(--t-space-2);
   border-radius: var(--t-radius-sm);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--t-font-xs);
+  font-weight: var(--t-weight-bold);
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -76,7 +76,7 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .ui-badge--err   { background: var(--t-err-dim); color: var(--t-err); }
 .ui-badge--info  { background: var(--t-brand-dim);         color: var(--t-brand); }
 .ui-badge--mute  { background: var(--t-surface-2);         color: var(--t-text-3); }
-.ui-badge i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.85; }
+.ui-badge i { width: var(--t-space-1); height: var(--t-space-1); border-radius: 50%; background: currentColor; opacity: 0.85; }
 
 /* ---------- .glass-float 浮层玻璃(仅 5 处): 统一配方 ---------- */
 /* Modal 遮罩 / 底部 TabBar / 顶栏(滚动) / Toast 灵动岛 / 批量操作栏 */
@@ -92,7 +92,7 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 [data-sonner-toast] {
   background: var(--t-toast-bg, #141626) !important;   /* 黑毛玻璃, 任何主题下不变 */
   color: rgba(255, 255, 255, 0.92) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid color-mix(in srgb, #ffffff 14%, transparent) !important;
   backdrop-filter: blur(22px) saturate(1.5) !important;
   -webkit-backdrop-filter: blur(22px) saturate(1.5) !important;
 }
