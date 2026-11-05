@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/mtgo-labs/storage"
 	_ "modernc.org/sqlite"
@@ -22,7 +23,12 @@ func ParseTelethonSessionFile(ctx context.Context, path string) (*storage.Sessio
 	}
 	defer os.Remove(tmp.Name())
 
-	src, err := os.Open(path)
+	sourceRoot, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, "", "", fmt.Errorf("打开会话目录失败: %w", err)
+	}
+	defer sourceRoot.Close()
+	src, err := sourceRoot.Open(filepath.Base(path))
 	if err != nil {
 		return nil, "", "", fmt.Errorf("打开文件失败: %w", err)
 	}
