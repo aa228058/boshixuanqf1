@@ -668,7 +668,7 @@
     <Modal v-model="showProbe" :title="`能力检测 — ${probeAccount?.first_name || probeAccount?.phone || ''}`" width="420px">
       <div class="space-y-3">
         <!-- 冷却/未配置提示 -->
-        <div v-if="probeCooldownText" class="flex items-start gap-2 rounded-lg border border-amber/30 bg-[color:var(--t-warn-dim)] p-3 text-xs text-[var(--t-warn)] leading-relaxed">
+        <div v-if="probeCooldownText" class="flex items-start gap-2 rounded-lg border border-[color:var(--t-warn)]/30 bg-[color:var(--t-warn-dim)] p-3 text-xs text-[var(--t-warn)] leading-relaxed">
           <ShieldAlert class="w-4 h-4 shrink-0 mt-0.5" />{{ probeCooldownText }}
         </div>
         <!-- 结果 -->
