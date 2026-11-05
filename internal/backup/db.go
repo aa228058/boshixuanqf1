@@ -182,30 +182,47 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return // 目录不存在或不可读: 静默跳过
-	}
-	defer root.Close()
-	dirFile, err := root.Open(".")
-	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("[db-backup] 打开媒体目录 %q 失败: %v", dir, err)
+		}
 		return
 	}
-	entries, err := dirFile.ReadDir(-1)
-	_ = dirFile.Close()
+	defer func() {
+		if err := root.Close(); err != nil {
+			log.Printf("[db-backup] 关闭媒体目录失败: %v", err)
+		}
+	}()
+	dirFile, err := root.Open(".")
 	if err != nil {
+		log.Printf("[db-backup] 读取媒体目录失败: %v", err)
+		return
+	}
+	entries, readErr := dirFile.ReadDir(-1)
+	if closeErr := dirFile.Close(); closeErr != nil {
+		log.Printf("[db-backup] 关闭媒体目录句柄失败: %v", closeErr)
+	}
+	if readErr != nil {
+		log.Printf("[db-backup] 枚举媒体目录失败: %v", readErr)
 		return
 	}
 	cutoff := time.Now().Add(-maxAge)
 	removed := 0
 	for _, e := range entries {
 		info, err := e.Info()
-		if err != nil || info.IsDir() {
+		if err != nil {
+			log.Printf("[db-backup] 读取媒体文件 %q 信息失败: %v", e.Name(), err)
 			continue
 		}
-		if info.ModTime().Before(cutoff) {
-			if err := root.Remove(e.Name()); err == nil {
-				removed++
-			}
+		if info.IsDir() || !info.ModTime().Before(cutoff) {
+			continue
 		}
+		if err := root.Remove(e.Name()); err != nil {
+			if !os.IsNotExist(err) {
+				log.Printf("[db-backup] 删除过期媒体文件 %q 失败: %v", e.Name(), err)
+			}
+			continue
+		}
+		removed++
 	}
 	if removed > 0 {
 		log.Printf("[db-backup] 清理过期媒体文件: %d 个(>%v)", removed, maxAge)
@@ -219,17 +236,26 @@ func pruneOldDBBackups(dir string, keep int) {
 	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
+		log.Printf("[db-backup] 打开备份目录 %q 失败: %v", dir, err)
 		return
 	}
-	defer root.Close()
+	defer func() {
+		if err := root.Close(); err != nil {
+			log.Printf("[db-backup] 关闭备份目录失败: %v", err)
+		}
+	}()
 
 	dirFile, err := root.Open(".")
 	if err != nil {
+		log.Printf("[db-backup] 读取备份目录失败: %v", err)
 		return
 	}
-	entries, err := dirFile.ReadDir(-1)
-	_ = dirFile.Close()
-	if err != nil {
+	entries, readErr := dirFile.ReadDir(-1)
+	if closeErr := dirFile.Close(); closeErr != nil {
+		log.Printf("[db-backup] 关闭备份目录句柄失败: %v", closeErr)
+	}
+	if readErr != nil {
+		log.Printf("[db-backup] 枚举备份目录失败: %v", readErr)
 		return
 	}
 	matches := make([]string, 0, len(entries))
