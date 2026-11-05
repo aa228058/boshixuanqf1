@@ -475,7 +475,9 @@ func (e *Engine) handleConnectError(mc *managedClient, key string, err error) {
 		e.recordRiskEvent(dbCtx, tenantID, accountID, "session_revoked", "high", err.Error())
 	case strings.Contains(errStr, "auth key invalidated") || strings.Contains(errStr, "AUTH_KEY_UNREGISTERED"):
 		// R157: 会话被 TG 吊销 —— 重试无意义, 标记"需重新登录"
-		e.updateStatus(dbCtx, tenantID, accountID, domain.AccountStatusSessionRevoked)
+		if err := e.updateStatus(dbCtx, tenantID, accountID, domain.AccountStatusSessionRevoked); err != nil {
+			log.Printf("[auth] 更新会话吊销账号状态失败: %v", err)
+		}
 		e.recordRiskEvent(dbCtx, tenantID, accountID, "auth_key_revoked", "high", errStr)
 
 	case strings.Contains(errStr, "flood_wait"):
