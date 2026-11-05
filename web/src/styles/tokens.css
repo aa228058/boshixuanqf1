@@ -134,3 +134,132 @@ html.theme-stripe {
   --t-shadow-pop:  0 24px 64px -20px rgba(0, 0, 0, 0.5);
   --t-shadow-card: 0 10px 32px rgba(0, 0, 0, 0.18);
 }
+
+
+/* ============================================================
+   Design tokens v2 — shared scales and semantic component tokens
+   All themes inherit these scales; only semantic colors change.
+   ============================================================ */
+:root {
+  /* Spacing: 4px base */
+  --t-space-0: 0;
+  --t-space-1: 4px;
+  --t-space-2: 8px;
+  --t-space-3: 12px;
+  --t-space-4: 16px;
+  --t-space-5: 20px;
+  --t-space-6: 24px;
+  --t-space-8: 32px;
+  --t-space-10: 40px;
+  --t-space-12: 48px;
+  --t-space-16: 64px;
+
+  /* Typography */
+  --t-font-xs: 12px;
+  --t-font-sm: var(--t-fs-caption);
+  --t-font-md: var(--t-fs-body);
+  --t-font-lg: var(--t-fs-title);
+  --t-font-xl: 20px;
+  --t-font-2xl: 24px;
+  --t-font-3xl: 30px;
+  --t-leading-tight: 1.25;
+  --t-leading-normal: 1.55;
+  --t-leading-relaxed: 1.7;
+  --t-weight-normal: 400;
+  --t-weight-medium: 500;
+  --t-weight-semibold: 600;
+  --t-weight-bold: 700;
+
+  /* Shape */
+  --t-radius-xs: 4px;
+  --t-radius-sm: 8px;
+  --t-radius-md: var(--t-r-md);
+  --t-radius-lg: var(--t-r-lg);
+  --t-radius-xl: 24px;
+  --t-radius-pill: 9999px;
+
+  /* Elevation */
+  --t-shadow-xs: 0 1px 2px color-mix(in srgb, var(--t-text-1) 6%, transparent);
+  --t-shadow-sm: 0 2px 8px color-mix(in srgb, var(--t-text-1) 7%, transparent);
+  --t-shadow-md: 0 8px 24px color-mix(in srgb, var(--t-text-1) 10%, transparent);
+  --t-shadow-lg: 0 16px 40px color-mix(in srgb, var(--t-text-1) 14%, transparent);
+  --t-shadow-focus: 0 0 0 3px var(--t-brand-dim);
+
+  /* Semantic state surfaces */
+  --t-ok-dim: color-mix(in srgb, var(--t-ok) 11%, transparent);
+  --t-warn-dim: color-mix(in srgb, var(--t-warn) 12%, transparent);
+  --t-err-dim: color-mix(in srgb, var(--t-err) 11%, transparent);
+  --t-info: var(--t-brand);
+  --t-info-dim: var(--t-brand-dim);
+  --t-disabled-bg: var(--t-surface-2);
+  --t-disabled-text: var(--t-text-3);
+  --t-overlay: color-mix(in srgb, #000000 48%, transparent);
+  --t-focus: var(--t-brand);
+
+  /* Motion */
+  --t-duration-fast: 120ms;
+  --t-duration-normal: 180ms;
+  --t-duration-slow: 280ms;
+  --t-ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --t-ease-emphasized: cubic-bezier(.22, 1, .36, 1);
+
+  /* Layering */
+  --t-z-dropdown: 1000;
+  --t-z-sticky: 1100;
+  --t-z-overlay: 1200;
+  --t-z-modal: 1300;
+  --t-z-toast: 1400;
+  --t-z-tooltip: 1500;
+
+  /* Shared control geometry */
+  --t-control-height-sm: 32px;
+  --t-control-height-md: 40px;
+  --t-control-height-lg: 44px;
+  --t-control-radius: var(--t-radius-sm);
+  --t-control-padding-x: 12px;
+  --t-card-padding: 16px;
+  --t-modal-radius: var(--t-radius-lg);
+  --t-modal-shadow: var(--t-shadow-pop);
+
+  /* Compatibility aliases: old styles can migrate without visual jumps */
+  --sp-xxs: var(--t-space-1);
+  --sp-xs: var(--t-space-1);
+  --sp-sm: var(--t-space-2);
+  --sp-md: var(--t-space-3);
+  --sp-lg: var(--t-space-4);
+  --sp-xl: var(--t-space-6);
+  --sp-xxl: var(--t-space-8);
+  --sp-huge: var(--t-space-16);
+  --r-xs: var(--t-radius-xs);
+  --r-sm: var(--t-radius-sm);
+  --r-md: var(--t-radius-md);
+  --r-lg: var(--t-radius-lg);
+  --r-xl: var(--t-radius-xl);
+  --r-pill: var(--t-radius-pill);
+
+  /* TDesign semantic bridge */
+  --td-brand-color: var(--t-brand);
+  --td-brand-color-hover: var(--t-brand-hover);
+  --td-brand-color-active: var(--t-brand-active);
+  --td-brand-color-focus: var(--t-brand-dim);
+  --td-success-color: var(--t-ok);
+  --td-warning-color: var(--t-warn);
+  --td-error-color: var(--t-err);
+  --td-text-color-primary: var(--t-text-1);
+  --td-text-color-secondary: var(--t-text-2);
+  --td-text-color-placeholder: var(--t-text-3);
+  --td-bg-color-page: var(--t-bg);
+  --td-bg-color-container: var(--t-card);
+  --td-bg-color-container-hover: var(--t-surface-2);
+  --td-component-border: var(--t-line);
+  --td-radius-default: var(--t-control-radius);
+  --td-radius-medium: var(--t-radius-md);
+  --td-radius-large: var(--t-radius-lg);
+}
+
+html {
+  color-scheme: light;
+}
+html.theme-dark {
+  color-scheme: dark;
+}
