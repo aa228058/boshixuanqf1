@@ -406,7 +406,7 @@ function gtypeLabel(t: string) {
   return t === 'private' ? '私密群' : t === 'channel' ? '频道' : t === 'public' ? '公开群' : '未知'
 }
 function statusLabel(s: string) {
-  return s === 'invalid' ? '链接无效' : '待验证'
+  return s === 'valid' ? '链接有效' : s === 'invalid' ? '链接无效' : '待验证'
 }
 function sourceLabel(s: string) {
   return s === 'bio' ? '简介发现' : s === 'import' ? '手动/文件导入' : s === 'search' ? 'Telegram 搜索' : '链接采集'
