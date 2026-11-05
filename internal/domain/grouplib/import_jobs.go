@@ -108,7 +108,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			SET processed_count=$2, imported_count=imported_count+$3,
 			    failed_count=failed_count+$4, skipped_count=skipped_count+$5,
 			    last_error=CASE WHEN $6='' THEN last_error ELSE $6 END,
-			    status=$7, finished_at=$8, updated_at=NOW()
+			    status=$7, finished_at=$8, payload=CASE WHEN $7='completed' THEN '' ELSE payload END, updated_at=NOW()
 			WHERE job_id=$1`, jobID, end, imported, failed, skipped, lastError, nextStatus, finished)
 		if updateErr != nil {
 			return
