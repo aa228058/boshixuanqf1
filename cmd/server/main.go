@@ -74,16 +74,20 @@ func main() {
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := http.DefaultClient.Do(req)
 			if err == nil && resp != nil {
-				resp.Body.Close()
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					log.Printf("alert response body close failed: %v", closeErr)
+				}
 			}
 		})
 	}
 
 	// Setup log rotation
 	if cfg.LogFile != "" {
+		// #nosec G304 -- LogFile is an explicit deployment configuration path, not request input.
 		f, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, cfg.LogFileMode)
 		if err != nil {
-			log.Printf("failed to open log file %s: %v", cfg.LogFile, err)
+			// #nosec G706 -- Quote the trusted deployment path to prevent control-character log injection.
+			log.Printf("failed to open log file %q: %v", cfg.LogFile, err)
 		} else {
 			log.SetOutput(&rotatingLogWriter{f: f, maxSize: defaultLogMaxSize, maxBackups: defaultLogMaxBackups, mode: cfg.LogFileMode})
 		}
@@ -570,6 +574,7 @@ func (w *rotatingLogWriter) Close() error {
 // 静默失败, 一次 rotate 失败=日志永久丢失。现统一在 error 出口恢复可写性:
 // 优先重开原文件, 重开也失败则降级到 stderr, 绝不留失效句柄。
 func (w *rotatingLogWriter) degrade(name string, cause error) error {
+	// #nosec G304 -- name comes from the already-opened deployment-configured log file.
 	if f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
 		w.f = f
 	} else {
@@ -587,13 +592,20 @@ func (w *rotatingLogWriter) rotate() error {
 	for i := w.maxBackups - 1; i > 0; i-- {
 		oldPath := fmt.Sprintf("%s.%d", oldName, i)
 		newPath := fmt.Sprintf("%s.%d", oldName, i+1)
-		_ = os.Remove(newPath)
-		_ = os.Rename(oldPath, newPath)
+		if err := os.Remove(newPath); err != nil && !os.IsNotExist(err) {
+			return w.degrade(oldName, fmt.Errorf("remove rotated log %q: %w", newPath, err))
+		}
+		if err := os.Rename(oldPath, newPath); err != nil && !os.IsNotExist(err) {
+			return w.degrade(oldName, fmt.Errorf("rename rotated log %q to %q: %w", oldPath, newPath, err))
+		}
 	}
-	_ = os.Remove(oldName + ".1")
+	if err := os.Remove(oldName + ".1"); err != nil && !os.IsNotExist(err) {
+		return w.degrade(oldName, fmt.Errorf("remove previous rotated log %q: %w", oldName+".1", err))
+	}
 	if err := os.Rename(oldName, oldName+".1"); err != nil {
 		return w.degrade(oldName, fmt.Errorf("rename log: %w", err))
 	}
+	// #nosec G304 -- oldName is derived from the open deployment-configured log file.
 	f, err := os.OpenFile(oldName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return w.degrade(oldName, fmt.Errorf("open new log: %w", err))
