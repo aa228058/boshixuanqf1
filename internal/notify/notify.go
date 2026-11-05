@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/smtp"
-	"strings"
 	"sync"
 	"time"
 
