@@ -156,7 +156,7 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			return "", 0, "", 0, fmt.Errorf("邀请无效")
 		default:
 			// 保留 TG 原文, 供调用方识别 CHANNEL_PRIVATE 等场景走网页兜底
-			return "", 0, "", fmt.Errorf("校验邀请失败: %v", err)
+			return "", 0, "", 0, fmt.Errorf("校验邀请失败: %v", err)
 		}
 	}
 	inv, ok := res.(*tg.ChatInvite)
@@ -178,16 +178,16 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			// TG 官方"不入群预览"变体: 内嵌完整 chat 对象
 			switch c := v.Chat.(type) {
 			case *tg.Chat:
-				return c.Title, int(c.ParticipantsCount), "public", nil
+				return c.Title, int(c.ParticipantsCount), "public", int64(c.ID), nil
 			case *tg.Channel:
 				gt := "channel"
 				if c.Megagroup {
 					gt = "private"
 				}
-				return c.Title, int(c.ParticipantsCount), gt, nil
+				return c.Title, int(c.ParticipantsCount), gt, int64(c.ID), nil
 			}
 		}
-		return "", 0, "", fmt.Errorf("邀请响应异常")
+		return "", 0, "", 0, fmt.Errorf("邀请响应异常")
 	}
 	gt := "private"
 	if inv.Broadcast {
@@ -202,7 +202,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	defer cancel()
 	peer, err := client.ResolvePeer(rctx, "t.me/"+username)
 	if err != nil {
-		return "", 0, "", fmt.Errorf("解析失败(可能不存在或已注销)")
+		return "", 0, "", 0, fmt.Errorf("解析失败(可能不存在或已注销)")
 	}
 	switch p := peer.(type) {
 	case *tg.InputPeerChannel:
@@ -210,11 +210,11 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: p.AccessHash},
 		})
 		if err != nil {
-			return "", 0, "", fmt.Errorf("读取群信息失败")
+			return "", 0, "", 0, fmt.Errorf("读取群信息失败")
 		}
 		full, ok := fullRes.(*tg.MessagesChatFull)
 		if !ok {
-			return "", 0, "", fmt.Errorf("群信息响应异常")
+			return "", 0, "", 0, fmt.Errorf("群信息响应异常")
 		}
 		for _, c := range full.Chats {
 			if ch, ok := c.(*tg.Channel); ok && ch.ID == p.ChannelID {
@@ -246,7 +246,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 			}
 		}
 	default:
-		return "", 0, "", fmt.Errorf("目标不是群组/频道")
+		return "", 0, "", 0, fmt.Errorf("目标不是群组/频道")
 	}
 	if title == "" {
 		title = "@" + username
