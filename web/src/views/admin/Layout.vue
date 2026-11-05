@@ -14,8 +14,8 @@
       :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
       <div class="h-16 flex items-center px-6 border-b border-border">
-        <div class="w-8 h-8 rounded-lg bg-cyan/10 flex items-center justify-center mr-3">
-          <Shield class="w-5 h-5 text-cyan" />
+        <div class="w-8 h-8 rounded-lg bg-[var(--t-brand)]/10 flex items-center justify-center mr-3">
+          <Shield class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
         <span class="font-bold text-lg tracking-tight">管理后台</span>
       </div>
@@ -26,7 +26,7 @@
           :key="item.path"
           :to="item.path"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-[transform,opacity,border-color,background-color]"
-          :class="$route.path.startsWith(item.path) ? 'bg-cyan/10 text-cyan border border-cyan/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
+          :class="$route.path.startsWith(item.path) ? 'bg-[var(--t-brand)]/10 text-[var(--t-brand)] border border-[color:var(--t-brand)]/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
           @click="mobileMenuOpen = false"
         >
           <component :is="item.icon" class="w-5 h-5" />
@@ -37,7 +37,7 @@
       <div class="p-4 border-t border-border">
         <button
           @click="logout"
-          class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-rose hover:bg-rose/5 transition-colors"
+          class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-[var(--t-err)] hover:bg-[var(--t-err)]/5 transition-colors"
         >
           <LogOut class="w-4 h-4" />
           退出登录
@@ -59,8 +59,8 @@
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-text-secondary hidden sm:inline">管理员</span>
-          <div class="w-8 h-8 rounded-full bg-cyan/10 flex items-center justify-center">
-            <User class="w-4 h-4 text-cyan" />
+          <div class="w-8 h-8 rounded-full bg-[var(--t-brand)]/10 flex items-center justify-center">
+            <User class="w-4 h-4 text-[var(--t-brand)]" />
           </div>
         </div>
       </header>
