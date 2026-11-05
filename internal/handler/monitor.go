@@ -59,7 +59,7 @@ func (h *MonitorHandler) List(c echo.Context) error {
 type CreateMonitorRequest struct {
 	Name          string   `json:"name" validate:"required"`
 	Type          string   `json:"type" validate:"required,oneof=forward reply dm"`
-	SourceChatIDs []string `json:"source_chat_ids" validate:"required"`
+	SourceChatIDs []string `json:"source_chat_ids"`
 	TargetChatIDs []string `json:"target_chat_ids"`
 	MatchType     string   `json:"match_type" validate:"required,oneof=contains regex exact from_user"`
 	Keywords      []string `json:"keywords" validate:"required"`
