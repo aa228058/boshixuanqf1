@@ -1,6 +1,9 @@
 package grouplib
 
-import "testing"
+import (
+	"net/http"
+	"testing"
+)
 
 func TestExtractTelegramMetaAttributeOrder(t *testing.T) {
 	page := `<html><head><meta content="A &amp; B" property="og:title"></head></html>`
@@ -37,5 +40,22 @@ func TestInviteHashFromLink(t *testing.T) {
 		if got := inviteHashFromLink(input); got != want {
 			t.Errorf("inviteHashFromLink(%q)=%q, want %q", input, got, want)
 		}
+	}
+}
+
+func TestApplyTelegramWebHeaders(t *testing.T) {
+	req, err := http.NewRequest("GET", "https://t.me/example", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyTelegramWebHeaders(req)
+	if req.Header.Get("User-Agent") != telegramMobileUA {
+		t.Fatal("expected the configured stable User-Agent")
+	}
+	if req.Header.Get("Accept-Language") == "" || req.Header.Get("Accept") == "" {
+		t.Fatal("expected Accept and Accept-Language headers")
+	}
+	if req.Header.Get("Referer") != "" {
+		t.Fatal("Referer should not be fabricated")
 	}
 }
