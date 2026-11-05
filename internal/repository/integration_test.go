@@ -68,15 +68,19 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	if err := goose.Up(stdlib.OpenDBFromPool(pool), migDir); err != nil {
 		// 连接在迁移期间被远端重置时，附带 PostgreSQL 容器日志，
 		// 区分迁移 SQL 错误、服务进程崩溃和容器被外部终止。
-		logs, logErr := pg.Logs(ctx)
+		logCtx, cancelLogs := context.WithTimeout(ctx, 5*time.Second)
+		logs, logErr := pg.Logs(logCtx)
 		if logErr == nil {
 			if raw, readErr := io.ReadAll(logs); readErr == nil {
 				t.Logf("postgres container logs:\\n%s", raw)
+			} else {
+				t.Logf("read postgres container logs: %v", readErr)
 			}
 			_ = logs.Close()
 		} else {
 			t.Logf("read postgres container logs: %v", logErr)
 		}
+		cancelLogs()
 		t.Fatalf("apply migrations: %v", err)
 	}
 	return pool
