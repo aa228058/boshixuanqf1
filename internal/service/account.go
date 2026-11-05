@@ -253,7 +253,9 @@ func (s *AccountService) ImportSessions(ctx context.Context, tenantID uuid.UUID,
 			log.Printf("[account] init quotas %s: %v", accountID, err)
 		}
 		if err := s.engine.StoreImportedSession(ctx, acc.SessionName, serverAddr, sess); err != nil {
-			_ = s.repo.Delete(ctx, tenantID, accountID)
+			if rollbackErr := s.repo.Delete(ctx, tenantID, accountID); rollbackErr != nil {
+				log.Printf("[account-import] rollback account %s after session storage failure: %v", accountID, rollbackErr)
+			}
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("第%d行: 会话落库失败(%v)", i+1, err))
 			continue
@@ -820,7 +822,9 @@ func (s *AccountService) SetProxy(ctx context.Context, tenantID, accountID uuid.
 		return err
 	}
 	// 代理变更后旧连接仍走旧线路, 主动断开让下次使用时走新代理
-	_ = s.engine.DisconnectAccount(ctx, tenantID, accountID)
+	if err := s.engine.DisconnectAccount(ctx, tenantID, accountID); err != nil {
+		log.Printf("[account] proxy updated for %s but disconnecting the old connection failed: %v", accountID, err)
+	}
 	return nil
 }
 
