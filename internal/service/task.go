@@ -864,6 +864,9 @@ func (s *TaskService) Retry(ctx context.Context, tenantID, taskID uuid.UUID, sco
 		return fmt.Errorf("获取任务失败: %w", err)
 	}
 	if scope == "failed" {
+		if task.Status != domain.TaskStatusCompleted && task.Status != domain.TaskStatusFailed {
+			return fmt.Errorf("cannot retry failed targets while task status is %s", task.Status)
+		}
 		failed, err := s.logRepo.ListFailedTargets(ctx, tenantID, taskID)
 		if err != nil {
 			return fmt.Errorf("获取失败目标失败: %w", err)
