@@ -138,7 +138,7 @@ func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) (
 		SELECT sg_id, source, COALESCE(title,''), COALESCE(username,''), COALESCE(tme_link,''),
 		       gtype, member_count, status, ref_count, last_seen_at
 		FROM system_groups `+w+`
-		ORDER BY ref_count DESC, last_seen_at DESC, sg_id DESC  -- 唯一tiebreaker: 防同值行间顺序不定导致翻页重复/遗漏
+		ORDER BY last_seen_at DESC, sg_id DESC  -- 唯一tiebreaker: 防同值行间顺序不定导致翻页重复/遗漏
 		LIMIT $`+fmt.Sprint(n-1)+` OFFSET $`+fmt.Sprint(n), args...)
 	if err != nil {
 		return nil, 0, err
