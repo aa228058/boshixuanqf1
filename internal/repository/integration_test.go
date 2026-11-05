@@ -212,15 +212,25 @@ func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
-		VALUES ($1, 'approvaltest', 'x', 'Approval Test', 'approval-test-key', 'free');
+		VALUES ($1, 'approvaltest', 'x', 'Approval Test', 'approval-test-key', 'free')
+	`, tenantID)
+	if err != nil {
+		t.Fatalf("seed approval tenant: %v", err)
+	}
+	_, err = pool.Exec(ctx, `
 		INSERT INTO tasks (tenant_id, task_id, type, status)
-		VALUES ($1, $2, 'join_groups', 'completed'), ($1, $3, 'join_groups', 'pending');
+		VALUES ($1, $2, 'join_groups', 'completed'), ($1, $3, 'join_groups', 'pending')
+	`, tenantID, approvedTaskID, cancelledTaskID)
+	if err != nil {
+		t.Fatalf("seed approval tasks: %v", err)
+	}
+	_, err = pool.Exec(ctx, `
 		INSERT INTO pending_approvals (task_id, tenant_id, account_id, target_link)
 		VALUES ($2, $1, $4, 'https://t.me/example_approval'),
-		       ($3, $1, $4, 'https://t.me/example_cancel');
+		       ($3, $1, $4, 'https://t.me/example_cancel')
 	`, tenantID, approvedTaskID, cancelledTaskID, accountID)
 	if err != nil {
-		t.Fatalf("seed approval fixtures: %v", err)
+		t.Fatalf("seed pending approvals: %v", err)
 	}
 
 	approvalRepo := NewPendingApprovalRepository(pool)
