@@ -80,7 +80,13 @@ func runDBDump(cfg *config.Config, dir string) error {
 	name := fmt.Sprintf("db_%s.sql.gz", time.Now().Format("20060102_150405"))
 	path := filepath.Join(dir, name)
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("open backup directory: %w", err)
+	}
+	defer root.Close()
+
+	f, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("create backup file: %w", err)
 	}
@@ -104,7 +110,10 @@ func runDBDump(cfg *config.Config, dir string) error {
 	if err != nil {
 		return fmt.Errorf("stdout pipe: %w", err)
 	}
-	stderr, _ := os.Create(path + ".err")
+	stderr, err := root.OpenFile(name+".err", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("create backup error log: %w", err)
+	}
 	defer stderr.Close()
 	cmd.Stderr = stderr
 
@@ -129,9 +138,14 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 	if dir == "" {
 		dir = "media"
 	}
-	entries, err := os.ReadDir(dir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return // 目录不存在或不可读: 静默跳过
+	}
+	defer root.Close()
+	entries, err := root.ReadDir(".")
+	if err != nil {
+		return
 	}
 	cutoff := time.Now().Add(-maxAge)
 	removed := 0
@@ -141,7 +155,7 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 			continue
 		}
 		if info.ModTime().Before(cutoff) {
-			if err := os.Remove(filepath.Join(dir, e.Name())); err == nil {
+			if err := root.Remove(e.Name()); err == nil {
 				removed++
 			}
 		}
@@ -153,15 +167,36 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 
 // pruneOldDBBackups 只保留最近 N 份, 按文件名排序(时间戳在文件名里).
 func pruneOldDBBackups(dir string, keep int) {
-	matches, _ := filepath.Glob(filepath.Join(dir, "db_*.sql.gz"))
+	if keep < 0 {
+		return
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return
+	}
+	defer root.Close()
+
+	entries, err := root.ReadDir(".")
+	if err != nil {
+		return
+	}
+	matches := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if matched, _ := filepath.Match("db_*.sql.gz", entry.Name()); matched {
+			matches = append(matches, entry.Name())
+		}
+	}
 	if len(matches) <= keep {
 		return
 	}
 	sort.Strings(matches)
 	for _, old := range matches[:len(matches)-keep] {
-		if err := os.Remove(old); err == nil {
+		if err := root.Remove(old); err == nil {
 			log.Printf("[db-backup] 清理旧备份: %s", old)
 		}
-		_ = os.Remove(old + ".err")
+		_ = root.Remove(old + ".err")
 	}
 }
