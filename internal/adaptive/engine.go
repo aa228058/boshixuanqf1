@@ -162,7 +162,13 @@ func (e *Engine) failRate() float64 {
 func (e *Engine) memUsage() (mb int, percent float64) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	mb = int(m.Alloc / 1024 / 1024)
+	allocMB := m.Alloc / 1024 / 1024
+	maxInt := uint64(^uint(0) >> 1)
+	if allocMB > maxInt {
+		mb = int(maxInt)
+	} else {
+		mb = int(allocMB)
+	}
 	// 与 main.go 的 debug.SetMemoryLimit 共用同一配置（MEMORY_LIMIT_MB），
 	// 此前硬编码 4096 与 main 的 2800MiB 不一致：容器内存按 4GB 算档位，
 	// 实际 GC 限制在 2.8GB，压力判断整体偏松。
