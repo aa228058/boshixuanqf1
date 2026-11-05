@@ -830,6 +830,11 @@ func (e *Engine) CancelTask(taskID uuid.UUID) {
 		if _, uerr := e.repo.CancelIfActive(context.Background(), t.TenantID, taskID); uerr != nil {
 			taskLog.Printf("[task] cancel落库失败: %v", uerr)
 		}
+		if e.approvalRepo != nil {
+			if uerr := e.approvalRepo.CancelPendingForTask(context.Background(), t.TenantID, taskID); uerr != nil {
+				taskLog.Printf("[task] cancel pending approval failed: %v", uerr)
+			}
+		}
 	}
 	if cancel, ok := e.taskCtxs.Load(taskID.String()); ok {
 		cancel.(context.CancelFunc)()
