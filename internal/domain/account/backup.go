@@ -43,7 +43,13 @@ func (e *Engine) backupSessionFiles() {
 		return
 	}
 	defer sourceRoot.Close()
-	entries, err := sourceRoot.ReadDir(".")
+	sourceDir, err := sourceRoot.Open(".")
+	if err != nil {
+		log.Printf("[BACKUP] 打开会话目录失败: %v", err)
+		return
+	}
+	entries, err := sourceDir.ReadDir(-1)
+	_ = sourceDir.Close()
 	if err != nil {
 		log.Printf("[BACKUP] 读取目录失败: %v", err)
 		return
