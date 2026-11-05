@@ -51,8 +51,14 @@ func (h *MediaHandler) Upload(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]any{"error": "文件读取失败"})
 	}
 	head := make([]byte, 512)
-	n, _ := src0.Read(head)
-	src0.Close()
+	n, readErr := src0.Read(head)
+	closeErr := src0.Close()
+	if readErr != nil && readErr != io.EOF {
+		return c.JSON(http.StatusBadRequest, map[string]any{"error": "文件读取失败"})
+	}
+	if closeErr != nil {
+		return c.JSON(http.StatusBadRequest, map[string]any{"error": "文件关闭失败"})
+	}
 	mime := http.DetectContentType(head[:n])
 	if !mediaMimeWhitelist[mime] {
 		return c.JSON(http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("文件内容类型不合法(%s), 仅支持真实图片/视频", mime)})
