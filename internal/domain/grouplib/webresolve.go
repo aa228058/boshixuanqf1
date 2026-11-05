@@ -3,88 +3,125 @@ package grouplib
 import (
 	"context"
 	"fmt"
-	"html"
+	htmlstd "html"
 	"io"
-	"strconv"
 	"net/http"
+	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// ogTitleRe / htmlTitleRe 从 t.me 页面提取标题。邀请链接页在群未隐藏预览时,
-// og:title / <title> 里就是群名(形如 "群名"); 隐藏预览的群拿不到, 按失败处理。
 var (
-	ogTitleRe   = regexp.MustCompile(`(?i)<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']`)
-	htmlTitleRe = regexp.MustCompile(`(?is)<title[^>]*>([^<]+)</title>`)
-	pageExtraRe = regexp.MustCompile(`(?is)<[^>]+class=["\'][^"\']*tgme_page_extra[^"\']*["\'][^>]*>(.*?)</[^>]+>`)
-	digitsRe = regexp.MustCompile(`[0-9][0-9\\s,.\\x{00a0}\\x{202f}]*`)
+	metaTagRe = regexp.MustCompile(`(?is)<meta\b[^>]*>`)
+	attrRe = regexp.MustCompile(`(?is)([a-z_:][-a-z0-9_:]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+	htmlTitleRe = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+	pageExtraRe = regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*tgme_page_extra[^"']*["'][^>]*>(.*?)</[^>]+>`)
+	htmlTagRe = regexp.MustCompile(`<[^>]+>`)
+	digitsRe = regexp.MustCompile(`[0-9][0-9\s,.\x{00a0}\x{202f}]*`)
 )
 
-// resolveInviteTitleViaWeb 兜底解析: MTProto checkChatInvite 拿不到(如被踢/CHANNEL_PRIVATE)时,
-// 抓 t.me 邀请页 og:title 补群名。纯 HTTP、无状态, 不会给协议号带来任何调用风险。
-// 注意: 仅对"未隐藏预览"的群有效; 隐藏预览/封禁链接返回错误。
+const telegramMobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+
+// resolveInviteTitleViaWeb 保留旧接口，供已有调用方只需要标题时使用。
 func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) {
+	title, _, err := resolveInviteInfoViaWeb(ctx, hash)
+	return title, err
+}
+
+// resolveInviteInfoViaWeb 从 Telegram 邀请预览中提取群名和成员数。
+// 网页没有显示人数时返回 0；HTTP 200 本身不代表邀请有效。
+func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, error) {
+	hash = strings.TrimSpace(hash)
+	if hash == "" || strings.ContainsAny(hash, "/?#") {
+		return "", 0, fmt.Errorf("邀请 hash 格式无效")
+	}
 	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "https://t.me/+"+hash, nil)
-	if err != nil {
-		return "", err
+
+	target := "https://t.me/+" + url.PathEscape(hash)
+	client := &http.Client{
+		Timeout: 12 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return fmt.Errorf("Telegram 页面重定向次数过多")
+			}
+			host := strings.ToLower(req.URL.Hostname())
+			if host != "t.me" && host != "www.t.me" {
+				return fmt.Errorf("拒绝跳转到非 Telegram 域名")
+			}
+			return nil
+		},
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
-	resp, err := http.DefaultClient.Do(req)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target, nil)
 	if err != nil {
-		return "", fmt.Errorf("请求 t.me 失败: %w", err)
+		return "", 0, err
+	}
+	req.Header.Set("User-Agent", telegramMobileUA)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", 0, fmt.Errorf("请求 t.me 失败: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("t.me 返回 %d", resp.StatusCode)
+		return "", 0, fmt.Errorf("t.me 返回 %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024+1))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	html := string(body)
-	memberCount := 0
-	if extra := pageExtraRe.FindStringSubmatch(html); len(extra) > 1 {
-		memberCount = parseWebMemberCount(html.UnescapeString(regexp.MustCompile(`<[^>]+>`).ReplaceAllString(extra[1], " ")))
+	if len(body) > 512*1024 {
+		return "", 0, fmt.Errorf("Telegram 网页内容超过限制")
 	}
-	title := ""
-	if m := ogTitleRe.FindStringSubmatch(html); len(m) > 1 {
-		title = strings.TrimSpace(m[1])
-	}
-	// og:title 缺省或泛化时退回 <title>
+	page := string(body)
+
+	title := extractTelegramMeta(page, "og:title")
 	if title == "" || isGenericTitle(title) {
-		if m := htmlTitleRe.FindStringSubmatch(html); len(m) > 1 {
-			t := strings.TrimSpace(m[1])
-			if !isGenericTitle(t) {
-				title = t
+		if match := htmlTitleRe.FindStringSubmatch(page); len(match) > 1 {
+			candidate := cleanTelegramText(match[1])
+			if !isGenericTitle(candidate) {
+				title = candidate
 			}
 		}
 	}
-	if title == "" || isGenericTitle(title) {
-		return "", fmt.Errorf("页面未暴露群名(群可能隐藏了预览)")
+	title = strings.TrimSpace(strings.TrimPrefix(title, "Telegram:"))
+	if isGenericTitle(title) {
+		title = ""
 	}
-	// t.me 标题常带 "Telegram: " 前缀, 去掉
-	title = strings.TrimSpace(strings.TrimPrefix(title, "Telegram: "))
-	if title == "" && memberCount == 0 { return "", fmt.Errorf("页面未暴露群组资料(可能隐藏预览)") }
-	return title, nil
+
+	memberCount := 0
+	if match := pageExtraRe.FindStringSubmatch(page); len(match) > 1 {
+		memberCount = parseWebMemberCount(cleanTelegramText(match[1]))
+	}
+	if title == "" && memberCount == 0 {
+		return "", 0, fmt.Errorf("页面未暴露群组资料，可能隐藏预览或需要客户端验证")
+	}
+	return title, memberCount, nil
 }
 
-// isGenericTitle 识别"未携带群名"的泛化标题
-func isGenericTitle(t string) bool {
-	s := strings.ToLower(strings.TrimSpace(t))
-	if s == "" {
-		return true
-	}
-	for _, k := range []string{"join group", "telegram", "sign in", "page not found", "webogram"} {
-		if strings.Contains(s, k) && len(s) < 32 {
-			return true
+func extractTelegramMeta(page, property string) string {
+	for _, tag := range metaTagRe.FindAllString(page, -1) {
+		attrs := map[string]string{}
+		for _, match := range attrRe.FindAllStringSubmatch(tag, -1) {
+			value := match[2]
+			if value == "" { value = match[3] }
+			if value == "" { value = match[4] }
+			attrs[strings.ToLower(match[1])] = htmlstd.UnescapeString(value)
+		}
+		if strings.EqualFold(attrs["property"], property) || strings.EqualFold(attrs["name"], property) {
+			return cleanTelegramText(attrs["content"])
 		}
 	}
-	return false
+	return ""
 }
 
+func cleanTelegramText(value string) string {
+	value = htmlstd.UnescapeString(htmlTagRe.ReplaceAllString(value, " "))
+	return strings.Join(strings.Fields(value), " ")
+}
 
 // parseWebMemberCount 只识别成员/订阅者标签，不把在线人数当成员数。
 func parseWebMemberCount(value string) int {
@@ -97,8 +134,17 @@ func parseWebMemberCount(value string) int {
 	if !found { return 0 }
 	raw := digitsRe.FindString(value)
 	if raw == "" { return 0 }
-	raw = strings.NewReplacer(" ", "", ",", "", ".", "", "\u00a0", "", "\u202f", "").Replace(raw)
+	raw = strings.NewReplacer(" ", "", ",", "", ".", "", " ", "", " ", "").Replace(raw)
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 0 { return 0 }
 	return n
+}
+
+func isGenericTitle(value string) bool {
+	s := strings.ToLower(strings.TrimSpace(value))
+	if s == "" { return true }
+	for _, word := range []string{"join group", "telegram", "sign in", "page not found", "webogram", "加入群组", "登录"} {
+		if strings.Contains(s, word) && len(s) < 48 { return true }
+	}
+	return false
 }
