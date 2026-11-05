@@ -78,10 +78,10 @@ func normalizeSystemGroupLink(value string) string {
 }
 
 // UpdateResolvedInfo 后台解析器回写: 私密邀请链接经 checkChatInvite 补全群名/成员数/类型。
-func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uuid.UUID, title string, memberCount int, gtype string) error {
+func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uuid.UUID, title string, memberCount int, gtype string, chatID int64) error {
 	_, err := r.db.Exec(ctx, `
-		UPDATE system_groups SET title=$2, member_count=GREATEST(member_count, $3), gtype=$4, last_seen_at=NOW()
-		WHERE sg_id=$1`, sgID, title, memberCount, gtype)
+		UPDATE system_groups SET title=$2, member_count=GREATEST(member_count, $3), gtype=$4, telegram_chat_id=COALESCE(telegram_chat_id,NULLIF($5,0)), resolution_status='resolved', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW()
+		WHERE sg_id=$1`, sgID, title, memberCount, gtype, chatID)
 	return err
 }
 
