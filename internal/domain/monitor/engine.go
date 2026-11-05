@@ -659,6 +659,10 @@ func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tena
 			// Fallback to a generic message if reply content is empty
 			replyText = "收到您的消息"
 		}
+		if msgID < 0 || msgID > 2147483647 {
+			log.Printf("[monitor] 自动回复跳过：消息 ID 超出 Telegram int32 范围: %d", msgID)
+			return
+		}
 		replyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		if _, sendErr := c.SendMessage(replyCtx, msgChatID, replyText, &params.SendMessage{
 			ReplyToMessageID: int32(msgID),
@@ -816,6 +820,9 @@ func (e *Engine) callAllowed(tenantID, accountID uuid.UUID, callee int64) bool {
 // 只走通话信令(phone.requestCall / phone.discardCall), 不实现 tgvoip 音频层:
 // 对方手机会响铃, 挂断后显示未接来电, 正好满足"弹语音"提醒需求。
 func ringUser(ctx context.Context, c *telegram.Client, userID int64, ringSeconds int) error {
+	if ringSeconds < 0 || ringSeconds > 2147483647 {
+		return fmt.Errorf("ring duration out of int32 range: %d", ringSeconds)
+	}
 	// 解析目标用户拿 access_hash(requestCall 的 InputUser 必需)
 	rpCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	peer, err := c.ResolvePeer(rpCtx, strconv.FormatInt(userID, 10))
@@ -843,7 +850,7 @@ func ringUser(ctx context.Context, c *telegram.Client, userID int64, ringSeconds
 	reqCtx, reqCancel := context.WithTimeout(ctx, 20*time.Second)
 	res, err := c.Raw().PhoneRequestCall(reqCtx, &tg.PhoneRequestCallRequest{
 		UserID:   &tg.InputUser{UserID: up.UserID, AccessHash: up.AccessHash},
-		RandomID: int32(binary.LittleEndian.Uint32(ridBytes)),
+		RandomID: int32(binary.LittleEndian.Uint32(ridBytes) >> 1),
 		GAHash:   gaHash,
 		Protocol: &tg.PhoneCallProtocol{
 			UDPReflector: true,
