@@ -266,3 +266,57 @@ func taskIDs(tasks []*domain.Task) []uuid.UUID {
 	}
 	return ids
 }
+
+
+func TestTaskLifecycleUpdatesRespectCurrentStatus(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	ctx := context.Background()
+	tenant := uuid.New()
+
+	loopID := seedTask(t, pool, tenant, string(domain.TaskTypeScheduledBroadcast), 5)
+	if _, err := pool.Exec(ctx, `UPDATE tasks SET is_loop = TRUE WHERE task_id = $1`, loopID); err != nil {
+		t.Fatalf("mark loop task: %v", err)
+	}
+	if err := repo.StopLoop(ctx, tenant, loopID); err != nil {
+		t.Fatalf("StopLoop: %v", err)
+	}
+	if err := repo.ResetToQueued(ctx, tenant, loopID); err != nil {
+		t.Fatalf("resume paused loop task: %v", err)
+	}
+	var status string
+	var isLoop bool
+	var retryCount int
+	if err := pool.QueryRow(ctx, `SELECT status, is_loop, retry_count FROM tasks WHERE task_id = $1`, loopID).Scan(&status, &isLoop, &retryCount); err != nil {
+		t.Fatalf("read resumed task: %v", err)
+	}
+	if status != "queued" || isLoop || retryCount != 0 {
+		t.Fatalf("resumed loop state = status:%s loop:%t retries:%d; want queued/false/0", status, isLoop, retryCount)
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE tasks SET status = 'cancelled' WHERE task_id = $1`, loopID); err != nil {
+		t.Fatalf("cancel task fixture: %v", err)
+	}
+	if err := repo.ResetToQueued(ctx, tenant, loopID); err == nil {
+		t.Fatal("ResetToQueued must not revive a cancelled task")
+	}
+
+	completedID := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	if _, err := pool.Exec(ctx, `UPDATE tasks SET status = 'completed' WHERE task_id = $1`, completedID); err != nil {
+		t.Fatalf("complete task fixture: %v", err)
+	}
+	cancelled, err := repo.CancelIfActive(ctx, tenant, completedID)
+	if err != nil {
+		t.Fatalf("CancelIfActive: %v", err)
+	}
+	if cancelled {
+		t.Fatal("CancelIfActive must not overwrite a completed task")
+	}
+	if err := pool.QueryRow(ctx, `SELECT status FROM tasks WHERE task_id = $1`, completedID).Scan(&status); err != nil {
+		t.Fatalf("read completed task: %v", err)
+	}
+	if status != "completed" {
+		t.Fatalf("completed task status = %q, want completed", status)
+	}
+}
