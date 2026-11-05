@@ -45,13 +45,13 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 	for _, p := range pendings {
 		if p.CheckCount >= p.MaxChecks {
 			resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "timeout")
-            if err != nil {
-                log.Printf("[approval] 更新状态失败: %v", err)
-            } else if resolved {
-                if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
-                    taskLog.Printf("[task] UpdateStatus failed: %v", err)
-                }
-            }
+			if err != nil {
+				log.Printf("[approval] 更新状态失败: %v", err)
+			} else if resolved {
+				if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
+					taskLog.Printf("[task] UpdateStatus failed: %v", err)
+				}
+			}
 			continue
 		}
 
@@ -71,13 +71,13 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 			inGroup := e.isAccountInGroup(ctx, client, p.ChatID, p.AccessHash, p.TargetLink)
 			if inGroup {
 				resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "approved")
-                if err != nil {
-                    log.Printf("[approval] 更新状态失败: %v", err)
-                } else if resolved {
-                    if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
-                        taskLog.Printf("[task] UpdateStatus failed: %v", err)
-                    }
-                }
+				if err != nil {
+					log.Printf("[approval] 更新状态失败: %v", err)
+				} else if resolved {
+					if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
+						taskLog.Printf("[task] UpdateStatus failed: %v", err)
+					}
+				}
 			} else {
 				if err := e.approvalRepo.IncrementCheck(ctx, p.TenantID, p.TaskID); err != nil {
 					log.Printf("[approval] 增加检查次数失败: %v", err)
