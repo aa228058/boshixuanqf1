@@ -8,6 +8,7 @@ package repository
 import (
 	"context"
 	"path/filepath"
+	"net/url"
 	"testing"
 	"time"
 
@@ -36,11 +37,24 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("connection string: %v", err)
 	}
-	pool, err := pgxpool.New(ctx, dsn+"&sslmode=disable")
+	// Testcontainers 可能已经在 DSN 中提供 sslmode；通过 URL query 设置，
+	// 避免直接拼接导致重复参数或错误的连接字符串。
+	parsedDSN, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("parse connection string: %v", err)
+	}
+	query := parsedDSN.Query()
+	query.Set("sslmode", "disable")
+	parsedDSN.RawQuery = query.Encode()
+
+	pool, err := pgxpool.New(ctx, parsedDSN.String())
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	if err := pool.Ping(ctx); err != nil {
+		t.Fatalf("ping postgres: %v", err)
+	}
 
 	// 应用全部迁移（与生产同路径）
 	migDir, err := filepath.Abs("../../migrations")
