@@ -7,7 +7,7 @@ ALTER TABLE system_groups
     ADD COLUMN IF NOT EXISTS resolution_status VARCHAR(24) NOT NULL DEFAULT 'pending',
     ADD COLUMN IF NOT EXISTS member_count_updated_at TIMESTAMPTZ;
 
-CREATE INDEX IF NOT EXISTS idx_system_groups_telegram_chat_id
+CREATE UNIQUE INDEX IF NOT EXISTS idx_system_groups_telegram_chat_id
     ON system_groups(telegram_chat_id) WHERE telegram_chat_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS system_group_links (
@@ -38,6 +38,8 @@ CREATE INDEX IF NOT EXISTS idx_system_group_contributions_sg_id
     ON system_group_contributions(sg_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_system_group_contributions_tenant
     ON system_group_contributions(tenant_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_system_group_contributions_dedup
+    ON system_group_contributions(sg_id, tenant_id, submitted_link);
 
 -- 将历史单链接迁移到链接表；历史记录没有可靠贡献者身份，不伪造贡献者。
 INSERT INTO system_group_links (sg_id, original_link, normalized_link, link_type, validity_status, source)
