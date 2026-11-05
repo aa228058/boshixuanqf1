@@ -1960,7 +1960,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  transition: width .25s var(--t-ease);
+  transition: width var(--t-duration-slow) var(--t-ease);
 }
 .acc-group.selecting .check-col { width: 26px; }
 .acc-check { width: 17px; height: 17px; accent-color: var(--t-brand); }
@@ -1968,8 +1968,8 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-group.selecting .more-btn { display: none; }
 
 /* 两行信息区 */
-.acc-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.acc-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.acc-main { flex: 1; min-width: 0; display: grid; gap: var(--t-space-1); }
+.acc-title { display: flex; align-items: center; gap: var(--t-space-1-5); min-width: 0; }
 .acc-meta {
   display: flex;
   align-items: center;
@@ -1990,14 +1990,14 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   color: var(--t-text-2);
 }
 .send-report i { font-style: normal; color: var(--t-ok); }
-.send-report i.f { color: var(--t-err); margin-left: 6px; }
+.send-report i.f { color: var(--t-err); margin-left: var(--t-space-1-5); }
 
 /* 统计瓦片横向滑动条 */
 .stat-strip {
   display: flex;
   gap: var(--t-space-3);
   overflow-x: auto;
-  padding: 2px 2px 6px;
+  padding: var(--t-space-1) var(--t-space-1) var(--t-space-2);
   scroll-snap-type: x mandatory;
 }
 .stat-strip > * { flex-shrink: 0; width: 128px; scroll-snap-align: start; }
@@ -2006,7 +2006,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .risk-hint {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--t-space-1-5);
   margin-bottom: var(--t-space-4);
   padding: 0 var(--t-space-1);
   font-size: var(--t-fs-caption);
@@ -2015,8 +2015,8 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 
 /* R176: "更多"菜单 = 锚定按钮上方的小弹层(全平台一致, 与桌面端相同体验) */
 .acc-menu {
-  left: 12px;
-  right: 12px;
+  left: var(--t-space-3);
+  right: var(--t-space-3);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
   width: auto;
   max-height: min(68dvh, 560px);
@@ -2033,7 +2033,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
     bottom: 100%;
     width: 11rem;
     max-height: 65vh;
-    margin-bottom: .25rem;
+    margin-bottom: var(--t-space-1);
     border-radius: var(--t-r-sm);
     box-shadow: var(--t-shadow-card);
   }
