@@ -566,9 +566,13 @@ func (r *AccountRepository) GetSessionProfiles(ctx context.Context, sessionNames
 	for rows.Next() {
 		var id string
 		var p SessionProfile
-		if err := rows.Scan(&id, &p.FirstName, &p.LastName, &p.Username); err == nil {
-			out[id] = &p
+		if err := rows.Scan(&id, &p.FirstName, &p.LastName, &p.Username); err != nil {
+			return nil, fmt.Errorf("scan session profile: %w", err)
 		}
+		out[id] = &p
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate session profiles: %w", err)
+	}
+	return out, nil
 }
