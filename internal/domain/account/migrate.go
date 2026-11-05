@@ -74,6 +74,7 @@ func (e *Engine) MigrateDC(ctx context.Context, tenantID, accountID uuid.UUID, t
 func (e *Engine) migrateDCWithSource(ctx context.Context, tenantID, accountID uuid.UUID, sessionName string, src *telegram.Client, userID int64, oldDC, targetDC int32) error {
 	// 3. 目标DC临时客户端：全新匿名DH握手，走HTTP传输（目标DC可达即可）
 	cfg := &telegram.Config{
+		// #nosec G115 -- TGAPIID is range-validated by Config.Validate before account migration.
 		APIID:         int32(e.cfg.TGAPIID),
 		APIHash:       e.cfg.TGAPIHash,
 		SessionName:   fmt.Sprintf("migrate_tmp_%s", sessionName),
@@ -118,6 +119,7 @@ func (e *Engine) migrateDCWithSource(ctx context.Context, tenantID, accountID uu
 	if err := e.StoreImportedSession(ctx, sessionName, "", &storage.Session{
 		SessionID: sessionName,
 		DC:        int(targetDC),
+		// #nosec G115 -- TGAPIID is range-validated by Config.Validate before account migration.
 		APIID:     int32(e.cfg.TGAPIID),
 		AuthKey:   newKey,
 		UserID:    userID,
