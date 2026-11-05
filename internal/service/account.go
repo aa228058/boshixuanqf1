@@ -596,18 +596,26 @@ func (s *AccountService) ImportSessionFiles(ctx context.Context, tenantID uuid.U
 		}
 		if s.quota != nil {
 			if err := s.quota.InitAccountQuotas(ctx, acc.AccountID, acc.Level); err != nil {
-				_ = s.repo.Delete(ctx, tenantID, accountID)
-				_ = s.quota.DeleteByAccount(ctx, accountID)
+				if rollbackErr := s.repo.Delete(ctx, tenantID, accountID); rollbackErr != nil {
+					log.Printf("[account-import] rollback account %s after quota initialization failure: %v", accountID, rollbackErr)
+				}
+				if rollbackErr := s.quota.DeleteByAccount(ctx, accountID); rollbackErr != nil {
+					log.Printf("[account-import] rollback quotas for account %s after initialization failure: %v", accountID, rollbackErr)
+				}
 				result.Failed++
 				result.Errors = append(result.Errors, fmt.Sprintf("第%d个文件: 初始化账号额度失败(%v)", i+1, err))
 				continue
 			}
 		}
 		if err := s.engine.StoreImportedSession(ctx, acc.SessionName, serverAddr, sess); err != nil {
-			_ = s.repo.Delete(ctx, tenantID, accountID)
+			if rollbackErr := s.repo.Delete(ctx, tenantID, accountID); rollbackErr != nil {
+				log.Printf("[account-import] rollback account %s after session storage failure: %v", accountID, rollbackErr)
+			}
 			// R182: 归还已扣额度(审计报告#17: 失败账号继续占额度, 新号导不进来)
 			if s.quota != nil {
-				_ = s.quota.DeleteByAccount(ctx, accountID)
+				if rollbackErr := s.quota.DeleteByAccount(ctx, accountID); rollbackErr != nil {
+					log.Printf("[account-import] rollback quotas for account %s after session storage failure: %v", accountID, rollbackErr)
+				}
 			}
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("第%d个文件: 会话落库失败(%v)", i+1, err))
