@@ -47,6 +47,7 @@ type AccountEngine interface {
 	ConnectAccount(ctx context.Context, tenantID, accountID uuid.UUID, phone string, sessionName string, level domain.AccountLevel, keepOnline ...bool) error
 	DisconnectAccount(ctx context.Context, tenantID, accountID uuid.UUID) error
 	GetAccountStatus(ctx context.Context, tenantID, accountID uuid.UUID) (domain.AccountStatus, error)
+	ReauthenticateAccount(ctx context.Context, tenantID, accountID uuid.UUID, phone string, sessionName string, level domain.AccountLevel) error
 	Update2FA(ctx context.Context, tenantID, accountID uuid.UUID, current, next string) error
 	// R176: 通知引擎重拉头像(内部读档/取现有连接, 绝不发起登录)
 	KickAvatarRefresh(tenantID, accountID uuid.UUID)
