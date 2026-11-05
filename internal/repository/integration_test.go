@@ -54,6 +54,20 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
+		t.Logf("postgres test endpoint: %s%s", parsedDSN.Host, parsedDSN.Path)
+		logCtx, cancelLogs := context.WithTimeout(ctx, 5*time.Second)
+		logs, logErr := pg.Logs(logCtx)
+		if logErr == nil {
+			if raw, readErr := io.ReadAll(logs); readErr == nil {
+				t.Logf("postgres container logs:\\n%s", raw)
+			} else {
+				t.Logf("read postgres container logs: %v", readErr)
+			}
+			_ = logs.Close()
+		} else {
+			t.Logf("read postgres container logs: %v", logErr)
+		}
+		cancelLogs()
 		t.Fatalf("ping postgres: %v", err)
 	}
 
