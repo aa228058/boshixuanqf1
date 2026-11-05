@@ -50,6 +50,7 @@ type Engine struct {
 	// (表现: 该账号之后所有 GetClient 永远阻塞, 只能重启进程)。
 	orphanMu sync.Mutex
 	orphans  map[*telegram.Client]*pooledClient
+	managedOrphans map[*telegram.Client]*managedClient
 
 	// 传输方式缓存: dc → 上次成功的传输(tcp/http/mtproxy)。
 	// 命中后直接用它, 跳过已证死亡的传输(治"每次连客户端白等30秒TCP")。
