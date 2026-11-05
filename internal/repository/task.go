@@ -194,13 +194,16 @@ func (r *TaskRepository) ClaimTasks(ctx context.Context, workerID string, limit 
 // ClaimTimeoutTasks claims tasks whose lock has expired.
 func (r *TaskRepository) ClaimTimeoutTasks(ctx context.Context, workerID string, limit int, lockTimeoutMin int) ([]*domain.Task, error) {
 	rows, err := r.db.Query(ctx, `
-		UPDATE tasks SET status = 'running', locked_at = NOW(), worker_id = $1, started_at = COALESCE(started_at, NOW())
-		WHERE task_id IN (
-			SELECT task_id FROM tasks
-			WHERE status = 'running'
-			  AND locked_at < NOW() - ($3 * INTERVAL '1 minute')
-			ORDER BY priority DESC, created_at ASC
-			FOR UPDATE SKIP LOCKED
+		UPDATE tasks AS claimed SET status = 'running', locked_at = NOW(), worker_id = $1, started_at = COALESCE(claimed.started_at, NOW())
+		WHERE claimed.task_id IN (
+			SELECT t.task_id FROM tasks t
+			JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
+			WHERE t.status = 'running'
+			  AND t.locked_at < NOW() - ($3 * INTERVAL '1 minute')
+			  AND tenant.status = 'active'
+			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())
+			ORDER BY t.priority DESC, t.created_at ASC
+			FOR UPDATE OF t SKIP LOCKED
 			LIMIT $2
 		)
 		RETURNING task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
@@ -222,20 +225,26 @@ func (r *TaskRepository) ClaimTimeoutTasks(ctx context.Context, workerID string,
 // CountRunningGlobal 全局 running 任务总数(内存自适应的全局并发上限检查用)
 func (r *TaskRepository) CountRunningGlobal(ctx context.Context) (int, error) {
 	var n int
-	err := r.db.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE status='running'`).Scan(&n)
+	err := r.db.QueryRow(ctx, `SELECT count(*) FROM tasks t
+		JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
+		WHERE t.status = 'running' AND tenant.status = 'active'
+		  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())`).Scan(&n)
 	return n, err
 }
 
 func (r *TaskRepository) claimTasksWithStatus(ctx context.Context, workerID string, limit int, status domain.TaskStatus, lockTimeoutMin int) ([]*domain.Task, error) {
 	rows, err := r.db.Query(ctx, `
-		UPDATE tasks SET status = 'running', locked_at = NOW(), worker_id = $1, started_at = COALESCE(started_at, NOW())
-		WHERE task_id IN (
-			SELECT task_id FROM tasks
-			WHERE status = $2
-			  AND (locked_at IS NULL OR locked_at < NOW() - ($4 * INTERVAL '1 minute'))
-			  AND (scheduled_at IS NULL OR scheduled_at <= NOW())
-			ORDER BY priority DESC, created_at ASC
-			FOR UPDATE SKIP LOCKED
+		UPDATE tasks AS claimed SET status = 'running', locked_at = NOW(), worker_id = $1, started_at = COALESCE(claimed.started_at, NOW())
+		WHERE claimed.task_id IN (
+			SELECT t.task_id FROM tasks t
+			JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
+			WHERE t.status = $2
+			  AND (t.locked_at IS NULL OR t.locked_at < NOW() - ($4 * INTERVAL '1 minute'))
+			  AND (t.scheduled_at IS NULL OR t.scheduled_at <= NOW())
+			  AND tenant.status = 'active'
+			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())
+			ORDER BY t.priority DESC, t.created_at ASC
+			FOR UPDATE OF t SKIP LOCKED
 			LIMIT $3
 		)
 		RETURNING task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
@@ -271,8 +280,13 @@ func sortClaimedTasks(tasks []*domain.Task) {
 // ActivatePendingTasks converts pending tasks whose scheduled_at has passed to queued.
 func (r *TaskRepository) ActivatePendingTasks(ctx context.Context) error {
 	_, err := r.db.Exec(ctx, `
-		UPDATE tasks SET status = 'queued', updated_at = NOW()
-		WHERE status = 'pending' AND scheduled_at IS NOT NULL AND scheduled_at <= NOW()`)
+		UPDATE tasks AS t SET status = 'queued', updated_at = NOW()
+		WHERE t.status = 'pending' AND t.scheduled_at IS NOT NULL AND t.scheduled_at <= NOW()
+		  AND EXISTS (
+			SELECT 1 FROM tenants tenant
+			WHERE tenant.tenant_id = t.tenant_id AND tenant.status = 'active'
+			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())
+		  )`)
 	return err
 }
 
@@ -281,9 +295,12 @@ func (r *TaskRepository) ActivatePendingTasks(ctx context.Context) error {
 func (r *TaskRepository) GetNextPendingTaskTime(ctx context.Context) (*time.Time, error) {
 	var scheduledAt pgtype.Timestamptz
 	err := r.db.QueryRow(ctx, `
-		SELECT scheduled_at FROM tasks
-		WHERE status = 'pending' AND scheduled_at IS NOT NULL AND scheduled_at > NOW()
-		ORDER BY scheduled_at ASC LIMIT 1`).Scan(&scheduledAt)
+		SELECT t.scheduled_at FROM tasks t
+		JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
+		WHERE t.status = 'pending' AND t.scheduled_at IS NOT NULL AND t.scheduled_at > NOW()
+		  AND tenant.status = 'active'
+		  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())
+		ORDER BY t.scheduled_at ASC LIMIT 1`).Scan(&scheduledAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
