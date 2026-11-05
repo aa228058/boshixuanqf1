@@ -25,12 +25,12 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="Users" :title="tasksError" description="点击重试">
-        <button @click="fetchTasks" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-cyan hover:border-cyan/40 transition-colors">重新加载</button>
+        <button @click="fetchTasks" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] transition-colors">重新加载</button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
       <div v-else class="space-y-3 mb-4">
         <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
-        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-cyan/20 mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
+        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="px-2 py-0.5 rounded text-xs shrink-0 inline-flex items-center gap-1.5" :class="statusClass(t.status)">
@@ -44,16 +44,16 @@
           <div class="mt-3">
             <div class="flex items-center justify-between text-xs mb-1.5">
               <span class="text-text-secondary">{{ progOf(t).done }} / {{ progOf(t).total }}</span>
-              <span class="text-cyan font-medium">{{ percentOf(t) }}%</span>
+              <span class="text-[var(--t-brand)] font-medium">{{ percentOf(t) }}%</span>
             </div>
             <div class="h-2 rounded-full bg-bg-hover overflow-hidden">
-              <div class="h-full rounded-full transition-all duration-500 bg-cyan" :style="{ width: percentOf(t) + '%' }" />
+              <div class="h-full rounded-full transition-all duration-500 bg-[var(--t-brand)]" :style="{ width: percentOf(t) + '%' }" />
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="px-2 py-1 rounded text-xs bg-amber/10 text-amber hover:bg-amber/20">重试失败 ({{ progOf(t).failed }})</button>
-            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="px-2 py-1 rounded text-xs bg-rose/10 text-rose hover:bg-rose/20">停止</button>
-            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="px-2 py-1 rounded text-xs border border-border text-text-secondary hover:border-cyan/40 hover:text-cyan transition-colors">查看详情</button>
+            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progOf(t).failed }})</button>
+            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">停止</button>
+            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="px-2 py-1 rounded text-xs border border-border text-text-secondary hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">查看详情</button>
           </div>
         </div>
         </pull-down-refresh>
@@ -123,13 +123,13 @@
         <textarea v-model="linksInput" rows="6" placeholder="每行一个链接，如:&#10;https://t.me/groupname&#10;https://t.me/+AbCdEfGhIjK"
                   class="w-full px-4 py-3 rounded-[var(--t-r-md)] glow-input resize-none font-mono text-sm" />
         <div class="flex items-center justify-between mt-2">
-          <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-cyan/40 transition-colors">
+          <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
             导入文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
           </label>
           <span class="text-xs text-text-muted">已识别 {{ validLinks.length }} 个有效链接</span>
           <!-- R128 无效链接可展开查看: 原只报数量, 用户不知哪行错了 -->
           <button v-if="invalidLinks.length > 0" type="button"
-                  class="text-xs text-rose underline decoration-dotted underline-offset-2"
+                  class="text-xs text-[var(--t-err)] underline decoration-dotted underline-offset-2"
                   @click="showInvalidLinks = !showInvalidLinks">{{ invalidLinks.length }} 个格式无效{{ showInvalidLinks ? '▲' : '▼' }}</button>
         </div>
         <div v-if="showInvalidLinks && invalidLinks.length" class="mt-2 rounded-lg p-2.5 space-y-1 max-h-28 overflow-y-auto"
@@ -270,9 +270,9 @@ const statusLabelMap: Record<string, string> = {
 function statusLabel(s: string) { return statusLabelMap[s] || s }
 function statusClass(s: string): string {
   return ({
-    pending: 'bg-amber/10 text-amber', queued: 'bg-amber/10 text-amber',
-    running: 'bg-cyan/10 text-cyan', completed: 'bg-emerald/10 text-emerald',
-    failed: 'bg-rose/10 text-rose', cancelled: 'bg-text-muted/10 text-text-muted',
+    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
+    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
+    failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]', cancelled: 'bg-text-muted/10 text-text-muted',
   } as any)[s] || 'bg-bg-hover text-text-muted'
 }
 function progOf(t: any) {
