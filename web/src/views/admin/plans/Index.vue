@@ -65,7 +65,7 @@
           <tr v-for="f in featureList" :key="f.key" class="border-b border-border/40 last:border-0 hover:bg-milk-01">
             <td class="px-4 py-2.5 text-text-primary">{{ f.label }}</td>
             <td v-for="p in plans" :key="p.plan_id" class="px-3 py-2.5 text-center">
-              <input type="checkbox" class="accent-cyan w-4 h-4 cursor-pointer"
+              <input type="checkbox" class="accent-[var(--t-brand)] w-4 h-4 cursor-pointer"
                 :checked="hasFeature(p, f.key)"
                 @change="toggleFeature(p, f.key)" />
             </td>
