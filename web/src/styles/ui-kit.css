@@ -90,14 +90,14 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 /* ---------- Toast 灵动岛: 固定黑岛(三主题不变, 同 iPhone 硬件岛) ---------- */
 [data-sonner-toast].ts-toast,
 [data-sonner-toast] {
-  background: var(--t-toast-bg, #141626) !important;   /* 黑毛玻璃, 任何主题下不变 */
-  color: rgba(255, 255, 255, 0.92) !important;
-  border: 1px solid color-mix(in srgb, #ffffff 14%, transparent) !important;
+  background: var(--t-toast-bg) !important;   /* 黑毛玻璃, 任何主题下不变 */
+  color: var(--t-toast-fg) !important;
+  border: 1px solid var(--t-toast-line) !important;
   backdrop-filter: blur(22px) saturate(1.5) !important;
   -webkit-backdrop-filter: blur(22px) saturate(1.5) !important;
 }
 [data-sonner-toast] .ts-toast-title,
-[data-sonner-toast] [data-title] { color: rgba(255, 255, 255, 0.95) !important; }
+[data-sonner-toast] [data-title] { color: var(--t-toast-fg) !important; }
 
 /* ==================================================================
    R138 终极灵动岛 Toast (10号原生系统风 · 用户终态版 · 唯一收口处)
