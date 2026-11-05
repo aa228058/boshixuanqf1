@@ -166,8 +166,8 @@ func TestUpdateStatusGuardMatrix(t *testing.T) {
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
 		VALUES ('11111111-1111-1111-1111-111111111111', 'guardtest', 'x', 'G', 'guard-test-key-hash', 'free');
-		INSERT INTO tasks (tenant_id, task_id, task_type, name, status, target_type)
-		VALUES ('11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444444', 'broadcast', 't', 'running', 'group');
+		INSERT INTO tasks (tenant_id, task_id, type, status)
+		VALUES ('11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444444', 'broadcast', 'running');
 	`)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
