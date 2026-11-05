@@ -589,6 +589,7 @@ type PendingApprovalRepository interface {
 	GetByAccountAndLink(ctx context.Context, accountID uuid.UUID, targetLink string) (*PendingApproval, error)
 	UpdateStatus(ctx context.Context, tenantID, taskID uuid.UUID, status string) error
 	IncrementCheck(ctx context.Context, tenantID, taskID uuid.UUID) error
+	CancelPendingForTask(ctx context.Context, tenantID, taskID uuid.UUID) error
 }
 
 // RefreshTokenRepository defines refresh token data access interface.
