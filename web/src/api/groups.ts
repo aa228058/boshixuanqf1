@@ -40,10 +40,26 @@ export function joinLibraryGroups(accountIds: string[], sgIds: string[], opts: J
   })
 }
 
-// 链接批量导入: 文本里每行一个 t.me 链接/@用户名/邀请链接, 支持整段粘贴。
-// 公开群/频道即时解析群名; 私密邀请后台自动补名(>200条直接进入后台队列)。
-export function importLibraryGroups(text: string, accountId?: string): Promise<{ imported: number; failed: string[]; skipped: number }> {
-  return api.post('/group-library/import', { text, account_id: accountId || undefined })
+export interface GroupLibraryImportJob {
+  job_id: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  total_count: number
+  processed_count: number
+  imported_count: number
+  failed_count: number
+  skipped_count: number
+  last_error?: string
+  created_at: string
+  finished_at?: string
+}
+
+// 文本或 txt/csv 文件内容提交后立即返回任务，导入过程在服务端后台执行。
+export function importLibraryGroups(text: string, fileName = ''): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import', { text, file_name: fileName })
+}
+
+export function getGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
+  return api.get('/group-library/import-jobs/' + encodeURIComponent(jobId))
 }
 
 // 关键词搜群: 借本租户在线账号做 TG 全局搜索, 结果直接入库并返回
