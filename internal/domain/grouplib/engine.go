@@ -108,8 +108,8 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	// 水位推进后会被永久漏掉。聚合是逐行 Upsert(幂等), 故采用 at-least-once
 	// 语义: 查询窗口回退 1 秒, 每轮最多重复归并最近 1 秒的行, 换取零漏单。
 	rows, err := e.pool.Query(ctx, `
-		SELECT full_url, link_type, COALESCE(NULLIF(resolved_title,''), NULLIF(source_chat_title,''), ''),
-		       member_count, status, created_at
+		SELECT tenant_id, full_url, link_type, COALESCE(NULLIF(resolved_title,''), NULLIF(source_chat_title,''), ''),
+		       member_count, status, created_at, COALESCE(resolved_chat_id,0)
 		FROM scraped_links WHERE created_at > $1
 		ORDER BY created_at ASC LIMIT 5000`, wm.Add(-time.Second))
 	if err != nil {
@@ -119,10 +119,12 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	var maxT time.Time
 	n := 0
 	for rows.Next() {
+		var tenantID uuid.UUID
 		var url, linkType, title, status string
 		var mc int
+		var chatID int64
 		var ct time.Time
-		if err := rows.Scan(&url, &linkType, &title, &mc, &status, &ct); err != nil {
+		if err := rows.Scan(&tenantID, &url, &linkType, &title, &mc, &status, &ct, &chatID); err != nil {
 			return err
 		}
 		if ct.After(maxT) {
@@ -137,7 +139,7 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 		if status == "joined" {
 			st = "joined"
 		}
-		sg := &domain.SystemGroup{Source: "scraped", Title: firstNonEmpty(title, url), Username: username, TmeLink: url, GType: gt, MemberCount: mc, Status: st}
+		sg := &domain.SystemGroup{Source: "scraped", Title: firstNonEmpty(title, url), Username: username, TmeLink: url, GType: gt, MemberCount: mc, Status: st, TelegramChatID: chatID, ContributorTenantID: tenantID}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			log.Printf("[grouplib] scraped upsert %s: %v", url, err)
 			continue
