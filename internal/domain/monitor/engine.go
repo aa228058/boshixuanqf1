@@ -758,7 +758,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
 					Peer:     peer,
 					Media:    mediaContact,
-					RandomID: int64(binary.LittleEndian.Uint64(ridBytes)),
+					RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
 				})
 
 				if merr != nil {
