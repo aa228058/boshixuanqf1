@@ -208,6 +208,23 @@ func (h *AccountHandler) Connect(c echo.Context) error {
 	return Success(c, map[string]string{"status": "connecting"})
 }
 
+// Reauthenticate starts a fresh phone-code login for an existing account.
+func (h *AccountHandler) Reauthenticate(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	accountID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid account id")
+	}
+	if err := h.svc.Reauthenticate(c.Request().Context(), tenantID, accountID); err != nil {
+		log.Printf("[handler] 发起重新登录失败: %v", err)
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return Success(c, map[string]string{"status": "reauthenticating"})
+}
+
 // Disconnect godoc
 // @Summary 断开账号
 // @Description 断开指定TG账号连接
