@@ -31,3 +31,15 @@ func (r *SystemGroupRepository) attachLinks(ctx context.Context, groups []domain
 	}
 	return nil
 }
+
+func (r *SystemGroupRepository) UpdateLinkValidity(ctx context.Context, sgID uuid.UUID, chatID int64, status string) error {
+	if status != "valid" && status != "invalid" && status != "pending" {
+		return nil
+	}
+	if chatID != 0 {
+		_, err := r.db.Exec(ctx, "UPDATE system_group_links SET validity_status=$3,last_verified_at=NOW() WHERE sg_id IN (SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 OR sg_id=$2)", chatID, sgID, status)
+		return err
+	}
+	_, err := r.db.Exec(ctx, "UPDATE system_group_links SET validity_status=$2,last_verified_at=NOW() WHERE sg_id=$1", sgID, status)
+	return err
+}
