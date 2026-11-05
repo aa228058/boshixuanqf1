@@ -272,12 +272,16 @@ func pruneOldDBBackups(dir string, keep int) {
 	}
 	sort.Strings(matches)
 	for _, old := range matches[:len(matches)-keep] {
-		if err := root.Remove(old); err == nil {
+		if err := root.Remove(old); err != nil {
+			if !os.IsNotExist(err) {
+				log.Printf("[db-backup] 清理旧备份 %q 失败: %v", old, err)
+			}
+		} else {
 			// #nosec G706 -- old is a directory entry selected by the strict db_*.sql.gz filename pattern and quoted.
 			log.Printf("[db-backup] 清理旧备份: %q", old)
 		}
 		if err := root.Remove(old + ".err"); err != nil && !os.IsNotExist(err) {
-			log.Printf("[db-backup] 清理旧备份错误日志失败: %v", err)
+			log.Printf("[db-backup] 清理旧备份错误日志 %q 失败: %v", old+".err", err)
 		}
 	}
 }
