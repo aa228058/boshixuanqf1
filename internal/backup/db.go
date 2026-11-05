@@ -33,6 +33,7 @@ func StartDBBackup(cfg *config.Config) {
 		if dir == "" {
 			dir = "backups/db"
 		}
+		// #nosec G703 -- DB_BACKUP_DIR is trusted deployment configuration, never request input; subsequent access is scoped by os.Root.
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			log.Printf("[db-backup] 创建备份目录失败: %v", err)
 			return
@@ -111,6 +112,7 @@ func runDBDump(cfg *config.Config, dir string) error {
 
 	// 密码经环境变量传递, 不出现在命令行参数/日志里
 	env := append(os.Environ(), "PGPASSWORD="+cfg.DBPassword)
+	// #nosec G204 -- fixed pg_dump executable and argument vector; no shell is invoked, and DB values are passed as arguments/env.
 	cmd := exec.Command("pg_dump",
 		"-h", cfg.DBHost,
 		"-p", fmt.Sprintf("%d", cfg.DBPort),
@@ -166,7 +168,8 @@ func runDBDump(cfg *config.Config, dir string) error {
 		return fmt.Errorf("close backup error log: %w", err)
 	}
 	stderrClosed = true
-	log.Printf("[db-backup] 备份完成: %s", path)
+	// #nosec G706 -- path is composed from a trusted configured directory and a fixed timestamp filename.
+	log.Printf("[db-backup] 备份完成: %q", path)
 	return nil
 }
 
@@ -244,7 +247,8 @@ func pruneOldDBBackups(dir string, keep int) {
 	sort.Strings(matches)
 	for _, old := range matches[:len(matches)-keep] {
 		if err := root.Remove(old); err == nil {
-			log.Printf("[db-backup] 清理旧备份: %s", old)
+			// #nosec G706 -- old is a directory entry selected by the strict db_*.sql.gz filename pattern and quoted.
+			log.Printf("[db-backup] 清理旧备份: %q", old)
 		}
 		if err := root.Remove(old + ".err"); err != nil && !os.IsNotExist(err) {
 			log.Printf("[db-backup] 清理旧备份错误日志失败: %v", err)
