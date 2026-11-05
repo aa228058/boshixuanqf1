@@ -146,8 +146,9 @@
                   {{ ct.first_name }} {{ ct.last_name || '' }}{{ ct.phone ? ' · ' + ct.phone : '' }}
                 </option>
               </select>
+              <p v-if="contactPick && !ruleForm.dm_contact_phone" class="text-xs text-amber-500">该联系人资料未返回手机号，Telegram 名片发送必须提供手机号；请手动补充，或选择有手机号的联系人。</p>
               <div class="grid grid-cols-2 gap-2">
-                <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码, 如 +573148780594" class="col-span-2 px-3 py-2 rounded-lg glow-input" />
+                <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码（自动带入；缺失时需补充）" class="col-span-2 px-3 py-2 rounded-lg glow-input" />
                 <input v-model="ruleForm.dm_contact_first_name" placeholder="名(必填)" class="px-3 py-2 rounded-lg glow-input" />
                 <input v-model="ruleForm.dm_contact_last_name" placeholder="姓(可空)" class="px-3 py-2 rounded-lg glow-input" />
               </div>
@@ -294,9 +295,10 @@ async function loadContacts() {
 function applyContact() {
   const ct = contactList.value.find(c => c.tg_user_id === contactPick.value)
   if (!ct) return
-  if (ct.phone) ruleForm.value.dm_contact_phone = ct.phone
-  if (ct.first_name) ruleForm.value.dm_contact_first_name = ct.first_name
-  if (ct.last_name) ruleForm.value.dm_contact_last_name = ct.last_name
+  // 切换联系人时覆盖旧值，避免复用上一个联系人的号码。
+  ruleForm.value.dm_contact_phone = ct.phone || ''
+  ruleForm.value.dm_contact_first_name = ct.first_name || ct.username || ''
+  ruleForm.value.dm_contact_last_name = ct.last_name || ''
 }
 
 async function fetchRules() {
