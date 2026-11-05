@@ -19,8 +19,12 @@ func (e *Engine) ensurePhoneAsync(tenantID, accountID uuid.UUID) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		acc, err := e.repo.GetByID(ctx, tenantID, accountID)
-		if err != nil || acc.Phone != "" {
-			return // 已有手机号或查询失败, 不打扰
+		if err != nil {
+			log.Printf("[account] 回读手机号前查询账号失败 account=%s: %v", accountID, err)
+			return
+		}
+		if acc == nil || acc.Phone != "" {
+			return // 账号不存在或已有手机号
 		}
 		client, err := e.GetClient(ctx, tenantID, accountID)
 		if err != nil {
