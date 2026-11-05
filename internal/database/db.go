@@ -21,6 +21,12 @@ func New(ctx context.Context, cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("parse db config: %w", err)
 	}
 
+	if cfg.DBMaxConns < 1 || cfg.DBMaxConns > 2147483647 {
+		return nil, fmt.Errorf("DB_MAX_CONNS must be between 1 and 2147483647")
+	}
+	if cfg.DBMaxIdle < 0 || cfg.DBMaxIdle > cfg.DBMaxConns {
+		return nil, fmt.Errorf("DB_MAX_IDLE must be between 0 and DB_MAX_CONNS")
+	}
 	poolCfg.MaxConns = int32(cfg.DBMaxConns)
 	poolCfg.MinConns = int32(cfg.DBMaxIdle)
 	poolCfg.MaxConnLifetime = cfg.DBMaxLife
