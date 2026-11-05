@@ -21,7 +21,7 @@
   .t-dialog__ctx .t-dialog {
     width: 100% !important;
     max-width: 100% !important;
-    border-radius: 18px 18px 0 0 !important;
+    border-radius: var(--t-modal-radius) var(--t-modal-radius) 0 0 !important;
     max-height: 88vh !important;
     max-height: 88dvh !important;
     display: flex !important;
@@ -40,7 +40,7 @@
     width: 40px;
     height: 4px;
     border-radius: 9999px;
-    background: rgba(128, 128, 128, 0.35);
+    background: var(--t-line-strong);
     pointer-events: none;
   }
   .t-dialog__header { padding-top: 20px !important; }
@@ -53,7 +53,7 @@
     min-height: 0 !important;
   }
   .t-dialog__footer { flex-shrink: 0 !important; }
-  .t-dialog { background-color: var(--td-bg-color-container, #fff) !important; }
+  .t-dialog { background-color: var(--t-modal-bg) !important; }
 
   /* ===== 遗留自绘弹窗(.legacy-modal): 与抽屉同规格 ===== */
   .legacy-modal { align-items: flex-end !important; overflow: hidden !important; }
@@ -74,8 +74,8 @@
 
   /* footer 吸底 + 分隔线 + 安全区 */
   .t-dialog__footer {
-    padding: 12px 16px max(12px, env(safe-area-inset-bottom)) !important;
-    border-top: 1px solid rgba(128,128,128,0.10) !important;
+    padding: var(--t-space-3) var(--t-space-4) max(var(--t-space-3), env(safe-area-inset-bottom)) !important;
+    border-top: 1px solid var(--t-line) !important;
     flex-shrink: 0 !important;
   }
 
@@ -84,23 +84,23 @@
   .t-dialog__footer .t-button,
   .t-dialog button[type="button"] {
     width: 100% !important;
-    min-height: 46px !important;
-    border-radius: 12px !important;
-    font-size: 15px !important;
+    min-height: var(--t-control-height-lg) !important;
+    border-radius: var(--t-control-radius) !important;
+    font-size: var(--t-font-md) !important;
     font-weight: 500 !important;
     justify-content: center !important;
   }
 
   /* 头部标题加大加粗 */
-  .t-dialog__header { padding: 22px 16px 10px !important; }
+  .t-dialog__header { padding: 22px var(--t-space-4) 10px !important; }
   .t-dialog__header .t-dialog__header-content {
-    font-size: 18px !important;
+    font-size: var(--t-font-lg) !important;
     font-weight: 700 !important;
     letter-spacing: 0.02em !important;
   }
 
   /* 内容区留白统一 */
-  .t-dialog__body { padding: 8px 16px !important; }
+  .t-dialog__body { padding: var(--t-space-2) var(--t-space-4) !important; }
 
   /* ===== vue-final-modal 弹窗: 移动端贴底 + 按钮全宽 =====
      必须写在这里(全局)而非组件 scoped: slot 里的按钮不带 Modal.vue 的
@@ -116,7 +116,7 @@
   .modal-overlay {
     position: absolute !important;
     inset: 0 !important;
-    background: rgba(0, 0, 0, 0.45) !important;
+    background: var(--t-overlay) !important;
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
   }
@@ -158,7 +158,7 @@
 @media (min-width: 769px) {
   .modal-wrapper {
     align-items: center !important;
-    padding: 24px !important;
+    padding: var(--t-space-6) !important;
   }
   .modal-content {
     max-width: 520px !important;
@@ -172,7 +172,7 @@
   main > div > .flex.items-center.gap-2.overflow-x-auto {
     flex-wrap: wrap !important;
     overflow-x: visible !important;
-    row-gap: 8px;
+    row-gap: var(--t-space-2);
   }
   main > .flex.items-center.gap-2.overflow-x-auto > .shrink-0,
   main > div > .flex.items-center.gap-2.overflow-x-auto > .shrink-0 {
