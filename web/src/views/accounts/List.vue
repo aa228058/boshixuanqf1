@@ -22,7 +22,7 @@
     <div v-if="selecting && filteredAccounts.length" class="flex items-center gap-2 mb-2 px-1">
       <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none" style="color: var(--t-text-2);">
         <input ref="selectAllRef" type="checkbox" :checked="allSelected"
-               class="accent-cyan w-4 h-4" @change="toggleSelectAll" />
+               class="accent-[var(--t-brand)] w-4 h-4" @change="toggleSelectAll" />
         全选
       </label>
       <span v-if="selectedIds.size" class="text-xs" style="color: var(--t-text-3);">已选 {{ selectedIds.size }} 个</span>
@@ -126,7 +126,7 @@
                  @click.stop="toggleSelect(acc)" :aria-label="'选择 ' + (acc.remark || acc.phone)" />
         </div>
             <div class="relative group/avatar shrink-0">
-              <div class="w-9 h-9 rounded-full bg-cyan-glow/30 flex items-center justify-center overflow-hidden">
+              <div class="w-9 h-9 rounded-full bg-[color:var(--t-brand-dim)] flex items-center justify-center overflow-hidden">
                 <img
                   v-if="avatarOf(acc)"
                   :src="avatarOf(acc)!"
@@ -134,7 +134,7 @@
                   class="avatar-zoom w-full h-full object-cover"
                 />
                 <!-- R87-M6: 无TG头像时用"首字+品牌淡底"文字头像, 不再显示灰色小人图标 -->
-                <div v-if="!avatarOf(acc)" class="w-full h-full bg-cyan/15 flex items-center justify-center text-cyan text-sm font-semibold">
+                <div v-if="!avatarOf(acc)" class="w-full h-full bg-[color:var(--t-brand-dim)] flex items-center justify-center text-[var(--t-brand)] text-sm font-semibold">
                   {{ (acc.first_name || acc.phone || '?').slice(0, 1) }}
                 </div>
               </div>
@@ -142,7 +142,7 @@
               <button v-if="acc?.pool_status !== 'standby'"
                       @click.stop="refreshAvatar(acc)"
                       :disabled="avatarRefreshingId === acc?.account_id"
-                      class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-bg-card border border-border text-text-secondary hover:text-cyan hover:border-cyan/50 flex items-center justify-center transition-all shadow opacity-0 group-hover/avatar:opacity-100"
+                      class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-bg-card border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] flex items-center justify-center transition-all shadow opacity-0 group-hover/avatar:opacity-100"
                       title="刷新头像" aria-label="刷新头像">
                 <RefreshCw class="w-3 h-3" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" />
               </button>
@@ -154,7 +154,7 @@
             <span class="font-medium truncate" style="font-size: var(--t-fs-small);">{{ acc.remark || acc.first_name || acc.phone }}</span>
             <!-- R131-2 用户拍板: 健康分标签从卡片删除(信息噪音, 详情里仍有) -->
             <span class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
-                  :class="isProtocolAcc(acc) ? 'bg-amber/12 text-amber' : 'bg-cyan-glow/40 text-cyan'">{{ isProtocolAcc(acc) ? '协议号' : '正常号' }}</span>
+                  :class="isProtocolAcc(acc) ? 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]' : 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]'">{{ isProtocolAcc(acc) ? '协议号' : '正常号' }}</span>
             <span v-if="acc?.pool_status === 'standby'"
                   class="text-[10px] px-1.5 py-0.5 rounded shrink-0"
                   style="background: var(--t-surface-2); color: var(--t-text-3); border: 1px solid var(--t-line);">备用</span>
@@ -166,7 +166,7 @@
                   @click.stop="copyLoginCode(acc)">&#128273; {{ acc.last_login_code }} {{ codeAge(acc) }}</span>
             <!-- 任务摘要: 该账号正在执行的任务(最多3个) -->
             <span v-if="taskSummary[acc?.account_id]?.length"
-                  class="text-[11px] px-1.5 py-0.5 rounded bg-cyan-glow/20 text-cyan whitespace-nowrap"
+                  class="text-[11px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
                   :title="taskSummary[acc?.account_id].join('、')">
               ⚡ {{ taskSummary[acc?.account_id].slice(0, 1).join('') }}<template v-if="taskSummary[acc?.account_id].length > 1"> 等{{ taskSummary[acc?.account_id].length }}个</template>
             </span>
@@ -203,14 +203,14 @@
         <!-- R108 操作区: 状态专属按钮(断开/验证码/受限) + ghost 主操作 + 更多菜单, 与信息区同行 -->
         <div class="flex items-center gap-1 shrink-0 self-center">
           <button v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
-                  class="w-7 h-7 rounded-lg grid place-items-center text-rose/70 hover:bg-rose/10 hover:text-rose transition-colors disabled:opacity-50"
+                  class="w-7 h-7 rounded-lg grid place-items-center text-[var(--t-err)] hover:bg-[var(--t-err)]/10 hover:text-[var(--t-err)] transition-colors disabled:opacity-50"
                   title="断开" aria-label="断开">
             <Loader2 v-if="disconnecting === acc?.account_id" class="w-3.5 h-3.5 animate-spin" />
             <Unplug v-else class="w-3.5 h-3.5" />
           </button>
           <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
           <button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" @click.stop="showAuthModal(acc)"
-                  class="h-7 px-2 rounded-lg text-[10.5px] font-medium text-amber bg-amber/10 border border-amber/25 hover:bg-amber/20 transition-colors flex items-center gap-1 whitespace-nowrap">
+                  class="h-7 px-2 rounded-lg text-[10.5px] font-medium text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] border border-[color:var(--t-warn)] hover:bg-[var(--t-warn)]/20 transition-colors flex items-center gap-1 whitespace-nowrap">
             <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
           </button>
           <span v-else-if="acc?.status === 'restricted'"
@@ -284,7 +284,7 @@
                 <ShieldCheck class="w-3.5 h-3.5" />检测
               </button>
               <button @click="openMenuId = ''; confirmDelete(acc)"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-rose/80 hover:bg-rose/10 hover:text-rose transition-colors text-left">
+                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-[var(--t-err)]/80 hover:bg-[var(--t-err)]/10 hover:text-[var(--t-err)] transition-colors text-left">
                 <Trash2 class="w-3.5 h-3.5" /> 删除
               </button>
             </div>
@@ -341,7 +341,7 @@
           <div>
             <label class="block text-sm text-text-secondary mb-1.5">或上传 session 文件（可多选）</label>
             <input type="file" multiple accept=".session,.see,.tdata,.zip,.rar,.7z,.json" class="w-full text-sm text-text-secondary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-bg-hover file:text-text-primary" @change="onImportFiles" aria-label="session 文件" />
-            <p v-if="importFileList.length" class="text-xs text-cyan mt-1">已选 {{ importFileList.length }} 个文件</p>
+            <p v-if="importFileList.length" class="text-xs text-[var(--t-brand)] mt-1">已选 {{ importFileList.length }} 个文件</p>
           </div>
           <p class="text-xs text-text-secondary">导入成功后账号自动上线（协议号保活模式）；备注对本次全部导入生效。</p>
         </template>
@@ -360,15 +360,15 @@
           aria-label="验证码"
           @keyup.enter="submitVerificationCode"
         />
-        <p v-if="codeError" class="text-sm text-rose">{{ codeError }}</p>
-        <button @click="resendCode" class="text-xs text-cyan hover:text-cyan-bright transition-colors">
+        <p v-if="codeError" class="text-sm text-[var(--t-err)]">{{ codeError }}</p>
+        <button @click="resendCode" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">
           没收到？重新获取
         </button>
       </div>
       <!-- 步骤3：两步验证 -->
       <div v-else-if="addStep === '2fa'" class="space-y-4 text-center">
         <div class="w-12 h-12 rounded-full icon-glow flex items-center justify-center mx-auto">
-          <Shield class="w-6 h-6 text-amber" />
+          <Shield class="w-6 h-6 text-[var(--t-warn)]" />
         </div>
         <p class="text-text-secondary">该账号开启了两步验证</p>
         <input
@@ -380,7 +380,7 @@
           aria-label="两步验证密码"
           @keyup.enter="submit2FA"
         />
-        <p v-if="twoFAError" class="text-sm text-rose">{{ twoFAError }}</p>
+        <p v-if="twoFAError" class="text-sm text-[var(--t-err)]">{{ twoFAError }}</p>
       </div>
       <template #footer>
         <div class="flex gap-3">
@@ -431,8 +431,8 @@
           <button @click="editGroup(g)" class="p-2 rounded-lg hover:bg-bg-hover min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="编辑">
             <Pencil class="w-3.5 h-3.5 text-text-secondary" />
           </button>
-          <button @click="deleteGroup(g)" class="p-2 rounded-lg hover:bg-rose/10 min-w-[36px] min-h-[36px] flex items-center justify-center">
-            <Trash2 class="w-3.5 h-3.5 text-text-secondary hover:text-rose" />
+          <button @click="deleteGroup(g)" class="p-2 rounded-lg hover:bg-[var(--t-err)]/10 min-w-[36px] min-h-[36px] flex items-center justify-center">
+            <Trash2 class="w-3.5 h-3.5 text-text-secondary hover:text-[var(--t-err)]" />
           </button>
         </div>
         <div v-if="!accountGroups.length" class="text-center text-sm text-text-secondary py-4">
@@ -523,7 +523,7 @@
               <Loader2 v-if="proxyTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
               测试连通
             </t-button>
-            <span v-if="proxyTestResult" class="text-xs" :class="proxyTestResult.ok ? 'text-emerald' : 'text-rose'">
+            <span v-if="proxyTestResult" class="text-xs" :class="proxyTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
               {{ proxyTestResult.ok ? `连通正常 · 延迟 ${proxyTestResult.latency_ms}ms` : (proxyTestResult.error || '连接失败') }}
             </span>
           </div>
@@ -564,7 +564,7 @@
         <!-- 结果区: 创建任务后展示可转移数 + 跳过原因 -->
         <div v-if="transferResult" class="rounded-lg border border-border bg-bg-card/50 p-3 space-y-2">
           <div class="text-sm">
-            <span class="text-emerald font-medium">已创建转移任务：{{ transferResult.links_total }} 个群</span>
+            <span class="text-[var(--t-ok)] font-medium">已创建转移任务：{{ transferResult.links_total }} 个群</span>
             <template v-if="transferResult.skipped?.length">
               <span class="text-text-secondary">；{{ transferResult.skipped.length }} 个群无法转移</span>
             </template>
@@ -601,10 +601,10 @@
     <!-- 分页控件(v1.19): 上一页/页码/下一页 -->
     <div v-if="accTotalPages > 1" class="flex items-center justify-center gap-2 mt-4">
       <button @click="accPage = Math.max(1, accPage - 1)" :disabled="accPage <= 1"
-              class="px-3 py-1.5 rounded-lg text-xs bg-ink-01 text-text-secondary hover:text-cyan disabled:opacity-40">上一页</button>
+              class="px-3 py-1.5 rounded-lg text-xs bg-ink-01 text-text-secondary hover:text-[var(--t-brand)] disabled:opacity-40">上一页</button>
       <span class="text-xs text-text-muted tabular-nums">{{ accPage }} / {{ accTotalPages }}</span>
       <button @click="accPage = Math.min(accTotalPages, accPage + 1)" :disabled="accPage >= accTotalPages"
-              class="px-3 py-1.5 rounded-lg text-xs bg-ink-01 text-text-secondary hover:text-cyan disabled:opacity-40">下一页</button>
+              class="px-3 py-1.5 rounded-lg text-xs bg-ink-01 text-text-secondary hover:text-[var(--t-brand)] disabled:opacity-40">下一页</button>
     </div>
 
     <!-- 批量改资料弹窗(批次2): 留空字段不变, 随机用户名为每号生成不同用户名 -->
@@ -619,7 +619,7 @@
         <div class="flex items-center gap-2">
           <t-input v-model="batchProfile.username" placeholder="用户名(留空不变)" class="flex-1" />
           <label class="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer shrink-0">
-            <input type="checkbox" v-model="batchProfile.random_username" class="accent-cyan w-4 h-4" />
+            <input type="checkbox" v-model="batchProfile.random_username" class="accent-[var(--t-brand)] w-4 h-4" />
             随机生成
           </label>
         </div>
@@ -627,12 +627,12 @@
         <!-- R119: 头像上传 —— 仅勾选单个账号时可用, 选图即传 -->
         <div class="flex items-center gap-3">
           <label class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed cursor-pointer transition-colors"
-                 :class="selectedIds.size === 1 ? 'border-border hover:border-cyan/50 text-text-secondary' : 'border-border/50 text-text-muted cursor-not-allowed'">
+                 :class="selectedIds.size === 1 ? 'border-border hover:border-[color:var(--t-brand)] text-text-secondary' : 'border-border/50 text-text-muted cursor-not-allowed'">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="text-xs truncate">{{ avatarFileName || (selectedIds.size === 1 ? '选择头像图片(JPG/PNG, 选图即上传)' : '头像上传需先勾选 1 个账号') }}</span>
             <input type="file" accept="image/jpeg,image/png" class="hidden" :disabled="selectedIds.size !== 1" @change="onAvatarPick" />
           </label>
-          <span v-if="avatarUploading" class="text-xs text-cyan shrink-0">上传中…</span>
+          <span v-if="avatarUploading" class="text-xs text-[var(--t-brand)] shrink-0">上传中…</span>
         </div>
         <div class="flex justify-end gap-2 pt-2">
           <button @click="showBatchProfile = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-ink-01">取消</button>
@@ -651,11 +651,11 @@
         <input
           v-model="cloneSource"
           placeholder="输入对方用户名, 如 duofan_bot 或 @duofan_bot"
-          class="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:border-cyan focus:outline-none"
+          class="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:border-[color:var(--t-brand)] focus:outline-none"
           @keyup.enter="runClone"
         />
         <div class="flex items-center justify-between text-xs text-text-muted">
-          <span>将应用到 <b class="text-cyan">{{ selectedIds.size }}</b> 个已勾选账号</span>
+          <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
           <button @click="runClone" :disabled="cloning"
                   class="px-4 py-2 rounded-lg text-sm glow-btn disabled:opacity-50">
             {{ cloning ? '克隆中…' : '开始克隆' }}
@@ -668,14 +668,14 @@
     <Modal v-model="showProbe" :title="`能力检测 — ${probeAccount?.first_name || probeAccount?.phone || ''}`" width="420px">
       <div class="space-y-3">
         <!-- 冷却/未配置提示 -->
-        <div v-if="probeCooldownText" class="flex items-start gap-2 rounded-lg border border-amber/30 bg-amber/10 p-3 text-xs text-amber leading-relaxed">
+        <div v-if="probeCooldownText" class="flex items-start gap-2 rounded-lg border border-amber/30 bg-[color:var(--t-warn-dim)] p-3 text-xs text-[var(--t-warn)] leading-relaxed">
           <ShieldAlert class="w-4 h-4 shrink-0 mt-0.5" />{{ probeCooldownText }}
         </div>
         <!-- 结果 -->
         <template v-if="probeResult">
           <!-- 结论横幅 -->
           <div class="rounded-lg border px-3.5 py-2.5 text-sm font-medium"
-               :class="probeResult.verdict.includes('正常') ? 'border-emerald/30 bg-emerald/10 text-emerald' : 'border-rose/30 bg-rose/10 text-rose'">
+               :class="probeResult.verdict.includes('正常') ? 'border-[color:var(--t-ok)]/30 bg-[var(--t-ok)]/10 text-[var(--t-ok)]' : 'border-[color:var(--t-err)]/30 bg-[var(--t-err)]/10 text-[var(--t-err)]'">
             {{ probeResult.verdict }}
           </div>
           <!-- 8 项逐项 -->
@@ -685,7 +685,7 @@
                 <div class="text-sm" :class="it.ok ? 'text-text-primary' : 'text-text-secondary'">{{ it.label }}</div>
                 <div v-if="!it.ok && it.detail" class="text-[11px] text-text-muted truncate" :title="it.detail">{{ it.detail }}</div>
               </div>
-              <span class="shrink-0 ml-3" :class="it.ok ? 'text-emerald' : 'text-rose'">
+              <span class="shrink-0 ml-3" :class="it.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
                 <svg v-if="it.ok" class="w-4.5 h-4.5 w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12" stroke-linecap="round"/></svg>
               </span>
@@ -790,12 +790,12 @@ function levelLabel(level?: string) {
 // R124: 入参判空兜底 —— 上游传 undefined 时不再让 switch 炸渲染
 function statusDotClass(status?: string) {
   switch (status) {
-    case 'online': return 'bg-emerald'
+    case 'online': return 'bg-[var(--t-ok)]'
     case 'offline': return 'bg-text-muted'
-    case 'banned': return 'bg-rose'
-    case 'session_revoked': return 'bg-rose animate-pulse'
-    case 'restricted': return 'bg-amber'
-    case 'pending_auth': return 'bg-amber animate-pulse'
+    case 'banned': return 'bg-[var(--t-err)]'
+    case 'session_revoked': return 'bg-[var(--t-err)] animate-pulse'
+    case 'restricted': return 'bg-[var(--t-warn)]'
+    case 'pending_auth': return 'bg-[var(--t-warn)] animate-pulse'
     default: return 'bg-text-muted'
   }
 }
@@ -1790,10 +1790,10 @@ async function doDelete() {
 const showGroupModal = ref(false)
 const showEditGroup = ref(false)
 const newGroupName = ref('')
-const newGroupColor = ref('text-cyan')
+const newGroupColor = ref('text-[var(--t-brand)]')
 const editGroupId = ref('')
 const editGroupName = ref('')
-const editGroupColor = ref('text-cyan')
+const editGroupColor = ref('text-[var(--t-brand)]')
 // 编辑分组时保留原成员列表：后端 Update 会无条件覆盖 account_ids，
 // 传空数组会把组内账号全部清空
 const editGroupAccountIds = ref<string[]>([])
@@ -1826,7 +1826,7 @@ async function createGroup() {
 function editGroup(g: AccountGroup) {
   editGroupId.value = g.group_id
   editGroupName.value = g.name
-  editGroupColor.value = g.color || 'text-cyan'
+  editGroupColor.value = g.color || 'text-[var(--t-brand)]'
   editGroupAccountIds.value = [...(g.account_ids || [])]
   showEditGroup.value = true
 }
@@ -1940,13 +1940,13 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   border: 1px solid var(--t-line-strong);
   border-radius: var(--t-r-md);
   /* R174: 去掉 overflow:hidden —— 行内动画残留的 transform 会把 fixed 面板变成行内定位并被裁剪(面板只剩两项的根) */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  box-shadow: var(--t-shadow-sm);
 }
 .acc-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: var(--t-space-2);
+  padding: var(--t-space-3) var(--t-space-4);
   position: relative;
 }
 .acc-row + .acc-row { border-top: 1px solid var(--t-line-light); }
@@ -1973,7 +1973,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--t-space-2);
   flex-wrap: wrap;
   font-size: var(--t-fs-caption);
   color: var(--t-text-3);
@@ -1984,7 +1984,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--t-space-1);
   font-weight: 700;
   white-space: nowrap;
   color: var(--t-text-2);
@@ -1995,7 +1995,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 /* 统计瓦片横向滑动条 */
 .stat-strip {
   display: flex;
-  gap: 10px;
+  gap: var(--t-space-3);
   overflow-x: auto;
   padding: 2px 2px 6px;
   scroll-snap-type: x mandatory;
@@ -2007,8 +2007,8 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 14px;
-  padding: 0 2px;
+  margin-bottom: var(--t-space-4);
+  padding: 0 var(--t-space-1);
   font-size: var(--t-fs-caption);
   color: var(--t-warn);
 }
@@ -2023,8 +2023,8 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  border-radius: 16px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, .28);
+  border-radius: var(--t-r-md);
+  box-shadow: var(--t-shadow-pop);
 }
 @media (min-width: 640px) {
   .acc-menu {
@@ -2034,8 +2034,8 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
     width: 11rem;
     max-height: 65vh;
     margin-bottom: .25rem;
-    border-radius: 12px;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+    border-radius: var(--t-r-sm);
+    box-shadow: var(--t-shadow-card);
   }
 }
 </style>
