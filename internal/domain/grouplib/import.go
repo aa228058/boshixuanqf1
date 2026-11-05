@@ -166,7 +166,7 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			// 该账号已在群里, 直接返回群信息
 			switch c := v.Chat.(type) {
 			case *tg.Chat:
-				return c.Title, int(c.ParticipantsCount), "public", int64(c.ID), nil
+				return c.Title, int(c.ParticipantsCount), "private", int64(c.ID), nil
 			case *tg.Channel:
 				gt := "channel"
 				if c.Megagroup {
