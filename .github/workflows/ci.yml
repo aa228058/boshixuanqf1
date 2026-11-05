@@ -44,6 +44,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -55,6 +57,10 @@ jobs:
       - name: Install dependencies
         working-directory: ./web
         run: npm ci
+
+      - name: Design token guard
+        working-directory: ./web
+        run: npm run check:design-tokens
 
       - name: Typecheck
         working-directory: ./web
@@ -167,6 +173,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -175,6 +183,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Design token guard
+        run: npm run check:design-tokens
 
       - name: Typecheck
         run: npm run typecheck
