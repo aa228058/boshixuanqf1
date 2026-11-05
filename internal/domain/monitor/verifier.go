@@ -147,10 +147,12 @@ func (e *Engine) HandleVerification(ctx context.Context, client *telegram.Client
 	}
 	st.addStep("detect", truncate(cand.text, 80))
 	if e.vlRepo != nil {
-		_ = e.vlRepo.Create(ctx, &domain.VerificationLog{
+		if err := e.vlRepo.Create(ctx, &domain.VerificationLog{
 			VLID: st.logID, TenantID: tenantID, AccountID: accountID,
 			GroupChatID: chatID, GroupTitle: chatTitle, Status: "pending", Steps: st.steps,
-		})
+		}); err != nil {
+			log.Printf("[verifier] create verification log for account %s group %s failed: %v", accountID, chatID, err)
+		}
 	}
 	e.vstates.put(accountID, chatID, st)
 	safego.Go(func() { e.runVerification(ctx, client, st, cand) })
@@ -382,9 +384,11 @@ func (e *Engine) retestSpeak(ctx context.Context, client *telegram.Client, st *v
 			// 放弃删除(测试消息留在群里无害, 删错别人消息才要命)
 			if msgID >= 0 && msgID <= 2147483647 {
 				delID := int32(msgID)
-				_, _ = client.Raw().MessagesDeleteMessages(dctx, &tg.MessagesDeleteMessagesRequest{
+				if _, err := client.Raw().MessagesDeleteMessages(dctx, &tg.MessagesDeleteMessagesRequest{
 					ID: []int32{delID}, Revoke: true,
-				})
+				}); err != nil {
+					log.Printf("[verifier] delete verification message %d in group %s failed: %v", msgID, st.chatID, err)
+				}
 			}
 			dcancel()
 			return true
@@ -401,7 +405,9 @@ func (e *Engine) finish(st *vstate, status, reason string) {
 	st.mu.Unlock()
 	if e.vlRepo != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_ = e.vlRepo.UpdateStatus(ctx, st.logID, status, reason, steps)
+		if err := e.vlRepo.UpdateStatus(ctx, st.logID, status, reason, steps); err != nil {
+			log.Printf("[verifier] update verification log %s status failed: %v", st.logID, err)
+		}
 		cancel()
 	}
 	// R119: 验证结果通知回调(pass→verify_solved 邮件, 由 container 注入)
