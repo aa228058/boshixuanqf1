@@ -104,10 +104,10 @@ export interface Task {
   config: Record<string, any>
   progress: {
     total: number
-    completed: number
-    done?: number
+    completed?: number
+    done: number
     failed: number
-    skipped: number
+    skipped?: number
     current_target?: string
     account_progress?: Array<Record<string, unknown>>
   }
