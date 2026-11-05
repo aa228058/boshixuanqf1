@@ -473,28 +473,34 @@
     </Modal>
 
     <!-- 验证码弹窗 -->
-    <Modal v-model="showAuth" title="输入验证码">
+    <Modal v-model="showAuth" title="重新登录">
       <div class="space-y-4 text-center">
-        <p class="text-text-secondary">验证码已发送到 {{ authAccount?.phone }}</p>
+        <p v-if="oldAuthStarting" class="text-text-secondary">正在连接 Telegram 并申请验证码，请稍候…</p>
+        <p v-else-if="need2FA" class="text-text-secondary">请输入 Telegram 两步验证密码</p>
+        <p v-else class="text-text-secondary">验证码发送目标：{{ authAccount?.phone }}</p>
         <input
+          v-if="!need2FA"
           v-model="oldAuthCode"
+          :disabled="oldAuthStarting || oldAuthSubmitting"
           placeholder="请输入验证码"
           inputmode="numeric"
           pattern="[0-9]*"
           class="w-full px-4 py-3 rounded-lg glow-input text-center text-lg font-mono tracking-widest"
           maxlength="6" aria-label="请输入验证码" />
         <div v-if="need2FA" class="space-y-2">
-          <p class="text-sm text-amber max-w-[65ch]">需要两步验证密码</p>
           <input
             v-model="oldTwoFAPassword"
+            :disabled="oldAuthSubmitting"
             type="password"
             placeholder="两步验证密码"
             class="w-full px-4 py-3 rounded-lg glow-input text-center" aria-label="两步验证密码" />
         </div>
       </div>
       <template #footer>
-        <button @click="showAuth = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
-        <t-button theme="primary" @click="need2FA ? submitOld2FA() : submitOldCode()">确认</t-button>
+        <button @click="showAuth = false" :disabled="oldAuthStarting || oldAuthSubmitting" class="px-4 py-2 rounded-lg text-sm text-text-secondary disabled:opacity-50">取消</button>
+        <t-button theme="primary" :disabled="oldAuthStarting || oldAuthSubmitting || (!need2FA && !oldAuthCode.trim()) || (need2FA && !oldTwoFAPassword)" @click="need2FA ? submitOld2FA() : submitOldCode()">
+          {{ oldAuthStarting ? '正在启动…' : oldAuthSubmitting ? '正在验证…' : '确认' }}
+        </t-button>
       </template>
     </Modal>
 
@@ -1562,44 +1568,97 @@ async function disconnect(acc: Account) {
   }
 }
 
-// 验证码（旧版弹窗）
+// 重新登录：先由后端启动全新的手机号认证流程，再允许输入验证码/2FA。
 const showAuth = ref(false)
 const authAccount = ref<Account | null>(null)
 const oldAuthCode = ref('')
 const need2FA = ref(false)
 const oldTwoFAPassword = ref('')
+const oldAuthStarting = ref(false)
+const oldAuthSubmitting = ref(false)
 
-function showAuthModal(acc: Account) {
+async function waitOldAuthReady(accountId: string): Promise<'code' | 'password' | 'success' | 'timeout'> {
+  const deadline = Date.now() + 45000
+  while (Date.now() < deadline) {
+    try {
+      const state = await accountApi.getAuthState(accountId)
+      if (state.phase === 'waiting_code') return 'code'
+      if (state.phase === 'waiting_password') return 'password'
+      if (state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
+    } catch {
+      // 刚启动时状态接口可能短暂尚未可读，继续等待。
+    }
+    try {
+      await accountStore.fetchAccounts(true)
+      const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
+      if (latest?.status === 'online') return 'success'
+    } catch {
+      // 列表刷新失败不应中断认证状态轮询。
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  return 'timeout'
+}
+
+async function showAuthModal(acc: Account) {
+  if (oldAuthStarting.value) return
   authAccount.value = acc
   showAuth.value = true
   oldAuthCode.value = ''
+  oldTwoFAPassword.value = ''
   need2FA.value = false
+  oldAuthStarting.value = true
+  try {
+    await accountApi.reauthenticate(acc.account_id)
+    const ready = await waitOldAuthReady(acc.account_id)
+    if (ready === 'code') {
+      toast({ type: 'success', title: '验证码已发送', message: `请查看 Telegram 并输入发送到 ${acc.phone} 的验证码` })
+    } else if (ready === 'password') {
+      need2FA.value = true
+      toast({ type: 'info', title: '需要二级验证', message: '请输入 Telegram 两步验证密码' })
+    } else if (ready === 'success') {
+      showAuth.value = false
+      await accountStore.fetchAccounts(true)
+      toast({ type: 'success', title: '账号已重新登录' })
+    } else {
+      toast({ type: 'warning', title: '登录流程启动超时', message: '弹窗保持打开，请稍后重试或检查服务端日志' })
+    }
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '无法启动重新登录', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    oldAuthStarting.value = false
+  }
 }
 
-// 旧版重新登录弹窗：提交接口只表示凭据已排队，必须等 TG 认证状态确认后才能关闭。
+// 提交凭据后必须等待 Telegram 最终认证状态；短暂接口错误不应误判为认证失败。
 async function waitOldAuthResult(accountId: string, expected: 'code' | 'password'): Promise<'success' | 'password' | 'code' | 'timeout'> {
   const deadline = Date.now() + 90000
   while (Date.now() < deadline) {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    await accountStore.fetchAccounts(true)
-    const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
-    if (latest?.status === 'online') return 'success'
-
-    const state = await accountApi.getAuthState(accountId)
-    if (state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
-    if (state.phase === 'waiting_password') return 'password'
-    if (state.phase === 'waiting_code') {
-      // 刚提交后仍可能短暂处于 waiting_code；只把明确重试信号视为需要重新输入。
-      if (expected === 'code' && (state.code_retries ?? 0) > 0) return 'code'
-      if (expected === 'password' && (state.pwd_retries ?? 0) > 0) return 'password'
+    try {
+      await accountStore.fetchAccounts(true)
+    } catch {
+      // 轮询刷新失败时继续查询认证状态。
     }
+    try {
+      const state = await accountApi.getAuthState(accountId)
+      const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
+      if (latest?.status === 'online' || state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
+      if (state.phase === 'waiting_password') {
+        if (expected === 'code' || (state.pwd_retries ?? 0) > 0) return 'password'
+      }
+      if (state.phase === 'waiting_code' && expected === 'code' && (state.code_retries ?? 0) > 0) return 'code'
+    } catch {
+      // 状态接口短暂失败时保留弹窗并继续等待。
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
   }
   return 'timeout'
 }
 
 async function submitOldCode() {
-  if (!authAccount.value || !oldAuthCode.value.trim()) return
+  if (!authAccount.value || !oldAuthCode.value.trim() || oldAuthSubmitting.value) return
   const accountId = authAccount.value.account_id
+  oldAuthSubmitting.value = true
   try {
     await accountApi.submitCode(accountId, oldAuthCode.value.trim())
     const result = await waitOldAuthResult(accountId, 'code')
@@ -1615,16 +1674,19 @@ async function submitOldCode() {
       oldAuthCode.value = ''
       toast({ type: 'error', title: '验证码未通过', message: '请检查验证码后重新输入' })
     } else {
-      toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后查看账号状态或继续输入二级密码' })
+      toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后查看账号状态' })
     }
   } catch (e: unknown) {
     toast({ type: 'error', title: '验证码提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    oldAuthSubmitting.value = false
   }
 }
 
 async function submitOld2FA() {
-  if (!authAccount.value || !oldTwoFAPassword.value) return
+  if (!authAccount.value || !oldTwoFAPassword.value || oldAuthSubmitting.value) return
   const accountId = authAccount.value.account_id
+  oldAuthSubmitting.value = true
   try {
     await accountApi.submit2FA(accountId, oldTwoFAPassword.value)
     const result = await waitOldAuthResult(accountId, 'password')
@@ -1640,6 +1702,8 @@ async function submitOld2FA() {
     }
   } catch (e: unknown) {
     toast({ type: 'error', title: '二级验证提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    oldAuthSubmitting.value = false
   }
 }
 
