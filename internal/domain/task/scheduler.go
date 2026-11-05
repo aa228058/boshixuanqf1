@@ -258,9 +258,13 @@ func (s *AutoScheduler) checkMemory() {
 // logTenantLimits prints current effective limits for all tenants.
 func (s *AutoScheduler) logTenantLimits() {
 	for id, q := range s.quotas {
-		limit := s.computeLimit(q.MaxConcurrent, s.state)
+		q.mu.RLock()
+		maxConcurrent := q.MaxConcurrent
+		current := q.Current
+		q.mu.RUnlock()
+		limit := s.computeLimit(maxConcurrent, s.state)
 		log.Printf("[scheduler] 租户=%s 配额=%d 有效=%d 当前=%d 状态=%s",
-			id.String()[:8], q.MaxConcurrent, limit, q.Current, s.state)
+			id.String()[:8], maxConcurrent, limit, current, s.state)
 	}
 }
 
