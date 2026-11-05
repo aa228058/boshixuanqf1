@@ -823,7 +823,7 @@ func (s *TaskService) Resume(ctx context.Context, tenantID, taskID uuid.UUID) er
 	return s.repo.ResetToQueued(ctx, tenantID, taskID)
 }
 
-// Cancel cancels a task (signals the engine to stop execution, then updates DB).
+// Cancel atomically marks an active task cancelled, then signals the engine to stop execution.
 func (s *TaskService) Cancel(ctx context.Context, tenantID, taskID uuid.UUID) error {
 	task, err := s.repo.GetByID(ctx, tenantID, taskID)
 	if err != nil {
