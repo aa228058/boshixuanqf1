@@ -724,7 +724,8 @@ import {
   ShieldCheck, ArrowRightLeft,
 } from 'lucide-vue-next'
 import { useAccountStore } from '@/stores/account'
-import { accountApi, importSessions, importSessionFiles, setAccountProxy, testAccountProxy } from '@/api/account'
+import { accountApi, importSessions, importSessionFiles, setAccountProxy, testAccountProxy, uploadAvatar } from '@/api/account'
+import { taskApi } from '@/api/task'
 import { settingsApi } from '@/api/settings'
 import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
