@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	_ "net/http/pprof" // E-05: pprof 剖析端点（ENABLE_PPROF=1 时生效）
+	_ "net/http/pprof" // E-05: pprof 剖析端点（ENABLE_PPROF=1 时生效）；仅回环监听 // #nosec G108
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -117,7 +117,7 @@ func main() {
 	if os.Getenv("ENABLE_PPROF") == "1" {
 		go func() {
 			log.Print("[pprof] listening on 127.0.0.1:6060 (localhost only)")
-			if err := http.ListenAndServe("127.0.0.1:6060", nil); err != nil {
+			if err := (&http.Server{Addr: "127.0.0.1:6060", Handler: http.DefaultServeMux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}).ListenAndServe(); err != nil {
 				log.Printf("[pprof] %v", err)
 			}
 		}()
@@ -569,7 +569,7 @@ func (w *rotatingLogWriter) Close() error {
 // 静默失败, 一次 rotate 失败=日志永久丢失。现统一在 error 出口恢复可写性:
 // 优先重开原文件, 重开也失败则降级到 stderr, 绝不留失效句柄。
 func (w *rotatingLogWriter) degrade(name string, cause error) error {
-	if f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666); err == nil {
+	if f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
 		w.f = f
 	} else {
 		w.f = os.Stderr
@@ -593,7 +593,7 @@ func (w *rotatingLogWriter) rotate() error {
 	if err := os.Rename(oldName, oldName+".1"); err != nil {
 		return w.degrade(oldName, fmt.Errorf("rename log: %w", err))
 	}
-	f, err := os.OpenFile(oldName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	f, err := os.OpenFile(oldName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return w.degrade(oldName, fmt.Errorf("open new log: %w", err))
 	}
