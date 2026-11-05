@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -42,8 +43,10 @@ func (a *PgxPoolAdapter) ServerAddress() string {
 	// LoadSession 前可能还没读库,主动查一次
 	ctx, cancel := a.opCtx()
 	defer cancel()
-	_ = a.pool.QueryRow(ctx,
-		`SELECT server_address FROM sessions WHERE session_id = $1`, a.sessionName).Scan(&a.serverAddress)
+	if err := a.pool.QueryRow(ctx,
+		`SELECT server_address FROM sessions WHERE session_id = $1`, a.sessionName).Scan(&a.serverAddress); err != nil && err != pgx.ErrNoRows {
+		log.Printf("[storage] 读取会话 %s 的原始 DC 地址失败: %v", a.sessionName, err)
+	}
 	return a.serverAddress
 }
 
