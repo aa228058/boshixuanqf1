@@ -755,6 +755,11 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		// Create a cancellable context for this specific task
 		taskCtx, cancel := context.WithCancel(ctx)
 		e.taskCtxs.Store(taskKey, cancel)
+		defer func() {
+			cancel()
+			e.taskCtxs.Delete(taskKey)
+		}()
+
 		// Check if task was cancelled before starting
 		freshTask, err := e.repo.GetByID(ctx, task.TenantID, task.TaskID)
 		if err != nil {
@@ -810,7 +815,6 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		defer func() {
 			cancel()
 			<-heartbeatDone
-			e.taskCtxs.Delete(taskKey)
 		}()
 
 		e.executeTask(taskCtx, task)
