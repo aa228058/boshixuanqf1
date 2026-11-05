@@ -61,7 +61,7 @@
             </svg>
           </div>
           <p class="text-sm">暂无账号</p>
-          <router-link to="/accounts" class="text-xs text-cyan hover:underline">去添加第一个 Telegram 账号 →</router-link>
+          <router-link to="/accounts" class="text-xs text-[var(--t-brand)] hover:underline">去添加第一个 Telegram 账号 →</router-link>
         </div>
         <v-chart v-else class="h-56" :option="accountChartOption" autoresize />
       </article>
@@ -74,20 +74,20 @@
       <article class="glass rounded-[var(--t-r-lg)] p-5 md:p-6 lift">
         <div class="flex items-center justify-between mb-5">
           <h3 class="text-body font-semibold text-text-primary">最近风险事件</h3>
-          <router-link to="/accounts" class="text-xs text-cyan hover:text-cyan font-medium transition-colors">查看全部</router-link>
+          <router-link to="/accounts" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] font-medium transition-colors">查看全部</router-link>
         </div>
         <div class="space-y-3">
           <div
             v-for="event in riskEvents"
             :key="event.risk_id"
-            class="flex items-start gap-3 p-3.5 rounded-[var(--t-r-md)] bg-ink-01 hover:bg-bg-secondary transition-[transform,opacity,border-color,background-color] duration-300 hover:shadow-cyan-glow/10"
+            class="flex items-start gap-3 p-3.5 rounded-[var(--t-r-md)] bg-ink-01 hover:bg-bg-secondary transition-[transform,opacity,border-color,background-color] duration-300 hover:shadow-[var(--t-shadow-sm)]"
           >
-            <AlertTriangle class="w-5 h-5 text-amber shrink-0 mt-0.5" stroke-width="2" />
+            <AlertTriangle class="w-5 h-5 text-[var(--t-warn)] shrink-0 mt-0.5" stroke-width="2" />
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-text-primary">{{ riskTypeLabel(event.risk_type) }}</p>
               <!-- R118: 补账号名+原因 —— 之前只有类型和时间, 看不出是哪个号为什么 -->
               <p class="text-xs text-text-secondary mt-0.5 truncate">
-                <span v-if="event.account_id" class="text-amber/90">{{ riskAccName(event.account_id) }}</span>
+                <span v-if="event.account_id" class="text-[var(--t-warn)]/90">{{ riskAccName(event.account_id) }}</span>
                 <template v-if="event.account_id && event.detail"> · </template>
                 <span v-if="event.detail">{{ event.detail }}</span>
               </p>
@@ -110,9 +110,9 @@
           <div
             v-for="log in auditLogs"
             :key="log.log_id"
-            class="flex items-center gap-3 p-3.5 rounded-[var(--t-r-md)] bg-ink-01 hover:bg-bg-secondary transition-[transform,opacity,border-color,background-color] duration-300 hover:shadow-cyan-glow/10"
+            class="flex items-center gap-3 p-3.5 rounded-[var(--t-r-md)] bg-ink-01 hover:bg-bg-secondary transition-[transform,opacity,border-color,background-color] duration-300 hover:shadow-[var(--t-shadow-sm)]"
           >
-            <Activity class="w-5 h-5 text-cyan shrink-0" stroke-width="2" />
+            <Activity class="w-5 h-5 text-[var(--t-brand)] shrink-0" stroke-width="2" />
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-text-primary">{{ auditActionLabel(log.action) }}</p>
               <p class="text-xs text-text-secondary">{{ targetLabel(log.target) }}</p>
@@ -297,9 +297,9 @@ const accountChartOption = computed(() => ({
 function severityClass(s: string) {
   const m: Record<string, string> = {
     low: 'bg-text-muted/15 text-text-secondary',
-    medium: 'bg-amber/10 text-amber',
-    high: 'bg-rose/10 text-rose',
-    critical: 'bg-rose/20 text-rose',
+    medium: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
+    high: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]',
+    critical: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]',
   }
   return m[s] || ''
 }
