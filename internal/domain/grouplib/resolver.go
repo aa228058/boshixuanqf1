@@ -24,8 +24,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		dedupKey string
 		username string
 		gtype string
+		title string
 	}
-	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype FROM system_groups WHERE gtype IN ('private','unknown') AND COALESCE(title,'')='' AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
+	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown') AND (COALESCE(title,'')='' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
 	if err != nil {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
@@ -33,7 +34,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	var pending []row
 	for rows.Next() {
 		var item row
-		if err := rows.Scan(&item.sgID,&item.link,&item.dedupKey,&item.username,&item.gtype); err == nil { pending = append(pending,item) }
+		if err := rows.Scan(&item.sgID,&item.link,&item.dedupKey,&item.username,&item.gtype,&item.title); err == nil { pending = append(pending,item) }
 	}
 	rows.Close()
 	if len(pending)==0 { return }
@@ -49,6 +50,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	accRows.Close()
 
 	for i,p := range pending {
+		if len(accs)==0 && p.title!="" { continue }
 		var title string
 		var count int
 		var gtype string
