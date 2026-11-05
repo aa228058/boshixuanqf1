@@ -18,15 +18,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--t-space-2);
   width: 100%;
-  min-height: 46px;
-  padding: 10px 20px;
+  min-height: var(--t-control-height-lg);
+  padding: 10px var(--t-space-5);
   border: none;
   border-radius: var(--t-control-radius);
   font-size: var(--t-font-md);
   font-weight: 500;
-  color: #fff;
+  color: var(--t-brand-ink);
   background: linear-gradient(135deg, var(--t-brand-active) 0%, var(--t-brand) 100%);
   cursor: pointer;
   transition: opacity 0.2s, transform 0.1s;
@@ -49,11 +49,11 @@
   min-height: 46px;
   padding: 10px 20px;
   border: 1px solid var(--t-line-strong);
-  border-radius: 12px;
-  font-size: 15px;
+  border-radius: var(--t-control-radius);
+  font-size: var(--t-font-md);
   font-weight: 500;
   /* 用弹窗自己的设计令牌: 旧写法引用 td 变量, 主题与弹窗背景不匹配时文字同色不可见(有框无字) */
-  color: var(--modal-text-secondary, var(--td-text-color-secondary, #6b7280));
+  color: var(--modal-text-secondary);
   background: transparent;
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
@@ -61,7 +61,7 @@
 .modal-btn-ghost:hover {
   background: var(--t-surface-2);
   /* 用弹窗令牌: 旧 td 直用在主题不匹配时 hover 文字同色不可见 */
-  color: var(--modal-text-primary, var(--td-text-color-primary, #1a1a2e));
+  color: var(--modal-text-primary);
 }
 
 /* ---- 危险按钮: 红色系 ---- */
@@ -88,11 +88,11 @@
 /* ---- 深色模式微调 ---- */
 html.theme-dark .modal-btn-ghost {
   border-color: var(--t-line-strong);
-  color: var(--td-text-color-secondary, #9ca3af);
+  color: var(--modal-text-secondary);
 }
 html.theme-dark .modal-btn-ghost:hover {
   background: var(--t-surface-2);
-  color: var(--td-text-color-primary, #e8eaf6);
+  color: var(--modal-text-primary);
 }
 
 /* ---- 桌面端: footer 横向排列, 按钮恢复自动宽 ---- */
