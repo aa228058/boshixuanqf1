@@ -161,8 +161,12 @@ func NewEngine(cfg *config.Config, pool *pgxpool.Pool, repo domain.AccountReposi
 		} else if probe, err := os.CreateTemp(cfg.AvatarDir, ".write_test_*"); err != nil {
 			log.Printf("[engine] 头像目录 %s 不可写: %v | 修复: chown -R 10001:10001 ./data && chmod -R u+rwX ./data", cfg.AvatarDir, err)
 		} else {
-			probe.Close()
-			os.Remove(probe.Name())
+			if err := probe.Close(); err != nil {
+				log.Printf("[engine] 关闭头像目录写入探针失败: %v", err)
+			}
+			if err := os.Remove(probe.Name()); err != nil && !os.IsNotExist(err) {
+				log.Printf("[engine] 清理头像目录写入探针失败: %v", err)
+			}
 		}
 	}
 
