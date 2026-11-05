@@ -258,6 +258,9 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	// Use shared PostgreSQL storage for session persistence
 	pgStorage := e.pgStorage
 
+	if e.cfg.TGAPIID <= 0 || e.cfg.TGAPIID > 2147483647 {
+		return nil, false, fmt.Errorf("TG_API_ID out of int32 range: %d", e.cfg.TGAPIID)
+	}
 	clientCfg := &telegram.Config{
 		APIID:       int32(e.cfg.TGAPIID),
 		APIHash:     e.cfg.TGAPIHash,
