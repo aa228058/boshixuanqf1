@@ -22,11 +22,11 @@
     <div
       v-if="globalLoading"
       class="fixed top-0 left-0 right-0 z-[70] h-[3px] overflow-hidden pointer-events-none"
-      style="background: rgba(124, 92, 255, 0.15);"
+      style="background: var(--t-brand-dim);"
     >
       <div
         class="h-full w-2/5"
-        style="background: linear-gradient(90deg, transparent, #7c5cff 50%, transparent); animation: global-load-slide 1s infinite ease-in-out;"
+        style="background: linear-gradient(90deg, transparent, var(--t-brand) 50%, transparent); animation: global-load-slide 1s infinite ease-in-out;"
       />
     </div>
     <Suspense>
@@ -161,8 +161,8 @@ onUnmounted(() => {
 .menu-active::before {
   content: ''; position: absolute; left: -14px; top: 50%; translate: 0 -50%;
   width: 3px; height: 60%; border-radius: 99px;
-  background: linear-gradient(180deg, rgb(6 182 212), rgb(6 182 212 / .4));
-  box-shadow: 0 0 8px rgb(6 182 212 / .6);
+  background: linear-gradient(180deg, var(--t-brand), color-mix(in srgb, var(--t-brand) 40%, transparent));
+  box-shadow: 0 0 8px var(--t-brand-dim);
   animation: menu-indicator-in .25s cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes menu-indicator-in { from { opacity: 0; height: 20%; } to { opacity: 1; height: 60%; } }
@@ -176,14 +176,14 @@ onUnmounted(() => {
 }
 
 /* ===== 表格斑马纹工具类 ===== */
-.zebra > *:nth-child(even) { background-color: rgb(128 140 160 / .045); }
-.zebra > *:nth-child(even):hover { background-color: rgb(128 140 160 / .09); }
+.zebra > *:nth-child(even) { background-color: var(--t-surface-2); }
+.zebra > *:nth-child(even):hover { background-color: var(--t-surface-3); }
 
 /* ===== 在线状态呼吸圆点 ===== */
 .dot-online { position: relative; }
 .dot-online::after {
   content: ''; position: absolute; inset: -3px; border-radius: 50%;
-  border: 1.5px solid rgb(52 211 153 / .5);
+  border: 1.5px solid color-mix(in srgb, var(--t-ok) 50%, transparent);
   animation: dot-breathe 2s ease-out infinite;
 }
 @keyframes dot-breathe {
@@ -210,7 +210,7 @@ button { transition: transform .12s ease, background-color .2s ease, color .2s e
 
 /* ===== 卡片悬浮抬升(带 .lift 类的元素) ===== */
 .lift { transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease, border-color .25s ease; }
-.lift:hover { transform: translateY(-3px); box-shadow: 0 12px 32px -12px rgb(6 182 212 / .25); border-color: rgb(6 182 212 / .3); }
+.lift:hover { transform: translateY(-3px); box-shadow: var(--t-shadow-md); border-color: var(--t-brand); }
 
 /* ===== 列表交错入场(.stagger 容器) ===== */
 .stagger > * { opacity: 0; animation: stagger-in .4s cubic-bezier(.22,1,.36,1) forwards; animation-delay: calc(var(--i, 0) * 45ms); }
@@ -225,23 +225,23 @@ button { transition: transform .12s ease, background-color .2s ease, color .2s e
 /* ===== 滚动条美化(全局, 细条+主题色) ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(128,140,160,.28); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(128,140,160,.5); }
-* { scrollbar-width: thin; scrollbar-color: rgba(128,140,160,.28) transparent; }
+::-webkit-scrollbar-thumb { background: var(--t-line-strong); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--t-text-3); }
+* { scrollbar-width: thin; scrollbar-color: var(--t-line-strong) transparent; }
 
 /* 隐藏横向滚动条但保留滑动(操作栏类) */
 .scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
 /* ===== 焦点环(键盘可访问性, 全局统一青色) ===== */
-:focus-visible { outline: 2px solid rgb(6 182 212 / .6); outline-offset: 2px; border-radius: 4px; }
+:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; border-radius: 4px; }
 
 /* ===== 列表行悬停微反馈 ===== */
 .row-hover { transition: background-color .18s ease; }
-.row-hover:hover { background-color: rgb(128 140 160 / .07); }
+.row-hover:hover { background-color: var(--t-surface-2); }
 
 /* ===== 骨架屏流光(加载态高级感) ===== */
-.skeleton-shimmer { position: relative; overflow: hidden; background: rgb(128 140 160 / .08); }
+.skeleton-shimmer { position: relative; overflow: hidden; background: var(--t-surface-2); }
 .skeleton-shimmer::after {
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / .06), transparent);
@@ -251,5 +251,5 @@ button { transition: transform .12s ease, background-color .2s ease, color .2s e
 
 /* ===== 输入框聚焦光晕 ===== */
 .t-input__inner, .t-textarea__inner { transition: box-shadow .2s ease, border-color .2s ease; }
-.t-is-focused .t-input__inner, .t-input__inner:focus { box-shadow: 0 0 0 3px rgb(6 182 212 / .15); border-color: rgb(6 182 212 / .5); }
+.t-is-focused .t-input__inner, .t-input__inner:focus { box-shadow: var(--t-shadow-focus); border-color: var(--t-brand); }
 </style>
