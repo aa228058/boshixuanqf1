@@ -80,7 +80,7 @@ func normalizeSystemGroupLink(value string) string {
 // UpdateResolvedInfo 后台解析器回写: 私密邀请链接经 checkChatInvite 补全群名/成员数/类型。
 func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uuid.UUID, title string, memberCount int, gtype string, chatID int64) error {
 	if chatID == 0 {
-		_, err := r.db.Exec(ctx, "UPDATE system_groups SET title=CASE WHEN $2<>'' THEN $2 ELSE title END, member_count=GREATEST(member_count,$3), gtype=$4, resolution_status='resolved', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, title, memberCount, gtype)
+		_, err := r.db.Exec(ctx, "UPDATE system_groups SET title=CASE WHEN $2<>'' THEN $2 ELSE title END, member_count=GREATEST(member_count,$3), gtype=$4, resolution_status='identity_pending', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, title, memberCount, gtype)
 		return err
 	}
 	tx, err := r.db.Begin(ctx)
