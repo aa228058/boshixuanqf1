@@ -851,10 +851,13 @@ func extractArchiveCLI(archivePath, ext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// #nosec G204 -- 固定 7z 可执行文件和参数数组；archivePath 是服务端生成的临时文件路径，不经 shell 解释。
 	cmd := exec.Command("7z", "x", "-y", "-o"+dir, archivePath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		os.RemoveAll(dir)
+		if cleanupErr := os.RemoveAll(dir); cleanupErr != nil {
+			return "", fmt.Errorf("解压失败: %v; 清理临时目录失败: %w", err, cleanupErr)
+		}
 		return "", fmt.Errorf("%v: %s", err, out)
 	}
 	return dir, nil
