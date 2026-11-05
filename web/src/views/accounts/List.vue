@@ -209,9 +209,9 @@
             <Unplug v-else class="w-3.5 h-3.5" />
           </button>
           <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
-          <button v-else-if="acc?.status === 'pending_auth' && acc?.source !== 'protocol'" @click.stop="showAuthModal(acc)"
+          <button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" @click.stop="showAuthModal(acc)"
                   class="h-7 px-2 rounded-lg text-[10.5px] font-medium text-amber bg-amber/10 border border-amber/25 hover:bg-amber/20 transition-colors flex items-center gap-1 whitespace-nowrap">
-            <KeyRound class="w-3.5 h-3.5" />验证码
+            <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
           </button>
           <span v-else-if="acc?.status === 'restricted'"
                 class="h-7 px-2 rounded-lg text-[10.5px] text-text-muted bg-text-muted/10 flex items-center gap-1 cursor-help whitespace-nowrap"
