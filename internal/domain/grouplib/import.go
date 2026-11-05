@@ -15,7 +15,7 @@ import (
 
 // importLinkRe 从一行文本里提取 t.me 链接 / @用户名 / 裸用户名 / 私密邀请链接。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
-var importLinkRe = regexp.MustCompile(`(?i)(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(joinchat/|\+)?(@?[+a-zA-Z0-9_\-]{4,64})`)
+var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(joinchat/|\+)?|@)([+a-zA-Z0-9_\-]{4,64})`)
 
 // ImportResult 批量导入结果汇总。
 type ImportResult struct {
