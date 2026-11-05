@@ -1,8 +1,8 @@
 package grouplib
 
 import (
-	"net/http"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 )
