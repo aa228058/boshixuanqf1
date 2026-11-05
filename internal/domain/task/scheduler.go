@@ -110,14 +110,16 @@ func (s *AutoScheduler) TotalMaxConcurrent() int {
 // TryAcquire attempts to start a task for the given tenant.
 // Returns true if the tenant has available quota under current system pressure.
 func (s *AutoScheduler) TryAcquire(tenantID uuid.UUID) bool {
-	s.mu.RLock()
+	// Lazily register an unknown tenant with the safe default quota. Returning
+	// true without a quota entry would make Release a no-op and bypass tenant caps.
+	s.mu.Lock()
 	q, exists := s.quotas[tenantID]
-	state := s.state
-	s.mu.RUnlock()
 	if !exists {
-		// Unknown tenant: allow with default quota of 1
-		return true
+		q = &TenantQuota{TenantID: tenantID, MaxConcurrent: 1}
+		s.quotas[tenantID] = q
 	}
+	state := s.state
+	s.mu.Unlock()
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	limit := s.computeLimit(q.MaxConcurrent, state)
