@@ -228,3 +228,31 @@ func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string,
 	}
 	return title, count, nil
 }
+
+func inviteHashFromLink(link string) string {
+	link = strings.TrimSpace(link)
+	lower := strings.ToLower(link)
+	if strings.HasPrefix(lower, "https://") {
+		link = link[len("https://"):]
+	} else if strings.HasPrefix(lower, "http://") {
+		link = link[len("http://"):]
+	}
+	link = strings.SplitN(link, "?", 2)[0]
+	link = strings.SplitN(link, "#", 2)[0]
+	parts := strings.SplitN(link, "/", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	host := strings.ToLower(strings.TrimPrefix(parts[0], "www."))
+	if host != "t.me" && host != "telegram.me" && host != "telegram.dog" {
+		return ""
+	}
+	path := parts[1]
+	if strings.HasPrefix(path, "+") {
+		return strings.TrimPrefix(path, "+")
+	}
+	if strings.HasPrefix(path, "joinchat/") {
+		return strings.TrimPrefix(path, "joinchat/")
+	}
+	return ""
+}
