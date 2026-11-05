@@ -7,7 +7,9 @@
 export interface Tenant {
   tenant_id: string
   name: string
+  tenant_name?: string
   username: string
+  plan_features?: Record<string, boolean>
   max_accounts: number
   max_concurrent_tasks: number
   plan_id: string
