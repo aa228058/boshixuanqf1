@@ -207,30 +207,36 @@ export async function doFetchWithRetry(
 
   let lastError: Error | null = null
   for (let attempt = 0; attempt < retries; attempt++) {
+    // 幂等方法白名单：只有可安全重复的读取请求允许自动重试。
+    // 写请求即使网络中断/超时，也可能已在服务端完成，不能盲目重放。
+    const method = (options.method || 'GET').toUpperCase()
+    const idempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
+    const controller = new AbortController()
     let fetchPromise: Promise<Response>
     try {
       const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
+      const attemptHeaders = { ...headers }
       if (isForm) {
         // FormData 必须带浏览器自动生成的 multipart boundary, 不能手动设 Content-Type
-        delete (headers as Record<string, string>)['Content-Type']
+        delete attemptHeaders['Content-Type']
       }
       fetchPromise = fetch(`${baseUrl}${finalEndpoint}`, {
-        method: options.method || 'GET',
-        headers,
+        method: method,
+        headers: attemptHeaders,
         body: isForm ? (options.body as FormData) : (options.body ? JSON.stringify(options.body) : undefined),
+        signal: controller.signal,
       })
     } catch {
       throw new Error('网络连接失败，请检查网络')
     }
 
-    // 幂等方法白名单：POST 等写操作 5xx 不重试——网关 502 但后端已入库时，
-    // 盲目重试会创建重复任务（如群发任务发两遍）。
-    const method = (options.method || 'GET').toUpperCase()
-    const idempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     try {
       const timeoutPromise = new Promise<Response>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('请求超时，请稍后重试')), options.timeout || 120000)
+        timeoutId = setTimeout(() => {
+          controller.abort()
+          reject(new Error('请求超时，请稍后重试'))
+        }, options.timeout || 120000)
       })
       const response = await Promise.race([fetchPromise, timeoutPromise])
       // 只对幂等方法的 5xx 重试
@@ -241,12 +247,12 @@ export async function doFetchWithRetry(
       return response
     } catch (e: unknown) {
       lastError = e instanceof Error ? e : new Error(String(e))
-      if (attempt < retries - 1) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+      if (!idempotent || attempt >= retries - 1) {
+        throw lastError
       }
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
     } finally {
-      // 修复计时器泄漏：fetch 胜出后必须清掉超时定时器，
-      // 否则每个请求都留下一个 120s 的悬挂 timer，长会话持续堆积。
+      // fetch 胜出后清理计时器；超时则主动 abort，避免底层请求继续占用资源。
       clearTimeout(timeoutId)
     }
   }
