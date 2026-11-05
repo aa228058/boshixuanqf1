@@ -14,7 +14,7 @@
     </div>
 
     <!-- 加载失败提示(不再静默空白) -->
-    <div v-if="loadError" class="glass rounded-[var(--t-r-md)] p-4 bg-amber/10 text-amber text-sm lift">
+    <div v-if="loadError" class="glass rounded-[var(--t-r-md)] p-4 bg-[var(--t-warn)]/10 text-[var(--t-warn)] text-sm lift">
       {{ loadError }}
     </div>
 
