@@ -165,7 +165,7 @@ jobs:
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
 
       - name: Enforce gosec result
-        if: steps.gosec.outcome == 'failure'
+        if: always() && steps.gosec.outcome == 'failure'
         run: |
           echo "gosec reported security findings; review the Run gosec step before merging."
           exit 1
