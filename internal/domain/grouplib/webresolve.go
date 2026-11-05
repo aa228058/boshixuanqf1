@@ -24,6 +24,14 @@ var (
 
 const telegramMobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
 
+// applyTelegramWebHeaders uses a stable, internally consistent request profile.
+// We intentionally do not forge Referer or rotate browser fingerprints.
+func applyTelegramWebHeaders(req *http.Request) {
+	req.Header.Set("User-Agent", telegramMobileUA)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9,zh-CN;q=0.8")
+}
+
 func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) {
 	title, _, err := resolveInviteInfoViaWeb(ctx, hash)
 	return title, err
@@ -55,9 +63,7 @@ func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, err
 	if err != nil {
 		return "", 0, err
 	}
-	req.Header.Set("User-Agent", telegramMobileUA)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	applyTelegramWebHeaders(req)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", 0, fmt.Errorf("请求 t.me 失败: %w", err)
