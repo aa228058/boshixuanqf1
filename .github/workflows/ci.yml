@@ -124,6 +124,8 @@ jobs:
         run: go vet ./...
 
       - name: Run gosec (security scan)
+        id: gosec
+        continue-on-error: true
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           gosec -exclude-generated ./...
@@ -161,6 +163,12 @@ jobs:
         run: |
           go install github.com/pressly/goose/v3/cmd/goose@latest
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
+
+      - name: Enforce gosec result
+        if: steps.gosec.outcome == 'failure'
+        run: |
+          echo "gosec reported security findings; review the Run gosec step before merging."
+          exit 1
 
   # Phase 10: 前端 typecheck + 单测门禁——此前 CI 只跑 Go, 前端类型失效无人发现
   # (ListResponse/SystemMetrics 等 4 类型缺失曾静默存在, 本仓修复后立此门禁)
