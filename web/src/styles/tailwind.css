@@ -3,6 +3,29 @@
 @import "tailwindcss";
 
 @theme {
+  /* Utility aliases generated from the shared token source */
+  --spacing-token-1: var(--t-space-1);
+  --spacing-token-2: var(--t-space-2);
+  --spacing-token-3: var(--t-space-3);
+  --spacing-token-4: var(--t-space-4);
+  --spacing-token-5: var(--t-space-5);
+  --spacing-token-6: var(--t-space-6);
+  --spacing-token-8: var(--t-space-8);
+  --spacing-token-10: var(--t-space-10);
+  --spacing-token-12: var(--t-space-12);
+  --spacing-token-16: var(--t-space-16);
+  --radius-token-sm: var(--t-radius-sm);
+  --radius-token-md: var(--t-radius-md);
+  --radius-token-lg: var(--t-radius-lg);
+  --radius-token-xl: var(--t-radius-xl);
+  --radius-token-pill: var(--t-radius-pill);
+  --text-token-xs: var(--t-font-xs);
+  --text-token-sm: var(--t-font-sm);
+  --text-token-md: var(--t-font-md);
+  --text-token-lg: var(--t-font-lg);
+  --shadow-token-sm: var(--t-shadow-sm);
+  --shadow-token-md: var(--t-shadow-md);
+  --shadow-token-lg: var(--t-shadow-lg);
   /* === Accent: desaturated steel-cyan, restrained === */
   --color-cyan: var(--t-brand);
   --color-cyan-bright: var(--t-brand-hover);
