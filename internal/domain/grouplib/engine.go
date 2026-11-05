@@ -90,6 +90,8 @@ func (e *Engine) runOnce() {
 	if err := e.aggregateMemberBios(ctx); err != nil {
 		errs = append(errs, err)
 	}
+	// 持久化导入任务分批执行，HTTP 请求不等待解析完成。
+	e.processImportJobs(ctx)
 	// 批量导入的私密链接在此低速补群名(每轮最多 resolveBatchSize 条)
 	e.resolvePendingTitles(ctx)
 	for _, err := range errs {
