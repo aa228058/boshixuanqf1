@@ -9,8 +9,8 @@
 :root {
   /* R128: --modal-bg 已并入 tokens.css 的 --t-modal-bg(三主题统一), 此处删除;
      文字色保留(与背景无关) */
-  --modal-text-primary: var(--td-text-color-primary, #1a1a2e);
-  --modal-text-secondary: var(--td-text-color-secondary, #6b7280);
+  --modal-text-primary: var(--t-text-1);
+  --modal-text-secondary: var(--t-text-2);
 }
 
 /* ---- 主按钮: 紫渐变, 白字 ---- */
@@ -23,8 +23,8 @@
   min-height: 46px;
   padding: 10px 20px;
   border: none;
-  border-radius: 12px;
-  font-size: 15px;
+  border-radius: var(--t-control-radius);
+  font-size: var(--t-font-md);
   font-weight: 500;
   color: #fff;
   background: linear-gradient(135deg, var(--t-brand-active) 0%, var(--t-brand) 100%);
@@ -48,7 +48,7 @@
   width: 100%;
   min-height: 46px;
   padding: 10px 20px;
-  border: 1px solid rgba(128, 128, 128, 0.28);
+  border: 1px solid var(--t-line-strong);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 500;
@@ -59,7 +59,7 @@
   transition: background 0.2s, color 0.2s;
 }
 .modal-btn-ghost:hover {
-  background: rgba(128, 128, 128, 0.08);
+  background: var(--t-surface-2);
   /* 用弹窗令牌: 旧 td 直用在主题不匹配时 hover 文字同色不可见 */
   color: var(--modal-text-primary, var(--td-text-color-primary, #1a1a2e));
 }
@@ -78,7 +78,7 @@
   font-size: 15px;
   font-weight: 500;
   color: #fff;
-  background: linear-gradient(135deg, #f43f5e 0%, #fb7185 100%);
+  background: var(--t-err);
   cursor: pointer;
   transition: opacity 0.2s, transform 0.1s;
 }
@@ -87,11 +87,11 @@
 
 /* ---- 深色模式微调 ---- */
 html.theme-dark .modal-btn-ghost {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--t-line-strong);
   color: var(--td-text-color-secondary, #9ca3af);
 }
 html.theme-dark .modal-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--t-surface-2);
   color: var(--td-text-color-primary, #e8eaf6);
 }
 
@@ -103,7 +103,7 @@ html.theme-dark .modal-btn-ghost:hover {
     width: auto;
     min-height: 36px;
     padding: 7px 18px;
-    font-size: 14px;
+    font-size: var(--t-font-sm);
     border-radius: 10px;
   }
   .modal-footer {
