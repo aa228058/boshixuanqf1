@@ -128,7 +128,10 @@ func (e *Engine) migrateDCWithSource(ctx context.Context, tenantID, accountID uu
 	}
 
 	// 7. 断开旧DC连接（保活/池化），状态回待机，下次取客户端自动走新DC
-	_ = e.DisconnectAccount(ctx, tenantID, accountID)
+	if err := e.DisconnectAccount(ctx, tenantID, accountID); err != nil {
+		// 会话已写入目标 DC；断开旧客户端失败不回滚新会话，但必须留下可排查记录。
+		log.Printf("[migrate] 账号 %s 已迁移但断开旧连接失败: %v", accountID, err)
+	}
 	log.Printf("[migrate] 账号 %s 已从 DC%d 迁移到 DC%d\n", accountID, oldDC, targetDC)
 	return nil
 }
