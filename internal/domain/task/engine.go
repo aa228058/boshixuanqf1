@@ -411,7 +411,9 @@ func (e *Engine) sendTelegramAlert(text string) {
 			log.Printf("[alert] TG 告警发送失败: %v", err)
 			return
 		}
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("[alert] close TG alert response failed: %v", err)
+		}
 	})
 }
 
