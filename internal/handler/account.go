@@ -751,6 +751,13 @@ func (h *AccountHandler) UploadAvatar(c echo.Context) error {
 
 // sanitizeStem 提取文件名主体(只保留安全字符防路径注入, 截 40 字符与 CreateTemp 前缀规则一致)。
 // R182: 同时服务三处——临时文件前缀(手机号兜底解析)、sidecar json 命名(.json 同 stem 配对)、rar/7z 侧车拷贝。
+func archiveEntryKey(name string) string {
+	// Keep the full relative path so same-named files in different folders do not collide.
+	clean := filepath.ToSlash(filepath.Clean(strings.ReplaceAll(name, "\\", "/")))
+	clean = strings.TrimPrefix(clean, "./")
+	return strings.ToLower(strings.TrimSuffix(clean, filepath.Ext(clean)))
+}
+
 func sanitizeStem(name string) string {
 	base := filepath.Base(strings.ReplaceAll(name, "\\", "/"))
 	stem := strings.TrimSuffix(base, filepath.Ext(base))
@@ -774,6 +781,32 @@ func tempPrefixFromName(name string) string {
 		return s + "-"
 	}
 	return "import-"
+}
+
+// readArchiveSidecar reads the matching JSON next to a session file without
+// assuming the archive's filename casing. Ambiguous matches are rejected.
+func readArchiveSidecar(sessionPath string) ([]byte, error) {
+	dir := filepath.Dir(sessionPath)
+	stem := strings.TrimSuffix(filepath.Base(sessionPath), filepath.Ext(sessionPath))
+	entries, err := os.ReadDir(dir)
+	if err != nil { return nil, err }
+	var match string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".json") { continue }
+		candidateStem := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+		if strings.EqualFold(candidateStem, stem) {
+			if match != "" { return nil, fmt.Errorf("存在多个同名 JSON 附件") }
+			match = filepath.Join(dir, entry.Name())
+		}
+	}
+	if match == "" { return nil, os.ErrNotExist }
+	file, err := os.Open(match)
+	if err != nil { return nil, err }
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
+	if err != nil { return nil, err }
+	if len(data) > 1<<20 { return nil, fmt.Errorf("JSON 附件超过 1MB 限制") }
+	return data, nil
 }
 
 // extractArchiveCLI 用系统 7z 解压 rar/7z(p7zip 的 7z 内置 RAR 解码, 两种格式一条命令, Dockerfile 已装 p7zip)。
@@ -813,24 +846,32 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 	// 落盘临时文件（SQLite 驱动需要可寻址路径）
 	// (2026-10-20) 支持 .zip 压缩包: 自动解压包内全部 .session 逐个导入
 	var paths []string
+	defer func() {
+		for _, p := range paths {
+			_ = os.Remove(p)
+			_ = os.Remove(strings.TrimSuffix(p, ".session") + ".json")
+		}
+	}()
 	for _, fh := range files {
 		src, err := fh.Open()
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "读取上传文件失败")
 		}
 		if strings.HasSuffix(strings.ToLower(fh.Filename), ".zip") {
-			data, err := io.ReadAll(io.LimitReader(src, 50<<20)) // zip 包 50MB 上限
+			data, err := io.ReadAll(io.LimitReader(src, (50<<20)+1)) // +1 用于识别超限
 			src.Close()
 			if err != nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "读取压缩包失败")
+				return echo.NewHTTPError(http.StatusBadRequest, "读取压缩包失败: "+err.Error())
+			}
+			if len(data) > 50<<20 {
+				return echo.NewHTTPError(http.StatusBadRequest, "压缩包过大（上限 50MB）")
 			}
 			zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "压缩包解析失败(需标准 zip 格式): "+err.Error())
 			}
 			zipCount := 0
-			// R182 两遍式: 第一遍收集同 stem 的 .json(常含 2FA 密码/手机号, 号商导出惯例),
-			// 第二遍落 session 时按同 stem 写出 sidecar json, service 端 readSidecarJSON 读取。
+			// 先按完整相对路径收集 JSON 附件，避免不同目录的同名账号串用 2FA 信息。
 			sidecars := map[string][]byte{}
 			var sessionFiles []*zip.File
 			for _, zf := range zr.File {
@@ -842,8 +883,8 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 					if rc, err := zf.Open(); err == nil {
 						data, _ := io.ReadAll(io.LimitReader(rc, 1<<20))
 						rc.Close()
-						if stem := sanitizeStem(zf.Name); stem != "" {
-							sidecars[stem] = data
+						if key := archiveEntryKey(zf.Name); key != "" {
+							sidecars[key] = data
 						}
 					}
 					continue
@@ -858,29 +899,35 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				}
 				rc, err := zf.Open()
 				if err != nil {
-					continue
+					return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取压缩包文件 %q 失败: %v", zf.Name, err))
 				}
 				// R182: 原始文件名放前缀, service 端据此兜底解析手机号
 				tmp, err := os.CreateTemp("", tempPrefixFromName(zf.Name)+"*.session")
 				if err != nil {
 					rc.Close()
-					continue
+					return echo.NewHTTPError(http.StatusInternalServerError, "创建临时会话文件失败: "+err.Error())
 				}
 				// P2-50 审计修复: 原来 LimitReader 到限返回 EOF——Copy 视为成功, 超 10MB
 				// 的文件被静默截断当完整 session 导入。+1 探测: 超限时拒绝。
-				written, err := io.Copy(tmp, io.LimitReader(rc, 10<<20+1))
+				written, err := io.Copy(tmp, io.LimitReader(rc, (10<<20)+1))
 				if err != nil || written > 10<<20 {
 					rc.Close()
 					tmp.Close()
-					os.Remove(tmp.Name())
-					continue
+					_ = os.Remove(tmp.Name())
+					if err != nil {
+						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 %q 失败: %v", zf.Name, err))
+					}
+					return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("%q 超过单文件 10MB 限制", zf.Name))
 				}
 				rc.Close()
 				tmp.Close()
 				// R182: 同 stem 的 sidecar json 写出(2FA 密码/手机号), service 端 readSidecarJSON 读取
-				if stem := sanitizeStem(zf.Name); stem != "" {
-					if data, ok := sidecars[stem]; ok {
-						_ = os.WriteFile(strings.TrimSuffix(tmp.Name(), ".session")+".json", data, 0600)
+				if key := archiveEntryKey(zf.Name); key != "" {
+					if data, ok := sidecars[key]; ok {
+						if err := os.WriteFile(strings.TrimSuffix(tmp.Name(), ".session")+".json", data, 0600); err != nil {
+							_ = os.Remove(tmp.Name())
+							return echo.NewHTTPError(http.StatusInternalServerError, "写入会话附加信息失败: "+err.Error())
+						}
 					}
 				}
 				paths = append(paths, tmp.Name())
@@ -895,10 +942,13 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 		if strings.HasSuffix(strings.ToLower(fh.Filename), ".rar") || strings.HasSuffix(strings.ToLower(fh.Filename), ".7z") {
 			lowerName := strings.ToLower(fh.Filename)
 			ext := filepath.Ext(lowerName)
-			data, err := io.ReadAll(io.LimitReader(src, 50<<20))
+			data, err := io.ReadAll(io.LimitReader(src, (50<<20)+1))
 			src.Close()
 			if err != nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "读取压缩包失败")
+				return echo.NewHTTPError(http.StatusBadRequest, "读取压缩包失败: "+err.Error())
+			}
+			if len(data) > 50<<20 {
+				return echo.NewHTTPError(http.StatusBadRequest, "压缩包过大（上限 50MB）")
 			}
 			archiveTmp, err := os.CreateTemp("", "import-archive-*"+ext)
 			if err != nil {
@@ -918,7 +968,10 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 			defer os.RemoveAll(outDir)
 			arcCount := 0
 			walkErr := filepath.Walk(outDir, func(p string, info os.FileInfo, werr error) error {
-				if werr != nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".session") {
+				if werr != nil {
+					return werr
+				}
+				if info == nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".session") {
 					return nil
 				}
 				if len(paths) >= 50 {
@@ -926,24 +979,36 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				}
 				dest, derr := os.CreateTemp("", tempPrefixFromName(info.Name())+"*.session")
 				if derr != nil {
-					return nil
+					return fmt.Errorf("为 %q 创建临时文件失败: %w", p, derr)
 				}
 				in, ierr := os.Open(p)
 				if ierr != nil {
 					dest.Close()
-					os.Remove(dest.Name())
-					return nil
+					_ = os.Remove(dest.Name())
+					return fmt.Errorf("打开 %q 失败: %w", p, ierr)
 				}
-				written, cerr := io.Copy(dest, io.LimitReader(in, 10<<20+1))
+				written, cerr := io.Copy(dest, io.LimitReader(in, (10<<20)+1))
 				in.Close()
-				dest.Close()
-				if cerr != nil || written > 10<<20 {
-					os.Remove(dest.Name())
-					return nil
+				closeErr := dest.Close()
+				if cerr != nil || closeErr != nil || written > 10<<20 {
+					_ = os.Remove(dest.Name())
+					if cerr != nil {
+						return fmt.Errorf("读取 %q 失败: %w", p, cerr)
+					}
+					if closeErr != nil {
+						return fmt.Errorf("写入临时文件失败: %w", closeErr)
+					}
+					return fmt.Errorf("%q 超过单文件 10MB 限制", p)
 				}
 				// R182: 同 stem .json 跟随拷贝(rar/7z 包内 sidecar, 同 zip 规则)
-				if jdata, jerr := os.ReadFile(strings.TrimSuffix(p, ".session") + ".json"); jerr == nil {
-					_ = os.WriteFile(strings.TrimSuffix(dest.Name(), ".session")+".json", jdata, 0600)
+				if jdata, jerr := readArchiveSidecar(p); jerr == nil {
+					if werr := os.WriteFile(strings.TrimSuffix(dest.Name(), ".session")+".json", jdata, 0600); werr != nil {
+						_ = os.Remove(dest.Name())
+						return fmt.Errorf("写入 %q 的附加 JSON 失败: %w", p, werr)
+					}
+				} else if !os.IsNotExist(jerr) {
+					_ = os.Remove(dest.Name())
+					return fmt.Errorf("读取 %q 的附加 JSON 失败: %w", p, jerr)
 				}
 				paths = append(paths, dest.Name())
 				arcCount++
@@ -970,23 +1035,20 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 		}
 		// P2-50 审计修复: 同 zip 分支——LimitReader 到限返回 EOF 被当成功, 超 10MB
 		// 文件被静默截断。+1 探测: 超限拒绝。
-		written, err := io.Copy(tmp, io.LimitReader(src, 10<<20+1)) // 单文件 10MB 上限
+		written, err := io.Copy(tmp, io.LimitReader(src, (10<<20)+1)) // 单文件 10MB 上限
 		if err != nil || written > 10<<20 {
 			src.Close()
 			tmp.Close()
-			os.Remove(tmp.Name())
+			_ = os.Remove(tmp.Name())
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "读取会话文件失败: "+err.Error())
+			}
 			return echo.NewHTTPError(http.StatusBadRequest, "文件过大（单文件限 10MB）")
 		}
 		src.Close()
 		tmp.Close()
 		paths = append(paths, tmp.Name())
 	}
-	defer func() {
-		for _, p := range paths {
-			os.Remove(p)
-		}
-	}()
-
 	result, err := h.svc.ImportSessionFiles(c.Request().Context(), tenantID, paths, remark)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
