@@ -41,6 +41,20 @@ export interface Account {
   source?: string
 }
 
+export interface Group {
+  group_id: string
+  tg_chat_id?: number | string
+  title: string
+  name?: string
+  username?: string
+  member_count?: number
+  account_id?: string
+  tenant_id?: string
+  type?: string
+  is_admin?: boolean
+  created_at?: string
+}
+
 export interface TelegramGroup {
   group_id: string
   tenant_id: string
@@ -70,6 +84,17 @@ export interface Member {
   created_at: string
 }
 
+export interface TaskLog {
+  log_id?: string
+  action: string
+  status: string
+  message?: string
+  executed_at?: string
+  target_id?: string
+  target_name?: string
+  error_code?: string
+}
+
 export interface Task {
   task_id: string
   tenant_id: string
@@ -80,8 +105,11 @@ export interface Task {
   progress: {
     total: number
     completed: number
+    done?: number
     failed: number
     skipped: number
+    current_target?: string
+    account_progress?: Array<Record<string, unknown>>
   }
   result?: Record<string, any>
   error?: string
@@ -173,7 +201,7 @@ export interface MonitorRule {
   target?: string
   target_group_id?: string
   keywords: string[]
-  match_type: 'contains' | 'regex' | 'exact'
+  match_type: 'contains' | 'regex' | 'exact' | 'from_user'
   reply_content?: string
   // type=dm(私聊触达)子动作配置
   dm_content?: string
