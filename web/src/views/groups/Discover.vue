@@ -433,7 +433,7 @@ async function load() {
       if (g && g.status === 'invalid') selected.delete(id)
     }
   } catch (err: any) {
-    toast({ type: 'error', message: err?.message || '加载群库失败' })
+    toast({ type: 'error', title: '加载失败', message: err?.message || '加载群库失败' })
   } finally {
     loading.value = false
   }
@@ -466,11 +466,11 @@ async function doJoin() {
       intervalMinMinutes: joinIntervalMin.value || 0,
       intervalMaxMinutes: joinIntervalMax.value || 0,
     })
-    toast({ type: 'success', message: `已创建 ${res.created} 个加群任务（${res.links} 个群）${res.failed_err ? '；部分失败: ' + res.failed_err : ''}` })
+    toast({ type: 'success', title: '任务已创建', message: `已创建 ${res.created} 个加群任务（${res.links} 个群）${res.failed_err ? '；部分失败: ' + res.failed_err : ''}` })
     joinModalVisible.value = false
     selected.clear()
   } catch (err: any) {
-    toast({ type: 'error', message: err?.message || '创建加群任务失败' })
+    toast({ type: 'error', title: '创建失败', message: err?.message || '创建加群任务失败' })
   } finally {
     joining.value = false
   }
