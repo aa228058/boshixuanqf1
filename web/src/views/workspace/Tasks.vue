@@ -224,7 +224,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { taskApi } from '@/api/task'
-import { request } from '@/utils/request'
+import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import { toast } from '@/utils/toast'
@@ -365,7 +365,7 @@ async function showAccStats(row: any) {
   accStatsTaskName.value = row.name || row.task_id?.slice(0, 8) || ''
   accStatsData.value = []
   try {
-    const raw = await request.get<Record<string, { success: number; failed: number; skipped: number }>>(
+    const raw = await api.get<Record<string, { success: number; failed: number; skipped: number }>>(
       `/tasks/${row.task_id}/stats-by-account`)
     // account_id → 手机号映射(从任务 account_ids + 账号 store)
     const idSet = new Set<string>()
