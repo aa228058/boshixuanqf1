@@ -3,7 +3,6 @@ package grouplib
 import (
 	"net/http"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -112,5 +111,4 @@ func TestTelegramHTTPStatusErrorRateLimit(t *testing.T) {
 	if rateLimitErr.Endpoint != "test" {
 		t.Fatalf("Endpoint=%q, want test", rateLimitErr.Endpoint)
 	}
-	_ = fmt.Sprintf("%v", rateLimitErr)
 }
