@@ -70,8 +70,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			client, clientErr := e.acc.GetClient(ctx, a.tenantID, a.accountID)
 			if clientErr == nil {
 				if p.gtype == "private" {
-					hash := strings.TrimPrefix(strings.TrimPrefix(p.link, "https://"), "t.me/+")
-					hash = strings.TrimPrefix(hash, "+")
+					hash := inviteHashFromLink(p.link)
 					title, count, gtype, chatID, resolveErr = resolveInviteInfo(ctx, client, hash)
 				} else {
 					title, count, gtype, chatID, resolveErr = resolveGroupInfo(ctx, client, p.username)
@@ -87,8 +86,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			var webCount int
 			var webErr error
 			if p.gtype == "private" {
-				hash := strings.TrimPrefix(strings.TrimPrefix(p.link, "https://"), "t.me/+")
-				hash = strings.TrimPrefix(hash, "+")
+				hash := inviteHashFromLink(p.link)
 				webTitle, webCount, webErr = resolveInviteInfoViaWeb(ctx, hash)
 			} else {
 				webTitle, webCount, webErr = resolvePublicGroupInfoViaWeb(ctx, p.username)
