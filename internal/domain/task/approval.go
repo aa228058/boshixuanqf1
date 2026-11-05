@@ -44,12 +44,14 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 
 	for _, p := range pendings {
 		if p.CheckCount >= p.MaxChecks {
-			if err := e.approvalRepo.UpdateStatus(ctx, p.TenantID, p.TaskID, "timeout"); err != nil {
-				log.Printf("[approval] 更新状态失败: %v", err)
-			}
-			if err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
-				taskLog.Printf("[task] UpdateStatus failed: %v", err)
-			}
+			resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "timeout")
+            if err != nil {
+                log.Printf("[approval] 更新状态失败: %v", err)
+            } else if resolved {
+                if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
+                    taskLog.Printf("[task] UpdateStatus failed: %v", err)
+                }
+            }
 			continue
 		}
 
