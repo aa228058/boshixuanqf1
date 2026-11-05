@@ -92,9 +92,10 @@ func (e *Engine) DisconnectAll() {
 	}
 	e.mu.Unlock()
 	for _, mc := range mcs {
+		e.registerManagedOrphan(mc)
 		mc.cancel()
 		mc.finish() // 关闭提交通道, 防 SubmitCode 向已关闭 channel 发送
-		go stopManagedAsync(mc)
+		go e.stopManagedAsync(mc)
 	}
 
 	e.poolMu.Lock()
