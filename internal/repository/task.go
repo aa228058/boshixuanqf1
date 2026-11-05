@@ -474,8 +474,18 @@ func (r *TaskRepository) ResetToQueued(ctx context.Context, tenantID, taskID uui
 
 // Delete removes a task.
 func (r *TaskRepository) Delete(ctx context.Context, tenantID, taskID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM tasks WHERE tenant_id = $1 AND task_id = $2`, tenantID, taskID)
-	return err
+	res, err := r.db.Exec(ctx, `
+		DELETE FROM tasks
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND status IN ('pending', 'scheduled', 'paused', 'completed', 'failed', 'cancelled')
+	`, tenantID, taskID)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("task is active or no longer exists")
+	}
+	return nil
 }
 
 // CountStats returns task statistics for a tenant.
