@@ -323,7 +323,7 @@ func (e *Engine) runAuth(ctx context.Context, mc *managedClient, key, sessionNam
 				log.Printf("[AUTH] 更新账号 %s 为离线状态失败: %v\n", accountID, err)
 			}
 			statusCancel()
-			e.removeClient(key)
+			e.removeClientIfSame(key, mc)
 			return
 		case <-idleDone:
 			log.Printf("账号 %s 认证期间空闲退出\n", accountID)
@@ -332,7 +332,7 @@ func (e *Engine) runAuth(ctx context.Context, mc *managedClient, key, sessionNam
 				log.Printf("[AUTH] 更新账号 %s 为离线状态失败: %v\n", accountID, err)
 			}
 			statusCancel2()
-			e.removeClient(key)
+			e.removeClientIfSame(key, mc)
 			return
 		case <-timeout.C:
 			log.Printf("账号 %s 认证超时\n", accountID)
@@ -342,7 +342,7 @@ func (e *Engine) runAuth(ctx context.Context, mc *managedClient, key, sessionNam
 				log.Printf("[AUTH] 更新账号 %s 为离线状态失败: %v\n", accountID, err)
 			}
 			statusCancel3()
-			e.removeClient(key)
+			e.removeClientIfSame(key, mc)
 			return
 		case <-ticker.C:
 			if mc.client.IsConnected() {
@@ -446,7 +446,7 @@ func (e *Engine) runAuth(ctx context.Context, mc *managedClient, key, sessionNam
 				}
 				// C修复: 空闲退出同样要摘除注册 + 关闭提交通道,
 				// 否则死条目常驻, 该账号永远无法再次认证。
-				e.removeClient(key)
+				e.removeClientIfSame(key, mc)
 				mc.finish()
 				return
 			}
@@ -505,7 +505,7 @@ case strings.Contains(errStr, "flood_wait"):
 		}
 	}
 	mc.client.Stop()
-	e.removeClient(key)
+	e.removeClientIfSame(key, mc)
 }
 
 func (e *Engine) SubmitCode(ctx context.Context, tenantID, accountID uuid.UUID, code string) error {
