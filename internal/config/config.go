@@ -459,8 +459,8 @@ func (c *Config) Validate() error {
 	if entropy < 2.0 {
 		return fmt.Errorf("JWT_SECRET entropy too low, use a more random string")
 	}
-	if c.TGAPIID == 0 {
-		return fmt.Errorf("TG_API_ID is required")
+	if c.TGAPIID <= 0 || c.TGAPIID > 2147483647 {
+		return fmt.Errorf("TG_API_ID must be between 1 and 2147483647")
 	}
 	if c.TGAPIHash == "" {
 		return fmt.Errorf("TG_API_HASH is required")
