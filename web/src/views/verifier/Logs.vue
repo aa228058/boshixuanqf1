@@ -17,7 +17,7 @@
         <div class="flex items-center gap-3 flex-wrap">
           <!-- R128 徽章统一: 圆点+胶囊(示例2 badge 语言) -->
           <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap"
-            :class="v.status === 'pass' ? 'bg-emerald/10 text-emerald' : v.status === 'fail' ? 'bg-rose/10 text-rose' : v.status === 'stopped' ? 'bg-amber/10 text-amber' : 'bg-bg-card text-text-secondary'">
+            :class="v.status === 'pass' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : v.status === 'fail' ? 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]' : v.status === 'stopped' ? 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]' : 'bg-bg-card text-text-secondary'">
             <i class="w-1.5 h-1.5 rounded-full bg-current opacity-80"></i>{{ statusLabel(v.status) }}
           </span>
           <span class="text-sm text-text-primary">{{ v.group_title || ('群 ' + v.group_chat_id) }}</span>
