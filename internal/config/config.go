@@ -357,7 +357,7 @@ func Load() *Config {
 		TGMTPProxySecret: getEnv("TG_MTPROXY_SECRET", ""),
 
 		TGAutoMigrateFrom: getEnv("TG_AUTO_MIGRATE_FROM", ""),
-		TGAutoMigrateTo:   int32(getIntFallback("TG_AUTO_MIGRATE_TO", "", 2)),
+		TGAutoMigrateTo:   getInt32Fallback("TG_AUTO_MIGRATE_TO", "", 2),
 		// 批次2(v1.19/1.27): 默认代理——新注册/导入的账号未指定代理时自动挂这个
 		// 支持 socks5://user:pass@host:port / http://... 格式
 		DefaultProxy: getEnv("DEFAULT_PROXY", ""),
@@ -652,6 +652,16 @@ func getEnvFallback(key, fallbackKey, defaultVal string) string {
 	return defaultVal
 }
 
+func getInt32Fallback(key, fallbackKey string, defaultVal int32) int32 {
+	value := getIntFallback(key, fallbackKey, int(defaultVal))
+	if int64(value) < -2147483648 || int64(value) > 2147483647 {
+		log.Printf("[config] %s 超出 int32 范围，使用默认值 %d", key, defaultVal)
+		return defaultVal
+	}
+	// #nosec G115 -- value is explicitly range-checked against int32 bounds above.
+	return int32(value)
+}
+
 func getIntFallback(key, fallbackKey string, defaultVal int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -686,6 +696,7 @@ func getDuration(key string, defaultVal time.Duration) time.Duration {
 		if n, err := strconv.Atoi(v); err == nil {
 			return time.Duration(n) * time.Second
 		}
+		// #nosec G706 -- %q quotes deployment configuration values; CR/LF are escaped by the formatter.
 		log.Printf("[config] 警告：%s=%q 无效，使用默认值 %v", key, v, defaultVal)
 	}
 	return defaultVal
