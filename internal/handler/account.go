@@ -880,12 +880,23 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				}
 				lowerName := strings.ToLower(zf.Name)
 				if strings.HasSuffix(lowerName, ".json") {
-					if rc, err := zf.Open(); err == nil {
-						data, _ := io.ReadAll(io.LimitReader(rc, 1<<20))
-						rc.Close()
-						if key := archiveEntryKey(zf.Name); key != "" {
-							sidecars[key] = data
+					rc, openErr := zf.Open()
+					if openErr != nil {
+						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 JSON 附件 %q 失败: %v", zf.Name, openErr))
+					}
+					data, readErr := io.ReadAll(io.LimitReader(rc, (1<<20)+1))
+					closeErr := rc.Close()
+					if readErr != nil || closeErr != nil {
+						if readErr != nil {
+							return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("读取 JSON 附件 %q 失败: %v", zf.Name, readErr))
 						}
+						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("关闭 JSON 附件 %q 失败: %v", zf.Name, closeErr))
+					}
+					if len(data) > 1<<20 {
+						return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("JSON 附件 %q 超过 1MB 限制", zf.Name))
+					}
+					if key := archiveEntryKey(zf.Name); key != "" {
+						sidecars[key] = data
 					}
 					continue
 				}
