@@ -140,7 +140,7 @@ export interface TaskLog {
 export interface Task {
   task_id: string
   tenant_id: string
-  account_id?: string
+  account_id: string
   account_ids?: string[]
   name?: string
   payload?: Record<string, any>
