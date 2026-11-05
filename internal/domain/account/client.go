@@ -470,8 +470,20 @@ func (e *Engine) stopPooledAsync(pc *pooledClient) {
 	}
 	for i := 0; i < 30; i++ {
 		if pc.mu.TryLock() {
-			pc.client.Stop()
-			pc.mu.Unlock()
+			func() {
+				defer pc.mu.Unlock()
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[client] stopPooledAsync Stop panic: %v", r)
+					}
+				}()
+				pc.client.Stop()
+			}()
+			// 没有并发持有者时，断开流程登记的 orphan 不再需要保留。
+			// 若持有者先前已释放，它会自行认领并删除；这里负责无人认领的路径。
+			e.orphanMu.Lock()
+			delete(e.orphans, pc.client)
+			e.orphanMu.Unlock()
 			return
 		}
 		time.Sleep(time.Second)
