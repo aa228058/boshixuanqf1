@@ -108,7 +108,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		}
 		if resolveErr != nil {
 			errText := strings.ToLower(resolveErr.Error())
-			if p.gtype == "private" && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效")) {
+			if (p.gtype == "private" && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) || (p.gtype == "unknown" && strings.Contains(errText, "返回 404")) {
 				_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
 				_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
 			}
