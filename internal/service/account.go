@@ -359,6 +359,25 @@ func (s *AccountService) Connect(ctx context.Context, tenantID, accountID uuid.U
 	return s.engine.ConnectAccount(ctx, tenantID, accountID, acc.Phone, acc.SessionName, acc.Level)
 }
 
+// Reauthenticate starts a new phone-code login for an existing phone account.
+// It preserves the old stored session until the new authentication succeeds.
+func (s *AccountService) Reauthenticate(ctx context.Context, tenantID, accountID uuid.UUID) error {
+	acc, err := s.repo.GetByID(ctx, tenantID, accountID)
+	if err != nil {
+		return err
+	}
+	if acc.Source == "protocol" {
+		return fmt.Errorf("协议号不支持手机号验证码重登，请重新导入有效 Session")
+	}
+	if acc.PoolStatus == "standby" {
+		return fmt.Errorf("备用号请先转正再重新登录")
+	}
+	if strings.TrimSpace(acc.Phone) == "" {
+		return fmt.Errorf("账号没有绑定手机号，无法发起验证码登录")
+	}
+	return s.engine.ReauthenticateAccount(ctx, tenantID, accountID, acc.Phone, acc.SessionName, acc.Level)
+}
+
 // Disconnect disconnects an account.
 func (s *AccountService) Disconnect(ctx context.Context, tenantID, accountID uuid.UUID) error {
 	return s.engine.DisconnectAccount(ctx, tenantID, accountID)
