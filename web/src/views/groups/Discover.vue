@@ -83,7 +83,7 @@
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium text-text-primary truncate">{{ row.title }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"
-                      :class="row.gtype === 'private' ? 'bg-amber/10 text-amber' : row.gtype === 'channel' ? 'bg-cyan-glow/40 text-cyan' : 'bg-emerald/10 text-emerald'">
+                      :class="row.gtype === 'private' ? 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]' : row.gtype === 'channel' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]'">
                   {{ row.gtype === 'private' ? '私密群' : row.gtype === 'channel' ? '频道' : '公开群' }}
                 </span>
               </div>
@@ -105,7 +105,7 @@
                 {{ row.title || row.tme_link || '—' }}
                 <!-- 同群聚合徽标: 多入口时可点击展开全部链接 -->
                 <span v-if="(row as any).entry_count > 1"
-                      class="ml-1.5 px-1.5 py-0.5 rounded bg-cyan-glow/30 text-cyan text-[10px] whitespace-nowrap align-middle cursor-pointer hover:bg-cyan-glow/50"
+                      class="ml-1.5 px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] text-[10px] whitespace-nowrap align-middle cursor-pointer hover:bg-[color:var(--t-brand-dim)]"
                       :title="isExpanded(row.sg_id) ? '收起' : '展开全部入口链接'"
                       @click.stop="toggleExpand(row.sg_id)">
                   同群 {{ (row as any).entry_count }} 入口 {{ isExpanded(row.sg_id) ? '▲' : '▼' }}
@@ -113,13 +113,13 @@
               </div>
               <div class="text-xs text-text-muted truncate">{{ row.tme_link || ('@' + (row.username || '')) }}</div>
               <!-- 展开: 该群全部入口链接(同群多链接场景) -->
-              <div v-if="isExpanded(row.sg_id) && (row as any).entries?.length" class="mt-1 space-y-0.5 border-l-2 border-cyan-glow/40 pl-2">
+              <div v-if="isExpanded(row.sg_id) && (row as any).entries?.length" class="mt-1 space-y-0.5 border-l-2 border-[color:var(--t-brand)] pl-2">
                 <div v-for="e in (row as any).entries" :key="e.link_id || e.tme_link || e.sg_id" class="flex items-center gap-2 text-xs min-w-0">
                   <a v-if="e.tme_link" :href="e.tme_link" target="_blank" rel="noopener"
-                     class="text-cyan hover:underline truncate">{{ e.tme_link }}</a>
+                     class="text-[var(--t-brand)] hover:underline truncate">{{ e.tme_link }}</a>
                   <span v-else class="text-text-muted truncate">{{ '@' + (e.username || '') }}</span>
-                  <span class="px-1 rounded bg-cyan-glow/20 text-cyan text-[10px] whitespace-nowrap">{{ sourceLabel(e.source) }}</span>
-                  <span :class="e.status === 'invalid' ? 'text-text-muted line-through' : 'text-cyan'" class="whitespace-nowrap">{{ statusLabel(e.status) }}</span>
+                  <span class="px-1 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] text-[10px] whitespace-nowrap">{{ sourceLabel(e.source) }}</span>
+                  <span :class="e.status === 'invalid' ? 'text-text-muted line-through' : 'text-[var(--t-brand)]'" class="whitespace-nowrap">{{ statusLabel(e.status) }}</span>
                   <button class="text-text-muted hover:text-text-primary whitespace-nowrap" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
                 </div>
               </div>
@@ -127,7 +127,7 @@
           </template>
           <template #gtype="{ row }">
             <span class="px-1.5 py-0.5 rounded text-[11px] whitespace-nowrap"
-              :class="row.gtype === 'private' ? 'bg-amber/10 text-amber' : row.gtype === 'channel' ? 'bg-cyan-glow/40 text-cyan' : 'bg-emerald/10 text-emerald'">
+              :class="row.gtype === 'private' ? 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]' : row.gtype === 'channel' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]'">
               {{ gtypeLabel(row.gtype) }}
             </span>
           </template>
@@ -168,7 +168,7 @@
 
     <!-- 自助采集: 引导到工作区链接采集 -->
     <div v-else class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3 lift">
-      <Radar class="w-10 h-10 mx-auto text-cyan" />
+      <Radar class="w-10 h-10 mx-auto text-[var(--t-brand)]" />
       <div class="text-text-primary font-medium">自助采集</div>
       <p class="text-sm text-text-secondary max-w-md mx-auto">
         用你自己的账号做定向采集：监听指定群/频道里的 t.me 链接、挖成员简介，采集结果自动汇入系统群库。
@@ -200,7 +200,7 @@
               :style="{ width: (importJob.total_count ? Math.min(100, importJob.processed_count / importJob.total_count * 100) : 0) + '%' }"></div>
           </div>
           <div class="text-text-muted">入库 {{ importJob.imported_count }} · 失败 {{ importJob.failed_count }} · 跳过 {{ importJob.skipped_count }}</div>
-          <div v-if="importJob.last_error" class="text-rose break-words">{{ importJob.last_error }}</div>
+          <div v-if="importJob.last_error" class="text-[var(--t-err)] break-words">{{ importJob.last_error }}</div>
         </div>
       </div>
       <template #footer>
@@ -225,7 +225,7 @@
         <!-- 分批与节奏控制: 每账号分配数量 + 自定义加群间隔 -->
         <div class="grid grid-cols-2 gap-2 rounded-lg p-2.5" style="background: color-mix(in srgb, var(--t-text-1) 5%, transparent);">
           <label class="col-span-2 flex items-center gap-2 text-xs text-text-secondary cursor-pointer select-none">
-            <input type="checkbox" v-model="joinBatchEnabled" class="accent-emerald" />
+            <input type="checkbox" v-model="joinBatchEnabled" class="accent-[var(--t-ok)]" />
             分批加入（每个账号只加分配到的群，默认每个账号全量加一遍）
           </label>
           <div v-if="joinBatchEnabled" class="col-span-2 flex items-center gap-2 text-xs text-text-secondary">
