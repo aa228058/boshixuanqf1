@@ -151,8 +151,8 @@ function triggerCooldown() {
 
 // 动态颜色：根据使用率返回对应颜色类
 function usageColor(percent: number): string {
-  if (percent >= 90) return 'from-rose to-rose'
-  if (percent >= 75) return 'from-amber to-amber'
+  if (percent >= 90) return 'from-[var(--t-err)] to-[var(--t-err)]'
+  if (percent >= 75) return 'from-[var(--t-warn)] to-[var(--t-warn)]'
   return 'from-[var(--t-brand)] to-[var(--t-brand-hover)]'
 }
 
