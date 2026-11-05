@@ -377,8 +377,8 @@ func (e *Engine) retestSpeak(ctx context.Context, client *telegram.Client, st *v
 			dctx, dcancel := context.WithTimeout(ctx, 10*time.Second)
 			// V6 审计修复: msgID 是 int(64 位)且 TG 消息 ID 已超 int32——截断值对不上就
 			// 放弃删除(测试消息留在群里无害, 删错别人消息才要命)
-			delID := int32(msgID)
-			if int64(delID) == int64(msgID) {
+			if msgID >= 0 && msgID <= 2147483647 {
+				delID := int32(msgID)
 				_, _ = client.Raw().MessagesDeleteMessages(dctx, &tg.MessagesDeleteMessagesRequest{
 					ID: []int32{delID}, Revoke: true,
 				})
