@@ -90,10 +90,24 @@ func runDBDump(cfg *config.Config, dir string) error {
 	if err != nil {
 		return fmt.Errorf("create backup file: %w", err)
 	}
-	defer f.Close()
+	fileClosed := false
+	defer func() {
+		if !fileClosed {
+			if closeErr := f.Close(); closeErr != nil {
+				log.Printf("[db-backup] 关闭备份文件失败: %v", closeErr)
+			}
+		}
+	}()
 
 	gz := gzip.NewWriter(f)
-	defer gz.Close()
+	gzipClosed := false
+	defer func() {
+		if !gzipClosed {
+			if closeErr := gz.Close(); closeErr != nil {
+				log.Printf("[db-backup] 关闭 gzip writer 失败: %v", closeErr)
+			}
+		}
+	}()
 
 	// 密码经环境变量传递, 不出现在命令行参数/日志里
 	env := append(os.Environ(), "PGPASSWORD="+cfg.DBPassword)
@@ -114,19 +128,44 @@ func runDBDump(cfg *config.Config, dir string) error {
 	if err != nil {
 		return fmt.Errorf("create backup error log: %w", err)
 	}
-	defer stderr.Close()
+	stderrClosed := false
+	defer func() {
+		if !stderrClosed {
+			if closeErr := stderr.Close(); closeErr != nil {
+				log.Printf("[db-backup] 关闭备份错误日志失败: %v", closeErr)
+			}
+		}
+	}()
 	cmd.Stderr = stderr
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("pg_dump start: %w", err)
 	}
 	if _, err := io.Copy(gz, stdout); err != nil {
-		_ = cmd.Wait()
+		waitErr := cmd.Wait()
+		if waitErr != nil {
+			return fmt.Errorf("copy dump: %w (pg_dump exit: %v)", err, waitErr)
+		}
 		return fmt.Errorf("copy dump: %w", err)
 	}
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("pg_dump exit: %w (详见 %s)", err, path+".err")
 	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("finalize gzip backup: %w", err)
+	}
+	gzipClosed = true
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("sync backup file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close backup file: %w", err)
+	}
+	fileClosed = true
+	if err := stderr.Close(); err != nil {
+		return fmt.Errorf("close backup error log: %w", err)
+	}
+	stderrClosed = true
 	log.Printf("[db-backup] 备份完成: %s", path)
 	return nil
 }
