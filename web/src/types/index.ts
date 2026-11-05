@@ -3,6 +3,44 @@
 /// <reference types="vite/client" />
 
 // 2026-09-26 后端 AuditLog 结构
+// 与后端 domain.Tenant 的 JSON 字段保持一致；不包含密码/API Key 哈希等服务端内部字段。
+export interface Tenant {
+  tenant_id: string
+  name: string
+  username: string
+  max_accounts: number
+  max_concurrent_tasks: number
+  plan_id: string
+  status: string
+  expires_at?: string
+  created_at: string
+  notify_email?: string
+  notify_settings?: Record<string, boolean>
+  notify_smtp?: Record<string, unknown>
+}
+
+export type AccountStatus = Account['status']
+
+export interface ActivationCode {
+  code_id: string
+  code: string
+  plan_id: string
+  status: 'unused' | 'used' | 'expired' | 'revoked' | string
+  used_by?: string | null
+  used_at?: string | null
+  expires_at?: string | null
+  timing_type: 'immediate' | 'on_use' | string
+  created_by?: string | null
+  created_at: string
+  notes: string
+  used_by_tenant_name?: string
+}
+
+export interface PaginationParams {
+  page?: number
+  page_size?: number
+}
+
 export interface AuditLog {
   log_id: string
   tenant_id: string
@@ -300,6 +338,9 @@ export interface MonitorEvent {
   message_preview?: string
   created_at: string
 }
+
+// /monitor-rules/messages 当前由 SSE 实时推送，HTTP 列表暂时返回空数组。
+export type MonitorMessage = MonitorEvent
 
 export interface RiskEvent {
   risk_id: string
