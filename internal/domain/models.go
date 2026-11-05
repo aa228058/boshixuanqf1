@@ -29,6 +29,16 @@ type SystemGroup struct {
 	RefCount int `json:"-" db:"ref_count"`
 	LastSeenAt time.Time `json:"last_seen_at"`
 	MemberCountUpdatedAt *time.Time `json:"member_count_updated_at,omitempty"`
+	EntryCount int `json:"entry_count,omitempty"`
+	Entries []SystemGroupLink `json:"entries,omitempty"`
+}
+
+type SystemGroupLink struct {
+	LinkID uuid.UUID `json:"link_id"`
+	TmeLink string `json:"tme_link"`
+	Source string `json:"source"`
+	Status string `json:"status"`
+	LinkType string `json:"link_type"`
 }
 
 // DedupKey 优先使用 Telegram Chat ID；身份尚未解析时使用公开 username 或邀请链接。
