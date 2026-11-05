@@ -556,6 +556,9 @@ func (r *TaskRepository) CountCompletedLast7Days(ctx context.Context, tenantID u
 		}
 		result = []int{d6, d5, d4, d3, d2, d1, d0}
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task trend: %w", err)
+	}
 	return result, nil
 }
 
