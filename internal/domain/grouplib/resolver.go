@@ -85,7 +85,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		}
 		hash := strings.TrimPrefix(strings.TrimPrefix(p.link, "https://"), "t.me/+")
 		hash = strings.TrimPrefix(hash, "+")
-		title, count, gtype, rerr := resolveInviteInfo(ctx, client, hash)
+		title, count, gtype, chatID, rerr := resolveInviteInfo(ctx, client, hash)
 		e.acc.ReleaseClient(a.tenantID, a.accountID, client)
 		if rerr != nil {
 			errStr := strings.ToLower(rerr.Error())
