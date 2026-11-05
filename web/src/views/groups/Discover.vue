@@ -173,16 +173,28 @@
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
     <Modal v-model="importModalVisible" title="导入群链接" class="max-w-xl">
       <div class="space-y-3 pb-2">
+        <label class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
+        <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs"
+          @change="onImportFile" />
+        <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
+        <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
         <textarea v-model="importText" rows="8" class="w-full px-3 py-2 rounded-lg glow-input text-sm resize-y"
-          placeholder="每行一个：t.me/群用户名、@群用户名、t.me/+邀请hash&#10;支持整段粘贴, 单次最多 500 条；超过 200 条将进入后台自动解析队列"></textarea>
+          placeholder="t.me/群用户名&#10;@群用户名&#10;https://t.me/+邀请hash"></textarea>
         <p class="text-[11px] leading-relaxed" style="color: var(--t-text-3);">
-          公开群/频道即时解析群名和成员数；私密邀请链接无法即时拿名，会先入库占位，
-          后台解析器每轮自动补名（列表里群名会陆续出现）。邀请过期/无效的会自动标记"已失效"。
+          提交后由后台分批处理；只会完善公共群组库，不会让任何账号加入群组。
+          同一批任务可处理数万条链接，文件大小上限 20MB。
         </p>
-        <div v-if="importResult" class="text-xs rounded-lg p-2 space-y-1" style="background: color-mix(in srgb, var(--t-text-1) 6%, transparent);">
-          <div class="text-emerald">成功导入 {{ importResult.imported }} 条{{ importResult.skipped ? `，跳过无效行 ${importResult.skipped}` : '' }}</div>
-          <div v-for="(f, i) in importResult.failed.slice(0, 5)" :key="i" class="text-text-muted truncate">{{ f }}</div>
-          <div v-if="importResult.failed.length > 5" class="text-text-muted">…… 共 {{ importResult.failed.length }} 条失败</div>
+        <div v-if="importJob" class="text-xs rounded-lg p-3 space-y-2" style="background: color-mix(in srgb, var(--t-text-1) 6%, transparent);">
+          <div class="flex justify-between gap-2">
+            <span class="font-medium">{{ importJob.status === 'completed' ? '导入完成' : importJob.status === 'failed' ? '导入失败' : '后台处理中' }}</span>
+            <span>{{ importJob.processed_count }} / {{ importJob.total_count }}</span>
+          </div>
+          <div class="h-2 rounded-full overflow-hidden" style="background: var(--t-line-light);">
+            <div class="h-full rounded-full" style="background: var(--t-brand);"
+              :style="{ width: (importJob.total_count ? Math.min(100, importJob.processed_count / importJob.total_count * 100) : 0) + '%' }"></div>
+          </div>
+          <div class="text-text-muted">入库 {{ importJob.imported_count }} · 失败 {{ importJob.failed_count }} · 跳过 {{ importJob.skipped_count }}</div>
+          <div v-if="importJob.last_error" class="text-rose break-words">{{ importJob.last_error }}</div>
         </div>
       </div>
       <template #footer>
@@ -237,7 +249,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -311,23 +323,52 @@ const joinIntervalMax = ref<number | null>(null)
 const importModalVisible = ref(false)
 const importText = ref('')
 const importing = ref(false)
-const importResult = ref<{ imported: number; failed: string[]; skipped: number } | null>(null)
+const importFileName = ref('')
+const importJob = ref<any>(null)
+
+async function onImportFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  if (file.size > 20 * 1024 * 1024) {
+    toast({ type: 'error', message: '文件不能超过 20MB' })
+    ;(event.target as HTMLInputElement).value = ''
+    return
+  }
+  try {
+    importText.value = await file.text()
+    importFileName.value = file.name
+  } catch {
+    toast({ type: 'error', message: '文件读取失败，请检查文件编码' })
+  }
+}
+
+async function pollImportJob(jobId: string) {
+  try {
+    const job = await getGroupLibraryImportJob(jobId)
+    importJob.value = job
+    if (job.status === 'completed' || job.status === 'failed') {
+      load()
+      toast({ type: job.status === 'completed' ? 'success' : 'warning',
+        message: `导入结束：入库 ${job.imported_count}，失败 ${job.failed_count}，跳过 ${job.skipped_count}` })
+      return
+    }
+  } catch {
+    // 网络抖动时继续轮询，任务本身由服务端持久化。
+  }
+  window.setTimeout(() => pollImportJob(jobId), 2000)
+}
 
 async function doImport() {
   if (importing.value || !importText.value.trim()) return
   importing.value = true
-  importResult.value = null
+  importJob.value = null
   try {
-    const res = await importLibraryGroups(importText.value)
-    importResult.value = res
-    if (res.imported > 0) {
-      toast({ type: 'success', message: `已导入 ${res.imported} 条${res.skipped ? `，跳过 ${res.skipped} 行无效` : ''}` })
-      load()
-    } else {
-      toast({ type: 'info', message: '没有导入任何条目, 检查链接格式' })
-    }
+    const job = await importLibraryGroups(importText.value, importFileName.value)
+    importJob.value = job
+    toast({ type: 'success', message: `已提交后台任务，共 ${job.total_count} 条` })
+    pollImportJob(job.job_id)
   } catch (err: any) {
-    toast({ type: 'error', message: err?.message || '导入失败' })
+    toast({ type: 'error', message: err?.message || '提交导入任务失败' })
   } finally {
     importing.value = false
   }
