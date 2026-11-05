@@ -57,6 +57,8 @@
           <option value="">全部来源</option>
           <option value="scraped">链接采集</option>
                     <option value="bio">简介里发现</option>
+          <option value="import">文件/手动导入</option>
+          <option value="search">Telegram 搜索</option>
         </select>
         <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
         <t-button size="small" theme="primary" @click="search">群库内搜索</t-button>
