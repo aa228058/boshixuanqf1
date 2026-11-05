@@ -12,7 +12,7 @@ func TestExtractTelegramMetaAttributeOrder(t *testing.T) {
 func TestParseWebMemberCount(t *testing.T) {
 	cases := []struct {
 		input string
-		want int
+		want  int
 	}{
 		{"12 345 members", 12345},
 		{"1,234 subscribers", 1234},
