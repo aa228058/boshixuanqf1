@@ -149,14 +149,14 @@ func NewEngine(cfg *config.Config, pool *pgxpool.Pool, repo domain.AccountReposi
 	if backupDir == "" {
 		backupDir = "./session_backups"
 	}
-	if err := os.MkdirAll(backupDir, 0o700); err != nil {
+	if err := os.MkdirAll(backupDir, 0o700); err != nil { // #nosec G703 -- SESSION_BACKUP_DIR is operator-controlled deployment configuration
 		log.Printf("[engine] 创建目录失败: %v", err)
 	}
 
 	// R181: 头像目录启动自检——不可写时一次性给出可操作修复提示。
 	// 此前每次账号上线事件都会刷一条 mkdir permission denied，日志被刷屏用户也看不到根因。
 	if cfg.AvatarDir != "" {
-		if err := os.MkdirAll(cfg.AvatarDir, 0o750); err != nil {
+		if err := os.MkdirAll(cfg.AvatarDir, 0o750); err != nil { // #nosec G703 -- AVATAR_DIR is operator-controlled deployment configuration
 			log.Printf("[engine] 头像目录 %s 不可写: %v | 修复: chown -R 10001:10001 ./data && chmod -R u+rwX ./data", cfg.AvatarDir, err)
 		} else if probe, err := os.CreateTemp(cfg.AvatarDir, ".write_test_*"); err != nil {
 			log.Printf("[engine] 头像目录 %s 不可写: %v | 修复: chown -R 10001:10001 ./data && chmod -R u+rwX ./data", cfg.AvatarDir, err)
