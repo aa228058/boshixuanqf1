@@ -19,6 +19,9 @@ for (const file of files) {
     continue
   }
 
+  const legacyPalette = /(?:^|[\s:'"\x60])(?:[a-z-]+:)*(?:bg|text|border|ring|accent|shadow|from|to)-(?:cyan|amber|rose|emerald|green|red|orange)(?:-[\w/.[\]%-]+)?(?=$|[\s:'"\x60])/m
+  if (legacyPalette.test(source)) violations.push(file + ': legacy palette utility; use semantic design tokens')
+
   const styleBlocks = [...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)]
   for (const [, rawCss] of styleBlocks) {
     const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, '')
