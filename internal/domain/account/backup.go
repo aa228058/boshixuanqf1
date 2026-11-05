@@ -36,22 +36,35 @@ func (e *Engine) backupSessionFiles() {
 		log.Printf("[BACKUP] 打开备份目录失败: %v", err)
 		return
 	}
-	defer backupRoot.Close()
+	defer func() {
+		if err := backupRoot.Close(); err != nil {
+			log.Printf("[BACKUP] 关闭备份目录失败: %v", err)
+		}
+	}()
 	sourceRoot, err := os.OpenRoot(".")
 	if err != nil {
 		log.Printf("[BACKUP] 打开会话目录失败: %v", err)
 		return
 	}
-	defer sourceRoot.Close()
+	defer func() {
+		if err := sourceRoot.Close(); err != nil {
+			log.Printf("[BACKUP] 关闭会话目录失败: %v", err)
+		}
+	}()
 	sourceDir, err := sourceRoot.Open(".")
 	if err != nil {
 		log.Printf("[BACKUP] 打开会话目录失败: %v", err)
 		return
 	}
-	entries, err := sourceDir.ReadDir(-1)
-	_ = sourceDir.Close()
-	if err != nil {
-		log.Printf("[BACKUP] 读取目录失败: %v", err)
+	entries, readErr := sourceDir.ReadDir(-1)
+	closeDirErr := sourceDir.Close()
+	if readErr != nil || closeDirErr != nil {
+		if readErr != nil {
+			log.Printf("[BACKUP] 读取目录失败: %v", readErr)
+		}
+		if closeDirErr != nil {
+			log.Printf("[BACKUP] 关闭目录句柄失败: %v", closeDirErr)
+		}
 		return
 	}
 	backedUp := 0
@@ -67,16 +80,24 @@ func (e *Engine) backupSessionFiles() {
 		dstName := entry.Name() + "_" + time.Now().Format("20060102_150405.000")
 		dst, err := backupRoot.OpenFile(dstName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 		if err != nil {
-			_ = src.Close()
+			if closeErr := src.Close(); closeErr != nil {
+				log.Printf("[BACKUP] 关闭源文件 %s 失败: %v", entry.Name(), closeErr)
+			}
 			log.Printf("[BACKUP] 创建 %s 失败: %v", dstName, err)
 			continue
 		}
 		_, copyErr := io.Copy(dst, src)
+		var syncErr error
+		if copyErr == nil {
+			syncErr = dst.Sync()
+		}
 		closeDstErr := dst.Close()
 		closeSrcErr := src.Close()
-		if copyErr != nil || closeDstErr != nil || closeSrcErr != nil {
-			log.Printf("[BACKUP] 写入 %s 失败: copy=%v close_dst=%v close_src=%v", dstName, copyErr, closeDstErr, closeSrcErr)
-			_ = backupRoot.Remove(dstName)
+		if copyErr != nil || syncErr != nil || closeDstErr != nil || closeSrcErr != nil {
+			log.Printf("[BACKUP] 写入 %s 失败: copy=%v sync=%v close_dst=%v close_src=%v", dstName, copyErr, syncErr, closeDstErr, closeSrcErr)
+			if removeErr := backupRoot.Remove(dstName); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Printf("[BACKUP] 清理不完整备份 %s 失败: %v", dstName, removeErr)
+			}
 			continue
 		}
 		backedUp++
