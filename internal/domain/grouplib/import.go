@@ -234,7 +234,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	case *tg.InputPeerChat:
 		fullRes, err := client.Invoke(rctx, &tg.MessagesGetFullChatRequest{ChatID: p.ChatID})
 		if err != nil {
-			return "", 0, "", fmt.Errorf("读取群信息失败")
+			return "", 0, "", 0, fmt.Errorf("读取群信息失败")
 		}
 		if full, ok := fullRes.(*tg.MessagesChatFull); ok {
 			// mtgo 的 tg.ChatFull 没有 ParticipantsCount, 普通群成员数取自 tg.Chat 对象
