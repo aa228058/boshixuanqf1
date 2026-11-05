@@ -1046,12 +1046,20 @@ func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client
 		if rootErr != nil {
 			return fmt.Errorf("打开媒体目录失败: %w", rootErr)
 		}
-		defer mediaRoot.Close()
+		defer func() {
+			if err := mediaRoot.Close(); err != nil {
+				log.Printf("[broadcast] close media directory failed: %v", err)
+			}
+		}()
 		f, err := mediaRoot.Open(relPath)
 		if err != nil {
 			return fmt.Errorf("打开媒体文件失败: %w", err)
 		}
-		defer f.Close()
+		defer func() {
+			if err := f.Close(); err != nil {
+				log.Printf("[broadcast] close media file %q failed: %v", relPath, err)
+			}
+		}()
 		fi, err := f.Stat()
 		if err != nil {
 			return err
