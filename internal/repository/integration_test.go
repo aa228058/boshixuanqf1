@@ -22,8 +22,10 @@ import (
 func setupTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
-	// postgres.Run 自带就绪等待，无需显式 WaitStrategy
+	// BasicWaitStrategies 等待 PostgreSQL 两次报告 ready，并确认宿主端口可连接，
+	// 避免仅容器启动就绪、数据库尚未接受连接时发生 reset。
 	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.BasicWaitStrategies(),
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
