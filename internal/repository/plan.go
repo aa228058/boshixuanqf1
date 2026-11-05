@@ -41,7 +41,9 @@ func (r *PlanRepository) List(ctx context.Context) ([]domain.Plan, error) {
 		if err != nil {
 			continue
 		}
-		json.Unmarshal(featuresJSON, &p.Features)
+		if err := json.Unmarshal(featuresJSON, &p.Features); err != nil {
+			return nil, fmt.Errorf("decode plan features: %w", err)
+		}
 		plans = append(plans, p)
 	}
 	return plans, rows.Err()
@@ -87,7 +89,9 @@ func (r *PlanRepository) GetByID(ctx context.Context, planID string) (*domain.Pl
 	if err != nil {
 		return nil, fmt.Errorf("get plan: %w", err)
 	}
-	json.Unmarshal(featuresJSON, &p.Features)
+	if err := json.Unmarshal(featuresJSON, &p.Features); err != nil {
+		return nil, fmt.Errorf("decode plan features: %w", err)
+	}
 	return &p, nil
 }
 
