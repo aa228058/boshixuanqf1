@@ -351,6 +351,33 @@ func (r *TaskRepository) RefreshTaskLock(ctx context.Context, tenantID, taskID u
 	return res.RowsAffected() == 1, nil
 }
 
+// UpdateStatusOwned updates a running task only while the caller still owns its lease.
+// This prevents a stale worker from overwriting cancellation or a newer worker's state.
+func (r *TaskRepository) UpdateStatusOwned(ctx context.Context, tenantID, taskID uuid.UUID, workerID string, status domain.TaskStatus) error {
+	if workerID == "" {
+		return fmt.Errorf("worker ID is required")
+	}
+	var completedAt interface{}
+	if status == domain.TaskStatusCompleted || status == domain.TaskStatusFailed || status == domain.TaskStatusCancelled {
+		completedAt = time.Now()
+	}
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks SET status = $4, completed_at = $5,
+			locked_at = CASE WHEN $4 = 'running' THEN locked_at ELSE NULL END,
+			worker_id = CASE WHEN $4 = 'running' THEN worker_id ELSE NULL END
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND status = 'running' AND worker_id = $3
+		  AND $4 IN ('running', 'paused', 'completed', 'failed', 'cancelled', 'queued')
+	`, tenantID, taskID, workerID, status, completedAt)
+	if err != nil {
+		return fmt.Errorf("update owned task status: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("task lease lost or task is no longer running")
+	}
+	return nil
+}
+
 // UpdateStatus updates task status.
 func (r *TaskRepository) UpdateStatus(ctx context.Context, tenantID, taskID uuid.UUID, status domain.TaskStatus) error {
 	var completedAt interface{}
