@@ -1,7 +1,8 @@
 // 共享模型类型(与后端 internal/domain 对齐)
 export interface SystemGroup {
   sg_id: string
-  source: string // scraped | joined | bio
+  source: string // scraped | joined | bio | import
+  contributor_name?: string
   title: string
   username?: string
   tme_link?: string
