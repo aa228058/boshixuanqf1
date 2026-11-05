@@ -17,7 +17,7 @@
     <div class="flex gap-2 flex-wrap">
       <button v-for="t in tabs" :key="t.key" @click="filterTab = t.key"
         class="px-3 py-1 rounded-full text-xs transition-colors"
-        :class="filterTab === t.key ? 'bg-cyan text-white' : 'text-text-secondary'"
+        :class="filterTab === t.key ? 'bg-[var(--t-brand)] text-white' : 'text-text-secondary'"
         :style="filterTab === t.key ? '' : 'background: var(--t-surface-2);'">
         {{ t.label }} · {{ t.count }}
       </button>
@@ -63,7 +63,7 @@
             <td class="p-3">
               <div class="flex items-center gap-2">
                 <img v-if="avatarOf(acc)" :src="avatarOf(acc)!" class="w-8 h-8 rounded-full object-cover" />
-                <div v-else class="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center text-xs font-bold">
+                <div v-else class="w-8 h-8 rounded-full bg-[var(--t-brand)]/20 flex items-center justify-center text-xs font-bold">
                   {{ (acc.first_name || acc.phone || '?').slice(0, 1).toUpperCase() }}
                 </div>
                 <div>
@@ -89,7 +89,7 @@
         <div v-for="acc in filteredAccounts" :key="acc.account_id" class="p-3 flex items-center gap-3">
           <input type="checkbox" :checked="selected.has(acc.account_id)" @change="toggleSelect(acc.account_id)" class="accent-primary shrink-0" />
           <img v-if="avatarOf(acc)" :src="avatarOf(acc)!" class="w-10 h-10 rounded-full object-cover shrink-0" />
-          <div v-else class="w-10 h-10 rounded-full bg-cyan/20 flex items-center justify-center text-sm font-bold shrink-0">
+          <div v-else class="w-10 h-10 rounded-full bg-[var(--t-brand)]/20 flex items-center justify-center text-sm font-bold shrink-0">
             {{ (acc.first_name || acc.phone || '?').slice(0, 1).toUpperCase() }}
           </div>
           <div class="flex-1 min-w-0">
@@ -117,7 +117,7 @@
         </div>
         <!-- 方式一：上传 .session 文件（卡密商交付的格式） -->
         <div
-          class="rounded-lg border-2 border-dashed border-border/60 p-4 text-center cursor-pointer transition-colors hover:border-cyan/50"
+          class="rounded-lg border-2 border-dashed border-border/60 p-4 text-center cursor-pointer transition-colors hover:border-[color:var(--t-brand)]/50"
           @click="sessionFileInput?.click()">
           <div class="text-sm text-text-secondary">
             <template v-if="sessionFiles.length === 0">
@@ -243,11 +243,11 @@ const statusMap: Record<string, { text: string; cls: string }> = {
   offline: { text: '待机', cls: 'bg-milk-01 text-text-secondary' },
   restricted: { text: '受限', cls: 'bg-warning/15 text-warning' },
   banned: { text: '封号', cls: 'bg-danger/15 text-danger' },
-  pending_auth: { text: '待验证', cls: 'bg-cyan/15 text-primary' },
+  pending_auth: { text: '待验证', cls: 'bg-[var(--t-brand)]/15 text-primary' },
   // 认证成功待上线/按需待机的过渡态：后端 status=authenticated（此前无映射显示原文）
-  authenticated: { text: '已认证', cls: 'bg-cyan/15 text-primary' },
+  authenticated: { text: '已认证', cls: 'bg-[var(--t-brand)]/15 text-primary' },
   // P2-62: 补 pending_verification——raffle 页有此映射此处缺, 同状态两页显示不一致(一个中文一个英文)
-  pending_verification: { text: '待验证', cls: 'bg-cyan/15 text-primary' },
+  pending_verification: { text: '待验证', cls: 'bg-[var(--t-brand)]/15 text-primary' },
 }
 const StatusBadge = defineComponent({
   props: { status: { type: String, default: '' } },
