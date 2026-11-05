@@ -239,6 +239,10 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					allMembers = allMembers[:0]
 				}
 			}
+			if len(participants.Participants) > 2147483647 {
+				taskLog.Printf("[scrape] participant page exceeds Telegram int32 offset range: %d", len(participants.Participants))
+				return
+			}
 			if int32(len(participants.Participants)) < limit {
 				break
 			}
