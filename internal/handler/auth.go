@@ -473,7 +473,7 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 		Value:    newRefreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   c.Scheme() == "https",
+		Secure:   h.cfg.Env == "production" || c.Scheme() == "https",
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(h.cfg.JWTRefreshExp.Seconds()),
 	}
@@ -496,7 +496,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 			Value:    "",
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   c.Scheme() == "https",
+			Secure:   h.cfg.Env == "production" || c.Scheme() == "https",
 			SameSite: http.SameSiteStrictMode,
 			MaxAge:   -1,
 		})
