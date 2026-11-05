@@ -57,7 +57,7 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 				gt = "public"
 			}
 			sg = &domain.SystemGroup{
-				Source: "scraped", Title: c.Title, Username: c.Username,
+				Source: "search", Title: c.Title, Username: c.Username, TelegramChatID: int64(c.ID), ContributorTenantID: tenantID,
 				TmeLink: "https://t.me/" + c.Username, GType: gt,
 				MemberCount: int(c.ParticipantsCount), Status: "active",
 			}
