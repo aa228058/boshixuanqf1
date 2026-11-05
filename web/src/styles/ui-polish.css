@@ -43,14 +43,14 @@ textarea {
 }
 input:not([type='checkbox']):not([type='radio']):focus:not(.t-input__inner),
 textarea:focus {
-  border-color: rgba(34, 211, 238, 0.55);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14);
+  border-color: var(--t-brand);
+  box-shadow: var(--t-shadow-focus);
   outline: none;
 }
 /* TDesign 输入框聚焦扩散 */
 .t-input__inner:focus,
 .t-textarea__inner:focus {
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14) !important;
+  box-shadow: var(--t-shadow-focus) !important;
   transition: box-shadow 0.22s ease;
 }
 
@@ -79,7 +79,7 @@ textarea:focus {
 }
 .lift:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px -12px rgba(80, 60, 200, 0.25);
+  box-shadow: var(--t-shadow-md);
 }
 
 /* ---------- 6. 表格行交互: 悬停高亮 + 入场 ---------- */
@@ -145,7 +145,7 @@ button svg {
 /* ---------- 11. 数据变更呼吸提示(数值更新时微闪) ---------- */
 @keyframes polish-value-pop {
   0% { transform: scale(1); }
-  40% { transform: scale(1.12); color: #22d3ee; }
+  40% { transform: scale(1.12); color: var(--t-brand); }
   100% { transform: scale(1); }
 }
 .value-pop {
@@ -174,7 +174,7 @@ button svg {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  background: linear-gradient(90deg, transparent, var(--t-shimmer-highlight), transparent);
   animation: skeleton-sweep 1.4s ease infinite;
 }
 @keyframes skeleton-sweep {
@@ -193,7 +193,7 @@ button svg {
   justify-content: center;
   gap: 8px;
   padding: 32px 16px;
-  color: rgba(107, 124, 147, 0.9);
+  color: var(--t-text-2);
   text-align: center;
 }
 .empty-pretty .ep-icon {
@@ -212,7 +212,7 @@ button svg {
   50% { transform: scale(1.05); opacity: 1; }
 }
 .empty-pretty p { margin: 0; }
-.empty-pretty p:last-child { color: rgba(107, 124, 147, 0.6); }
+.empty-pretty p:last-child { color: var(--t-text-3); }
 
 /* ---------- 17. 登录页内容交错入场(卡片容器已有淡入, 内部子项依次浮现) ---------- */
 .animate-fade-in-scale > * {
@@ -226,7 +226,7 @@ button svg {
 /* ---------- 18. 焦点可见环(键盘导航无障碍) ---------- */
 /* 输入框/文本域撤销: 它们有自己的聚焦扩散环, 叠 outline 会变成"双圈" */
 :focus-visible {
-  outline: 2px solid rgba(34, 211, 238, 0.6);
+  outline: 2px solid var(--t-brand);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -280,13 +280,13 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(600px 400px at 12% -5%, rgba(94, 234, 212, 0.06), transparent 60%),
-    radial-gradient(500px 380px at 88% 8%, rgba(94, 234, 212, 0.05), transparent 60%);
+    radial-gradient(600px 400px at 12% -5%, color-mix(in srgb, var(--t-brand) 6%, transparent), transparent 60%),
+    radial-gradient(500px 380px at 88% 8%, color-mix(in srgb, var(--t-brand) 5%, transparent), transparent 60%);
 }
 html.theme-dark body::before {
   background:
-    radial-gradient(600px 400px at 12% -5%, rgba(94, 234, 212, 0.07), transparent 60%),
-    radial-gradient(500px 380px at 88% 8%, rgba(94, 234, 212, 0.05), transparent 60%);
+    radial-gradient(600px 400px at 12% -5%, color-mix(in srgb, var(--t-brand) 7%, transparent), transparent 60%),
+    radial-gradient(500px 380px at 88% 8%, color-mix(in srgb, var(--t-brand) 5%, transparent), transparent 60%);
 }
 
 /* ---------- 22. 按钮状态机(交互示例05, 全局可 Adoption) ----------
@@ -305,15 +305,15 @@ button.loading::after {
   position: absolute;
   width: 16px; height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in srgb, var(--t-brand-ink) 35%, transparent);
+  border-top-color: var(--t-brand-ink);
   animation: spin 0.7s linear infinite;
 }
 .btn-state.done,
 button.done {
-  background: #10b981 !important;
-  border-color: #10b981 !important;
-  color: #fff !important;
+  background: var(--t-ok) !important;
+  border-color: var(--t-ok) !important;
+  color: var(--t-brand-ink) !important;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
