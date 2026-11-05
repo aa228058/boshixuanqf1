@@ -802,10 +802,10 @@ func tempPrefixFromName(name string) string {
 
 // readArchiveSidecar reads the matching JSON next to a session file without
 // assuming the archive's filename casing. Ambiguous matches are rejected.
-func readArchiveSidecar(sessionPath string) ([]byte, error) {
+func readArchiveSidecar(root *os.Root, sessionPath string) ([]byte, error) {
 	dir := filepath.Dir(sessionPath)
 	stem := strings.TrimSuffix(filepath.Base(sessionPath), filepath.Ext(sessionPath))
-	entries, err := os.ReadDir(dir)
+	entries, err := root.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -825,7 +825,7 @@ func readArchiveSidecar(sessionPath string) ([]byte, error) {
 	if match == "" {
 		return nil, os.ErrNotExist
 	}
-	file, err := os.Open(match)
+	file, err := root.Open(match)
 	if err != nil {
 		return nil, err
 	}
@@ -1008,6 +1008,11 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				return echo.NewHTTPError(http.StatusBadRequest, ext+" 解压失败: "+err.Error())
 			}
 			defer os.RemoveAll(outDir)
+			archiveRoot, err := os.OpenRoot(outDir)
+			if err != nil {
+				return fmt.Errorf("打开解压目录失败: %w", err)
+			}
+			defer archiveRoot.Close()
 			arcCount := 0
 			walkErr := filepath.Walk(outDir, func(p string, info os.FileInfo, werr error) error {
 				if werr != nil {
@@ -1023,11 +1028,17 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				if derr != nil {
 					return fmt.Errorf("为 %q 创建临时文件失败: %w", p, derr)
 				}
-				in, ierr := os.Open(p)
+				relPath, relErr := filepath.Rel(outDir, p)
+				if relErr != nil {
+					dest.Close()
+					_ = os.Remove(dest.Name())
+					return fmt.Errorf("解析压缩包内路径失败: %w", relErr)
+				}
+				in, ierr := archiveRoot.Open(relPath)
 				if ierr != nil {
 					dest.Close()
 					_ = os.Remove(dest.Name())
-					return fmt.Errorf("打开 %q 失败: %w", p, ierr)
+					return fmt.Errorf("打开 %q 失败: %w", relPath, ierr)
 				}
 				written, cerr := io.Copy(dest, io.LimitReader(in, (10<<20)+1))
 				in.Close()
@@ -1043,7 +1054,7 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 					return fmt.Errorf("%q 超过单文件 10MB 限制", p)
 				}
 				// R182: 同 stem .json 跟随拷贝(rar/7z 包内 sidecar, 同 zip 规则)
-				if jdata, jerr := readArchiveSidecar(p); jerr == nil {
+				if jdata, jerr := readArchiveSidecar(archiveRoot, relPath); jerr == nil {
 					if werr := os.WriteFile(strings.TrimSuffix(dest.Name(), ".session")+".json", jdata, 0600); werr != nil {
 						_ = os.Remove(dest.Name())
 						return fmt.Errorf("写入 %q 的附加 JSON 失败: %w", p, werr)
