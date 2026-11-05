@@ -1576,28 +1576,70 @@ function showAuthModal(acc: Account) {
   need2FA.value = false
 }
 
+// 旧版重新登录弹窗：提交接口只表示凭据已排队，必须等 TG 认证状态确认后才能关闭。
+async function waitOldAuthResult(accountId: string, expected: 'code' | 'password'): Promise<'success' | 'password' | 'code' | 'timeout'> {
+  const deadline = Date.now() + 90000
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    await accountStore.fetchAccounts(true)
+    const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
+    if (latest?.status === 'online') return 'success'
+
+    const state = await accountApi.getAuthState(accountId)
+    if (state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
+    if (state.phase === 'waiting_password') return 'password'
+    if (state.phase === 'waiting_code') {
+      // 刚提交后仍可能短暂处于 waiting_code；只把明确重试信号视为需要重新输入。
+      if (expected === 'code' && (state.code_retries ?? 0) > 0) return 'code'
+      if (expected === 'password' && (state.pwd_retries ?? 0) > 0) return 'password'
+    }
+  }
+  return 'timeout'
+}
+
 async function submitOldCode() {
-  if (!authAccount.value) return
+  if (!authAccount.value || !oldAuthCode.value.trim()) return
+  const accountId = authAccount.value.account_id
   try {
-    await accountApi.submitCode(authAccount.value.account_id, oldAuthCode.value)
-    showAuth.value = false
-    await accountStore.fetchAccounts()
-    toast({ type: 'success', title: '验证成功' })
+    await accountApi.submitCode(accountId, oldAuthCode.value.trim())
+    const result = await waitOldAuthResult(accountId, 'code')
+    if (result === 'success') {
+      showAuth.value = false
+      await accountStore.fetchAccounts(true)
+      toast({ type: 'success', title: '重新登录成功' })
+    } else if (result === 'password') {
+      need2FA.value = true
+      oldTwoFAPassword.value = ''
+      toast({ type: 'info', title: '需要二级验证', message: '请输入 Telegram 两步验证密码' })
+    } else if (result === 'code') {
+      oldAuthCode.value = ''
+      toast({ type: 'error', title: '验证码未通过', message: '请检查验证码后重新输入' })
+    } else {
+      toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后查看账号状态或继续输入二级密码' })
+    }
   } catch (e: unknown) {
-    if ((e instanceof Error ? e.message : '').includes('2FA')) need2FA.value = true
-    else toast({ type: 'error', title: '验证失败', message: (e instanceof Error ? e.message : '验证码错误') })
+    toast({ type: 'error', title: '验证码提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
 async function submitOld2FA() {
-  if (!authAccount.value) return
+  if (!authAccount.value || !oldTwoFAPassword.value) return
+  const accountId = authAccount.value.account_id
   try {
-    await accountApi.submit2FA(authAccount.value.account_id, oldTwoFAPassword.value)
-    showAuth.value = false
-    await accountStore.fetchAccounts()
-    toast({ type: 'success', title: '验证成功' })
+    await accountApi.submit2FA(accountId, oldTwoFAPassword.value)
+    const result = await waitOldAuthResult(accountId, 'password')
+    if (result === 'success') {
+      showAuth.value = false
+      await accountStore.fetchAccounts(true)
+      toast({ type: 'success', title: '重新登录成功' })
+    } else if (result === 'password') {
+      oldTwoFAPassword.value = ''
+      toast({ type: 'error', title: '二级验证未通过', message: '请检查两步验证密码后重新输入' })
+    } else {
+      toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后确认账号状态' })
+    }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '验证失败', message: (e instanceof Error ? e.message : '密码错误') })
+    toast({ type: 'error', title: '二级验证提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
