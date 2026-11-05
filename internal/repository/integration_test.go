@@ -8,7 +8,6 @@ package repository
 import (
 	"context"
 	"io"
-	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -34,27 +33,18 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(func() { _ = pg.Terminate(ctx) })
 
-	dsn, err := pg.ConnectionString(ctx)
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		t.Fatalf("connection string: %v", err)
 	}
-	// Testcontainers 可能已经在 DSN 中提供 sslmode；通过 URL query 设置，
-	// 避免直接拼接导致重复参数或错误的连接字符串。
-	parsedDSN, err := url.Parse(dsn)
-	if err != nil {
-		t.Fatalf("parse connection string: %v", err)
-	}
-	query := parsedDSN.Query()
-	query.Set("sslmode", "disable")
-	parsedDSN.RawQuery = query.Encode()
 
-	pool, err := pgxpool.New(ctx, parsedDSN.String())
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
-		t.Logf("postgres test endpoint: %s%s", parsedDSN.Host, parsedDSN.Path)
+		t.Logf("postgres connection string host: %s", pgHostFromDSN(dsn))
 		logCtx, cancelLogs := context.WithTimeout(ctx, 5*time.Second)
 		logs, logErr := pg.Logs(logCtx)
 		if logErr == nil {
