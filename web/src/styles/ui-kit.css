@@ -9,11 +9,11 @@
   background: var(--t-card, var(--t-surface-1));
   /* R131-2 用户拍板: 边框加深一档, 增强浅色下轮廓感 */
   border: 1px solid var(--t-line-strong);
-  border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  border-radius: var(--t-radius-lg);
+  box-shadow: var(--t-shadow-sm);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.ui-card--lg { border-radius: 24px; }
+.ui-card--lg { border-radius: var(--t-radius-xl); }
 .ui-card--hover:hover { border-color: var(--t-text-3); }
 
 /* ---------- .ui-btn 按钮: 全圆 + 按压反馈, 主=品牌纯色 / 次=surface-2 ---------- */
@@ -21,38 +21,38 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: 999px;
-  font-size: 13.5px;
-  font-weight: 700;
+  gap: var(--t-space-2);
+  height: var(--t-control-height-md);
+  padding: 0 var(--t-space-5);
+  border-radius: var(--t-radius-pill);
+  font-size: var(--t-fs-small);
+  font-weight: var(--t-weight-semibold);
   border: none;
   cursor: pointer;
-  transition: transform 0.1s ease, opacity 0.15s ease, background-color 0.15s ease;
+  transition: transform var(--t-duration-fast) var(--t-ease-standard), opacity var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease;
   -webkit-tap-highlight-color: transparent;
 }
 .ui-btn:active { transform: scale(0.95); }
-.ui-btn--primary { background: var(--t-brand); color: #fff; }
+.ui-btn--primary { background: var(--t-brand); color: var(--t-brand-ink); }
 .ui-btn--primary:hover { background: var(--t-brand-hover); }
 .ui-btn--secondary { background: var(--t-surface-2); color: var(--t-text-2); }
 .ui-btn--secondary:hover { color: var(--t-text-1); }
 .ui-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .ui-btn:disabled:active { transform: none; }
-.ui-btn--sm { height: 30px; padding: 0 12px; font-size: 12px; }
+.ui-btn--sm { height: var(--t-control-height-sm); padding: 0 var(--t-space-3); font-size: var(--t-font-xs); }
 
 /* ---------- .ui-input 输入框: 无边框实底, 聚焦只亮边 ---------- */
 .ui-input {
   width: 100%;
-  min-height: 44px;           /* h-11 */
-  padding: 10px 14px;
+  min-height: var(--t-control-height-lg);           /* h-11 */
+  padding: 10px var(--t-control-padding-x);
   background: var(--t-surface-2);
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--t-control-radius);
   color: var(--t-text-1);
-  font-size: 14.5px;
+  font-size: var(--t-font-md);
   outline: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease;
 }
 .ui-input::placeholder { color: var(--t-text-3); }
 .ui-input:hover { background: color-mix(in srgb, var(--t-surface-2) 80%, var(--t-text-1) 4%); }
@@ -65,15 +65,15 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 8px;
+  border-radius: var(--t-radius-sm);
   font-size: 11px;
   font-weight: 700;
   line-height: 1.4;
   white-space: nowrap;
 }
-.ui-badge--ok    { background: rgba(16, 185, 129, 0.10); color: #10b981; }
-.ui-badge--warn  { background: rgba(245, 158, 11, 0.10); color: #f59e0b; }
-.ui-badge--err   { background: rgba(239, 68, 68, 0.10);  color: #ef4444; }
+.ui-badge--ok    { background: var(--t-ok-dim); color: var(--t-ok); }
+.ui-badge--warn  { background: var(--t-warn-dim); color: var(--t-warn); }
+.ui-badge--err   { background: var(--t-err-dim); color: var(--t-err); }
 .ui-badge--info  { background: var(--t-brand-dim);         color: var(--t-brand); }
 .ui-badge--mute  { background: var(--t-surface-2);         color: var(--t-text-3); }
 .ui-badge i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.85; }
@@ -90,7 +90,7 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 /* ---------- Toast 灵动岛: 固定黑岛(三主题不变, 同 iPhone 硬件岛) ---------- */
 [data-sonner-toast].ts-toast,
 [data-sonner-toast] {
-  background: rgba(20, 22, 38, 0.85) !important;   /* 黑毛玻璃, 任何主题下不变 */
+  background: var(--t-toast-bg, #141626) !important;   /* 黑毛玻璃, 任何主题下不变 */
   color: rgba(255, 255, 255, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
   backdrop-filter: blur(22px) saturate(1.5) !important;
