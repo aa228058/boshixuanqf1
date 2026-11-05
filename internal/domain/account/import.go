@@ -80,7 +80,9 @@ func (e *Engine) UpdateProfile(ctx context.Context, tenantID, accountID uuid.UUI
 	// 关键: 同步本地 sessions 表。列表的名字从 sessions 表读，
 	// 不同步的话 TG 改成功了但前端刷新看到的还是旧名字。
 	acc, err := e.repo.GetByID(ctx, tenantID, accountID)
-	if err == nil && acc != nil && acc.SessionName != "" {
+	if err != nil {
+		log.Printf("[profile] Telegram 资料已更新，但读取本地账号信息失败: %v", err)
+	} else if acc != nil && acc.SessionName != "" {
 		if _, err := e.pool.Exec(ctx,
 			`UPDATE sessions SET first_name=$1, last_name=$2, username=$3 WHERE session_id=$4`,
 			firstName, lastName, username, acc.SessionName); err != nil {
