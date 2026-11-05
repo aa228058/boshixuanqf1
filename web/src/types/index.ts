@@ -52,6 +52,8 @@ export interface Group {
   tenant_id?: string
   type?: string
   is_admin?: boolean
+  is_joined?: boolean
+  _joinedAccounts?: string[]
   created_at?: string
 }
 
