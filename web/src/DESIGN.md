@@ -32,6 +32,7 @@
 - 圆角使用 `--t-radius-*`；圆形标签使用 `--t-radius-pill`。
 - 阴影使用 `--t-shadow-xs/sm/md/lg`；键盘焦点使用 `--t-shadow-focus`。
 - 动效使用 `--t-duration-*` 和 `--t-ease-*`。
+- Tailwind 4 可使用 `p-token-4`、`gap-token-2`、`rounded-token-md`、`text-token-sm`、`shadow-token-sm` 等令牌工具类；自定义 CSS 直接引用 `--t-*`。
 
 ## 组件层
 
