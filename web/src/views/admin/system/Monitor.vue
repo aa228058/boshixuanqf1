@@ -6,7 +6,7 @@
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
         <div class="flex items-center justify-between mb-4">
           <span class="text-sm text-text-secondary">CPU 使用率</span>
-          <Cpu class="w-5 h-5 text-cyan" />
+          <Cpu class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
         <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.cpu || 0).toFixed(1) }}%</p>
         <div class="w-full h-2 bg-bg-card rounded-full mt-3 overflow-hidden">
@@ -16,7 +16,7 @@
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
         <div class="flex items-center justify-between mb-4">
           <span class="text-sm text-text-secondary">内存使用</span>
-          <MemoryStick class="w-5 h-5 text-cyan" />
+          <MemoryStick class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
         <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.memory || 0).toFixed(1) }}%</p>
         <p class="text-xs text-text-secondary mt-1">{{ (metrics.memoryUsed || 0).toFixed(1) }} / {{ (metrics.memoryTotal || 0).toFixed(1) }} GB</p>
@@ -27,7 +27,7 @@
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
         <div class="flex items-center justify-between mb-4">
           <span class="text-sm text-text-secondary">磁盘使用</span>
-          <HardDrive class="w-5 h-5 text-amber" />
+          <HardDrive class="w-5 h-5 text-[var(--t-warn)]" />
         </div>
         <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.disk || 0).toFixed(1) }}%</p>
         <!-- P1-36: diskTotal 为 0(未加载或后端未给)时显示占位, 不造假容量 -->
@@ -41,8 +41,8 @@
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
         <h3 class="text-sm font-medium text-text-secondary mb-4">在线 TG 连接</h3>
         <div class="flex items-center gap-4">
-          <div class="w-20 h-20 rounded-full border-4 border-cyan/20 flex items-center justify-center">
-            <span class="text-2xl tracking-tight font-bold font-mono text-cyan">{{ metrics.onlineConnections }}</span>
+          <div class="w-20 h-20 rounded-full border-4 border-[color:var(--t-brand)]/20 flex items-center justify-center">
+            <span class="text-2xl tracking-tight font-bold font-mono text-[var(--t-brand)]">{{ metrics.onlineConnections }}</span>
           </div>
           <div class="space-y-1">
             <p class="text-sm max-w-[65ch]">在线账号</p>
@@ -56,15 +56,15 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-sm">排队中</span>
-            <span class="font-mono text-amber">{{ metrics.queuedTasks }}</span>
+            <span class="font-mono text-[var(--t-warn)]">{{ metrics.queuedTasks }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-sm">执行中</span>
-            <span class="font-mono text-cyan">{{ metrics.runningTasks }}</span>
+            <span class="font-mono text-[var(--t-brand)]">{{ metrics.runningTasks }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-sm">今日完成</span>
-            <span class="font-mono text-emerald">{{ metrics.completedToday }}</span>
+            <span class="font-mono text-[var(--t-ok)]">{{ metrics.completedToday }}</span>
           </div>
         </div>
       </div>
@@ -74,8 +74,8 @@
     <div class="glass rounded-[var(--t-r-md)] p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">系统日志</h3>
-        <span class="flex items-center gap-1 text-xs text-emerald">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald animate-pulse" />
+        <span class="flex items-center gap-1 text-xs text-[var(--t-ok)]">
+          <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-ok)] animate-pulse" />
           实时
         </span>
       </div>
@@ -114,7 +114,7 @@ const alertCooldown = ref(false)
 const ALERT_COOLDOWN_MS = 60000 // 警报冷却1分钟
 
 function logLevelClass(level: string) {
-  const map: Record<string, string> = { INFO: 'text-cyan', WARN: 'text-amber', ERROR: 'text-rose', DEBUG: 'text-text-muted' }
+  const map: Record<string, string> = { INFO: 'text-[var(--t-brand)]', WARN: 'text-[var(--t-warn)]', ERROR: 'text-[var(--t-err)]', DEBUG: 'text-text-muted' }
   return map[level] || 'text-text-secondary'
 }
 
@@ -153,13 +153,13 @@ function triggerCooldown() {
 function usageColor(percent: number): string {
   if (percent >= 90) return 'from-rose to-rose'
   if (percent >= 75) return 'from-amber to-amber'
-  return 'from-cyan to-cyan-bright'
+  return 'from-[var(--t-brand)] to-[var(--t-brand-hover)]'
 }
 
 function usageBarColor(percent: number): string {
-  if (percent >= 90) return 'bg-rose'
-  if (percent >= 75) return 'bg-amber'
-  return 'bg-cyan'
+  if (percent >= 90) return 'bg-[var(--t-err)]'
+  if (percent >= 75) return 'bg-[var(--t-warn)]'
+  return 'bg-[var(--t-brand)]'
 }
 
 async function fetchMetrics() {
