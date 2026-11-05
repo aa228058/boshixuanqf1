@@ -805,7 +805,12 @@ func tempPrefixFromName(name string) string {
 func readArchiveSidecar(root *os.Root, sessionPath string) ([]byte, error) {
 	dir := filepath.Dir(sessionPath)
 	stem := strings.TrimSuffix(filepath.Base(sessionPath), filepath.Ext(sessionPath))
-	entries, err := root.ReadDir(dir)
+	dirFile, err := root.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := dirFile.ReadDir(-1)
+	_ = dirFile.Close()
 	if err != nil {
 		return nil, err
 	}
