@@ -235,7 +235,7 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 // R109: 监控按账号管理, 下拉选择管理哪个号
 const monAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !monAccId.value) monAccId.value = acc.account_id }, { immediate: true })
-watch(monAccId, () => { loadGroups(); fetchRules() })
+watch(monAccId, () => { fetchGroups(); fetchRules() })
 const groups = ref<Group[]>([])
 const showSourceSelector = ref(false)
 const showTargetSelector = ref(false)
@@ -274,7 +274,7 @@ const ruleForm = ref(emptyRuleForm())
 
 // 名片联系人选择器: 借账号实时拉 TG 联系人, 选中后自动填电话/名/姓
 const contactPickAccount = ref('')
-const contactList = ref<Array<{ tg_user_id: number; first_name: string; last_name?: string; phone?: string }>>([])
+const contactList = ref<Array<{ tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>([])
 const contactPick = ref<number | ''>('')
 const contactLoading = ref(false)
 async function loadContacts() {
