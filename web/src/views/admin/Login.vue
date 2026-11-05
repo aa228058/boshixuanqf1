@@ -4,8 +4,8 @@
 
     <div class="relative z-10 w-full max-w-md px-6">
       <div class="text-center mb-8">
-        <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-cyan/10 border border-cyan/20 flex items-center justify-center mx-auto mb-4">
-          <Shield class="w-8 h-8 text-cyan" />
+        <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-[var(--t-brand)]/10 border border-[color:var(--t-brand)]/20 flex items-center justify-center mx-auto mb-4">
+          <Shield class="w-8 h-8 text-[var(--t-brand)]" />
         </div>
         <h1 class="text-2xl font-bold tracking-tight">管理员登录</h1>
         <p class="text-text-secondary mt-2">博士轩群发器 管理后台</p>
@@ -46,7 +46,7 @@
               </template>
             </t-input>
           </div>
-          <p v-if="errorMsg" class="text-sm text-rose">{{ errorMsg }}</p>
+          <p v-if="errorMsg" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
           <t-button theme="primary"
             class="w-full"
             :disabled="loading"
