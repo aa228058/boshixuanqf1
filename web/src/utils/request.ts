@@ -37,6 +37,7 @@ export interface RequestOptions {
   headers?: Record<string, string>
   body?: Record<string, unknown> | unknown
   timeout?: number
+  responseType?: 'blob' | 'arrayBuffer'
   // 查询参数(2026-10-20): doFetch 拼 query string, 此前被静默忽略
   params?: Record<string, string | number | boolean | undefined>
   // silent(2026-10-22 审计修复): 后台静默请求——轮询/心跳类调用传 true,
@@ -335,11 +336,11 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
       if (!isRefreshing) {
         isRefreshing = true
         refreshPromise = authStore.refresh()
-          .then((newToken) => {
+          .then((newToken: string) => {
             isRefreshing = false
             return newToken
           })
-          .catch((err) => {
+          .catch((err: unknown) => {
             isRefreshing = false
             refreshPromise = null
             authStore.logout()
