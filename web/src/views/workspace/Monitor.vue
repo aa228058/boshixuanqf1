@@ -141,9 +141,9 @@
                 </button>
               </div>
               <select v-if="contactList.length" v-model="contactPick" class="w-full px-2 py-1.5 rounded-lg glow-input text-xs bg-bg-card" @change="applyContact">
-                <option value="">从联系人中选择（自动填好电话和名字）…</option>
+                <option value="">选择联系人（自动填入手机号和姓名）…</option>
                 <option v-for="ct in contactList" :key="ct.tg_user_id" :value="ct.tg_user_id">
-                  {{ ct.first_name }} {{ ct.last_name || '' }}{{ ct.phone ? ' · ' + ct.phone : '' }}
+                  {{ ct.first_name }} {{ ct.last_name || '' }} · {{ ct.phone }}
                 </option>
               </select>
               <p v-if="contactPick && !ruleForm.dm_contact_phone" class="text-xs text-amber-500">该联系人资料未返回手机号，Telegram 名片发送必须提供手机号；请手动补充，或选择有手机号的联系人。</p>
@@ -284,8 +284,8 @@ async function loadContacts() {
   contactPick.value = ''
   try {
     const res: any = await accountApi.getContacts(contactPickAccount.value)
-    contactList.value = (res?.list || res || []).filter((c: any) => c.phone || c.first_name)
-    if (!contactList.value.length) toast({ type: 'info', title: '暂无联系人', message: '该账号的 TG 联系人列表为空' })
+    contactList.value = (res?.list || res || []).filter((c: any) => String(c.phone || '').trim())
+    if (!contactList.value.length) toast({ type: 'info', title: '暂无可发送名片的联系人', message: 'Telegram 未向该账号返回带手机号的联系人；名片发送必须有手机号，可换账号获取或手动填写。' })
   } catch (err: any) {
     toast({ type: 'error', title: '获取联系人失败', message: err?.message || '请稍后重试' })
   } finally {
