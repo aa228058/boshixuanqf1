@@ -87,8 +87,8 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			case strings.Contains(errStr, "channel_private") || strings.Contains(errStr, "chat_private") ||
 				strings.Contains(errStr, "kicked") || strings.Contains(errStr, "banned"):
 				// 主路径拿不到(被踢/私密不可见): 降级抓 t.me 网页 og:title 兜底补名
-				if title, werr := resolveInviteTitleViaWeb(ctx, hash); werr == nil && title != "" {
-					_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, 0, "private")
+				if title, webCount, werr := resolveInviteInfoViaWeb(ctx, hash); werr == nil && (title != "" || webCount > 0) {
+					_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, webCount, "private")
 				}
 			}
 			continue
