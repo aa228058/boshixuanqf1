@@ -15,9 +15,9 @@
       <button v-for="t in pageTabs" :key="t.key"
               @click="activeTab = t.key"
               class="px-4 py-2 text-sm font-medium transition-colors relative"
-              :class="activeTab === t.key ? 'text-cyan' : 'text-text-secondary hover:text-text-primary'">
+              :class="activeTab === t.key ? 'text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'">
         {{ t.label }}
-        <span v-if="activeTab === t.key" class="tab-underline absolute bottom-0 left-0 right-0 h-0.5 bg-cyan rounded-full" />
+        <span v-if="activeTab === t.key" class="tab-underline absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--t-brand)] rounded-full" />
       </button>
     </div>
 
@@ -42,12 +42,12 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="MessageSquare" :title="tasksError" description="点击重试">
-        <button @click="fetchTasks" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-cyan hover:border-cyan/40 transition-colors">重新加载</button>
+        <button @click="fetchTasks" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] transition-colors">重新加载</button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
       <div v-else class="space-y-3 mb-4">
         <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
-        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-cyan/20 mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
+        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="px-2 py-0.5 rounded text-xs shrink-0 inline-flex items-center gap-1.5" :class="statusClass(t.status)">
@@ -62,8 +62,8 @@
             <div class="flex items-center justify-between text-xs mb-1.5">
               <span class="text-text-secondary tabular-nums">
                 {{ progOf(t).done + (progOf(t).failed || 0) }} / {{ progOf(t).total }} 已处理
-                <span class="text-emerald ml-1.5">{{ progOf(t).done }} 成功</span>
-                <span v-if="progOf(t).failed" class="text-rose ml-1.5">{{ progOf(t).failed }} 失败</span>
+                <span class="text-[var(--t-ok)] ml-1.5">{{ progOf(t).done }} 成功</span>
+                <span v-if="progOf(t).failed" class="text-[var(--t-err)] ml-1.5">{{ progOf(t).failed }} 失败</span>
               </span>
               </div>
             <!-- 进度环(交互示例28): 绿=成功段 青=其余进度, 44px 紧凑 -->
@@ -72,18 +72,18 @@
               <div class="flex-1">
                 <!-- 分段进度条: 绿=成功 红=失败 灰底=剩余, 进行中/已完成都有 -->
                 <div class="h-2 rounded-full bg-bg-hover overflow-hidden flex">
-              <div class="h-full bg-emerald transition-all duration-500"
+              <div class="h-full bg-[var(--t-ok)] transition-all duration-500"
                    :style="{ width: (progOf(t).total ? (progOf(t).done / progOf(t).total) * 100 : 0) + '%' }" />
-              <div v-if="progOf(t).failed" class="h-full bg-rose transition-all duration-500"
+              <div v-if="progOf(t).failed" class="h-full bg-[var(--t-err)] transition-all duration-500"
                    :style="{ width: (progOf(t).total ? (progOf(t).failed / progOf(t).total) * 100 : 0) + '%' }" />
                 </div>
               </div>
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="px-2 py-1 rounded text-xs bg-amber/10 text-amber hover:bg-amber/20">重试失败 ({{ progOf(t).failed }})</button>
-            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="px-2 py-1 rounded text-xs bg-rose/10 text-rose hover:bg-rose/20">停止</button>
-            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="px-2 py-1 rounded text-xs border border-border text-text-secondary hover:border-cyan/40 hover:text-cyan transition-colors">查看详情</button>
+            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progOf(t).failed }})</button>
+            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">停止</button>
+            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="px-2 py-1 rounded text-xs border border-border text-text-secondary hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">查看详情</button>
           </div>
         </div>
         </pull-down-refresh>
@@ -100,14 +100,14 @@
         <!-- R98 表单分组① -->
       <div class="flex items-center gap-2 mb-3 -mt-1"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">1</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送目标</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <label class="block text-sm font-medium mb-2">发送目标</label>
-        <div @click="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-cyan/30 transition-colors">
+        <div @click="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
           <div class="flex items-center gap-2">
             <MessageSquare class="w-5 h-5 text-text-muted shrink-0" />
             <span v-if="!selectedTargets.length" class="text-text-muted">点击选择发送目标</span>
             <!-- R118: 显示群名而不只是数量 —— 前3个群名 + 剩余折叠 -->
             <template v-else>
               <span class="text-sm">已选 {{ selectedTargets.length }} 个目标</span>
-              <button type="button" class="ml-auto text-[11px] text-cyan hover:underline shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</button>
+              <button type="button" class="ml-auto text-[11px] text-[var(--t-brand)] hover:underline shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</button>
             </template>
           </div>
           <!-- 群名 chips: 全部列出, 小字, 可滚动 -->
@@ -121,7 +121,7 @@
         <div class="flex flex-wrap gap-1.5">
           <button v-for="acc in onlineAccounts" :key="acc.account_id" type="button" @click="toggleExec(acc.account_id)"
                   class="px-2.5 py-1.5 rounded-lg text-xs border transition-colors whitespace-nowrap"
-                  :class="execAccounts.includes(acc.account_id) ? 'border-cyan/50 bg-cyan/10 text-cyan font-medium' : 'border-border text-text-secondary hover:border-border-hover'">
+                  :class="execAccounts.includes(acc.account_id) ? 'border-[color:var(--t-brand)]/50 bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] font-medium' : 'border-border text-text-secondary hover:border-border-hover'">
             {{ acc.first_name || acc.phone }}
           </button>
         </div>
@@ -132,26 +132,26 @@
         <!-- R101 P1-第二刀: 覆盖预览 -->
         <div v-if="selectedTargets.length && execAccounts.length && coverage.ok + coverage.fail > 0"
              class="mt-3 rounded-lg border p-3 text-xs"
-             :class="(coverage.fail > 0 || coverage.unreachable.length) ? 'border-amber/30 bg-amber/5' : 'border-emerald/30 bg-emerald/5'">
+             :class="(coverage.fail > 0 || coverage.unreachable.length) ? 'border-[color:var(--t-warn)]/30 bg-[var(--t-warn)]/5' : 'border-[color:var(--t-ok)]/30 bg-[var(--t-ok)]/5'">
           <div>
-            <span class="text-emerald">✅ 可发 {{ coverage.ok }} 条</span>
-            <span v-if="coverage.fail" class="text-amber ml-2">⚠️ 预计失败 {{ coverage.fail }} 条（账号未加入该群）</span>
-            <span v-if="coverage.unreachable.length" class="text-rose ml-2">⛔ {{ coverage.unreachable.length }} 个群无账号加入</span>
+            <span class="text-[var(--t-ok)]">✅ 可发 {{ coverage.ok }} 条</span>
+            <span v-if="coverage.fail" class="text-[var(--t-warn)] ml-2">⚠️ 预计失败 {{ coverage.fail }} 条（账号未加入该群）</span>
+            <span v-if="coverage.unreachable.length" class="text-[var(--t-err)] ml-2">⛔ {{ coverage.unreachable.length }} 个群无账号加入</span>
           </div>
-          <div v-if="coverage.unreachable.length" class="text-[10.5px] text-amber/90 mt-1.5 leading-relaxed">
+          <div v-if="coverage.unreachable.length" class="text-[10.5px] text-[var(--t-warn)]/90 mt-1.5 leading-relaxed">
             未覆盖：{{ coverage.unreachable.slice(0, 3).join('、') }}{{ coverage.unreachable.length > 3 ? ` 等 ${coverage.unreachable.length} 个` : '' }}——这些群发送会失败，建议先把账号拉进群
           </div>
         </div>
       </div>
 
       <div class="mt-2">
-        <button type="button" @click="showImport = !showImport" class="text-xs text-cyan hover:underline">批量导入目标（粘贴列表/上传文件）</button>
+        <button type="button" @click="showImport = !showImport" class="text-xs text-[var(--t-brand)] hover:underline">批量导入目标（粘贴列表/上传文件）</button>
         <div v-if="showImport" class="mt-2 space-y-2">
           <textarea v-model="importText" rows="4" class="w-full bg-bg-card border border-border rounded-lg px-3 py-2 text-sm"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
           <div class="flex gap-2">
             <t-button theme="primary" size="sm" variant="outline" @click="applyImportText">解析添加</t-button>
-            <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-cyan/40 transition-colors">
+            <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               选择文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
             </label>
           </div>
@@ -166,26 +166,26 @@
         <!-- 变量插入(交互示例10标签输入的轻量版): 点变量插入到光标处 -->
         <div class="flex flex-wrap gap-1.5 mb-2">
           <button v-for="v in msgVars" :key="v" @click="insertVar(v)"
-                  class="px-2 py-0.5 rounded-md bg-bg-primary border border-border text-text-secondary text-xs font-mono hover:border-cyan hover:text-cyan transition-colors">{{ v }}</button>
-          <span v-if="draftSaved" class="text-xs text-emerald self-center ml-auto">草稿已自动保存</span>
+                  class="px-2 py-0.5 rounded-md bg-bg-primary border border-border text-text-secondary text-xs font-mono hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">{{ v }}</button>
+          <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] self-center ml-auto">草稿已自动保存</span>
         </div>
         <t-textarea ref="msgRef" v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
                     placeholder="输入要发送的消息... 变量: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}； 随机语法: {你好|Hi|Hello}" />
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
-          <button @click="showPreview = true" class="text-xs text-cyan hover:text-cyan-bright transition-colors">预览变量效果</button>
+          <button @click="showPreview = true" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">预览变量效果</button>
         </div>
       </div>
 
       <!-- 消息混淆(两种模式共用) -->
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-        <input type="checkbox" v-model="obfuscate" class="accent-cyan w-4 h-4" />
+        <input type="checkbox" v-model="obfuscate" class="accent-[var(--t-brand)] w-4 h-4" />
         <span class="font-semibold">消息混淆</span>
         <span class="text-text-muted">每条自动加随机表情+隐形字符, 内容不重复防风控</span>
       </label>
       <!-- 每条消息自动变化: 一键让措辞/标点各不相同, 不用写任何变量 -->
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-        <input type="checkbox" v-model="autoVary" class="accent-cyan w-4 h-4" />
+        <input type="checkbox" v-model="autoVary" class="accent-[var(--t-brand)] w-4 h-4" />
         <span class="font-semibold">每条消息自动变化</span>
         <span class="text-text-muted">自动换同义词、抖动标点, 千条消息千种写法</span>
       </label>
@@ -201,12 +201,12 @@
           <input v-model="mediaUrl" placeholder="媒体 URL (https://...)，或上传本地文件"
                  class="w-full px-4 py-2 rounded-[var(--t-r-md)] glow-input text-sm" />
           <div class="flex items-center gap-2">
-            <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-cyan/40 transition-colors">
+            <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               上传文件<input type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov" class="hidden" @change="onMediaFile">
             </label>
-            <span v-if="mediaPath" class="text-xs text-cyan">已上传: {{ mediaPath }}</span>
+            <span v-if="mediaPath" class="text-xs text-[var(--t-brand)]">已上传: {{ mediaPath }}</span>
             <span v-if="uploadingMedia" class="text-xs text-text-muted">上传中…</span>
-            <button v-if="mediaPath || mediaUrl" @click="clearMedia" class="text-xs text-rose hover:underline">清除</button>
+            <button v-if="mediaPath || mediaUrl" @click="clearMedia" class="text-xs text-[var(--t-err)] hover:underline">清除</button>
           </div>
         </div>
       </div>
@@ -243,7 +243,7 @@
                   :class="[isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary', !loopFeature && 'opacity-60']"
                   @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', message: '当前套餐未开通循环群发, 请联系管理员升级' })">
             循环群发
-            <span v-if="!loopFeature" class="absolute -top-1 -right-1 text-[9px] px-1 rounded bg-amber/20 text-amber border border-amber/40">锁</span>
+            <span v-if="!loopFeature" class="absolute -top-1 -right-1 text-[9px] px-1 rounded bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/40">锁</span>
           </button>
         </div>
         <div v-if="isLoop" class="flex items-center gap-2 mt-2">
@@ -269,8 +269,8 @@
           <div class="text-text-muted mb-1">原始内容:</div>
           <div class="whitespace-pre-wrap">{{ message }}</div>
         </div>
-        <div class="p-3 rounded-lg bg-cyan/5 border border-cyan/20">
-          <div class="text-cyan mb-1">替换后效果:</div>
+        <div class="p-3 rounded-lg bg-[var(--t-brand)]/5 border border-[color:var(--t-brand-dim)]">
+          <div class="text-[var(--t-brand)] mb-1">替换后效果:</div>
           <div class="whitespace-pre-wrap">{{ previewMessage }}</div>
         </div>
       </div>
@@ -558,9 +558,9 @@ const statusLabelMap: Record<string, string> = {
 function statusLabel(s: string) { return statusLabelMap[s] || s }
 function statusClass(s: string): string {
   return ({
-    pending: 'bg-amber/10 text-amber', queued: 'bg-amber/10 text-amber',
-    running: 'bg-cyan/10 text-cyan', completed: 'bg-emerald/10 text-emerald',
-    failed: 'bg-rose/10 text-rose', cancelled: 'bg-text-muted/10 text-text-muted',
+    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
+    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
+    failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]', cancelled: 'bg-text-muted/10 text-text-muted',
   } as any)[s] || 'bg-bg-hover text-text-muted'
 }
 function progOf(t: any) {
