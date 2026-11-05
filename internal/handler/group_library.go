@@ -73,10 +73,15 @@ func (h *GroupLibraryHandler) Search(c echo.Context) error {
 			// P2-47 审计修复: 原来 AddDailyUsage(+1) 在超限判断之前——超限的这次也扣了
 			// 次数。改为先查当前用量, 超限直接拒绝不扣, 没超才 +1。
 			used, err := h.planLimits.GetDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch)
-			if err == nil && used >= dailySearch {
+			if err != nil {
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "用量服务暂不可用, 请稍后重试")
+			}
+			if used >= dailySearch {
 				return echo.NewHTTPError(http.StatusTooManyRequests, fmt.Sprintf("今日搜群次数已用完(体验版 %d 次/天), 升级套餐不限量", dailySearch))
 			}
-			h.planLimits.AddDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch, 1)
+			if err := h.planLimits.AddDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch, 1); err != nil {
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "用量记录失败, 请稍后重试")
+			}
 		}
 	}
 	ingested, err := h.lib.SearchAndIngest(c.Request().Context(), tenantID, accID, req.Keyword)
