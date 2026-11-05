@@ -65,6 +65,15 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	}
 	accRows.Close()
 	if len(accs) == 0 {
+		// 没有任何在线账号时仍可尝试 Telegram 网页预览；这不需要加入群组。
+		for _, p := range pending {
+			hash := strings.TrimPrefix(strings.TrimPrefix(p.link, "https://"), "t.me/+")
+			hash = strings.TrimPrefix(hash, "+")
+			title, count, werr := resolveInviteInfoViaWeb(ctx, hash)
+			if werr == nil && (title != "" || count > 0) {
+				_ = e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, "private")
+			}
+		}
 		return
 	}
 
