@@ -12,7 +12,7 @@
               :key="type.value"
               @click="form.contact_type = type.value as SupportConfig['contact_type']"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
-              :class="form.contact_type === type.value ? 'border-cyan/30 bg-cyan/5 text-cyan' : 'border-border text-text-secondary'"
+              :class="form.contact_type === type.value ? 'border-[color:var(--t-brand)]/30 bg-[var(--t-brand)]/5 text-[var(--t-brand)]' : 'border-border text-text-secondary'"
             >
               {{ type.label }}
             </button>
@@ -23,25 +23,25 @@
           <input
             v-model="form.contact_value"
             placeholder="如微信号、TG号、QQ号或邮箱"
-            class="w-full px-3 py-2.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="如微信号、TG号、QQ号或邮箱" />
+            class="w-full px-3 py-2.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="如微信号、TG号、QQ号或邮箱" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">显示名称</label>
           <input
             v-model="form.display_name"
             placeholder="如：联系客服开通套餐"
-            class="w-full px-3 py-2.5 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="如：联系客服开通套餐" />
+            class="w-full px-3 py-2.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="如：联系客服开通套餐" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">二维码图片（可选）</label>
           <div class="flex items-center gap-3">
-            <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-cyan/40 transition-colors">
+            <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)]/40 transition-colors">
               选择图片
               <input type="file" accept="image/*" class="hidden" @change="onQrFileChange" />
             </label>
             <span class="text-xs text-text-muted">支持 JPG、PNG 格式</span>
             <img v-if="form.qr_code_url" :src="form.qr_code_url" class="w-16 h-16 rounded-lg object-cover" alt="二维码" loading="lazy">
-            <button v-if="form.qr_code_url" type="button" @click="clearQr" class="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-red-400 hover:text-red-500 transition-colors">
+            <button v-if="form.qr_code_url" type="button" @click="clearQr" class="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-[color:var(--t-err)] hover:text-[var(--t-err)] transition-colors">
               清除图片
             </button>
           </div>
@@ -58,7 +58,7 @@
       <h3 class="text-sm font-medium text-text-secondary mb-4">租户端预览</h3>
       <div class="bg-bg-card rounded-lg p-4">
         <div class="flex items-center gap-3">
-          <MessageCircle class="w-8 h-8 text-cyan" />
+          <MessageCircle class="w-8 h-8 text-[var(--t-brand)]" />
           <div>
             <p class="font-medium">{{ form.display_name || '联系客服' }}</p>
             <p class="text-sm text-text-secondary font-mono max-w-[65ch]">{{ form.contact_value || '未配置' }}</p>
