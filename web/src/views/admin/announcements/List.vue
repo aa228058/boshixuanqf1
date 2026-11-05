@@ -13,12 +13,12 @@
         v-for="a in announcements"
         :key="a.announcement_id"
         class="glass rounded-[var(--t-r-md)] p-5 lift"
-        :class="a.priority === 'urgent' ? 'border-rose/30' : 'border-border'"
+        :class="a.priority === 'urgent' ? 'border-[color:var(--t-err)]/30' : 'border-border'"
       >
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <div class="flex items-center gap-2">
-              <span v-if="a.priority === 'urgent'" class="text-xs px-2 py-0.5 rounded bg-rose/10 text-rose font-medium">紧急</span>
+              <span v-if="a.priority === 'urgent'" class="text-xs px-2 py-0.5 rounded bg-[var(--t-err)]/10 text-[var(--t-err)] font-medium">紧急</span>
               <span class="font-medium">{{ a.title }}</span>
             </div>
             <p class="text-sm text-text-secondary mt-2 whitespace-pre-wrap max-w-[65ch]">{{ a.content }}</p>
@@ -32,8 +32,8 @@
             <button @click="editAnnouncement(a)" class="p-1.5 rounded hover:bg-bg-hover" aria-label="编辑">
               <Pencil class="w-4 h-4 text-text-muted" />
             </button>
-            <button @click="deleteAnnouncement(a)" class="p-1.5 rounded hover:bg-rose/10">
-              <Trash2 class="w-4 h-4 text-text-muted hover:text-rose" />
+            <button @click="deleteAnnouncement(a)" class="p-1.5 rounded hover:bg-[var(--t-err)]/10">
+              <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
             </button>
           </div>
         </div>
@@ -53,7 +53,7 @@
       <div class="space-y-4">
         <div>
           <label for="ann-title" class="block text-sm text-text-secondary mb-1.5">标题</label>
-          <input id="ann-title" v-model="form.title" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm" aria-label="输入" />
+          <input id="ann-title" v-model="form.title" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="输入" />
         </div>
         <div>
           <t-textarea v-model="form.content" label="内容" :rows="4" />
@@ -64,14 +64,14 @@
             <button
               @click="form.priority = 'normal'"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
-              :class="form.priority === 'normal' ? 'border-cyan/30 bg-cyan/5 text-cyan' : 'border-border text-text-secondary'"
+              :class="form.priority === 'normal' ? 'border-[color:var(--t-brand)]/30 bg-[var(--t-brand)]/5 text-[var(--t-brand)]' : 'border-border text-text-secondary'"
             >
               普通
             </button>
             <button
               @click="form.priority = 'urgent'"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
-              :class="form.priority === 'urgent' ? 'border-rose/30 bg-rose/5 text-rose' : 'border-border text-text-secondary'"
+              :class="form.priority === 'urgent' ? 'border-[color:var(--t-err)]/30 bg-[var(--t-err)]/5 text-[var(--t-err)]' : 'border-border text-text-secondary'"
             >
               紧急
             </button>
@@ -79,7 +79,7 @@
         </div>
         <div>
           <label for="ann-target" class="block text-sm text-text-secondary mb-1.5">目标租户</label>
-          <select id="ann-target" v-model="form.target_type" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-cyan focus:outline-none text-sm">
+          <select id="ann-target" v-model="form.target_type" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm">
             <option value="all">全部租户</option>
             <option value="specific_plan">指定套餐</option>
           </select>
@@ -88,7 +88,7 @@
           <label for="ann-plans" class="block text-sm text-text-secondary mb-1.5">选择套餐</label>
           <div class="flex flex-wrap gap-2">
             <label v-for="p in plans" :key="p.plan_id" class="flex items-center gap-1 text-sm">
-              <input type="checkbox" :value="p.plan_id" v-model="form.target_plans" class="rounded border-border bg-bg-card text-cyan" aria-label="选择" />
+              <input type="checkbox" :value="p.plan_id" v-model="form.target_plans" class="rounded border-border bg-bg-card text-[var(--t-brand)]" aria-label="选择" />
               {{ p.name }}
             </label>
           </div>
