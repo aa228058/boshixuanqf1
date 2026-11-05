@@ -112,12 +112,12 @@
               <div class="text-xs text-text-muted truncate">{{ row.tme_link || ('@' + (row.username || '')) }}</div>
               <!-- 展开: 该群全部入口链接(同群多链接场景) -->
               <div v-if="isExpanded(row.sg_id) && (row as any).entries?.length" class="mt-1 space-y-0.5 border-l-2 border-cyan-glow/40 pl-2">
-                <div v-for="e in (row as any).entries" :key="e.sg_id" class="flex items-center gap-2 text-xs min-w-0">
+                <div v-for="e in (row as any).entries" :key="e.link_id || e.tme_link || e.sg_id" class="flex items-center gap-2 text-xs min-w-0">
                   <a v-if="e.tme_link" :href="e.tme_link" target="_blank" rel="noopener"
                      class="text-cyan hover:underline truncate">{{ e.tme_link }}</a>
                   <span v-else class="text-text-muted truncate">{{ '@' + (e.username || '') }}</span>
                   <span class="px-1 rounded bg-cyan-glow/20 text-cyan text-[10px] whitespace-nowrap">{{ sourceLabel(e.source) }}</span>
-                  <span :class="e.status === 'joined' ? 'text-emerald' : e.status === 'invalid' ? 'text-text-muted line-through' : 'text-cyan'" class="whitespace-nowrap">{{ statusLabel(e.status) }}</span>
+                  <span :class="e.status === 'invalid' ? 'text-text-muted line-through' : 'text-cyan'" class="whitespace-nowrap">{{ statusLabel(e.status) }}</span>
                   <button class="text-text-muted hover:text-text-primary whitespace-nowrap" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
                 </div>
               </div>
@@ -269,33 +269,21 @@ const list = ref<SystemGroup[]>([])
 // 现象: "汤臣社区-核销"等群被采集到 6+ 条不同邀请链接, 列表全是重复行。
 // 规则: 按群标题合并, 成员数取最大(入口数不同采集值不同), 已加入任一入口视为已加入,
 //       勾选/加入用首个入口的 sg_id, 徽标显示入口数。
-const aggregatedList = computed<SystemGroup[]>(() => {
-  const m = new Map<string, any>()
-  for (const g of list.value as any[]) {
-    const key = (g.title || '').trim() || String(g.sg_id)
-    // 入口明细保留全部链接——同群多入口时可展开查看(原来只留首条,其余链接被丢弃)
-    const entry = {
-      sg_id: g.sg_id, tme_link: g.tme_link, username: g.username,
-      status: g.status, source: g.source, member_count: g.member_count,
-    }
-    if (!m.has(key)) {
-      m.set(key, { ...g, entry_count: 1, entries: [entry] })
-    } else {
-      const a = m.get(key)
-      a.entry_count = (a.entry_count || 1) + 1
-      a.entries.push(entry)
-      if ((g.member_count || 0) > (a.member_count || 0)) a.member_count = g.member_count
-      // P2-18: 原 g.joined 字段在 SystemGroup 类型里不存在(恒 undefined)——
-      // 这行合并是死代码。已加入状态以 status==='joined' 为准(模板用 row.status)。
-      void a.joined
-    }
-  }
-  return [...m.values()]
-})
+const aggregatedList = computed<SystemGroup[]>(() => list.value.map(g => {
+  const entries = g.entries?.length ? g.entries : [{
+    sg_id: g.sg_id,
+    tme_link: g.tme_link,
+    username: g.username,
+    status: g.status,
+    source: g.source,
+    member_count: g.member_count,
+  }]
+  return { ...g, entries, entry_count: g.entry_count || entries.length }
+}))
 
 // 同群多入口的展开状态(用户反馈: 徽标只能看数量,看不到其余链接)
-const expandedSg = ref(new Set<number>())
-function toggleExpand(id: number) {
+const expandedSg = ref(new Set<string>())
+function toggleExpand(id: string) {
   const s = new Set(expandedSg.value)
   if (s.has(id)) s.delete(id); else s.add(id)
   expandedSg.value = s
