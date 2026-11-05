@@ -148,3 +148,52 @@ func isGenericTitle(value string) bool {
 	}
 	return false
 }
+
+
+// resolvePublicGroupInfoViaWeb parses the public t.me preview without joining the group.
+func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string, int, error) {
+	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
+	if username == "" || strings.ContainsAny(username, "/?#") {
+		return "", 0, fmt.Errorf("公开群 username 格式无效")
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	target := "https://t.me/" + url.PathEscape(username)
+	client := &http.Client{
+		Timeout: 12 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 { return fmt.Errorf("Telegram 页面重定向次数过多") }
+			host := strings.ToLower(req.URL.Hostname())
+			if host != "t.me" && host != "www.t.me" { return fmt.Errorf("拒绝跳转到非 Telegram 域名") }
+			return nil
+		},
+	}
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target, nil)
+	if err != nil { return "", 0, err }
+	req.Header.Set("User-Agent", telegramMobileUA)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	resp, err := client.Do(req)
+	if err != nil { return "", 0, fmt.Errorf("请求 Telegram 公开群页面失败: %w", err) }
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK { return "", 0, fmt.Errorf("Telegram 网页返回 %d", resp.StatusCode) }
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024+1))
+	if err != nil { return "", 0, err }
+	if len(body) > 512*1024 { return "", 0, fmt.Errorf("Telegram 网页内容超过限制") }
+	page := string(body)
+	title := extractTelegramMeta(page, "og:title")
+	if title == "" || isGenericTitle(title) {
+		if match := htmlTitleRe.FindStringSubmatch(page); len(match) > 1 {
+			candidate := cleanTelegramText(match[1])
+			if !isGenericTitle(candidate) { title = candidate }
+		}
+	}
+	title = strings.TrimSpace(strings.TrimPrefix(title, "Telegram:"))
+	if isGenericTitle(title) { title = "" }
+	count := 0
+	if match := pageExtraRe.FindStringSubmatch(page); len(match) > 1 {
+		count = parseWebMemberCount(cleanTelegramText(match[1]))
+	}
+	if title == "" && count == 0 { return "", 0, fmt.Errorf("页面未暴露公开群资料") }
+	return title, count, nil
+}
