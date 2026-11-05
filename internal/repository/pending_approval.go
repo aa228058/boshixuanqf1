@@ -110,6 +110,19 @@ func (r *PendingApprovalRepository) UpdateStatus(ctx context.Context, tenantID, 
 	return err
 }
 
+// ResolvePending performs a compare-and-set so timeout and approval cannot win simultaneously.
+func (r *PendingApprovalRepository) ResolvePending(ctx context.Context, tenantID, taskID uuid.UUID, status string) (bool, error) {
+ if status != "approved" && status != "timeout" {
+  return false, fmt.Errorf("invalid pending approval resolution status %q", status)
+ }
+ res, err := r.pool.Exec(ctx, `
+  UPDATE pending_approvals SET status = $1, checked_at = NOW()
+  WHERE tenant_id = $2 AND task_id = $3 AND status = 'pending'
+ `, status, tenantID, taskID)
+ if err != nil { return false, fmt.Errorf("resolve pending approval: %w", err) }
+ return res.RowsAffected() == 1, nil
+}
+
 func (r *PendingApprovalRepository) IncrementCheck(ctx context.Context, tenantID, taskID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE pending_approvals SET check_count = check_count + 1, checked_at = NOW() WHERE tenant_id = $1 AND task_id = $2
