@@ -76,7 +76,8 @@ async function ensureConnected() {
     if (sseWatchdog) clearTimeout(sseWatchdog)
     sseWatchdog = setTimeout(() => {
       console.warn('[useTaskEvents] SSE 45s 无消息, 判定假活, 强制重连')
-      try { es.close() } catch { /* 忽略 */ }
+      const current = es
+      try { current?.close() } catch { /* 忽略 */ }
       scheduleReconnect()
     }, 45000)
   }
