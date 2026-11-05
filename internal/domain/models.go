@@ -14,24 +14,31 @@ import (
 // AccountLevel represents the manual account tier selected by user.
 // SystemGroup 平台级群组库条目(找群功能), 跨租户共享, 不含来源租户身份。
 type SystemGroup struct {
-	SGID        uuid.UUID `json:"sg_id"`
-	Source      string    `json:"source"` // scraped | joined | bio
-	Title       string    `json:"title"`
-	Username    string    `json:"username,omitempty"`
-	TmeLink     string    `json:"tme_link,omitempty"`
-	GType       string    `json:"gtype"` // public | private | channel | unknown
-	MemberCount int       `json:"member_count"`
-	Status      string    `json:"status"` // active | joined | invalid
-	RefCount    int       `json:"ref_count"`
-	LastSeenAt  time.Time `json:"last_seen_at"`
+	SGID uuid.UUID `json:"sg_id"`
+	TelegramChatID int64 `json:"telegram_chat_id,omitempty"`
+	Source string `json:"source"`
+	Title string `json:"title"`
+	Username string `json:"username,omitempty"`
+	TmeLink string `json:"tme_link,omitempty"`
+	GType string `json:"gtype"`
+	MemberCount int `json:"member_count"`
+	Status string `json:"status"`
+	ResolutionStatus string `json:"resolution_status,omitempty"`
+	FirstContributorTenantName string `json:"contributor_name,omitempty"`
+	RefCount int `json:"-" db:"ref_count"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+	MemberCountUpdatedAt *time.Time `json:"member_count_updated_at,omitempty"`
 }
 
-// DedupKey 归并键: 有 username 用 username, 否则用 tme_link 原值。
+// DedupKey 优先使用 Telegram Chat ID；身份尚未解析时使用公开 username 或邀请链接。
 func (g SystemGroup) DedupKey() string {
-	if g.Username != "" {
-		return "u:" + strings.ToLower(g.Username)
+	if g.TelegramChatID != 0 {
+		return fmt.Sprintf("c:%d", g.TelegramChatID)
 	}
-	return "l:" + g.TmeLink
+	if g.Username != "" {
+		return "u:" + strings.ToLower(strings.TrimPrefix(g.Username, "@"))
+	}
+	return "l:" + strings.ToLower(strings.TrimSpace(g.TmeLink))
 }
 
 // TextDict 文案变量(数据字典): 群发消息里写 {变量名}, 发送时随机取词条替换。
