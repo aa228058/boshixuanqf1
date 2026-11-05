@@ -827,10 +827,10 @@ func (e *Engine) CancelTask(taskID uuid.UUID) {
 	// M-05: 取消立即落库(原只触发内存cancel, DB状态要等worker退出才更新,
 	// 取消后列表长时间显示running造成"取消没生效"的错觉; worker认领时的状态双查会跳过已取消任务)
 	if t, err := e.repo.GetByTaskIDAnyTenant(context.Background(), taskID); err == nil && t != nil {
-		if uerr := e.repo.UpdateStatus(context.Background(), t.TenantID, taskID, domain.TaskStatusCancelled); uerr != nil {
-			taskLog.Printf("[task] cancel落库失败: %v", uerr)
-		}
-	}
+        if _, uerr := e.repo.CancelIfActive(context.Background(), t.TenantID, taskID); uerr != nil {
+            taskLog.Printf("[task] cancel落库失败: %v", uerr)
+        }
+    }
 	if cancel, ok := e.taskCtxs.Load(taskID.String()); ok {
 		cancel.(context.CancelFunc)()
 	}
