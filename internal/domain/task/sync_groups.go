@@ -191,6 +191,9 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 			break
 		}
 
+		if len(dialogs) > 2147483647 {
+			return fmt.Errorf("dialog page exceeds Telegram int32 offset range: %d", len(dialogs))
+		}
 		offset += int32(len(dialogs))
 		// Safety limit: max 200 batches (约 2 万个会话), 防止极端情况下无限分页
 		if batchCount >= 200 {
