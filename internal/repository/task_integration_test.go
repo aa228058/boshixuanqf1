@@ -44,7 +44,11 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 			tenant_id UUID PRIMARY KEY,
 			status TEXT NOT NULL DEFAULT 'active',
 			expires_at TIMESTAMPTZ
-		);
+		)`)
+	if err != nil {
+		t.Fatalf("create tenants table: %v", err)
+	}
+	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id UUID PRIMARY KEY,
 			tenant_id UUID NOT NULL,
