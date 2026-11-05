@@ -85,7 +85,11 @@ func runDBDump(cfg *config.Config, dir string) error {
 	if err != nil {
 		return fmt.Errorf("open backup directory: %w", err)
 	}
-	defer root.Close()
+	defer func() {
+		if err := root.Close(); err != nil {
+			log.Printf("[db-backup] 关闭备份目录失败: %v", err)
+		}
+	}()
 
 	f, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
