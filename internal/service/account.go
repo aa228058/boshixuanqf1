@@ -560,18 +560,28 @@ func (s *AccountService) ImportSessionFiles(ctx context.Context, tenantID uuid.U
 			DeviceProfile: map[string]any{},
 		}
 		if twoFA != "" {
-			// R182: sidecar 2FA 密码加密入库(与 UpdateAccountProfile 同规则, 不明文落 JSONB)
-			if enc, err := crypto.Encrypt([]byte(twoFA)); err == nil {
-				acc.DeviceProfile["twofa_enc"] = enc
+			// 2FA 密码必须加密成功才能继续，避免导入成功却丢失登录所需密码。
+			enc, encErr := crypto.Encrypt([]byte(twoFA))
+			if encErr != nil {
+				result.Failed++
+				result.Errors = append(result.Errors, fmt.Sprintf("第%d个文件: 2FA 密码加密失败(%v)", i+1, encErr))
+				continue
 			}
+			acc.DeviceProfile["twofa_enc"] = enc
 		}
 		if _, _, err := s.repo.CountAndCreate(ctx, acc, maxAccounts); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("第%d个文件: 创建失败(%v)", i+1, err))
 			continue
 		}
-		if err := s.quota.InitAccountQuotas(ctx, acc.AccountID, acc.Level); err != nil {
-			log.Printf("[account] init quotas %s: %v", accountID, err)
+		if s.quota != nil {
+			if err := s.quota.InitAccountQuotas(ctx, acc.AccountID, acc.Level); err != nil {
+				_ = s.repo.Delete(ctx, tenantID, accountID)
+				_ = s.quota.DeleteByAccount(ctx, accountID)
+				result.Failed++
+				result.Errors = append(result.Errors, fmt.Sprintf("第%d个文件: 初始化账号额度失败(%v)", i+1, err))
+				continue
+			}
 		}
 		if err := s.engine.StoreImportedSession(ctx, acc.SessionName, serverAddr, sess); err != nil {
 			_ = s.repo.Delete(ctx, tenantID, accountID)
