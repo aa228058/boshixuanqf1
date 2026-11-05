@@ -50,7 +50,31 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			                   THEN EXCLUDED.username ELSE system_groups.username END,
 			gtype       = CASE WHEN system_groups.gtype = 'unknown' THEN EXCLUDED.gtype ELSE system_groups.gtype END
 	`, sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status, sg.TelegramChatID, sg.ContributorTenantID)
+	if err == nil && sg.ContributorTenantID != uuid.Nil {
+		var sgID uuid.UUID
+		if qerr := r.db.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE dedup_key=$1", sg.DedupKey()).Scan(&sgID); qerr != nil { return qerr }
+		link := normalizeSystemGroupLink(sg.TmeLink)
+		if link == "" && sg.Username != "" { link = normalizeSystemGroupLink("https://t.me/" + strings.TrimPrefix(sg.Username, "@")) }
+		if link != "" {
+			linkType := "public"
+			if strings.Contains(link, "/+") || strings.Contains(link, "/joinchat/") { linkType = "private_invite" }
+			_, err = r.db.Exec(ctx, "INSERT INTO system_group_links (sg_id, original_link, normalized_link, link_type, validity_status, source) VALUES ($1,$2,$3,$4,'pending',$5) ON CONFLICT (normalized_link) DO NOTHING", sgID, sg.TmeLink, link, linkType, sg.Source)
+			if err != nil { return err }
+			_, err = r.db.Exec(ctx, "INSERT INTO system_group_contributions (sg_id, tenant_id, tenant_name_snapshot, submitted_link, source) SELECT $1, tenant_id, name, $2, $3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id, tenant_id, submitted_link) DO NOTHING", sgID, sg.TmeLink, sg.Source, sg.ContributorTenantID)
+		}
+	}
 	return err
+}
+
+func normalizeSystemGroupLink(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.TrimPrefix(value, "https://")
+	value = strings.TrimPrefix(value, "http://")
+	value = strings.TrimPrefix(value, "www.")
+	value = strings.TrimRight(value, "/")
+	if value == "" { return "" }
+	if !strings.HasPrefix(value, "t.me/") && !strings.HasPrefix(value, "telegram.me/") && !strings.HasPrefix(value, "telegram.dog/") { return "" }
+	return value
 }
 
 // UpdateResolvedInfo 后台解析器回写: 私密邀请链接经 checkChatInvite 补全群名/成员数/类型。
