@@ -79,10 +79,33 @@ func normalizeSystemGroupLink(value string) string {
 
 // UpdateResolvedInfo 后台解析器回写: 私密邀请链接经 checkChatInvite 补全群名/成员数/类型。
 func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uuid.UUID, title string, memberCount int, gtype string, chatID int64) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE system_groups SET title=$2, member_count=GREATEST(member_count, $3), gtype=$4, telegram_chat_id=COALESCE(telegram_chat_id,NULLIF($5,0)), resolution_status='resolved', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW()
-		WHERE sg_id=$1`, sgID, title, memberCount, gtype, chatID)
-	return err
+	if chatID == 0 {
+		_, err := r.db.Exec(ctx, "UPDATE system_groups SET title=CASE WHEN $2<>'' THEN $2 ELSE title END, member_count=GREATEST(member_count,$3), gtype=$4, resolution_status='resolved', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, title, memberCount, gtype)
+		return err
+	}
+	tx, err := r.db.Begin(ctx)
+	if err != nil { return err }
+	defer tx.Rollback(ctx)
+
+	var canonicalID uuid.UUID
+	lookupErr := tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE sg_id<>$1 AND (telegram_chat_id=$2 OR dedup_key=$3) ORDER BY created_at LIMIT 1 FOR UPDATE", sgID, chatID, fmt.Sprintf("c:%d", chatID)).Scan(&canonicalID)
+	if lookupErr == nil {
+		_, err = tx.Exec(ctx, "UPDATE system_groups SET telegram_chat_id=$2, dedup_key=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=GREATEST(member_count,$5), gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", canonicalID, chatID, fmt.Sprintf("c:%d", chatID), title, memberCount, gtype)
+		if err != nil { return err }
+		_, err = tx.Exec(ctx, "INSERT INTO system_group_links (sg_id,original_link,normalized_link,link_type,invite_hash,validity_status,source,last_verified_at,created_at) SELECT $1,original_link,normalized_link,link_type,invite_hash,validity_status,source,last_verified_at,created_at FROM system_group_links WHERE sg_id=$2 ON CONFLICT (normalized_link) DO NOTHING", canonicalID, sgID)
+		if err != nil { return err }
+		_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source,created_at) SELECT $1,tenant_id,tenant_name_snapshot,submitted_link,source,created_at FROM system_group_contributions WHERE sg_id=$2 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", canonicalID, sgID)
+		if err != nil { return err }
+		_, err = tx.Exec(ctx, "DELETE FROM system_groups WHERE sg_id=$1", sgID)
+		if err != nil { return err }
+		_, err = tx.Exec(ctx, "UPDATE system_groups SET first_contributor_tenant_id=first_contribution.tenant_id, first_contributor_tenant_name=first_contribution.tenant_name_snapshot FROM (SELECT tenant_id,tenant_name_snapshot FROM system_group_contributions WHERE sg_id=$1 AND tenant_id IS NOT NULL ORDER BY created_at,contribution_id LIMIT 1) AS first_contribution WHERE system_groups.sg_id=$1 AND system_groups.first_contributor_tenant_id IS NULL", canonicalID)
+		if err != nil { return err }
+		return tx.Commit(ctx)
+	}
+
+	_, err = tx.Exec(ctx, "UPDATE system_groups SET dedup_key=$2, telegram_chat_id=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=GREATEST(member_count,$5), gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, fmt.Sprintf("c:%d", chatID), chatID, title, memberCount, gtype)
+	if err != nil { return err }
+	return tx.Commit(ctx)
 }
 
 // MarkInvalidByDedupKey R87-M10: 加入失败等场景把群标记为失效("已失效"筛选的数据源)。
