@@ -337,6 +337,20 @@ func (r *TaskRepository) UpdateProgressExact(ctx context.Context, tenantID, task
 	return err
 }
 
+// RefreshTaskLock extends the lease only while this worker still owns a running task.
+// A stale worker must not refresh a lease that has already been reclaimed.
+func (r *TaskRepository) RefreshTaskLock(ctx context.Context, tenantID, taskID uuid.UUID, workerID string) (bool, error) {
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks SET locked_at = NOW()
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND status = 'running' AND worker_id = $3
+	`, tenantID, taskID, workerID)
+	if err != nil {
+		return false, fmt.Errorf("refresh task lock: %w", err)
+	}
+	return res.RowsAffected() == 1, nil
+}
+
 // UpdateStatus updates task status.
 func (r *TaskRepository) UpdateStatus(ctx context.Context, tenantID, taskID uuid.UUID, status domain.TaskStatus) error {
 	var completedAt interface{}
@@ -347,7 +361,9 @@ func (r *TaskRepository) UpdateStatus(ctx context.Context, tenantID, taskID uuid
 	// 终态（failed/cancelled）与恢复（queued）为全来源白名单（引擎 crash 恢复、
 	// 管理操作、任务失败路径都需要）；其余按状态机矩阵校验。
 	res, err := r.db.Exec(ctx, `
-		UPDATE tasks SET status = $3, completed_at = $4, locked_at = NULL, worker_id = NULL
+		UPDATE tasks SET status = $3, completed_at = $4,
+			locked_at = CASE WHEN $3 = 'running' THEN locked_at ELSE NULL END,
+			worker_id = CASE WHEN $3 = 'running' THEN worker_id ELSE NULL END
 		WHERE tenant_id = $1 AND task_id = $2 AND (
 			$3 IN ('failed', 'cancelled', 'queued')
 			OR (status = 'scheduled' AND $3 IN ('queued', 'cancelled'))
