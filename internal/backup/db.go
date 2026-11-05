@@ -181,7 +181,12 @@ func pruneOldDBBackups(dir string, keep int) {
 	}
 	defer root.Close()
 
-	entries, err := root.ReadDir(".")
+	dirFile, err := root.Open(".")
+	if err != nil {
+		return
+	}
+	entries, err := dirFile.ReadDir(-1)
+	_ = dirFile.Close()
 	if err != nil {
 		return
 	}
