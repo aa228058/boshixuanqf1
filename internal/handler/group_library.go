@@ -79,7 +79,7 @@ func (h *GroupLibraryHandler) Search(c echo.Context) error {
 			if used >= dailySearch {
 				return echo.NewHTTPError(http.StatusTooManyRequests, fmt.Sprintf("今日搜群次数已用完(体验版 %d 次/天), 升级套餐不限量", dailySearch))
 			}
-			if err := h.planLimits.AddDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch, 1); err != nil {
+			if _, err := h.planLimits.AddDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch, 1); err != nil {
 				return echo.NewHTTPError(http.StatusServiceUnavailable, "用量记录失败, 请稍后重试")
 			}
 		}
