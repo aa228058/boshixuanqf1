@@ -108,14 +108,14 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		if !bulkMode {
 			if en.private {
 				// 私密邀请: messages.checkChatInvite 无需入群即可拿到群名/成员数
-				title, count, gtype, rerr := resolveInviteInfo(ctx, client, en.hash)
+				title, count, gtype, chatID, rerr := resolveInviteInfo(ctx, client, en.hash)
 				if rerr != nil {
 					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
 					continue
 				}
-				sg.Title, sg.MemberCount, sg.GType = title, count, gtype
+				sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 			} else {
-				title, count, gtype, rerr := resolveGroupInfo(ctx, client, en.username)
+				title, count, gtype, chatID, rerr := resolveGroupInfo(ctx, client, en.username)
 				if rerr != nil {
 					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
 					continue
@@ -143,7 +143,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 
 // resolveInviteInfo 用 messages.checkChatInvite 解析私密邀请链接:
 // 无需加入即可拿到群名、成员数、类型(ChatInvite 结构)。hash 为 t.me/+ 后的部分。
-func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string) (title string, count int, gtype string, err error) {
+func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string) (title string, count int, gtype string, chatID int64, err error) {
 	rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	res, err := client.Invoke(rctx, &tg.MessagesCheckChatInviteRequest{Hash: hash})
@@ -151,9 +151,9 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 		s := strings.ToLower(err.Error())
 		switch {
 		case strings.Contains(s, "invite_hash_expired"):
-			return "", 0, "", fmt.Errorf("邀请已过期")
+			return "", 0, "", 0, fmt.Errorf("邀请已过期")
 		case strings.Contains(s, "invite_hash_invalid"), strings.Contains(s, "invite_hash_empty"):
-			return "", 0, "", fmt.Errorf("邀请无效")
+			return "", 0, "", 0, fmt.Errorf("邀请无效")
 		default:
 			// 保留 TG 原文, 供调用方识别 CHANNEL_PRIVATE 等场景走网页兜底
 			return "", 0, "", fmt.Errorf("校验邀请失败: %v", err)
@@ -166,13 +166,13 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			// 该账号已在群里, 直接返回群信息
 			switch c := v.Chat.(type) {
 			case *tg.Chat:
-				return c.Title, int(c.ParticipantsCount), "public", nil
+				return c.Title, int(c.ParticipantsCount), "public", int64(c.ID), nil
 			case *tg.Channel:
 				gt := "channel"
 				if c.Megagroup {
 					gt = "private"
 				}
-				return c.Title, int(c.ParticipantsCount), gt, nil
+				return c.Title, int(c.ParticipantsCount), gt, int64(c.ID), nil
 			}
 		case *tg.ChatInvitePeek:
 			// TG 官方"不入群预览"变体: 内嵌完整 chat 对象
@@ -193,11 +193,11 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 	if inv.Broadcast {
 		gt = "channel"
 	}
-	return inv.Title, int(inv.ParticipantsCount), gt, nil
+	return inv.Title, int(inv.ParticipantsCount), gt, 0, nil
 }
 
 // resolveGroupInfo 解析公开群/频道的真实群名、成员数、类型。
-func resolveGroupInfo(ctx context.Context, client *telegram.Client, username string) (title string, count int, gtype string, err error) {
+func resolveGroupInfo(ctx context.Context, client *telegram.Client, username string) (title string, count int, gtype string, chatID int64, err error) {
 	rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	peer, err := client.ResolvePeer(rctx, "t.me/"+username)
@@ -219,6 +219,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 		for _, c := range full.Chats {
 			if ch, ok := c.(*tg.Channel); ok && ch.ID == p.ChannelID {
 				title = ch.Title
+				chatID = int64(ch.ID)
 				if ch.Megagroup {
 					gtype = "public"
 				} else {
@@ -239,7 +240,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 			// mtgo 的 tg.ChatFull 没有 ParticipantsCount, 普通群成员数取自 tg.Chat 对象
 			for _, c := range full.Chats {
 				if ch, ok := c.(*tg.Chat); ok && ch.ID == p.ChatID {
-					title, gtype, count = ch.Title, "public", int(ch.ParticipantsCount)
+					title, gtype, count, chatID = ch.Title, "public", int(ch.ParticipantsCount), int64(ch.ID)
 					break
 				}
 			}
@@ -250,5 +251,5 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	if title == "" {
 		title = "@" + username
 	}
-	return title, count, gtype, nil
+	return title, count, gtype, chatID, nil
 }
