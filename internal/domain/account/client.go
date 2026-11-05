@@ -482,7 +482,7 @@ func (e *Engine) stopPooledAsync(pc *pooledClient) {
 }
 
 // stopManagedAsync 异步停止保活客户端(同 stopPooledAsync 语义)。
-func stopManagedAsync(mc *managedClient) {
+func (e *Engine) stopManagedAsync(mc *managedClient) {
 	// 崩溃类修复: 同 stopPooledAsync, 裸 go 调用必须自带 recover
 	defer func() {
 		if r := recover(); r != nil {
@@ -494,8 +494,18 @@ func stopManagedAsync(mc *managedClient) {
 	}
 	for i := 0; i < 30; i++ {
 		if mc.mu.TryLock() {
-			mc.client.Stop()
-			mc.mu.Unlock()
+			func() {
+				defer mc.mu.Unlock()
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[client] stopManagedAsync Stop panic: %v", r)
+					}
+				}()
+				mc.client.Stop()
+			}()
+			e.orphanMu.Lock()
+			delete(e.managedOrphans, mc.client)
+			e.orphanMu.Unlock()
 			return
 		}
 		time.Sleep(time.Second)
@@ -520,7 +530,7 @@ func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid
 		e.registerManagedOrphan(mc)
 		mc.cancel()
 		mc.finish()
-		go stopManagedAsync(mc)
+		go e.stopManagedAsync(mc)
 	}
 
 	// Remove from pool
