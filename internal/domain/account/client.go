@@ -552,6 +552,16 @@ func (e *Engine) removeClient(key string) {
 	e.mu.Unlock()
 }
 
+ // removeClientIfSame prevents a cancelled, older auth goroutine from deleting
+ // a newer auth flow that has already registered under the same account key.
+func (e *Engine) removeClientIfSame(key string, expected *managedClient) {
+	e.mu.Lock()
+	if current, ok := e.clients[key]; ok && current == expected {
+		delete(e.clients, key)
+	}
+	e.mu.Unlock()
+}
+
 func (e *Engine) GetClientByAccount(ctx context.Context, tenantID, accountID uuid.UUID) (*telegram.Client, interface{}, error) {
 	client, err := e.GetClient(ctx, tenantID, accountID)
 	if err != nil {
