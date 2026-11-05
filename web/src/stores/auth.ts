@@ -88,7 +88,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return
     try {
       const meRes = await authApi.me()
-      tenant.value = meRes
+      // /auth/me 返回 tenant_name，而管理端租户模型使用 name；在 Store 入口统一字段。
+      tenant.value = { ...meRes, name: meRes.tenant_name || meRes.name || '' }
     } catch (e) {
       console.error('刷新租户信息失败:', e)
     }
