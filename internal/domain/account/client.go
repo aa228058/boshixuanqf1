@@ -487,13 +487,19 @@ func stopManagedAsync(mc *managedClient) {
 func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid.UUID) error {
 	key := accountKey(tenantID, accountID)
 
-	// Remove from auth flow
+	// Remove from auth flow and close its submission channels. Keep the
+	// managed client alive until its in-flight user releases mc.mu, then stop it.
 	e.mu.Lock()
-	if mc, ok := e.clients[key]; ok {
-		mc.cancel()
+	mc, hadManaged := e.clients[key]
+	if hadManaged {
 		delete(e.clients, key)
 	}
 	e.mu.Unlock()
+	if hadManaged && mc != nil {
+		mc.cancel()
+		mc.finish()
+		go stopManagedAsync(mc)
+	}
 
 	// Remove from pool
 	// R181: 锁内只摘除, 锁外异步停 —— 此前持全局 poolMu 裸 Stop: 秒级慢操作阻塞全部
@@ -505,6 +511,8 @@ func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid
 	}
 	e.poolMu.Unlock()
 	if hadPooled {
+		// ReleaseClient 可能仍持有该 entry 的锁；登记后由其在释放时认领解锁。
+		e.registerOrphan(pc)
 		go e.stopPooledAsync(pc)
 	}
 
