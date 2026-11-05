@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -21,13 +22,21 @@ func ParseTelethonSessionFile(ctx context.Context, path string) (*storage.Sessio
 	if err != nil {
 		return nil, "", "", fmt.Errorf("创建临时文件失败: %w", err)
 	}
-	defer os.Remove(tmp.Name())
+	defer func() {
+		if err := os.Remove(tmp.Name()); err != nil && !os.IsNotExist(err) {
+			log.Printf("[session-import] remove temporary SQLite file %q failed: %v", tmp.Name(), err)
+		}
+	}()
 
 	sourceRoot, err := os.OpenRoot(filepath.Dir(path))
 	if err != nil {
 		return nil, "", "", fmt.Errorf("打开会话目录失败: %w", err)
 	}
-	defer sourceRoot.Close()
+	defer func() {
+		if err := sourceRoot.Close(); err != nil {
+			log.Printf("[session-import] close source directory failed: %v", err)
+		}
+	}()
 	src, err := sourceRoot.Open(filepath.Base(path))
 	if err != nil {
 		return nil, "", "", fmt.Errorf("打开文件失败: %w", err)
@@ -53,7 +62,11 @@ func ParseTelethonSessionFile(ctx context.Context, path string) (*storage.Sessio
 	if err != nil {
 		return nil, "", "", fmt.Errorf("打开 SQLite 失败（不是有效的 .session 文件？）: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("[session-import] close SQLite database failed: %v", err)
+		}
+	}()
 
 	// Telethon sessions 表：dc_id, server_address, port, auth_key
 	var (
