@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/mtgo-labs/mtgo/telegram"
-	"github.com/mtgo-labs/mtgo/tg"
 )
 
 func (e *Engine) StartApprovalChecker(ctx context.Context) {
@@ -126,36 +125,14 @@ func (e *Engine) isAccountInGroup(ctx context.Context, client *telegram.Client, 
 		}
 	}
 
-	// Method 2: Try by chatID via Telegram API (read-only, no side effects)
-	// Use AccessHash if available for channel queries
-	if chatID != 0 {
-		// P0-4 审计修复: chatID 是 -100xxx 全格式时转裸 ID, 否则审批检查对超级群必失败
-		chID := chatID
-		if chID <= -1000000000000 {
-			chID = -chID - 1000000000000
-		}
-		req := &tg.ChannelsGetFullChannelRequest{
-			Channel: &tg.InputChannel{
-				ChannelID:  chID,
-				AccessHash: accessHash,
-			},
-		}
-		_, err := client.Invoke(ctx, req)
-		if err == nil {
-			return true
-		}
-		// Fallback: try as regular chat
-		_, err = client.Invoke(ctx, &tg.MessagesGetFullChatRequest{ChatID: chatID})
-		if err == nil {
-			return true
-		}
-	}
-
-	// Do not re-import an invite link here. ImportChatInvite is a mutating
-	// operation: it can submit another join request while this checker is only
-	// supposed to observe whether the original request was approved.
-	// If the group is not visible through dialogs or a known chat ID, keep the
-	// approval pending and let the normal timeout policy resolve it.
+	// Do not treat GetFullChannel/GetFullChat success as proof of membership:
+	// those calls return chat metadata, not the current account's participant
+	// status. A matching dialog is the positive membership signal available
+	// here. If it is not present, keep the approval pending rather than
+	// incorrectly resolving it as approved.
+	//
+	// Do not re-import an invite link here. ImportChatInvite is mutating and can
+	// submit another join request while this checker is only observing status.
 	return false
 }
 
