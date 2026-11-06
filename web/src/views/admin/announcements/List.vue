@@ -61,14 +61,14 @@
         <div>
           <label for="ann-priority" class="block text-sm text-text-secondary mb-1.5">优先级</label>
           <div class="flex gap-2">
-            <button
+            <button type="button"
               @click="form.priority = 'normal'"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
               :class="form.priority === 'normal' ? 'border-[color:var(--t-brand)]/30 bg-[var(--t-brand)]/5 text-[var(--t-brand)]' : 'border-border text-text-secondary'"
             >
               普通
             </button>
-            <button
+            <button type="button"
               @click="form.priority = 'urgent'"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
               :class="form.priority === 'urgent' ? 'border-[color:var(--t-err)]/30 bg-[var(--t-err)]/5 text-[var(--t-err)]' : 'border-border text-text-secondary'"
