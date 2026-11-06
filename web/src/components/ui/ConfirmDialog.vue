@@ -8,17 +8,22 @@
       </div>
     </div>
     <template #footer>
-      <button type="button" @click="visible = false" class="modal-btn-ghost">
-        {{ cancelText }}
-      </button>
-      <button
+      <t-button
         type="button"
+        variant="outline"
+        class="ui-t-button ui-t-button--secondary"
+        @click="visible = false"
+      >
+        {{ cancelText }}
+      </t-button>
+      <t-button
+        type="button"
+        :theme="danger ? 'danger' : 'primary'"
+        :class="['ui-t-button', danger ? 'ui-t-button--danger' : 'ui-t-button--primary']"
         @click="confirm"
-        class="modal-btn-danger"
-        :class="{ 'modal-btn-primary': !danger }"
       >
         {{ confirmText }}
-      </button>
+      </t-button>
     </template>
   </Modal>
 </template>
