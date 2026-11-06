@@ -593,12 +593,8 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 				GType: gtype, MemberCount: memberCount, TelegramChatID: chatID,
 				Status: "joined", ContributorTenantID: task.TenantID,
 			}
-			if err := e.systemGroupRepo.Upsert(ctx, shared); err != nil {
+			if err := e.systemGroupRepo.UpsertJoinedGroup(ctx, shared, freeSpeechStatus); err != nil {
 				log.Printf("[join] 共享群组库补齐失败 chat=%d: %v", chatID, err)
-			} else if freeSpeechStatus != "unknown" {
-				if err := e.systemGroupRepo.UpdateFreeSpeechStatusByChatID(ctx, chatID, freeSpeechStatus); err != nil {
-					log.Printf("[join] 更新群组自由发言状态失败 chat=%d: %v", chatID, err)
-				}
 			}
 		}
 
