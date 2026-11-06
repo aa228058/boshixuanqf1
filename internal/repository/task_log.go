@@ -390,4 +390,3 @@ func (r *TaskLogRepository) HasUncertainBroadcastTargets(ctx context.Context, te
 	}
 	return exists, nil
 }
-
