@@ -40,16 +40,4 @@ html.theme-dark {
   --td-bg-color-table-expand: var(--t-card);
 }
 
-/* Mobile dialogs keep the established bottom-sheet interaction. */
-@media (max-width: 768px) {
-  .t-dialog__wrap { padding: 0; align-items: flex-end; }
-  .t-dialog {
-    width: 100% !important;
-    max-width: 100%;
-    border-radius: var(--t-modal-radius) var(--t-modal-radius) 0 0;
-    max-height: 92dvh;
-    display: flex;
-    flex-direction: column;
-  }
-  .t-dialog__body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
-}
+/* TDesign dialog geometry is centralized in tdesign-overrides.css. */
