@@ -275,7 +275,7 @@
         </div>
       </div>
       <template #footer>
-        <button class="modal-btn-primary" @click="showPreview = false">关闭</button>
+        <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" @click="showPreview = false">关闭</t-button>
       </template>
     </Modal>
   </div>
