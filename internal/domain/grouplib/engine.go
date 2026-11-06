@@ -283,7 +283,6 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	return nil
 }
 
-
 func (e *Engine) upsertBioLinks(ctx context.Context, bio string) (int, error) {
 	n := 0
 	seen := map[string]bool{}
