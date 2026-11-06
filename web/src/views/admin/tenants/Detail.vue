@@ -3,7 +3,7 @@
        v-if 链顺序: invalidId 先行, tenant 内容 v-else-if 跟随 -->
   <main v-if="invalidId" class="max-w-4xl mx-auto py-16 text-center space-y-4">
     <p class="text-text-muted">租户 ID 无效或链接已损坏</p>
-    <button @click="router.replace('/admin/tenants')" class="ui-btn ui-btn--secondary ui-btn--sm">返回租户列表</button>
+    <t-button @click="router.replace('/admin/tenants')" class="ui-t-button--secondary ui-t-button">返回租户列表</t-button>
   </main>
   <main class="max-w-4xl mx-auto space-y-6" v-else-if="tenant">
     <Breadcrumb :items="[{ path: '/admin/tenants', label: '租户管理' }, { path: '', label: '租户详情' }]" />
@@ -73,7 +73,7 @@
         </div>
       </div>
       <template #footer>
-        <button type="button" @click="showEdit = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button type="button" @click="showEdit = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
         <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
       </template>
     </Modal>
