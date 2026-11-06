@@ -65,6 +65,12 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	accRows.Close()
 
 	for i, p := range pending {
+		// Defensive cleanup for bot links inserted by older import/aggregation paths.
+		if p.gtype != "private" && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
+			_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
+			_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
+			continue
+		}
 		if len(accs) == 0 && p.title != "" {
 			continue
 		}
