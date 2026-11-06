@@ -130,7 +130,7 @@
                   <span v-else class="text-text-muted truncate">{{ '@' + (e.username || '') }}</span>
                   <span class="px-1 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] text-[10px] whitespace-nowrap">{{ sourceLabel(e.source) }}</span>
                   <span :class="e.status === 'invalid' ? 'text-text-muted line-through' : 'text-[var(--t-brand)]'" class="whitespace-nowrap">{{ statusLabel(e.status) }}</span>
-                  <button class="text-text-muted hover:text-text-primary whitespace-nowrap" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
+                  <button type="button" class="ui-icon-btn" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
                 </div>
               </div>
             </div>
