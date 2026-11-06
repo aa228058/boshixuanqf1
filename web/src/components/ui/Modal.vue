@@ -54,7 +54,7 @@ let modalCounter = 0
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch } from 'vue'
 import { VueFinalModal } from 'vue-final-modal'
 
 const props = defineProps<{
@@ -68,7 +68,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
 }>()
 
-// 本实例的打开序位, 叠加到共享计数器上 → 后开的弹窗永远压住先开的
+// 本实例最近一次打开序位; 使用单调递增序号，避免关闭/卸载顺序导致层级计数错乱
 const order = ref(0)
 
 // P2-02 审计修复: 原实现在 zIndexFn 里 +1——该函数渲染期会被多次调用,
@@ -127,7 +127,7 @@ watch(() => props.modelValue, v => {
   if (v) attachKbGuard()
   else detachKbGuard()
 }, { immediate: true })
-onUnmounted(() => { detachKbGuard(); modalCounter = Math.max(0, modalCounter - 1) })
+// 层级序号只负责排序，不做递减：弹窗可长期挂载、反复开关或被条件卸载。
 </script>
 
 <style scoped>
