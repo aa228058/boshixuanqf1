@@ -146,23 +146,11 @@ func (e *Engine) isAccountInGroup(ctx context.Context, client *telegram.Client, 
 		}
 	}
 
-	// Method 3: No chatID and not in dialogs - try re-importing invite link
-	// This is last resort and may re-send request if admin rejected before
-	if targetLink != "" && (strings.Contains(targetLink, "+") || strings.Contains(targetLink, "joinchat")) {
-		hash := extractInviteHash(targetLink)
-		req := &tg.MessagesImportChatInviteRequest{Hash: hash}
-		_, err := client.Invoke(ctx, req)
-		if err != nil {
-			errStr := strings.ToLower(err.Error())
-			if strings.Contains(errStr, "already_participant") || strings.Contains(errStr, "user_already") {
-				return true
-			}
-		} else {
-			// Import succeeded, we are now in the group
-			return true
-		}
-	}
-
+	// Do not re-import an invite link here. ImportChatInvite is a mutating
+	// operation: it can submit another join request while this checker is only
+	// supposed to observe whether the original request was approved.
+	// If the group is not visible through dialogs or a known chat ID, keep the
+	// approval pending and let the normal timeout policy resolve it.
 	return false
 }
 
