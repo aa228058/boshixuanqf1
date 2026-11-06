@@ -32,7 +32,12 @@ test('管理员路由可渲染且没有浏览器运行时异常', async ({ page 
   page.on('pageerror', error => runtimeErrors.push(error.message))
 
   for (const route of routes) {
-    await page.goto(route)
+    // Admin token is memory-only: use Vue Router's history navigation, not a document reload.
+    await page.evaluate(path => {
+      window.history.pushState({}, '', path)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }, route)
+    await expect(page).toHaveURL(new RegExp(`${route.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`))
     await expect(page.locator('body'), route).toBeVisible()
     await expect(page.locator('body'), route).not.toBeEmpty()
     await page.screenshot({
