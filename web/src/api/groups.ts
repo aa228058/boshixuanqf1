@@ -42,6 +42,11 @@ export function joinLibraryGroups(accountIds: string[], sgIds: string[], opts: J
 
 export interface GroupLibraryImportJob {
   job_id: string
+  raw_count: number
+  valid_count: number
+  duplicate_count: number
+  invalid_count: number
+  file_name?: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   total_count: number
   processed_count: number
@@ -53,9 +58,13 @@ export interface GroupLibraryImportJob {
   finished_at?: string
 }
 
-// 文本或 txt/csv 文件内容提交后立即返回任务，导入过程在服务端后台执行。
+// 文本或 txt/csv 文件先做链接预筛选，返回预览任务；确认后才进入后台解析。
 export function importLibraryGroups(text: string, fileName = ''): Promise<GroupLibraryImportJob> {
   return api.post('/group-library/import', { text, file_name: fileName })
+}
+
+export function confirmImportLibraryGroups(jobId: string): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/confirm')
 }
 
 export function listGroupLibraryImportJobs(): Promise<{ list: GroupLibraryImportJob[] }> {
