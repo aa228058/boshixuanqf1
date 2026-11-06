@@ -74,6 +74,7 @@
         <div class="flex items-center justify-between text-xs text-text-secondary">
           <span>{{ new Date(c.created_at).toLocaleDateString('zh-CN') }}</span>
           <div>
+            <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(c.code)">复制</t-button>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</t-button>
             <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)">作废</t-button>
             <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)">删除</t-button>
