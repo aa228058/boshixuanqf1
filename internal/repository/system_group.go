@@ -245,7 +245,7 @@ func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) (
 	args = append(args, (page-1)*size)
 	rows, err := r.db.Query(ctx, `
 		SELECT sg_id, source, COALESCE(title,''), COALESCE(username,''), COALESCE(tme_link,''),
-		       gtype, member_count, status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,'')
+		       gtype, member_count, COALESCE(free_speech_status,'unknown'), status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,'')
 		FROM system_groups `+w+`
 		ORDER BY last_seen_at DESC, sg_id DESC  -- 唯一tiebreaker: 防同值行间顺序不定导致翻页重复/遗漏
 		LIMIT $`+fmt.Sprint(n-1)+` OFFSET $`+fmt.Sprint(n), args...)
@@ -256,7 +256,7 @@ func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) (
 	var out []domain.SystemGroup
 	for rows.Next() {
 		var g domain.SystemGroup
-		if err := rows.Scan(&g.SGID, &g.Source, &g.Title, &g.Username, &g.TmeLink, &g.GType, &g.MemberCount, &g.Status, &g.RefCount, &g.LastSeenAt, &g.FirstContributorTenantName); err != nil {
+		if err := rows.Scan(&g.SGID, &g.Source, &g.Title, &g.Username, &g.TmeLink, &g.GType, &g.MemberCount, &g.FreeSpeechStatus, &g.Status, &g.RefCount, &g.LastSeenAt, &g.FirstContributorTenantName); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, g)
