@@ -3,9 +3,8 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const authState = resolve(process.cwd(), '.auth/user.json')
-const adminAuthState = resolve(process.cwd(), '.auth/admin.json')
 const hasAuthState = existsSync(authState)
-const hasAdminAuthState = existsSync(adminAuthState)
+const hasAdminCredentials = Boolean(process.env.E2E_ADMIN_USERNAME && process.env.E2E_ADMIN_PASSWORD)
 
 export default defineConfig({
   testDir: './tests',
@@ -40,11 +39,11 @@ export default defineConfig({
         use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: authState },
       },
     ] : []),
-    ...(hasAdminAuthState ? [
+    ...(hasAdminCredentials ? [
       {
         name: 'admin-desktop',
         testMatch: /admin\.spec\.ts/,
-        use: { ...devices['Desktop Chrome'], storageState: adminAuthState },
+        use: { ...devices['Desktop Chrome'] },
       },
     ] : []),
   ],
