@@ -119,6 +119,49 @@ html.theme-dark .modal-btn-ghost:hover {
   }
 }
 
+/* ---- Modal 根容器最终定位规则(桌面居中 / 移动端底部抽屉) ----
+   此文件在 vue-final-modal 默认 CSS 之后加载，避免默认样式覆盖定位。 */
+.modal-wrapper {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+.modal-content {
+  box-sizing: border-box !important;
+  width: min(520px, calc(100vw - 32px)) !important;
+  max-width: 520px !important;
+  max-height: min(88dvh, 900px) !important;
+  margin: auto !important;
+}
+.modal-card { width: 100%; min-width: 0; }
+@media (min-width: 769px) {
+  .modal-wrapper {
+    align-items: center !important;
+    padding: 24px !important;
+    overflow-y: auto !important;
+  }
+  .modal-content {
+    width: min(560px, calc(100vw - 48px)) !important;
+    max-width: 560px !important;
+    max-height: min(88dvh, 900px) !important;
+    margin: auto !important;
+  }
+  .modal-card { border-radius: 20px !important; }
+}
+@media (max-width: 768px) {
+  .modal-wrapper { align-items: flex-end !important; padding: 0 !important; }
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88dvh !important;
+    margin: 0 !important;
+  }
+}
+
 /* ---- 键盘弹起适配(规范 §8.2): 变量由 Modal.vue 的
    visualViewport 监听写入 --modal-kb, 弹窗整体上移同样距离 ----
    写在 .modal-card 而非 .modal-content: 避免和进入动画的 transform 冲突 */
