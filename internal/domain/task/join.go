@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/rand"
+	securerand "tg-sender/internal/secure"
 	"strings"
 	"time"
 
@@ -419,9 +419,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 				if span < 0 {
 					span = 0
 				}
-				waitDur = intervalMin + time.Duration(rand.Int63n(int64(span+1)))
+				waitDur = intervalMin + time.Duration(securerand.Int63n(int64(span+1)))
 			} else if joinInterval > 0 {
-				waitDur = joinInterval + time.Duration(rand.Int63n(int64(joinInterval/2)))
+				waitDur = joinInterval + time.Duration(securerand.Int63n(int64(joinInterval/2)))
 			}
 			select {
 			case <-ctx.Done():
