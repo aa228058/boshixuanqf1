@@ -126,7 +126,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useRouter } from 'vue-router'
-import { Plus, Eye, KeyRound, Trash2 } from 'lucide-vue-next'
+import { Eye, KeyRound, Trash2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import Modal from '@/components/ui/Modal.vue'
@@ -231,13 +231,13 @@ async function doDelete() {
 }
 
 
-// planLabel 已从 @/utils/format 导入
-
 onMounted(async () => {
   await fetchTenants()
   try {
     const res = await adminApiMod.listPlans()
     plans.value = res.list || []
-  } catch (e: unknown) {  }
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '获取套餐列表失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  }
 })
 </script>
