@@ -220,7 +220,7 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 		}
 		sg := &domain.SystemGroup{
 			Source: "joined", Title: firstNonEmpty(title, "@"+username), Username: username,
-			TmeLink: "https://t.me/" + username, GType: gt, MemberCount: mc, Status: "joined",
+			TmeLink: "https://t.me/" + username, GType: gt, MemberCount: mc, Status: "active",
 		}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			upsertFailed = true
