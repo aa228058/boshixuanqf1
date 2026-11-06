@@ -260,7 +260,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 			// mtgo 的 tg.ChatFull 没有 ParticipantsCount, 普通群成员数取自 tg.Chat 对象
 			for _, c := range full.Chats {
 				if ch, ok := c.(*tg.Chat); ok && ch.ID == p.ChatID {
-					title, gtype, count, chatID = ch.Title, "public", int(ch.ParticipantsCount), int64(ch.ID)
+					title, gtype, count, chatID = ch.Title, "group", int(ch.ParticipantsCount), int64(ch.ID)
 					break
 				}
 			}
