@@ -7,7 +7,7 @@
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
     <div v-if="task" class="flex flex-wrap items-center gap-3">
-      <button @click="$router.push(`/workspace/${route.params.accountId}/tasks`)" class="ui-icon-btn" aria-label="返回">
+      <button type="button" @click="$router.push(`/workspace/${route.params.accountId}/tasks`)" class="ui-icon-btn" aria-label="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
       <div>
