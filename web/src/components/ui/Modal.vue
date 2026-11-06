@@ -28,7 +28,7 @@ let modalCounter = 0
   >
     <!-- R128 键盘吸底: 输入框聚焦时把聚焦元素滚进可视区 —— 移动端键盘弹起后
          弹窗自动跟随滚动, 底部提交按钮不被顶出屏幕 -->
-    <div class="modal-card" @focusin="onFocusIn">
+    <div class="modal-card" :style="width ? { width, maxWidth: '100%', marginInline: 'auto' } : undefined" @focusin="onFocusIn">
       <!-- 顶部拖拽把手 -->
       <div class="modal-handle" />
 
@@ -61,6 +61,7 @@ const props = defineProps<{
   modelValue: boolean
   title?: string
   zIndex?: number
+  width?: string
 }>()
 
 const emit = defineEmits<{
