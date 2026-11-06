@@ -58,13 +58,14 @@ const router = createRouter({
           ]
         },
 
-        // 旧路由重定向到 workspace 真页面(孤儿页已清理)
-        { path: 'tasks', redirect: () => ({ path: '/workspace' }) },
-        { path: 'tasks/:id', redirect: (to) => ({ path: `/workspace/${(to.params as any).accountId || ''}/tasks/${(to.params as any).id}` }) },
-        { path: 'scrape', redirect: () => ({ path: '/workspace' }) },
-        { path: 'scrape/links', redirect: (to) => ({ path: `/workspace/${(to.params as any).accountId || ''}/scrape-links` }) },
+        // 旧版路由不包含 accountId，不能重定向到不存在的 /workspace 或 /broadcast。
+        // 统一回到账号管理入口，由用户选择账号后进入对应工作区。
+        { path: 'tasks', redirect: '/accounts' },
+        { path: 'tasks/:id', redirect: '/accounts' },
+        { path: 'scrape', redirect: '/accounts' },
+        { path: 'scrape/links', redirect: '/accounts' },
         // 旧 /monitor 孤儿路由已清理, 监控功能统一走 workspace/:accountId/monitor
-        { path: 'scheduled-tasks', redirect: '/broadcast' },  // 循环群发已并入群发页 tab
+        { path: 'scheduled-tasks', redirect: '/accounts' },
       ]
     },
     // 管理员后台
