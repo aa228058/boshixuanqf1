@@ -147,25 +147,29 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 				if isInviteRequestSent(joinErr) {
 					// Join request automatically sent by Telegram server
 					status = "pending_approval"
-					// Write to pending_approvals for background checking
-					if e.approvalRepo != nil {
-						// For private links, chatID is unknown until approved
-						// AccessHash will be resolved later when checking
-						if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
-							TaskID:     task.TaskID,
-							TenantID:   task.TenantID,
-							AccountID:  accID,
-							ChatID:     0, // private link, chat_id unknown yet
-							AccessHash: 0,
-							TargetLink: link,
-							Status:     "pending",
-							MaxChecks:  12,
-						}); err != nil {
-							log.Printf("[join] 创建待审批记录失败: %v", err)
-						}
+					// A pending UI state is valid only when the background checker can
+					// actually find a persisted approval record.
+					if e.approvalRepo == nil {
+						status = "failed"
+						errCode = "approval_repository_unavailable"
+						errMsg = "pending approval repository is unavailable"
+					} else if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
+						TaskID:     task.TaskID,
+						TenantID:   task.TenantID,
+						AccountID:  accID,
+						ChatID:     0, // private link, chat_id unknown until approved
+						AccessHash: 0,
+						TargetLink: link,
+						Status:     "pending",
+						MaxChecks:  12,
+					}); err != nil {
+						status = "failed"
+						errCode = "approval_record_create_failed"
+						errMsg = err.Error()
+						log.Printf("[join] 创建待审批记录失败: %v", err)
 					}
-					// Create temporary group record for pending approval
-					if e.groupRepo != nil {
+					// Create a temporary group record only when approval polling is persisted.
+					if status == "pending_approval" && e.groupRepo != nil {
 						now := time.Now()
 						g := &domain.Group{
 							GroupID:  uuid.New(),
