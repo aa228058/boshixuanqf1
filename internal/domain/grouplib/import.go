@@ -99,8 +99,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	res := &ImportResult{Skipped: skipped}
-	// 大批量(>200条)不在导入请求内逐条调 TG——同步解析 1 万条必然超时且撞 flood。
-	// 策略: 全部先占位入库, 群名交给后台解析器(resolver.go)低速补齐。
+	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
 	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
 		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link, ContributorTenantID: tenantID}
