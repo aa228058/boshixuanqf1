@@ -30,7 +30,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		gtype    string
 		title    string
 	}
-	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown','public') AND (resolution_status='pending' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
+	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown','public','group','supergroup') AND (resolution_status='pending' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
 	if err != nil {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
@@ -66,8 +66,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	accRows.Close()
 
 	for i, p := range pending {
+		isInviteLink := inviteHashFromLink(p.link) != ""
 		// Defensive cleanup for bot links inserted by older import/aggregation paths.
-		if p.gtype != "private" && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
+		if !isInviteLink && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
 			_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
 			_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
 			continue
@@ -84,7 +85,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			a := accs[securerand.IntN(len(accs))]
 			client, clientErr := e.acc.GetClient(ctx, a.tenantID, a.accountID)
 			if clientErr == nil {
-				if p.gtype == "private" {
+				if isInviteLink {
 					hash := inviteHashFromLink(p.link)
 					title, count, gtype, chatID, resolveErr = resolveInviteInfo(ctx, client, hash)
 				} else {
@@ -136,7 +137,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		}
 		if resolveErr != nil {
 			errText := strings.ToLower(resolveErr.Error())
-			if (p.gtype == "private" && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) || (p.gtype == "unknown" && strings.Contains(errText, "返回 404")) {
+			if (isInviteLink && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) || (p.gtype == "unknown" && strings.Contains(errText, "返回 404")) {
 				_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
 				_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
 			}
