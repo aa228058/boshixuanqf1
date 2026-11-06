@@ -693,6 +693,21 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 			continue
 		}
 
+		sharedLink := sourceLink
+		if username != "" {
+			sharedLink = "https://t.me/" + username
+		}
+		if e.systemGroupRepo != nil {
+			shared := &domain.SystemGroup{
+				Source: "joined", Title: title, Username: username, TmeLink: sharedLink,
+				GType: gtype, MemberCount: memberCount, TelegramChatID: sharedChatID,
+				Status: "active", ContributorTenantID: task.TenantID,
+			}
+			if err := e.systemGroupRepo.UpsertJoinedGroup(ctx, shared, freeSpeechStatus); err != nil {
+				log.Printf("[join] 邀请加入后补齐共享群库失败 chat=%d: %v", sharedChatID, err)
+			}
+		}
+
 		now := time.Now()
 		g := &domain.Group{
 			GroupID:    uuid.New(),
