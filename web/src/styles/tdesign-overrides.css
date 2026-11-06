@@ -30,7 +30,11 @@
   }
 
   /* 顶部拖拽把手: 原生抽屉观感 */
-  .t-dialog__header { position: relative; flex-shrink: 0; }
+  .t-dialog__header {
+    position: relative;
+    flex-shrink: 0;
+    padding: 22px var(--t-space-4) 10px !important;
+  }
   .t-dialog__header::after {
     content: '';
     position: absolute;
@@ -43,8 +47,6 @@
     background: var(--t-line-strong);
     pointer-events: none;
   }
-  .t-dialog__header { padding-top: 20px !important; }
-
   /* 内容区滚动, footer 固定吸底 */
   .t-dialog__body {
     overflow-y: auto !important;
@@ -91,7 +93,6 @@
   }
 
   /* 头部标题加大加粗 */
-  .t-dialog__header { padding: 22px var(--t-space-4) 10px !important; }
   .t-dialog__header .t-dialog__header-content {
     font-size: var(--t-font-lg) !important;
     font-weight: 700 !important;
