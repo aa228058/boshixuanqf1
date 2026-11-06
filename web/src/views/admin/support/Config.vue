@@ -7,7 +7,7 @@
         <div>
           <label for="support-type" class="block text-sm text-text-secondary mb-1.5">联系方式类型</label>
           <div class="flex gap-2">
-            <button
+            <button type="button"
               v-for="type in contactTypes"
               :key="type.value"
               @click="form.contact_type = type.value as SupportConfig['contact_type']"
