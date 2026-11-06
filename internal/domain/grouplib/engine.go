@@ -132,6 +132,7 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 			maxT = ct
 		}
 		username := extractTmeUsername(url)
+		if strings.HasSuffix(strings.ToLower(username), "bot") { continue }
 		gt := "public"
 		if linkType == "private" {
 			gt = "private"
@@ -271,6 +272,7 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string) int {
 	for _, m := range tmeRe.FindAllStringSubmatch(bio, -1) {
 		isJoin := m[1] != ""
 		key := m[2]
+		if !isJoin && strings.HasSuffix(strings.ToLower(key), "bot") { continue }
 		if seen[key] {
 			continue
 		}
@@ -296,6 +298,7 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string) int {
 	// V28 排除逻辑(RE2 无负向断言, 代码层过滤): @用户名 后跟邮箱域名段的跳过
 	for _, m := range atRe.FindAllStringSubmatchIndex(bio, -1) {
 		key := bio[m[2]:m[3]]
+		if strings.HasSuffix(strings.ToLower(key), "bot") { continue }
 		// 向后扫域名段, 命中 TLD 黑名单即视为邮箱
 		j := m[1]
 		for j < len(bio) && (bio[j] == '.' || bio[j] == '-' ||
