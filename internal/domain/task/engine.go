@@ -72,6 +72,8 @@ type Engine struct {
 
 	// taskCtxs holds cancel functions for active tasks (taskID -> cancel)
 	taskCtxs sync.Map
+	// approvalChecks prevents overlapping background polls for the same pending task.
+	approvalChecks sync.Map
 	// runningTasks tracks in-flight task IDs to prevent duplicate execution
 	runningTasks sync.Map
 	// progressCache 缓存各任务最新进度（TaskProgress），StreamProgress
