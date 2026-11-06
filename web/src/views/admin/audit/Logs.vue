@@ -11,7 +11,7 @@
         v-model="endDate"
         type="date"
         class="px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm shrink-0" aria-label="输入" />
-      <t-button theme="primary" size="sm" class="ui-btn ui-btn--primary shrink-0" @click="fetchLogs">查询</t-button>
+      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="fetchLogs">查询</t-button>
     </div>
 
     <!-- 桌面端表格 -->
