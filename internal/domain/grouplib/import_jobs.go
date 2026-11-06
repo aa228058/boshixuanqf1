@@ -34,7 +34,7 @@ func (e *Engine) CreateImportPreview(ctx context.Context, tenantID uuid.UUID, fi
 		return nil, fmt.Errorf("没有筛选出有效的 Telegram 群组链接")
 	}
 	skipped := filtered.Duplicate + filtered.Invalid
-	summary := fmt.Sprintf("筛选完成：原始 %d 条，有效 %d 条，重复 %d 条，无效 %d 条。确认后才开始解析。",
+	summary := fmt.Sprintf("筛选完成：原始 %d 条，格式有效 %d 条，重复 %d 条，无效 %d 条。确认后才开始解析。",
 		filtered.RawCount, len(filtered.Links), filtered.Duplicate, filtered.Invalid)
 	var job ImportJob
 	err := e.pool.QueryRow(ctx, `
