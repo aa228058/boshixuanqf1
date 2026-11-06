@@ -459,11 +459,6 @@ function progressOf(p: any) {
   return { total: p?.total || 0, done: p?.done || 0, failed: p?.failed || 0 }
 }
 
-function progressPercent(p: any) {
-  if (!p || !p.total) return 0
-  return Math.round((p.done / p.total) * 100)
-}
-
 // R128 紧凑时间: 原 toLocaleString 全格式("2026/10/24 06:33:03")在任务卡占两行;
 // 同年省年份, 一律秒级省略 → "10/24 06:33"
 function formatDate(d: string) {
