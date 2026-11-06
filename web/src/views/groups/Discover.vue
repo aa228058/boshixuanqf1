@@ -221,8 +221,8 @@
       </template>
     </Modal>
 
-    <!-- 选账号弹层(子弹层, 保持传统模态) -->
-    <t-dialog v-model:visible="joinModalVisible" header="选择执行账号" :footer="false" width="480px">
+    <!-- 选账号弹窗统一使用 Modal，保持与全站桌面居中/移动端抽屉规范一致 -->
+    <Modal v-model="joinModalVisible" title="选择执行账号" width="480px">
       <div class="space-y-3">
         <p class="text-xs text-text-secondary">将对每个勾选的在线账号创建一个加群任务（每任务上限 100 个群）。</p>
         <div class="max-h-64 overflow-y-auto space-y-2">
@@ -251,15 +251,15 @@
           <input type="number" v-model.number="joinIntervalMin" min="0" step="1" placeholder="最小间隔" aria-label="加群最小间隔（分钟）" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-sm" />
           <input type="number" v-model.number="joinIntervalMax" min="0" step="1" placeholder="最大间隔" aria-label="加群最大间隔（分钟）" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-sm" />
         </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <t-button class="ui-t-button ui-t-button--secondary" variant="outline" @click="joinModalVisible = false">取消</t-button>
-          <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="joinAccounts.length === 0 || joining" @click="doJoin">
-            <Loader2 v-if="joining" class="w-4 h-4 animate-spin" />
-            开始加入
-          </t-button>
-        </div>
       </div>
-    </t-dialog>
+      <template #footer>
+        <t-button class="ui-t-button ui-t-button--secondary" variant="outline" @click="joinModalVisible = false">取消</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="joinAccounts.length === 0 || joining" @click="doJoin">
+          <Loader2 v-if="joining" class="w-4 h-4 animate-spin" />
+          开始加入
+        </t-button>
+      </template>
+    </Modal>
   </div>
 </template>
 
