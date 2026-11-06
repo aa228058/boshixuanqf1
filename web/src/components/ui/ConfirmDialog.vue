@@ -8,10 +8,11 @@
       </div>
     </div>
     <template #footer>
-      <button @click="visible = false" class="modal-btn-ghost">
+      <button type="button" @click="visible = false" class="modal-btn-ghost">
         {{ cancelText }}
       </button>
       <button
+        type="button"
         @click="confirm"
         class="modal-btn-danger"
         :class="{ 'modal-btn-primary': !danger }"
