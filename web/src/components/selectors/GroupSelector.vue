@@ -5,7 +5,7 @@
       <div class="shrink-0 space-y-3 pb-3">
         <div class="flex items-center justify-between gap-2">
           <div class="flex gap-2">
-            <button
+            <button type="button"
               v-for="tab in tabs"
               :key="tab.value"
               @click="activeTab = tab.value"
@@ -16,14 +16,14 @@
             </button>
           </div>
           <div class="flex items-center gap-2">
-            <button
+            <button type="button"
               v-if="props.mode === 'multiple' && filtered.length > 0"
               @click="selectAll"
               class="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors"
             >
               {{ allSelected ? '取消全选' : '全选' }}
             </button>
-            <button
+            <button type="button"
               @click="onRefresh"
               :disabled="loading"
               class="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors flex items-center gap-1 disabled:opacity-50"
