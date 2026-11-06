@@ -36,12 +36,12 @@ export default defineConfig({
     ...(hasAuthState || hasTenantCredentials ? [
       {
         name: 'authenticated-desktop',
-        testMatch: /authenticated\\.spec\\.ts/,
+        testMatch: /authenticated\.spec\.ts/,
         use: { ...devices['Desktop Chrome'], ...(hasAuthState ? { storageState: authState } : {}) },
       },
       {
         name: 'authenticated-mobile',
-        testMatch: /authenticated\\.spec\\.ts/,
+        testMatch: /authenticated\.spec\.ts/,
         use: { ...devices['iPhone 13'], browserName: 'chromium', ...(hasAuthState ? { storageState: authState } : {}) },
       },
     ] : []),
