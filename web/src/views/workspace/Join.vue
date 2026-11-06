@@ -128,7 +128,7 @@
           </label>
           <span class="text-xs text-text-muted">已识别 {{ validLinks.length }} 个有效链接</span>
           <!-- R128 无效链接可展开查看: 原只报数量, 用户不知哪行错了 -->
-          <button type="button" v-if="invalidLinks.length > 0" type="button"
+          <button type="button" v-if="invalidLinks.length > 0"
                   class="text-xs text-[var(--t-err)] underline decoration-dotted underline-offset-2"
                   @click="showInvalidLinks = !showInvalidLinks">{{ invalidLinks.length }} 个格式无效{{ showInvalidLinks ? '▲' : '▼' }}</button>
         </div>
