@@ -47,7 +47,7 @@ export interface GroupLibraryImportJob {
   duplicate_count: number
   invalid_count: number
   file_name?: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
+  status: 'review' | 'pending' | 'processing' | 'completed' | 'failed'
   total_count: number
   processed_count: number
   imported_count: number
