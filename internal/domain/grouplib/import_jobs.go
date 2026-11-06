@@ -163,7 +163,16 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		if end > len(lines) {
 			end = len(lines)
 		}
-		result, importErr := e.ImportByLinks(ctx, tenantID, uuid.Nil, lines[offset:end])
+		// 优先使用当前租户已在线账号做只读 MTProto 解析；不执行加入群组操作。
+		// 没有在线账号时才由 ImportByLinks 使用共享 HTTP 页面解析器。
+		var accountID uuid.UUID
+		_ = e.pool.QueryRow(ctx, `
+			SELECT account_id FROM accounts
+			WHERE tenant_id=$1 AND status='online'
+			  AND (blocked_until IS NULL OR blocked_until<NOW())
+			ORDER BY updated_at DESC
+			LIMIT 1`, tenantID).Scan(&accountID)
+		result, importErr := e.ImportByLinks(ctx, tenantID, accountID, lines[offset:end])
 		imported, failed, skipped := 0, 0, 0
 		lastError := ""
 		if result != nil {
