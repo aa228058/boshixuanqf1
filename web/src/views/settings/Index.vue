@@ -91,8 +91,8 @@
         </div>
 
         <div class="flex gap-2 mt-4">
-          <button class="px-4 py-2.5 rounded-lg bg-[var(--t-brand)] text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50" :disabled="notifyLoading || !notifyEmail" @click="saveNotify">保存全部设置</button>
-          <button class="px-4 py-2.5 rounded-lg border border-border text-sm text-text-secondary hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-transform disabled:opacity-50" :disabled="notifyLoading" @click="testNotifyMail">发送测试邮件</button>
+          <button class="ui-btn ui-btn--primary" :disabled="notifyLoading || !notifyEmail" @click="saveNotify">保存全部设置</button>
+          <button class="ui-btn ui-btn--ghost" :disabled="notifyLoading" @click="testNotifyMail">发送测试邮件</button>
           <span v-if="smtpConfigured" class="self-center text-[11px] text-[var(--t-ok)] flex items-center gap-1">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>发件配置已完成
           </span>
@@ -197,7 +197,7 @@
     <div v-show="activeTab === 'templates'" class="glass rounded-[var(--t-r-md)] p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">消息模板</h3>
-        <button @click="showTemplateModal = true" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">管理模板</button>
+        <button @click="showTemplateModal = true" class="ui-btn ui-btn--text ui-btn--sm">管理模板</button>
       </div>
       <div class="space-y-2">
         <div
@@ -222,7 +222,7 @@
           <p class="font-medium">{{ supportConfig.display_name }}</p>
           <p class="text-sm text-text-secondary font-mono max-w-[65ch]">{{ supportConfig.contact_value }}</p>
         </div>
-        <button @click="copyContact" class="ml-auto px-3 py-1.5 rounded-lg border border-border text-xs hover:border-[color:var(--t-brand)]/30 hover:text-[var(--t-brand)] transition-colors h-8 inline-flex items-center" aria-label="复制">
+        <button @click="copyContact" class="ui-btn ui-btn--ghost ui-btn--sm ml-auto" aria-label="复制">
           {{ copied ? '已复制' : '复制' }}
         </button>
       </div>
@@ -260,7 +260,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showUpgrade = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
+        <button @click="showUpgrade = false" class="ui-btn ui-btn--ghost">取消</button>
         <t-button theme="primary" @click="copyContact">
           联系客服购买
         </t-button>
@@ -282,10 +282,10 @@
               class="bg-transparent text-sm font-medium focus:outline-none flex-1 min-w-0" 
             />
             <div class="flex items-center gap-1 shrink-0">
-              <button @click="saveTemplate(t)" class="text-xs px-2 py-1 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20">
+              <button @click="saveTemplate(t)" class="ui-btn ui-btn--primary ui-btn--sm">
                 保存
               </button>
-              <button @click="deleteTemplate(t.template_id)" class="p-1 rounded hover:bg-[color:var(--t-err-dim)] text-[var(--t-err)]">
+              <button @click="deleteTemplate(t.template_id)" class="ui-icon-btn">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
@@ -301,7 +301,7 @@
             <!-- R121: 删掉手写计数 —— tdesign textarea 的 maxlength 自带右下角计数器, 双份叠印成"重影" -->
           </div>
         </div>
-        <button @click="addTemplate" class="w-full py-2 rounded-lg border border-dashed border-border text-sm text-text-secondary hover:border-[color:var(--t-brand)]/30 hover:text-[var(--t-brand)] transition-colors">
+        <button @click="addTemplate" class="ui-btn ui-btn--ghost w-full">
           + 添加模板
         </button>
       </div>
