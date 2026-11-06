@@ -74,10 +74,7 @@ html.theme-dark select {
   color: var(--t-text-1) !important;
   border-color: color-mix(in srgb, var(--t-text-1) 10%, transparent) !important;
 }
-html.theme-dark input::placeholder,
-html.theme-dark textarea::placeholder {
-  color: var(--t-text-3) !important;
-}
+/* Native input/textarea placeholder color is defined with their consolidated overrides below. */
 
 /* ---------- R86 保险: TDesign 输入框文字/占位符强制可读 ---------- */
 html.theme-dark .t-input__inner {
