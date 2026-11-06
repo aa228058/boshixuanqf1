@@ -9,6 +9,7 @@
     "auth:setup": "node scripts/save-auth-state.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.1"
+    "@playwright/test": "^1.56.1",
+    "serve": "^14.2.4"
   }
 }
