@@ -354,6 +354,7 @@ onUnmounted(() => {
 async function loadImportJobs() {
   try {
     const res = await listGroupLibraryImportJobs()
+    if (importPageUnmounted) return
     importJobs.value = res.list || []
     for (const job of importJobs.value) {
       if (job.status === 'pending' || job.status === 'processing') pollImportJob(job.job_id)
@@ -392,6 +393,7 @@ async function pollImportJob(jobId: string) {
   let terminal = false
   try {
     const job = await getGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     // 后台历史任务的轮询不能覆盖当前弹窗正在处理的另一笔导入。
     if (importJob.value?.job_id === job.job_id) importJob.value = job
     const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
@@ -414,6 +416,7 @@ async function pollImportJob(jobId: string) {
 async function confirmImportJob(jobId: string) {
   try {
     const job = await confirmImportLibraryGroups(jobId)
+    if (importPageUnmounted) return
     importJob.value = job
     const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
     if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
@@ -437,6 +440,7 @@ async function doImport() {
   importJob.value = null
   try {
     const job = await importLibraryGroups(importText.value, importFileName.value)
+    if (importPageUnmounted) return
     importJob.value = job
     importJobs.value.unshift(job)
     toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，格式有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
