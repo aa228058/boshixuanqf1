@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 const authState = resolve(process.cwd(), '.auth/user.json')
 const hasAuthState = existsSync(authState)
 const hasAdminCredentials = Boolean(process.env.E2E_ADMIN_USERNAME && process.env.E2E_ADMIN_PASSWORD)
+const hasTenantCredentials = Boolean(process.env.E2E_TENANT_USERNAME && process.env.E2E_TENANT_PASSWORD)
 
 export default defineConfig({
   testDir: './tests',
@@ -32,16 +33,16 @@ export default defineConfig({
       testMatch: /public\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
-    ...(hasAuthState ? [
+    ...(hasAuthState || hasTenantCredentials ? [
       {
         name: 'authenticated-desktop',
-        testMatch: /authenticated\.spec\.ts/,
-        use: { ...devices['Desktop Chrome'], storageState: authState },
+        testMatch: /authenticated\\.spec\\.ts/,
+        use: { ...devices['Desktop Chrome'], ...(hasAuthState ? { storageState: authState } : {}) },
       },
       {
         name: 'authenticated-mobile',
-        testMatch: /authenticated\.spec\.ts/,
-        use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: authState },
+        testMatch: /authenticated\\.spec\\.ts/,
+        use: { ...devices['iPhone 13'], browserName: 'chromium', ...(hasAuthState ? { storageState: authState } : {}) },
       },
     ] : []),
     ...(hasAdminCredentials ? [
