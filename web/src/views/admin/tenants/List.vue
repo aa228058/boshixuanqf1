@@ -158,8 +158,8 @@ const columns = [
   { key: 'plan_id', title: '套餐' },
   { key: 'max_accounts', title: '账号上限' },
   { key: 'status', title: '状态' },
-  { key: 'created_at', title: '注册时间', format: (v: any) => new Date(v).toLocaleDateString('zh-CN') },
-  { key: 'actions', title: '操作', class: 'w-32' },
+  { key: 'created_at', title: '注册时间' },
+  { key: 'actions', title: '操作' },
 ]
 
 const filteredTenants = computed(() => {
