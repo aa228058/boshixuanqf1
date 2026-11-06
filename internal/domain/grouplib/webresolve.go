@@ -220,6 +220,9 @@ func parseWebMemberCount(value string) int {
 
 func detectTelegramPageType(page string) string {
 	text := strings.ToLower(cleanTelegramText(page))
+	if strings.Contains(text, "send message") || strings.Contains(text, "start bot") {
+		return "user"
+	}
 	if strings.Contains(text, "join channel") || strings.Contains(text, "preview channel") {
 		return "channel"
 	}
