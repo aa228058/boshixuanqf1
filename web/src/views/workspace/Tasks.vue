@@ -10,7 +10,7 @@
       <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
         <button v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
                 class="ui-btn ui-btn--sm ui-btn--segmented whitespace-nowrap"
-                :class="typeFilter === t.value ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] font-medium' : 'text-text-secondary hover:bg-bg-hover'">
+                :class="{ 'is-active': typeFilter === t.value }">
           {{ t.label }}
         </button>
       </div>
@@ -18,7 +18,7 @@
   <button v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="ui-btn ui-btn--sm ui-btn--segmented"
-    :class="range === r[0] ? 'bg-[var(--t-brand)] text-white font-semibold shadow-sm' : 'bg-bg border border-border text-text-secondary hover:text-text-primary'">
+    :class="{ 'is-active': range === r[0] }">
     {{ r[1] }}
   </button>
 </div>
