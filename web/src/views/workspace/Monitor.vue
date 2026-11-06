@@ -25,7 +25,7 @@
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-medium">监控规则</h3>
           <!-- P0-28: 走 openAddRule 先清空 editingRule, 防编辑残留变覆盖 -->
-          <button @click="openAddRule" class="ui-btn ui-btn--primary ui-btn--sm">添加规则</button>
+          <t-button @click="openAddRule" class="ui-t-button--primary ui-t-button">添加规则</t-button>
         </div>
         <div class="space-y-2">
           <EmptyState v-if="rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
@@ -145,11 +145,11 @@
                   <option value="">选择账号…</option>
                   <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
                 </select>
-                <button type="button" class="ui-btn ui-btn--primary ui-btn--sm whitespace-nowrap"
+                <t-button type="button" class="ui-t-button--primary ui-t-button whitespace-nowrap"
                         :disabled="!contactPickAccount || contactLoading"
                         @click="loadContacts">
                   {{ contactLoading ? '获取中…' : '获取联系人' }}
-                </button>
+                </t-button>
               </div>
               <select v-if="contactList.length" v-model="contactPick" class="w-full px-2 py-1.5 rounded-lg glow-input text-xs bg-bg-card" @change="applyContact">
                 <option value="">选择联系人（自动填入手机号和姓名）…</option>
@@ -193,8 +193,8 @@
           </div>
         </div>
         <div class="flex justify-end gap-3 mt-6">
-          <button @click="showAddRule = false" class="ui-btn ui-btn--ghost">取消</button>
-          <button @click="saveRule" class="ui-btn ui-btn--primary">保存</button>
+          <t-button @click="showAddRule = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
+          <t-button @click="saveRule" class="ui-t-button--primary ui-t-button">保存</t-button>
         </div>
     </Modal>
 
