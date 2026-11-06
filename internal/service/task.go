@@ -813,8 +813,8 @@ func (s *TaskService) Pause(ctx context.Context, tenantID, taskID uuid.UUID) err
 	}
 	// The DB status change invalidates the worker lease. Cancel its execution context
 	// immediately instead of waiting for the next heartbeat to discover the lost lease.
-	if s.engine != nil {
-		s.engine.PauseTask(taskID)
+	if pauser, ok := s.engine.(interface{ PauseTask(uuid.UUID) }); ok {
+		pauser.PauseTask(taskID)
 	}
 	return nil
 }
