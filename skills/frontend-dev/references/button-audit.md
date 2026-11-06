@@ -11,7 +11,7 @@
 - 之前剩余的 15 个页面调用已迁移：Scrape、任务详情、链接采集、会话、抽奖、消息监控、登录、注册、管理端客服配置、租户详情、租户列表、探测配置、公告管理、更多、404 页面。
 - 已迁移普通动作按钮统一使用 TDesign `<t-button>` + `.ui-t-button`，语义变体为 `ui-t-button--primary/secondary/danger/text`，小尺寸使用 `ui-t-button--sm`。
 - 图标按钮继续使用 `.ui-icon-btn`；导航、账号/选项选择、分段切换、优先级选择、菜单项、文件选择和原生表单特殊行为保留其专用语义，不为追求标签统一而强行替换。
-- `.ui-btn` 的 CSS 定义暂时保留为兼容层；在完成非 Vue 脚本、模板字符串及外部嵌入页面的引用扫描前，不直接删除定义，避免遗漏动态调用造成回归。
+- 已完成 Vue 模板以及 composables/utils 脚本的旧类引用扫描，未发现动态 `.ui-btn` 引用；旧 `.ui-btn` CSS 定义和 segmented 旧变体已从 `ui-kit.css` 删除。
 
 ## 2. 统一约定
 
@@ -57,8 +57,8 @@
 
 ## 5. 尚未完成的边界
 
-1. `.ui-btn` 在 56 个 Vue 文件中的调用已清零，但 `ui-kit.css` 的旧 CSS 定义仍保留作兼容层。
-2. 非 Vue 的 JS/TS 动态 class、模板字符串、测试 fixture、静态 HTML 和外部注入内容尚未完成全仓引用扫描；确认无引用后再删除兼容 CSS。
+1. `.ui-btn` Vue 模板调用为 0；composables/utils 脚本未发现旧类动态引用；旧 `.ui-btn` CSS 规则已删除。外部注入 HTML 或仓库外运行时拼接内容不在本轮静态扫描边界内。
+2. `.btn-success`、`.btn-error` 状态类仍暂留在 `ui-refined.css`，避免未核实 `useAsyncBtn` 或其他状态反馈调用前误删；需单独追踪其来源与调用后再决定退役。
 3. 尚未执行 `npm run typecheck`、`npm run test`、`npm run check:design-tokens`、`npm run build`。
 4. 尚未完成桌面端/移动端及 normal/eye/dark 三主题真实浏览器验收。
 
@@ -68,8 +68,8 @@
 - [x] 56 个 Vue 文件静态扫描：`.ui-btn` 调用为 0。
 - [x] 抽查迁移页面 TDesign 开始/结束标签计数匹配。
 - [x] 保留图标按钮、分段控件、导航、菜单及选择类特殊交互。
-- [ ] 非 Vue 动态引用全仓扫描。
-- [ ] 移除旧 `.ui-btn` CSS 兼容定义（须先完成上一项）。
+- [x] 扫描 Vue 模板及 composables/utils 脚本中的旧类引用。
+- [x] 删除 `ui-kit.css` 中旧 `.ui-btn` 与 segmented 遗留规则。
 - [ ] typecheck、test、design-token check、build。
 - [ ] 桌面/移动端三主题真实浏览器验收。
 
