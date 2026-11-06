@@ -43,6 +43,9 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 	}
 
 	for _, p := range pendings {
+		if _, loaded := e.approvalChecks.LoadOrStore(p.TaskID, true); loaded {
+			continue
+		}
 		if p.CheckCount >= p.MaxChecks {
 			resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "timeout")
 			if err != nil {
@@ -52,10 +55,12 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 			}
+			e.approvalChecks.Delete(p.TaskID)
 			continue
 		}
 
 		safego.Go(func() {
+			defer e.approvalChecks.Delete(p.TaskID)
 			defer func() {
 				if r := recover(); r != nil {
 					taskLog.Printf("[task] approval check panic recovered: %v", r)
