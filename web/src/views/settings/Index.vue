@@ -2,7 +2,7 @@
   <main class="max-w-2xl mx-auto space-y-6">
     <!-- Phase 4: 设置页拆 5 Tab(手册信息架构)——URL ?tab= 同步, 可直接跳转/刷新定位 -->
     <div class="flex gap-1 p-1 rounded-[var(--t-r-md)] bg-bg-card border border-border/50 mb-2 overflow-x-auto">
-      <button v-for="t in tabs" :key="t.key" class="ui-segmented__item px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
+      <button type="button" v-for="t in tabs" :key="t.key" class="ui-segmented__item px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
               :class="activeTab === t.key ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'"
               @click="switchTab(t.key)">{{ t.label }}</button>
     </div>
@@ -100,7 +100,7 @@
         <div class="mt-3 divide-y divide-border/60">
           <div v-for="(label, key) in notifyEvents" :key="key" class="flex items-center justify-between py-2.5">
             <span class="text-sm text-text-primary">{{ label }}</span>
-            <button class="relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0"
+            <button type="button" class="relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0"
                     :class="notifySettings[key] ? 'bg-[var(--t-brand)]' : 'bg-bg-secondary border border-border'"
                     @click="toggleNotifyEvent(String(key))">
               <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
@@ -281,7 +281,7 @@
               <t-button @click="saveTemplate(t)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
                 保存
               </t-button>
-              <button @click="deleteTemplate(t.template_id)" class="ui-icon-btn">
+              <button type="button" @click="deleteTemplate(t.template_id)" class="ui-icon-btn">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
