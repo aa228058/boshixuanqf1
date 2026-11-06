@@ -198,7 +198,7 @@
         ]" />
         <div v-if="mediaType" class="space-y-2">
           <input v-model="mediaUrl" placeholder="媒体 URL (https://...)，或上传本地文件"
-                 class="w-full px-4 py-2 rounded-[var(--t-r-md)] glow-input text-sm" />
+                 class="ui-input !text-sm" />
           <div class="flex items-center gap-2">
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               上传文件<input type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov" class="hidden" @change="onMediaFile">
