@@ -58,7 +58,7 @@ export default defineConfig({
     ] : []),
   ],
   webServer: process.env.E2E_SKIP_WEBSERVER ? undefined : {
-    cwd: '../..',
+    cwd: '..',
     command: 'npx serve -s dist -l 4173',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
