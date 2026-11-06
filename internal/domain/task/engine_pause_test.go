@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"tg-sender/internal/domain"
 )
 
 func TestPauseTaskCancelsActiveExecution(t *testing.T) {
@@ -18,5 +20,18 @@ func TestPauseTaskCancelsActiveExecution(t *testing.T) {
 
 	if ctx.Err() == nil {
 		t.Fatal("PauseTask did not cancel the active task context")
+	}
+}
+
+func TestTaskLeaseIDUsesClaimToken(t *testing.T) {
+	engine := &Engine{workerID: "engine-worker"}
+	claimToken := "engine-worker:claim-unique"
+	task := &domain.Task{WorkerID: &claimToken}
+
+	if got := engine.taskLeaseID(task); got != claimToken {
+		t.Fatalf("taskLeaseID() = %q, want claim token %q", got, claimToken)
+	}
+	if got := engine.taskLeaseID(&domain.Task{}); got != "engine-worker" {
+		t.Fatalf("taskLeaseID() fallback = %q, want engine worker ID", got)
 	}
 }
