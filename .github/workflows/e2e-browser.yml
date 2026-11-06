@@ -41,6 +41,9 @@ jobs:
           BASE_URL: ${{ github.event.inputs.base_url || 'http://127.0.0.1:4173' }}
           E2E_TENANT_USERNAME: ${{ secrets.E2E_TENANT_USERNAME }}
           E2E_TENANT_PASSWORD: ${{ secrets.E2E_TENANT_PASSWORD }}
+          E2E_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: npm test
       - name: Upload browser report
         if: always()
