@@ -43,9 +43,9 @@
           </span>
         </template>
         <template #actions="{ row }">
-          <button @click="copyCode(row.code as string)" class="text-xs text-[var(--t-brand)] hover:underline px-2 py-1 rounded hover:bg-[var(--t-brand)]/5">复制</button>
-          <button @click="viewCode(row as any)" class="text-xs text-[var(--t-brand)] hover:underline px-2 py-1 rounded hover:bg-[var(--t-brand)]/5">查看</button>
-          <button v-if="row.status === 'unused'" @click="revokeCode(row as any)" class="text-xs text-[var(--t-warn)] hover:underline px-2 py-1 rounded hover:bg-[color:var(--t-warn-dim)]">作废</button>
+          <button @click="copyCode(row.code as string)" class="ui-btn ui-btn--text ui-btn--sm">复制</button>
+          <button @click="viewCode(row as any)" class="ui-btn ui-btn--text ui-btn--sm">查看</button>
+          <button v-if="row.status === 'unused'" @click="revokeCode(row as any)" class="ui-btn ui-btn--ghost ui-btn--sm">作废</button>
           <button @click="delCode(row as any)" class="text-xs text-[var(--t-err)] hover:underline px-2 py-1 rounded hover:bg-[var(--t-err)]/5">删除</button>
         </template>
       </t-table>
@@ -74,9 +74,9 @@
         <div class="flex items-center justify-between text-xs text-text-secondary">
           <span>{{ new Date(c.created_at).toLocaleDateString('zh-CN') }}</span>
           <div>
-            <button @click="viewCode(c)" class="text-[var(--t-brand)] hover:underline px-2 py-1">查看</button>
-            <button v-if="c.status === 'unused'" @click="revokeCode(c)" class="text-[var(--t-warn)] hover:underline px-2 py-1">作废</button>
-            <button @click="delCode(c)" class="text-[var(--t-err)] hover:underline px-2 py-1">删除</button>
+            <button @click="viewCode(c)" class="ui-btn ui-btn--text ui-btn--sm">查看</button>
+            <button v-if="c.status === 'unused'" @click="revokeCode(c)" class="ui-btn ui-btn--ghost ui-btn--sm">作废</button>
+            <button @click="delCode(c)" class="ui-btn ui-btn--danger ui-btn--sm">删除</button>
           </div>
         </div>
       </div>
@@ -106,7 +106,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showGenerate = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
+        <button @click="showGenerate = false" class="ui-btn ui-btn--ghost">取消</button>
         <t-button theme="primary" @click="doGenerate">生成</t-button>
       </template>
     </Modal>
@@ -123,7 +123,7 @@
         <div v-if="viewingCode.notes" class="flex justify-between gap-4"><span class="text-text-secondary shrink-0">备注</span><span class="text-right">{{ viewingCode.notes }}</span></div>
       </div>
       <template #footer>
-        <button @click="showView = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">关闭</button>
+        <button @click="showView = false" class="ui-btn ui-btn--ghost">关闭</button>
       </template>
     </Modal>
   </main>
@@ -133,9 +133,9 @@
     <Transition name="batch-bar">
       <div v-if="selectedIds.length" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
-        <button @click="batchRevoke" class="px-2.5 py-1 rounded-full text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] whitespace-nowrap hover:bg-[color:var(--t-warn-dim)] transition-colors">批量作废</button>
-        <button @click="batchDelete" class="px-2.5 py-1 rounded-full text-xs bg-[var(--t-err)]/15 text-[var(--t-err)] whitespace-nowrap hover:bg-[var(--t-err)]/25 transition-colors">批量删除</button>
-        <button @click="selectedIds = []" class="w-6 h-6 rounded-full text-text-secondary hover:text-text-primary hover:bg-milk-01 transition-colors text-base leading-none">×</button>
+        <button @click="batchRevoke" class="ui-btn ui-btn--ghost ui-btn--sm whitespace-nowrap">批量作废</button>
+        <button @click="batchDelete" class="ui-btn ui-btn--danger ui-btn--sm whitespace-nowrap">批量删除</button>
+        <button @click="selectedIds = []" class="ui-icon-btn">×</button>
       </div>
     </Transition>
   </Teleport>
