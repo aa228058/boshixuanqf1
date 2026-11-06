@@ -289,17 +289,17 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			}
 		}
 	}
-	if done > 0 {
-		resumedProgress := domain.TaskProgress{Total: total, Done: done}
-		if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
-			taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
-			if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
-				taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
-			}
-			return
+	// Always reset the progress snapshot, including a zero-success restart, so
+	// stale failures from the previous attempt are not shown while retrying.
+	resumedProgress := domain.TaskProgress{Total: total, Done: done}
+	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+		taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
+		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+			taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
 		}
-		e.publishProgress(task.TenantID, task.TaskID, resumedProgress)
+		return
 	}
+	e.publishProgress(task.TenantID, task.TaskID, resumedProgress)
 
 	for _, accID := range task.AccountIDs {
 		targets := accountTargets[accID]

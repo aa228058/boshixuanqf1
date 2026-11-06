@@ -127,17 +127,17 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			done++
 		}
 	}
-	if done > 0 {
-		resumedProgress := domain.TaskProgress{Total: total, Done: done}
-		if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
-			taskLog.Printf("[join] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
-			if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
-				taskLog.Printf("[join] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
-			}
-			return
+	// Reset even when no target has succeeded yet; otherwise old failed counts
+	// from a previous attempt remain visible during the resumed run.
+	resumedProgress := domain.TaskProgress{Total: total, Done: done}
+	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+		taskLog.Printf("[join] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
+		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+			taskLog.Printf("[join] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
 		}
-		e.publishProgress(task.TenantID, task.TaskID, resumedProgress)
+		return
 	}
+	e.publishProgress(task.TenantID, task.TaskID, resumedProgress)
 
 	for _, link := range task.TargetIDs {
 		select {
