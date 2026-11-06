@@ -106,13 +106,13 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <button v-if="row.status === 'running'" @click.stop="cancelTask(row.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">停止</button>
-              <button v-if="row.status === 'failed'" @click.stop="retryTask(row.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20">重试</button>
+              <button v-if="row.status === 'running'" @click.stop="cancelTask(row.task_id)" class="ui-btn ui-btn--sm ui-btn--danger">停止</button>
+              <button v-if="row.status === 'failed'" @click.stop="retryTask(row.task_id)" class="ui-btn ui-btn--sm ui-btn--primary">重试</button>
               <button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
                       @click.stop="retryTask(row.task_id, 'failed')" class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progressOf(row.progress).failed }})</button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
-                <button @click.stop="showAccStats(row)" class="px-2 py-1 rounded text-xs bg-ink-01 text-text-secondary hover:text-[var(--t-brand)] hover:bg-[color:var(--t-brand-dim)]">
+                <button @click.stop="showAccStats(row)" class="ui-btn ui-btn--sm ui-btn--ghost">
                   <BarChart3 class="w-3.5 h-3.5" />
                 </button>
               </t-tooltip>
@@ -160,13 +160,13 @@
         </div>
         <div class="mt-2 flex items-center gap-2">
           <button v-if="task.status === 'running'" @click.stop="cancelTask(task.task_id)"
-                  class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">取消</button>
+                  class="ui-btn ui-btn--sm ui-btn--danger">取消</button>
           <button v-if="task.status === 'failed'" @click.stop="retryTask(task.task_id)"
-                  class="px-2 py-1 rounded text-xs bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20">重试</button>
+                  class="ui-btn ui-btn--sm ui-btn--primary">重试</button>
           <button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                   @click.stop="retryTask(task.task_id, 'failed')"
                   class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progressOf(task.progress).failed }})</button>
-          <button @click.stop="showAccStats(task)" class="px-2 py-1 rounded text-xs bg-ink-01 text-text-secondary">统计</button>
+          <button @click.stop="showAccStats(task)" class="ui-btn ui-btn--sm ui-btn--ghost">统计</button>
         </div>
       </div>
       </pull-down-refresh>
