@@ -8,14 +8,14 @@
       </div>
       <!-- 类型 Tab: 点一次直接过滤 -->
       <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-        <button v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
+        <button type="button" v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
                 class="ui-segmented__item whitespace-nowrap"
                 :class="{ 'is-active': typeFilter === t.value }">
           {{ t.label }}
         </button>
       </div>
       <div class="flex gap-2 mb-3">
-  <button v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
+  <button type="button" v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="ui-segmented__item"
     :class="{ 'is-active': range === r[0] }">
@@ -38,7 +38,7 @@
         <button type="button" class="ui-icon-btn ui-icon-btn--danger" @click="clearFinished" title="清空已完成任务" aria-label="清空已完成任务">
           <Trash2 class="w-4 h-4" />
         </button>
-        <button @click="fetchTasks" class="ui-icon-btn" aria-label="刷新任务">
+        <button type="button" @click="fetchTasks" class="ui-icon-btn" aria-label="刷新任务">
           <RefreshCw class="w-4 h-4" />
         </button>
       </div>
