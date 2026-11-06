@@ -8,13 +8,22 @@
       </div>
     </div>
     <template #footer>
-      <button class="modal-btn-ghost" @click="settle(false)">{{ confirmState.cancelText }}</button>
-      <button
-        :class="confirmState.danger ? 'modal-btn-danger' : 'modal-btn-primary'"
+      <t-button
+        type="button"
+        variant="outline"
+        class="ui-t-button ui-t-button--secondary"
+        @click="settle(false)"
+      >
+        {{ confirmState.cancelText }}
+      </t-button>
+      <t-button
+        type="button"
+        :theme="confirmState.danger ? 'danger' : 'primary'"
+        :class="['ui-t-button', confirmState.danger ? 'ui-t-button--danger' : 'ui-t-button--primary']"
         @click="settle(true)"
       >
         {{ confirmState.confirmText }}
-      </button>
+      </t-button>
     </template>
   </Modal>
 </template>
