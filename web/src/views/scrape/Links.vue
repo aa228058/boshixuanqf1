@@ -2,7 +2,7 @@
   <main class="max-w-3xl mx-auto space-y-4">
     <Breadcrumb :items="[{ path: `/workspace/${accountStore.currentAccount?.account_id || ''}`, label: '工作台' }, { path: '', label: '链接采集' }]" />
     <div class="flex items-center gap-3">
-      <button @click="$router.back()" class="p-2 rounded-lg hover:bg-bg-hover transition-colors" aria-label="返回">
+      <button @click="$router.back()" class="ui-icon-btn" aria-label="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
       <h2 class="text-lg font-semibold text-gradient">群链接采集</h2>
@@ -96,7 +96,7 @@
                   <a v-if="isHttpUrl(link.full_url)" :href="link.full_url" target="_blank" rel="noopener" class="text-cyan text-sm truncate min-w-0 flex-1" :title="link.full_url">{{ link.full_url }}</a>
                   <span v-else class="text-cyan text-sm truncate min-w-0 flex-1" :title="link.full_url">{{ link.full_url }}</span>
                   <span class="shrink-0 text-xs px-1.5 py-0.5 rounded bg-bg-hover text-text-muted">{{ link.link_type === 'private' ? '私密' : '公开' }}</span>
-                  <button @click="copyLink(link.full_url)" class="shrink-0 text-xs px-2 py-0.5 rounded border border-border text-text-muted hover:text-cyan hover:border-cyan/40 transition-colors">复制</button>
+                  <button @click="copyLink(link.full_url)" class="ui-btn ui-btn--ghost ui-btn--sm shrink-0">复制</button>
                 </div>
               </div>
               </pull-down-refresh>
