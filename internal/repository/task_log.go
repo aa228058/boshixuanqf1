@@ -316,9 +316,8 @@ func (r *TaskLogRepository) ListCompletedJoinTargets(ctx context.Context, tenant
 		if err := rows.Scan(&targetID, &status); err != nil {
 			return nil, err
 		}
-		if isJoinCheckpointStatus(status) {
-			result[targetID] = true
-		}
+		// SQL already limits results to the durable success states.
+		result[targetID] = true
 	}
 	return result, rows.Err()
 }
