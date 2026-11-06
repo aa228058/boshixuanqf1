@@ -119,7 +119,7 @@ func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uui
 	rows, err := r.db.Query(ctx, `
 		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, executed_at
 		FROM task_logs WHERE tenant_id = $1 AND task_id = $2
-		ORDER BY executed_at DESC LIMIT $3 OFFSET $4`, tenantID, taskID, limit, offset)
+		ORDER BY executed_at DESC, log_id DESC LIMIT $3 OFFSET $4`, tenantID, taskID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list task logs: %w", err)
 	}
@@ -174,7 +174,7 @@ func (r *TaskLogRepository) ListByAccount(ctx context.Context, tenantID, account
 		return nil, 0, err
 	}
 
-	query += fmt.Sprintf(" ORDER BY executed_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	query += fmt.Sprintf(" ORDER BY executed_at DESC, log_id DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 	args = append(args, pageSize, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -341,4 +341,33 @@ func (r *TaskLogRepository) ListFailedTargets(ctx context.Context, tenantID, tas
 		targets = append(targets, t)
 	}
 	return targets, rows.Err()
+}
+
+// ListFailedTargetsByAccount returns failed broadcast targets grouped by account.
+// The composite account-target identity is required for safe retries in both
+// cartesian and explicit mapping modes.
+func (r *TaskLogRepository) ListFailedTargetsByAccount(ctx context.Context, tenantID, taskID uuid.UUID) (map[uuid.UUID][]string, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT account_id, target_id
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND action = 'send_message' AND status = 'failed'
+		  AND account_id IS NOT NULL AND target_id <> ''
+		ORDER BY account_id, target_id
+	`, tenantID, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("list failed targets by account: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]string)
+	for rows.Next() {
+		var accountID uuid.UUID
+		var targetID string
+		if err := rows.Scan(&accountID, &targetID); err != nil {
+			return nil, err
+		}
+		result[accountID] = append(result[accountID], targetID)
+	}
+	return result, rows.Err()
 }
