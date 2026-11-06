@@ -263,7 +263,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
 import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
@@ -331,6 +331,25 @@ const importing = ref(false)
 const importFileName = ref('')
 const importJob = ref<any>(null)
 const importJobs = ref<any[]>([])
+// 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
+const activeImportPolls = new Set<string>()
+const importPollTimers = new Map<string, number>()
+let importPageUnmounted = false
+function scheduleImportPoll(jobId: string) {
+  const previous = importPollTimers.get(jobId)
+  if (previous !== undefined) window.clearTimeout(previous)
+  if (importPageUnmounted) return
+  const timer = window.setTimeout(() => {
+    importPollTimers.delete(jobId)
+    void pollImportJob(jobId)
+  }, 2000)
+  importPollTimers.set(jobId, timer)
+}
+onUnmounted(() => {
+  importPageUnmounted = true
+  for (const timer of importPollTimers.values()) window.clearTimeout(timer)
+  importPollTimers.clear()
+})
 
 async function loadImportJobs() {
   try {
@@ -363,22 +382,33 @@ async function onImportFile(event: Event) {
 }
 
 async function pollImportJob(jobId: string) {
+  if (importPageUnmounted || activeImportPolls.has(jobId)) return
+  const scheduled = importPollTimers.get(jobId)
+  if (scheduled !== undefined) {
+    window.clearTimeout(scheduled)
+    importPollTimers.delete(jobId)
+  }
+  activeImportPolls.add(jobId)
+  let terminal = false
   try {
     const job = await getGroupLibraryImportJob(jobId)
-    importJob.value = job
+    // 后台历史任务的轮询不能覆盖当前弹窗正在处理的另一笔导入。
+    if (importJob.value?.job_id === job.job_id) importJob.value = job
     const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
     if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
     else importJobs.value.unshift(job)
     if (job.status === 'completed' || job.status === 'failed') {
+      terminal = true
       load()
       toast({ type: job.status === 'completed' ? 'success' : 'warning', title: job.status === 'completed' ? '导入完成' : '导入失败',
         message: `导入结束：入库 ${job.imported_count}，失败 ${job.failed_count}，跳过 ${job.skipped_count}` })
-      return
     }
   } catch {
     // 网络抖动时继续轮询，任务本身由服务端持久化。
+  } finally {
+    activeImportPolls.delete(jobId)
+    if (!terminal && !importPageUnmounted) scheduleImportPoll(jobId)
   }
-  window.setTimeout(() => pollImportJob(jobId), 2000)
 }
 
 async function confirmImportJob(jobId: string) {
