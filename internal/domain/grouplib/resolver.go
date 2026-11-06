@@ -99,19 +99,18 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			mtprotoErr := resolveErr
 			var webTitle string
 			var webCount int
+			var webPageType string
 			var webErr error
 			if p.gtype == "private" {
 				hash := inviteHashFromLink(p.link)
-				webTitle, webCount, webErr = resolveInviteInfoViaWeb(ctx, hash)
+				webTitle, webCount, webPageType, webErr = resolveInviteInfoViaWeb(ctx, hash)
 			} else {
-				webTitle, webCount, webErr = resolvePublicGroupInfoViaWeb(ctx, p.username)
+				webTitle, webCount, webPageType, webErr = resolvePublicGroupInfoViaWeb(ctx, p.username)
 			}
 			if webErr == nil && (webTitle != "" || webCount > 0) {
 				title, count, chatID = webTitle, webCount, 0
-				gtype = p.gtype
-				if gtype == "unknown" {
-					gtype = "public"
-				}
+				gtype = webPageType
+				if gtype == "" || gtype == "unknown" { gtype = p.gtype }
 				resolveErr = nil
 			} else {
 				var rateLimitErr *TelegramRateLimitError
