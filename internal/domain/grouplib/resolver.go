@@ -87,6 +87,10 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 				_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
 				_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
 			}
+		} else if pageType == "user" {
+			// Valid Telegram account/bot URLs are not valid group-library entries.
+			_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
+			_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
 		} else if title != "" || count > 0 {
 			if pageType == "" || pageType == "unknown" {
 				pageType = p.gtype
