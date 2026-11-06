@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -173,6 +174,21 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			ORDER BY last_online DESC NULLS LAST
 			LIMIT 1`, tenantID).Scan(&accountID)
 		result, importErr := e.ImportByLinks(ctx, tenantID, accountID, lines[offset:end])
+		var rateLimitErr *TelegramRateLimitError
+		if errors.As(importErr, &rateLimitErr) {
+			// 429 不计为失败，也不推进 offset；等待 Telegram 指定时间后重试同一批。
+			retryAt := time.Now().Add(rateLimitErr.RetryAfter)
+			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET last_error=$2, updated_at=$3 WHERE job_id=$1`,
+				jobID, rateLimitErr.Error(), retryAt)
+			timer := time.NewTimer(rateLimitErr.RetryAfter)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			continue
+		}
 		imported, failed, skipped := 0, 0, 0
 		lastError := ""
 		if result != nil {
