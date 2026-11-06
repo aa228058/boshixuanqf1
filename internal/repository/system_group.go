@@ -310,7 +310,7 @@ func (r *SystemGroupRepository) UpsertJoinedGroup(ctx context.Context, sg *domai
 		if err := r.UpdateResolvedInfo(ctx, existingID, sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID); err != nil {
 			return err
 		}
-		_, err = r.db.Exec(ctx, "UPDATE system_groups SET status='joined' WHERE telegram_chat_id=$1", sg.TelegramChatID)
+		_, err = r.db.Exec(ctx, "UPDATE system_groups SET status='active' WHERE telegram_chat_id=$1", sg.TelegramChatID)
 		if err != nil {
 			return err
 		}
