@@ -82,8 +82,7 @@
 
   /* 弹窗内按钮全宽堆叠、大触控区、圆角 */
   .t-dialog__footer button,
-  .t-dialog__footer .t-button,
-  .t-dialog button[type="button"] {
+  .t-dialog__footer .t-button {
     width: 100% !important;
     min-height: var(--t-control-height-lg) !important;
     border-radius: var(--t-control-radius) !important;
