@@ -427,13 +427,22 @@ func Load() *Config {
 		MaxMappingsPerTask:      getInt("MAX_MAPPINGS_PER_TASK", 500),
 		DBHealthCheckPeriod:     getDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
 		ConnectRetrySleep:       getDuration("CONNECT_RETRY_SLEEP", 2*time.Second),
-		LogFileMode:             os.FileMode(getInt("LOG_FILE_MODE", 0644)),
+		LogFileMode:             getFileMode("LOG_FILE_MODE", 0644),
 	}
 
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("config validation failed: %v", err)
 	}
 	return cfg
+}
+
+// getFileMode validates the configured permission bits before converting to FileMode.
+func getFileMode(key string, fallback int) os.FileMode {
+	mode := getInt(key, fallback)
+	if mode < 0 || mode > 0o777 {
+		return os.FileMode(fallback)
+	}
+	return os.FileMode(mode)
 }
 
 // Validate checks required configuration fields.
