@@ -117,7 +117,7 @@ func (r *TaskLogRepository) StatsByAccountForTask(ctx context.Context, tenantID,
 // ListByTask retrieves logs for a task.
 func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uuid.UUID, limit, offset int) ([]*domain.TaskLog, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, executed_at
+		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, tg_message_id, executed_at
 		FROM task_logs WHERE tenant_id = $1 AND task_id = $2
 		ORDER BY executed_at DESC, log_id DESC LIMIT $3 OFFSET $4`, tenantID, taskID, limit, offset)
 	if err != nil {
@@ -131,7 +131,7 @@ func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uui
 		// 2026-10-22 审计修复(P0-17): account_id 可空(批量日志无账号), Scan 到 uuid.UUID
 		// 遇 NULL 直接报错 500——改 Scan 到 *uuid.UUID, NULL 落 nil
 		var accountID *uuid.UUID
-		err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.ExecutedAt)
+		err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.TGMessageID, &l.ExecutedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -371,3 +371,22 @@ func (r *TaskLogRepository) ListFailedTargetsByAccount(ctx context.Context, tena
 	}
 	return result, rows.Err()
 }
+// HasUncertainBroadcastTargets reports whether any send may have succeeded
+// remotely but failed to persist its durable checkpoint. Such targets must
+// never be included in automatic failed-target retries.
+func (r *TaskLogRepository) HasUncertainBroadcastTargets(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM task_logs
+			WHERE tenant_id = $1 AND task_id = $2
+			  AND action = 'send_message'
+			  AND error_code = 'checkpoint_persist_failed'
+		)
+	`, tenantID, taskID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check uncertain broadcast targets: %w", err)
+	}
+	return exists, nil
+}
+

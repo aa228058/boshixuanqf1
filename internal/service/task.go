@@ -892,6 +892,13 @@ func (s *TaskService) Retry(ctx context.Context, tenantID, taskID uuid.UUID, sco
 		// Otherwise one account's failed target can cause another account to resend
 		// a message that it had already delivered successfully.
 		if task.Type == domain.TaskTypeBroadcast || task.Type == domain.TaskTypeScheduledBroadcast {
+			uncertain, err := s.logRepo.HasUncertainBroadcastTargets(ctx, tenantID, taskID)
+			if err != nil {
+				return fmt.Errorf("检查发送结果待核实目标失败: %w", err)
+			}
+			if uncertain {
+				return fmt.Errorf("该任务存在发送结果待核实的目标；为避免重复发送，系统已禁止自动续发，请先人工核对 Telegram 目标消息")
+			}
 			failedByAccount, err := s.logRepo.ListFailedTargetsByAccount(ctx, tenantID, taskID)
 			if err != nil {
 				return fmt.Errorf("获取失败账号目标失败: %w", err)

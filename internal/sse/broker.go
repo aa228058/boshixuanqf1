@@ -245,7 +245,11 @@ func (b *Broker) Handler(topic string) echo.HandlerFunc {
 		flusher.Flush()
 
 		// Heartbeat ticker to keep connection alive (Nginx defaults to 60s timeout)
-		heartbeat := time.NewTicker(b.cfg.SSEHeartbeat)
+		heartbeatInterval := b.cfg.SSEHeartbeat
+		if heartbeatInterval <= 0 {
+			heartbeatInterval = 30 * time.Second
+		}
+		heartbeat := time.NewTicker(heartbeatInterval)
 		defer heartbeat.Stop()
 
 		for {
