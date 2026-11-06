@@ -68,6 +68,11 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 			client, err := e.accEngine.GetClient(ctx, p.TenantID, p.AccountID)
 			if err != nil {
 				taskLog.Printf("[task] GetClient failed for approval check: %v", err)
+				// Count unavailable-account checks too; otherwise an offline account
+				// can leave its approval pending forever without reaching MaxChecks.
+				if incErr := e.approvalRepo.IncrementCheck(ctx, p.TenantID, p.ID); incErr != nil {
+					log.Printf("[approval] 增加检查次数失败: %v", incErr)
+				}
 				return
 			}
 			defer e.accEngine.ReleaseClient(p.TenantID, p.AccountID, client)
