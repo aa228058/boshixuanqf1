@@ -1,7 +1,14 @@
 <script lang="ts">
-// 模块级共享计数器: 所有弹窗实例共用一个, 叠层递增才真正生效
-// (写在这里而非 script setup, 是因为 setup 内的变量每实例独立, 递增会失效)
+import type { Ref } from 'vue'
+
+// 只跟踪当前打开的弹窗；关闭/卸载后压紧序号，避免长期使用导致 z-index 无限增长。
 let modalCounter = 0
+const activeModalOrders = new Map<symbol, Ref<number>>()
+function compactModalOrders() {
+  const active = [...activeModalOrders.entries()]
+  active.forEach(([, order], index) => { order.value = index + 1 })
+  modalCounter = active.length
+}
 </script>
 
 <template>
@@ -75,10 +82,18 @@ const order = ref(0)
 // 每次渲染计数器都涨(打开期间 N 次渲染 = +N 次), 而卸载只 -1 一次,
 // 计数器单调膨胀, z-index 随渲染次数无限抬高( eventually 盖过 toast)。
 // 改为 watch 打开瞬间 +1 一次; zIndexFn 退化为纯查询。序号单调递增，避免卸载顺序影响仍打开的弹窗层级。
+const modalId = Symbol('modal')
 watch(() => props.modelValue, (v) => {
   if (v) {
-    modalCounter += 1
+    if (!activeModalOrders.has(modalId)) {
+      modalCounter += 1
+      activeModalOrders.set(modalId, order)
+    }
     order.value = modalCounter
+  } else {
+    activeModalOrders.delete(modalId)
+    compactModalOrders()
+    order.value = 0
   }
 })
 function zIndexFn() {
@@ -129,8 +144,12 @@ watch(() => props.modelValue, v => {
 }, { immediate: true })
 
 // 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时必须释放 visualViewport 监听并复位全局键盘偏移。
-onUnmounted(detachKbGuard)
-// 层级序号只负责排序，不做递减：弹窗可长期挂载、反复开关或被条件卸载。
+onUnmounted(() => {
+  detachKbGuard()
+  activeModalOrders.delete(modalId)
+  compactModalOrders()
+})
+// 关闭和卸载时压紧仍打开的弹窗序号，层级只取决于当前弹窗栈。
 </script>
 
 <style scoped>
