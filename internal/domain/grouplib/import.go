@@ -145,11 +145,13 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			continue
 		}
 		res.Imported = append(res.Imported, sg)
-		// TG 对解析类请求有限流: 条目间间隔 1s, 避免连打触发 flood
-		select {
-		case <-ctx.Done():
-			return res, ctx.Err()
-		case <-time.After(time.Second):
+		// MTProto 请求保守限速；HTTP 解析由连接池与 Worker 调度统一控制。
+		if client != nil && !bulkMode {
+			select {
+			case <-ctx.Done():
+				return res, ctx.Err()
+			case <-time.After(time.Second):
+			}
 		}
 	}
 	return res, nil
