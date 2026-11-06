@@ -16,9 +16,10 @@ import './styles/tdesign-skin.css'
 import './styles/ui-kit.css'   // 交互精修层: 动画/表单/表格/按钮反馈(最终引入, 优先级最高)
 import './styles/tdesign-theme.css'
 import 'tdesign-vue-next/es/style/index.css'
+import 'vue-final-modal/style.css'
+// 第三方默认样式必须先加载；项目覆盖层放在后面，确保弹窗居中规则生效。
 import './styles/tdesign-overrides.css'
 import './styles/modal-system.css'
-import 'vue-final-modal/style.css'
 // 按需注册: 全项目仅用到以下 17 种组件(统计自全部模板标签),
 // 比 app.use(全量 TDesign) 减少 ~70% 组件库 JS 体积, 首屏明显变快.
 // 新增 t- 组件时在此处补注册, 否则运行时报"组件未注册".
