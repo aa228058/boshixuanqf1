@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
-	"tg-sender/internal/middleware"
-
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"tg-sender/internal/config"
+	"tg-sender/internal/middleware"
 )
 
 func newTestBroker() *Broker {
@@ -113,7 +112,6 @@ func TestBroadcastGlobal_ReachesGlobalTopicNotTenantTopics(t *testing.T) {
 	assertNoEvent(t, chOther, 50*time.Millisecond)
 }
 
-
 func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 	b := newTestBroker()
 	defer b.Close()
@@ -131,9 +129,13 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 	defer server.Close()
 
 	resp, err := http.Get(server.URL + "/events")
-	if err != nil { t.Fatalf("open SSE stream: %v", err) }
+	if err != nil {
+		t.Fatalf("open SSE stream: %v", err)
+	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { t.Fatalf("status = %d, want 200", resp.StatusCode) }
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
 
 	lines := make(chan string, 16)
 	go func() {
@@ -145,7 +147,9 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 		t.Helper()
 		select {
 		case line, ok := <-lines:
-			if !ok { t.Fatal("SSE stream ended unexpectedly") }
+			if !ok {
+				t.Fatal("SSE stream ended unexpectedly")
+			}
 			return line
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for SSE frame")
