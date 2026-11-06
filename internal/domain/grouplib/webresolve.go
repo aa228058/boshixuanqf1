@@ -26,6 +26,24 @@ const telegramMobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X)
 
 const defaultTelegramRetryAfter = time.Minute
 
+// Shared client keeps Telegram TCP/TLS connections alive across lookups.
+var telegramWebClient = &http.Client{
+	Timeout: 12 * time.Second,
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		MaxIdleConns: 100, MaxIdleConnsPerHost: 20, MaxConnsPerHost: 20,
+		IdleConnTimeout: 90 * time.Second,
+		TLSHandshakeTimeout: 5 * time.Second,
+		ResponseHeaderTimeout: 8 * time.Second,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 { return fmt.Errorf("Telegram 页面重定向次数过多") }
+		host := strings.ToLower(req.URL.Hostname())
+		if host != "t.me" && host != "www.t.me" { return fmt.Errorf("拒绝跳转到非 Telegram 域名") }
+		return nil
+	},
+}
+
 // TelegramRateLimitError signals that Telegram asked the resolver to slow down.
 // RetryAfter is derived from the server response when available.
 type TelegramRateLimitError struct {
@@ -94,19 +112,7 @@ func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, err
 	defer cancel()
 
 	target := "https://t.me/+" + url.PathEscape(hash)
-	client := &http.Client{
-		Timeout: 12 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return fmt.Errorf("Telegram 页面重定向次数过多")
-			}
-			host := strings.ToLower(req.URL.Hostname())
-			if host != "t.me" && host != "www.t.me" {
-				return fmt.Errorf("拒绝跳转到非 Telegram 域名")
-			}
-			return nil
-		},
-	}
+	client := telegramWebClient
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target, nil)
 	if err != nil {
 		return "", 0, err
@@ -224,19 +230,7 @@ func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string,
 	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	target := "https://t.me/" + url.PathEscape(username)
-	client := &http.Client{
-		Timeout: 12 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return fmt.Errorf("Telegram 页面重定向次数过多")
-			}
-			host := strings.ToLower(req.URL.Hostname())
-			if host != "t.me" && host != "www.t.me" {
-				return fmt.Errorf("拒绝跳转到非 Telegram 域名")
-			}
-			return nil
-		},
-	}
+	client := telegramWebClient
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target, nil)
 	if err != nil {
 		return "", 0, err
