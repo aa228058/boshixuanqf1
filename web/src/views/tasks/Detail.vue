@@ -3,11 +3,11 @@
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
-      <button @click="fetchTask" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] transition-colors">重新加载</button>
+      <button @click="fetchTask" class="ui-btn ui-btn--ghost ui-btn--sm mt-3">重新加载</button>
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
     <div v-if="task" class="flex flex-wrap items-center gap-3">
-      <button @click="$router.push(`/workspace/${route.params.accountId}/tasks`)" class="p-2 rounded-lg hover:bg-bg-hover transition-colors" aria-label="返回">
+      <button @click="$router.push(`/workspace/${route.params.accountId}/tasks`)" class="ui-icon-btn" aria-label="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
       <div>
@@ -46,10 +46,10 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button v-if="task?.status === 'running'" @click="pause" class="px-3 py-2 rounded-lg bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/20 text-sm">暂停</button>
-          <button v-else-if="task?.status === 'paused'" @click="resume" class="px-3 py-2 rounded-lg bg-[color:var(--t-ok-dim)] text-[var(--t-ok)] border border-[color:var(--t-ok)]/20 text-sm">恢复</button>
-          <button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="px-3 py-2 rounded-lg bg-[color:var(--t-err-dim)] text-[var(--t-err)] border border-[color:var(--t-err)]/20 text-sm" aria-label="取消">取消</button>
-          <button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="px-3 py-2 rounded-lg bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand-dim)] text-sm">重试失败目标 ({{ task?.progress?.failed }})</button>
+          <button v-if="task?.status === 'running'" @click="pause" class="ui-btn ui-btn--sm ui-btn--ghost">暂停</button>
+          <button v-else-if="task?.status === 'paused'" @click="resume" class="ui-btn ui-btn--sm ui-btn--secondary">恢复</button>
+          <button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-btn ui-btn--sm ui-btn--danger" aria-label="取消">取消</button>
+          <button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-btn ui-btn--sm ui-btn--primary">重试失败目标 ({{ task?.progress?.failed }})</button>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
