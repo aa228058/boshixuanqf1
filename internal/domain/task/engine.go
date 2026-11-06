@@ -869,7 +869,12 @@ func (e *Engine) executeTask(ctx context.Context, task *domain.Task) {
 	case domain.TaskTypeMonitorScrape:
 		e.executeMonitorScrape(ctx, task)
 	case domain.TaskTypeInviteMembers:
-		e.executeInviteMembers(ctx, task)
+		if err := e.executeInviteMembers(ctx, task); err != nil {
+			taskLog.Printf("[task] 邀请成员任务执行失败: %v", err)
+			if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+				taskLog.Printf("[task] 更新邀请任务失败状态失败: %v", statusErr)
+			}
+		}
 	case domain.TaskTypeScheduledBroadcast:
 		e.executeBroadcast(ctx, task)
 		e.rescheduleLoopTask(ctx, task)
