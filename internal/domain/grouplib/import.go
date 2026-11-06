@@ -20,8 +20,8 @@ var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|t
 
 // ImportResult 批量导入结果汇总。
 type ImportResult struct {
-	Processed int // 已完成解析的链接数；遇到 429 的当前链接不计入
-	Imported []domain.SystemGroup // 成功解析并入群库的条目
+	Processed int                // 已完成解析的链接数；遇到 429 的当前链接不计入
+	Imported  []domain.SystemGroup // 成功解析并入群库的条目
 	Failed   []string             // 解析失败的原因(如 "xxx: 群组不存在")
 	Skipped  int                  // 重复/无效的原始行数
 }
