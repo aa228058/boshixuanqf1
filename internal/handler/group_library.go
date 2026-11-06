@@ -164,11 +164,29 @@ func (h *GroupLibraryHandler) Import(c echo.Context) error {
 	if strings.TrimSpace(payload) == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "导入内容不能为空")
 	}
-	job, err := h.lib.CreateImportJob(c.Request().Context(), tenantID, fileName, payload)
+	job, err := h.lib.CreateImportPreview(c.Request().Context(), tenantID, fileName, payload)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	return c.JSON(http.StatusAccepted, job)
+}
+
+// ConfirmImportJob handles POST /group-library/import-jobs/:id/confirm.
+// 只有用户确认预筛选结果后，任务才会进入 Telegram 群组解析队列。
+func (h *GroupLibraryHandler) ConfirmImportJob(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
+	job, err := h.lib.ConfirmImportJob(c.Request().Context(), tenantID, jobID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusConflict, "导入预览不存在或已经确认")
+	}
+	return c.JSON(http.StatusOK, job)
 }
 
 // ListImportJobs handles GET /group-library/import-jobs.
