@@ -21,6 +21,9 @@ func TestParseWebMemberCount(t *testing.T) {
 	}{
 		{"12 345 members", 12345},
 		{"1,234 subscribers", 1234},
+		{"1.2K members", 1200},
+		{"3,4M subscribers", 3400000},
+		{"850 members", 850},
 		{"2 001 участников", 2001},
 		{"42 online", 0},
 		{"no preview", 0},
