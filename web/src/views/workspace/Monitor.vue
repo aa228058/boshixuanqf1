@@ -57,7 +57,7 @@
               <button @click="editRule(rule)" class="ui-icon-btn" title="编辑">
                 <Edit3 class="w-4 h-4 text-text-muted" />
               </button>
-              <button @click="deleteRule(rule.rule_id)" class="p-1.5 rounded hover:bg-[color:var(--t-err-dim)] transition-colors" title="删除">
+              <button @click="deleteRule(rule.rule_id)" class="ui-icon-btn ui-icon-btn--danger" title="删除">
                 <Trash2 class="w-4 h-4 text-[var(--t-err)]" />
               </button>
             </div>
@@ -145,7 +145,7 @@
                   <option value="">选择账号…</option>
                   <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
                 </select>
-                <button type="button" class="px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap glow-btn"
+                <button type="button" class="ui-btn ui-btn--primary ui-btn--sm whitespace-nowrap"
                         :disabled="!contactPickAccount || contactLoading"
                         @click="loadContacts">
                   {{ contactLoading ? '获取中…' : '获取联系人' }}
