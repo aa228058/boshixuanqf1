@@ -57,7 +57,7 @@
       </header>
 
       <!-- 内容 -->
-      <main class="flex-1 px-4 sm:px-6 py-5 pb-24 lg:pb-8 max-w-[1200px] w-full mx-auto">
+      <main class="flex-1 px-4 sm:px-6 py-5 pb-24 md:pb-8 max-w-[1200px] w-full mx-auto">
         <slot />
       </main>
     </div>
