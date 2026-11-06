@@ -74,7 +74,7 @@ const order = ref(0)
 // P2-02 审计修复: 原实现在 zIndexFn 里 +1——该函数渲染期会被多次调用,
 // 每次渲染计数器都涨(打开期间 N 次渲染 = +N 次), 而卸载只 -1 一次,
 // 计数器单调膨胀, z-index 随渲染次数无限抬高( eventually 盖过 toast)。
-// 改为 watch 打开瞬间 +1 一次; zIndexFn 退化为纯查询, 卸载 -1 保持配对。
+// 改为 watch 打开瞬间 +1 一次; zIndexFn 退化为纯查询。序号单调递增，避免卸载顺序影响仍打开的弹窗层级。
 watch(() => props.modelValue, (v) => {
   if (v) {
     modalCounter += 1
