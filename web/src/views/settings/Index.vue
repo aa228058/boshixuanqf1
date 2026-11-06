@@ -127,7 +127,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div>
           <label class="block text-xs text-text-secondary mb-1">服务商</label>
-          <select v-model="aiForm.provider" class="w-full px-3 py-2 rounded-lg glow-input text-sm bg-bg-card">
+          <select v-model="aiForm.provider" class="ui-input !text-sm">
             <option value="glm">智谱（免费档）</option>
             <option value="qwen">阿里百炼（免费额）</option>
             <option value="custom">自定义（OpenAI兼容）</option>
@@ -136,7 +136,7 @@
         <div class="sm:col-span-2">
           <label class="block text-xs text-text-secondary mb-1">API Key{{ ai.has_key ? '（已保存，留空则不修改）' : '' }}</label>
           <input v-model="aiForm.api_key" type="password" placeholder="智谱免费key: open.bigmodel.cn 注册即得"
-            class="w-full px-3 py-2 rounded-lg glow-input text-sm font-mono bg-bg-card" />
+            class="ui-input !text-sm font-mono" />
         </div>
         <div class="sm:col-span-3">
           <label class="block text-xs text-text-secondary mb-1">模型名（留空用默认）</label>
@@ -163,11 +163,11 @@
     <!-- R122: 补 v-show —— 此前缺失导致卡密栏在全部 Tab(通知/数据/模板...)重复显示 -->
     <div v-show="activeTab === 'plan'" class="glass rounded-[var(--t-r-md)] p-5 lift">
       <h3 class="text-sm font-medium text-text-secondary mb-4">激活卡密</h3>
-      <div class="flex gap-3">
+      <div class="flex flex-col sm:flex-row gap-3">
         <input
           v-model="activationCode"
           placeholder="输入卡密，如 TGS-PRO-XXXX-XXXX"
-          class="flex-1 px-4 py-2.5 rounded-lg glow-input text-sm font-mono uppercase"
+          class="ui-input !w-full sm:!flex-1 !px-4 !py-2.5 !text-sm font-mono uppercase"
           @keyup.enter="activate" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
         <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="activate">
           激活
