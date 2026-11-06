@@ -6,8 +6,8 @@
         <!-- R109: 移除"当前账号"标签(执行账号在创建弹窗里下拉选择) -->
         <p class="text-sm text-text-muted mt-1">执行账号在创建任务时选择</p>
       </div>
-      <button @click="showCreate = true" class="ui-btn ui-btn--primary flex items-center gap-2 shrink-0"> 新建加群任务
-      </button>
+      <t-button @click="showCreate = true" class="ui-t-button ui-t-button--primary flex items-center gap-2 shrink-0"> 新建加群任务
+      </t-button>
     </div>
 
     <!-- 实时进度面板: 创建后在此显示, 无需跳转 -->
@@ -25,7 +25,7 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="Users" :title="tasksError" description="点击重试">
-        <button @click="fetchTasks" class="ui-btn ui-btn--ghost ui-btn--sm mt-3">重新加载</button>
+        <t-button @click="fetchTasks" class="ui-t-button ui-t-button--ghost ui-t-button--sm mt-3">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
       <div v-else class="space-y-3 mb-4">
@@ -52,8 +52,8 @@
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
             <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-btn ui-btn--sm ui-btn--ghost">重试失败 ({{ progOf(t).failed }})</button>
-            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-btn ui-btn--sm ui-btn--danger">停止</button>
-            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-btn ui-btn--sm ui-btn--ghost">查看详情</button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
+            <t-button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--ghost">查看详情</t-button>
           </div>
         </div>
         </pull-down-refresh>
@@ -86,12 +86,12 @@
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
       <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 mb-4" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
-        <button class="ui-btn ui-btn--segmented flex-1"
+        <button class=" ui-segmented__item flex-1"
           :style="joinMode === 'link'
             ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.2);'
             : 'color: var(--t-text-3);'"
           @click="joinMode = 'link'">链接加群</button>
-        <button class="ui-btn ui-btn--segmented flex-1"
+        <button class=" ui-segmented__item flex-1"
           :style="joinMode === 'invite'
             ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.2);'
             : 'color: var(--t-text-3);'"
@@ -151,11 +151,11 @@
 
       <!-- 操作按钮 -->
       <div class="flex items-center justify-end gap-3">
-        <button type="button" class="ui-btn ui-btn--ghost px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors" @click="showCreate = false">取消</button>
-        <button type="button" class="ui-btn ui-btn--primary px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
+        <t-button type="button" class="ui-t-button ui-t-button--ghost px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors" @click="showCreate = false">取消</t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--primary px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : `创建加群任务 (${validLinks.length})` }}
-        </button>
+        </t-button>
       </div>
     </div>
     </Modal>
