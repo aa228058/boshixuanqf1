@@ -440,7 +440,7 @@ func Load() *Config {
 func getFileMode(key string, fallback int) os.FileMode {
 	mode := getInt(key, fallback)
 	if mode < 0 || mode > 0o777 {
-		return os.FileMode(fallback)
+		return 0o644
 	}
 	return os.FileMode(mode)
 }
