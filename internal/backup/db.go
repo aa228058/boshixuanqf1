@@ -187,7 +187,7 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Printf("[db-backup] 打开媒体目录 %q 失败: %v", dir, err)
+			log.Printf("[db-backup] 打开媒体目录失败: %v", err)
 		}
 		return
 	}
@@ -214,7 +214,7 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil {
-			log.Printf("[db-backup] 读取媒体文件 %q 信息失败: %v", e.Name(), err)
+			log.Printf("[db-backup] 读取媒体文件信息失败: %v", err)
 			continue
 		}
 		if info.IsDir() || !info.ModTime().Before(cutoff) {
@@ -222,7 +222,7 @@ func pruneOldMediaFiles(maxAge time.Duration) {
 		}
 		if err := root.Remove(e.Name()); err != nil {
 			if !os.IsNotExist(err) {
-				log.Printf("[db-backup] 删除过期媒体文件 %q 失败: %v", e.Name(), err)
+				log.Printf("[db-backup] 删除过期媒体文件失败: %v", e.Name(), err)
 			}
 			continue
 		}
@@ -240,7 +240,7 @@ func pruneOldDBBackups(dir string, keep int) {
 	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		log.Printf("[db-backup] 打开备份目录 %q 失败: %v", dir, err)
+		log.Printf("[db-backup] 打开备份目录失败: %v", dir, err)
 		return
 	}
 	defer func() {
@@ -278,14 +278,14 @@ func pruneOldDBBackups(dir string, keep int) {
 	for _, old := range matches[:len(matches)-keep] {
 		if err := root.Remove(old); err != nil {
 			if !os.IsNotExist(err) {
-				log.Printf("[db-backup] 清理旧备份 %q 失败: %v", old, err)
+				log.Printf("[db-backup] 清理旧备份失败: %v", err)
 			}
 		} else {
 			// #nosec G706 -- old is a directory entry selected by the strict db_*.sql.gz filename pattern and quoted.
-			log.Printf("[db-backup] 清理旧备份: %q", old)
+			log.Printf("[db-backup] 清理旧备份完成", old)
 		}
 		if err := root.Remove(old + ".err"); err != nil && !os.IsNotExist(err) {
-			log.Printf("[db-backup] 清理旧备份错误日志 %q 失败: %v", old+".err", err)
+			log.Printf("[db-backup] 清理旧备份错误日志失败: %v", err)
 		}
 	}
 }
