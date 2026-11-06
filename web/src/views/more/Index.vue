@@ -12,7 +12,7 @@
         <div class="text-small font-bold truncate">{{ authStore.tenant?.name || '我的' }}</div>
         <div class="text-[11.5px] mt-0.5" style="color: var(--t-text-3);">{{ authStore.tenant?.plan_id || '' }} · 到期 {{ (authStore.tenant?.expires_at || '').slice(0, 10) }}</div>
       </div>
-      <button class="ui-btn ui-btn--ghost ui-btn--sm" style="border: 1px solid var(--t-line); color: var(--t-text-2);" @click="logout">退出</button>
+      <t-button class="ui-t-button ui-t-button--secondary" style="border: 1px solid var(--t-line); color: var(--t-text-2);" @click="logout">退出</t-button>
     </div>
 
     <!-- 功能分组 -->
