@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"fmt"
-	securerand "tg-sender/internal/secure"
 	"strings"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/domain"
+	securerand "tg-sender/internal/secure"
 )
 
 // executeInviteMembers 邀请入群: 把来源群已采集成员逐个邀请进本账号的目标群。
