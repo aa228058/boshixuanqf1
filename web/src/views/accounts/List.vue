@@ -47,7 +47,7 @@
                 class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
           克隆资料
         </t-button>
-        <button @click="exitSelecting" title="退出多选"
+        <button type="button" @click="exitSelecting" title="退出多选"
                 class="ui-icon-btn shrink-0">
           ✕
         </button>
@@ -134,7 +134,7 @@
                 </div>
               </div>
               <!-- 头像刷新: hover 浮现, 清路径→重连→上线钩子自动重拉 -->
-              <button v-if="acc?.pool_status !== 'standby'"
+              <button type="button" v-if="acc?.pool_status !== 'standby'"
                       @click.stop="refreshAvatar(acc)"
                       :disabled="avatarRefreshingId === acc?.account_id"
                       class="ui-icon-btn ui-icon-btn--xs absolute -bottom-0.5 -right-0.5 opacity-0 group-hover/avatar:opacity-100"
@@ -197,7 +197,7 @@
 
         <!-- R108 操作区: 状态专属按钮(断开/验证码/受限) + ghost 主操作 + 更多菜单, 与信息区同行 -->
         <div class="flex items-center gap-1 shrink-0 self-center">
-          <button v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
+          <button type="button" v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
                   class="ui-icon-btn ui-icon-btn--danger"
                   title="断开" aria-label="断开">
             <Loader2 v-if="disconnecting === acc?.account_id" class="w-3.5 h-3.5 animate-spin" />
@@ -240,44 +240,44 @@
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
               <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
-              <button @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
+              <button type="button" @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
                       class="ui-menu-item w-full disabled:opacity-50">
                 <RefreshCw class="w-3.5 h-3.5" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" /> 刷新头像
               </button>
-              <button v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
+              <button type="button" v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
                       @click="openMenuId = ''; reconnectAccount(acc)" :disabled="reconnectingId === acc?.account_id"
                       class="ui-menu-item w-full disabled:opacity-50">
                 <RefreshCw class="w-3.5 h-3.5" :class="reconnectingId === acc?.account_id ? 'animate-spin' : ''" /> 重新连接
               </button>
-              <button @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
+              <button type="button" @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
                       class="ui-menu-item w-full disabled:opacity-50">
                 <LogOut class="w-3.5 h-3.5" /> 退群
               </button>
               <!-- R181 群转移: 把该号已加入的群导出邀请链接, 交给目标号批量加入 -->
-              <button @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
+              <button type="button" @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
                       class="ui-menu-item w-full disabled:opacity-50">
                 <ArrowRightLeft class="w-3.5 h-3.5" /> 转移群
               </button>
-              <button @click="openMenuId = ''; editRemark(acc)"
+              <button type="button" @click="openMenuId = ''; editRemark(acc)"
                       class="ui-menu-item w-full">
                 <Pencil class="w-3.5 h-3.5" /> 备注·代理
               </button>
               <div class="border-t border-border my-1"></div>
               <!-- R108 修复: 转备用/资料/检测在移动端收进面板(桌面另有 ghost 按钮直出) -->
-              <button @click="openMenuId = ''; togglePool(acc)"
+              <button type="button" @click="openMenuId = ''; togglePool(acc)"
                       class="ui-menu-item w-full sm:hidden">
                 <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" />{{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
               </button>
-              <button @click="openMenuId = ''; openProfile(acc)"
+              <button type="button" @click="openMenuId = ''; openProfile(acc)"
                       class="ui-menu-item w-full sm:hidden">
                 <UserRoundPen class="w-3.5 h-3.5" />查看资料
               </button>
               <!-- R119: 能力检测(移动端面板, sm:hidden 桌面不重复显示) -->
-              <button @click="openMenuId = ''; openProbe(acc)"
+              <button type="button" @click="openMenuId = ''; openProbe(acc)"
                       class="ui-menu-item w-full sm:hidden">
                 <ShieldCheck class="w-3.5 h-3.5" />检测
               </button>
-              <button @click="openMenuId = ''; confirmDelete(acc)"
+              <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
                       class="ui-menu-item ui-menu-item--danger w-full">
                 <Trash2 class="w-3.5 h-3.5" /> 删除
               </button>
@@ -422,10 +422,10 @@
           <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'text-text-muted'}`" />
           <span class="flex-1 text-sm">{{ g.name }}</span>
           <span class="text-xs text-text-secondary">{{ (g.account_ids || []).length }} 个账号</span>
-          <button @click="editGroup(g)" class="ui-icon-btn" aria-label="编辑">
+          <button type="button" @click="editGroup(g)" class="ui-icon-btn" aria-label="编辑">
             <Pencil class="w-3.5 h-3.5 text-text-secondary" />
           </button>
-          <button @click="deleteGroup(g)" class="ui-icon-btn">
+          <button type="button" @click="deleteGroup(g)" class="ui-icon-btn">
             <Trash2 class="w-3.5 h-3.5 text-text-secondary hover:text-[var(--t-err)]" />
           </button>
         </div>
