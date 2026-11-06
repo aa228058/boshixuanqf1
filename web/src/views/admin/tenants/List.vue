@@ -33,12 +33,12 @@
         <template #actions="{ row }">
           <div class="flex items-center gap-1">
             <t-tooltip content="详情" position="top">
-              <button @click="viewDetail(row as any)" class="ui-icon-btn" aria-label="详情">
+              <button type="button" @click="viewDetail(row as any)" class="ui-icon-btn" aria-label="详情">
                 <Eye class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
             <t-tooltip content="重置Key" position="top">
-              <button @click="resetKey(row as any)" class="ui-icon-btn" aria-label="重置Key">
+              <button type="button" @click="resetKey(row as any)" class="ui-icon-btn" aria-label="重置Key">
                 <KeyRound class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
@@ -72,12 +72,12 @@
           <span>{{ new Date(t.created_at).toLocaleDateString('zh-CN') }}</span>
           <div class="flex items-center gap-1">
             <t-tooltip content="详情" position="top">
-              <button @click="viewDetail(t)" class="ui-icon-btn" aria-label="详情">
+              <button type="button" @click="viewDetail(t)" class="ui-icon-btn" aria-label="详情">
                 <Eye class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
             <t-tooltip content="重置Key" position="top">
-              <button @click="resetKey(t)" class="ui-icon-btn" aria-label="重置Key">
+              <button type="button" @click="resetKey(t)" class="ui-icon-btn" aria-label="重置Key">
                 <KeyRound class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
