@@ -1,0 +1,64 @@
+name: Server Preflight (Read Only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-preflight
+  cancel-in-progress: false
+
+jobs:
+  inspect-server:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 5
+    steps:
+      - name: Read-only server inventory
+        shell: bash
+        run: |
+          set +e
+          echo "===== HOST ====="
+          hostname
+          id
+          . /etc/os-release 2>/dev/null && echo "$PRETTY_NAME"
+          uname -m
+          echo
+          echo "===== RESOURCES ====="
+          df -h /
+          free -h
+          echo
+          echo "===== DOCKER ====="
+          if command -v docker >/dev/null 2>&1; then
+            docker --version
+            docker compose version
+            docker info --format 'Docker server: {{.ServerVersion}}' 2>&1
+            echo "--- containers ---"
+            docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' 2>&1
+            echo "--- volumes ---"
+            docker volume ls 2>&1
+          else
+            echo "Docker command not found"
+          fi
+          echo
+          echo "===== LISTENING PORTS ====="
+          if command -v ss >/dev/null 2>&1; then ss -lnt 2>&1; else echo "ss not installed"; fi
+          echo
+          echo "===== DEPLOYMENT FILE LOCATIONS (PATHS ONLY) ====="
+          for base in /opt /srv /var/www /home /root; do
+            if [ -d "$base" ]; then
+              find "$base" -maxdepth 4 -type f \( -name docker-compose.yml -o -name compose.yaml -o -name compose.yml \) -print 2>/dev/null
+            fi
+          done
+          echo
+          echo "===== COMMON DEPLOYMENT DIRECTORIES ====="
+          for path in /opt/tg* /srv/tg* /var/www/tg* /home/*/tg*; do
+            if [ -d "$path" ]; then
+              printf '%s exists\n' "$path"
+              if [ -f "$path/.env" ]; then echo "  .env: present (contents intentionally not displayed)"; else echo "  .env: absent"; fi
+            fi
+          done
+          echo
+          echo "===== END OF READ-ONLY CHECK ====="
