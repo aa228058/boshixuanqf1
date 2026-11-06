@@ -10,17 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	securerand "tg-sender/internal/secure"
 )
 
 const resolveBatchSize = 30
-
-// randomResolveDelay adds bounded jitter to keep background Telegram lookups
-// from creating a fixed, burst-like request pattern. It is rate control, not
-// a mechanism for bypassing Telegram access restrictions.
-func randomResolveDelay() time.Duration {
-	return 5*time.Second + time.Duration(securerand.Int63n(int64(10*time.Second)+1))
-}
 
 func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	type row struct {
@@ -48,7 +40,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		return
 	}
 
-	for i, p := range pending {
+	for _, p := range pending {
 		isInviteLink := inviteHashFromLink(p.link) != ""
 		// Defensive cleanup for bot links inserted by older import/aggregation paths.
 		if !isInviteLink && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
@@ -99,13 +91,6 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 				log.Printf("[grouplib] 回写群组资料失败 %s: %v", p.sgID, err)
 			} else {
 				_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "valid")
-			}
-		}
-		if i < len(pending)-1 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(randomResolveDelay()):
 			}
 		}
 	}

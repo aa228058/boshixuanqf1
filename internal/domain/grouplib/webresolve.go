@@ -120,7 +120,7 @@ func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, str
 		return "", 0, "unknown", err
 	}
 	applyTelegramWebHeaders(req)
-	resp, err := telegramWebClient.Do(req)
+	resp, err := telegramWebDo(req)
 	if err != nil {
 		return "", 0, "unknown", fmt.Errorf("请求 t.me 失败: %w", err)
 	}
@@ -279,7 +279,7 @@ func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string,
 		return "", 0, "unknown", err
 	}
 	applyTelegramWebHeaders(req)
-	resp, err := telegramWebClient.Do(req)
+	resp, err := telegramWebDo(req)
 	if err != nil {
 		return "", 0, "unknown", fmt.Errorf("请求 Telegram 公开群页面失败: %w", err)
 	}
