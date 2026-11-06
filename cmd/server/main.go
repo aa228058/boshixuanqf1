@@ -311,9 +311,9 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	api.POST("/group-library/join", c.PlanChecker.RequirePlanFeature(middleware.FeatureDiscover)(c.GroupLibraryHandler.JoinSelected))
 	api.POST("/group-library/search", c.GroupLibraryHandler.Search) // 关键词搜群(借在线账号TG搜索, 入库)
 	groupImportAPI := api.Group("", echomiddleware.BodyLimit("21M"))
-	groupImportAPI.POST("/group-library/import", c.GroupLibraryHandler.Import)               // 文件/文本批量导入，后台异步处理
-	groupImportAPI.GET("/group-library/import-jobs", c.GroupLibraryHandler.ListImportJobs) // 导入任务历史
-	groupImportAPI.GET("/group-library/import-jobs/:id", c.GroupLibraryHandler.GetImportJob) // 查询导入进度
+	groupImportAPI.POST("/group-library/import", c.GroupLibraryHandler.Import)                            // 文件/文本批量导入，后台异步处理
+	groupImportAPI.GET("/group-library/import-jobs", c.GroupLibraryHandler.ListImportJobs)                // 导入任务历史
+	groupImportAPI.GET("/group-library/import-jobs/:id", c.GroupLibraryHandler.GetImportJob)              // 查询导入进度
 	groupImportAPI.POST("/group-library/import-jobs/:id/confirm", c.GroupLibraryHandler.ConfirmImportJob) // 确认筛选结果后开始解析
 	// R116: /text-dicts 词典管理 API 七端点已删(前端词典管理 UI 消亡后零调用;
 	// 词典数据本身仍服务群发变量 {{词典名}} —— engine 直读 TextDictRepo, 不经过 HTTP 层)

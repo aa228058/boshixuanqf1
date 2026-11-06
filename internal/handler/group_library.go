@@ -192,9 +192,13 @@ func (h *GroupLibraryHandler) ConfirmImportJob(c echo.Context) error {
 // ListImportJobs handles GET /group-library/import-jobs.
 func (h *GroupLibraryHandler) ListImportJobs(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	jobs, err := h.lib.ListImportJobs(c.Request().Context(), tenantID, 30)
-	if err != nil { return echo.NewHTTPError(http.StatusInternalServerError, "读取导入任务失败") }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "读取导入任务失败")
+	}
 	return c.JSON(http.StatusOK, map[string]interface{}{"list": jobs})
 }
 

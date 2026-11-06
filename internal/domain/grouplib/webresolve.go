@@ -30,16 +30,20 @@ const defaultTelegramRetryAfter = time.Minute
 var telegramWebClient = &http.Client{
 	Timeout: 12 * time.Second,
 	Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		Proxy:        http.ProxyFromEnvironment,
 		MaxIdleConns: 100, MaxIdleConnsPerHost: 20, MaxConnsPerHost: 20,
-		IdleConnTimeout: 90 * time.Second,
-		TLSHandshakeTimeout: 5 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
 		ResponseHeaderTimeout: 8 * time.Second,
 	},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 3 { return fmt.Errorf("Telegram 页面重定向次数过多") }
+		if len(via) >= 3 {
+			return fmt.Errorf("Telegram 页面重定向次数过多")
+		}
 		host := strings.ToLower(req.URL.Hostname())
-		if host != "t.me" && host != "www.t.me" { return fmt.Errorf("拒绝跳转到非 Telegram 域名") }
+		if host != "t.me" && host != "www.t.me" {
+			return fmt.Errorf("拒绝跳转到非 Telegram 域名")
+		}
 		return nil
 	},
 }

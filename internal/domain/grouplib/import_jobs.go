@@ -96,14 +96,20 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 }
 
 func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit int) ([]ImportJob, error) {
-	if limit < 1 || limit > 100 { limit = 20 }
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
 	rows, err := e.pool.Query(ctx, `SELECT job_id,file_name,status,total_count,processed_count,imported_count,failed_count,skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2`, tenantID, limit)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	jobs := make([]ImportJob, 0)
 	for rows.Next() {
 		var job ImportJob
-		if err := rows.Scan(&job.JobID,&job.FileName,&job.Status,&job.TotalCount,&job.ProcessedCount,&job.ImportedCount,&job.FailedCount,&job.SkippedCount,&job.RawCount,&job.DuplicateCount,&job.InvalidCount,&job.LastError,&job.CreatedAt,&job.FinishedAt); err != nil { return nil, err }
+		if err := rows.Scan(&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount, &job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt); err != nil {
+			return nil, err
+		}
 		job.ValidCount = job.TotalCount
 		jobs = append(jobs, job)
 	}

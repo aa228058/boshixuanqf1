@@ -49,7 +49,9 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 		var sg *domain.SystemGroup
 		switch c := ch.(type) {
 		case *tg.Channel:
-			if strings.HasSuffix(strings.ToLower(c.Username), "bot") { continue }
+			if strings.HasSuffix(strings.ToLower(c.Username), "bot") {
+				continue
+			}
 			if c.Username == "" {
 				continue // 搜到的非公开频道, 无法加入, 不入库
 			}
