@@ -73,7 +73,7 @@
           <div class="flex items-center gap-2 -mt-1"><span class="text-[10.5px] font-semibold text-text-muted uppercase tracking-wider">基础信息</span><span class="flex-1 h-px bg-border/60"></span></div>
           <div>
             <label class="block text-sm text-text-secondary mb-1">规则名称</label>
-            <input v-model="ruleForm.name" class="w-full px-3 py-2 rounded-lg glow-input" />
+            <input v-model="ruleForm.name" class="ui-input" />
           </div>
           <div>
             <label class="block text-sm text-text-secondary mb-2">源群组（监控来源）</label>
@@ -102,7 +102,7 @@
           <div class="flex items-center gap-2 pt-1"><span class="text-[10.5px] font-semibold text-text-muted uppercase tracking-wider">匹配条件与动作</span><span class="flex-1 h-px bg-border/60"></span></div>
           <div>
             <label class="block text-sm text-text-secondary mb-1">匹配类型</label>
-            <select v-model="ruleForm.match_type" class="w-full px-3 py-2 rounded-lg glow-input">
+            <select v-model="ruleForm.match_type" class="ui-input">
               <option value="contains">包含关键词</option>
               <option value="exact">完全匹配</option>
               <option value="regex">正则匹配</option>
@@ -111,11 +111,11 @@
           </div>
           <div>
             <label class="block text-sm text-text-secondary mb-1">关键词（每行一个）</label>
-            <textarea v-model="ruleForm.keywordsInput" rows="3" class="w-full px-3 py-2 rounded-lg glow-input resize-none" />
+            <textarea v-model="ruleForm.keywordsInput" rows="3" class="ui-input resize-none" />
           </div>
           <div>
             <label class="block text-sm text-text-secondary mb-1">动作</label>
-            <select v-model="ruleForm.type" class="w-full px-3 py-2 rounded-lg glow-input">
+            <select v-model="ruleForm.type" class="ui-input">
               <option value="reply">自动回复</option>
               <option value="forward">转发消息</option>
               <option value="dm">私聊触达</option>
@@ -123,7 +123,7 @@
           </div>
           <div v-if="ruleForm.type === 'reply'">
             <label class="block text-sm text-text-secondary mb-1">回复内容</label>
-            <textarea v-model="ruleForm.reply_content" rows="2" class="w-full px-3 py-2 rounded-lg glow-input resize-none" />
+            <textarea v-model="ruleForm.reply_content" rows="2" class="ui-input resize-none" />
           </div>
           <!-- 私聊触达: 命中后由监控号私聊触发人, 子动作可任意组合 -->
           <div v-if="ruleForm.type === 'dm'" class="space-y-3 p-3 rounded-lg border border-border">
@@ -133,7 +133,7 @@
             </label>
             <div v-if="ruleForm.dmContentEnabled">
               <textarea v-model="ruleForm.dm_content" rows="2" placeholder="私聊发送给触发人的文本"
-                        class="w-full px-3 py-2 rounded-lg glow-input resize-none" />
+                        class="ui-input resize-none" />
             </div>
             <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
               <input type="checkbox" v-model="ruleForm.dmContactEnabled" class="accent-[var(--t-ok)]" />
@@ -141,7 +141,7 @@
             </label>
             <div v-if="ruleForm.dmContactEnabled" class="space-y-2">
               <div class="flex items-center gap-2">
-                <select v-model="contactPickAccount" class="flex-1 px-2 py-1.5 rounded-lg glow-input text-xs bg-bg-card">
+                <select v-model="contactPickAccount" class="ui-input !w-auto flex-1 !min-h-[36px] !px-2 !py-1.5 !text-xs">
                   <option value="">选择账号…</option>
                   <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
                 </select>
@@ -151,7 +151,7 @@
                   {{ contactLoading ? '获取中…' : '获取联系人' }}
                 </t-button>
               </div>
-              <select v-if="contactList.length" v-model="contactPick" class="w-full px-2 py-1.5 rounded-lg glow-input text-xs bg-bg-card" @change="applyContact">
+              <select v-if="contactList.length" v-model="contactPick" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-xs" @change="applyContact">
                 <option value="">选择联系人（自动填入手机号和姓名）…</option>
                 <option v-for="ct in contactList" :key="ct.tg_user_id" :value="ct.tg_user_id">
                   {{ ct.first_name }} {{ ct.last_name || '' }} · {{ ct.phone }}
@@ -159,9 +159,9 @@
               </select>
               <p v-if="contactPick && !ruleForm.dm_contact_phone" class="text-xs text-[var(--t-warn)]">该联系人资料未返回手机号，Telegram 名片发送必须提供手机号；请手动补充，或选择有手机号的联系人。</p>
               <div class="grid grid-cols-2 gap-2">
-                <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码（自动带入；缺失时需补充）" class="col-span-2 px-3 py-2 rounded-lg glow-input" />
-                <input v-model="ruleForm.dm_contact_first_name" placeholder="名(必填)" class="px-3 py-2 rounded-lg glow-input" />
-                <input v-model="ruleForm.dm_contact_last_name" placeholder="姓(可空)" class="px-3 py-2 rounded-lg glow-input" />
+                <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码（自动带入；缺失时需补充）" class="ui-input col-span-2" />
+                <input v-model="ruleForm.dm_contact_first_name" placeholder="名(必填)" class="ui-input" />
+                <input v-model="ruleForm.dm_contact_last_name" placeholder="姓(可空)" class="ui-input" />
               </div>
             </div>
             <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
@@ -171,7 +171,7 @@
             <div v-if="ruleForm.dmCallEnabled" class="flex items-center gap-2 text-sm text-text-muted">
               响铃
               <input type="number" v-model.number="ruleForm.dm_call_seconds" min="1" max="60"
-                     class="w-20 px-2 py-1.5 rounded-lg glow-input text-center" />
+                     class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" />
               秒后自动挂断(对方显示未接来电)
             </div>
             <p class="text-[11px] leading-relaxed" style="color: var(--t-text-3);">
