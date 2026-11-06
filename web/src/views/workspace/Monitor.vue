@@ -25,7 +25,7 @@
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-medium">监控规则</h3>
           <!-- P0-28: 走 openAddRule 先清空 editingRule, 防编辑残留变覆盖 -->
-          <button @click="openAddRule" class="glow-btn px-3 py-1.5 rounded-lg text-xs">添加规则</button>
+          <button @click="openAddRule" class="ui-btn ui-btn--primary ui-btn--sm">添加规则</button>
         </div>
         <div class="space-y-2">
           <EmptyState v-if="rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
@@ -54,7 +54,7 @@
             </div>
             <div class="flex items-center gap-1">
               <t-switch :model-value="rule.is_active" @update:model-value="(v: boolean) => toggleRule(rule.rule_id, v)" />
-              <button @click="editRule(rule)" class="p-1.5 rounded hover:bg-bg-secondary transition-colors" title="编辑">
+              <button @click="editRule(rule)" class="ui-icon-btn" title="编辑">
                 <Edit3 class="w-4 h-4 text-text-muted" />
               </button>
               <button @click="deleteRule(rule.rule_id)" class="p-1.5 rounded hover:bg-[color:var(--t-err-dim)] transition-colors" title="删除">
@@ -193,8 +193,8 @@
           </div>
         </div>
         <div class="flex justify-end gap-3 mt-6">
-          <button @click="showAddRule = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
-          <button @click="saveRule" class="px-4 py-2 rounded-lg text-sm font-medium glow-btn">保存</button>
+          <button @click="showAddRule = false" class="ui-btn ui-btn--ghost">取消</button>
+          <button @click="saveRule" class="ui-btn ui-btn--primary">保存</button>
         </div>
     </Modal>
 
