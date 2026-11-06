@@ -38,7 +38,7 @@ jobs:
       - name: Run browser audit
         working-directory: web/e2e
         env:
-          BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:4173' }}
+          BASE_URL: ${{ github.event.inputs.base_url || 'http://127.0.0.1:4173' }}
           E2E_TENANT_USERNAME: ${{ secrets.E2E_TENANT_USERNAME }}
           E2E_TENANT_PASSWORD: ${{ secrets.E2E_TENANT_PASSWORD }}
         run: npm test
