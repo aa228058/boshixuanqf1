@@ -45,7 +45,7 @@
         <div v-for="job in importJobs" :key="job.job_id" class="rounded-lg p-2 space-y-1" style="background: color-mix(in srgb, var(--t-text-1) 5%, transparent);">
           <div class="flex justify-between text-xs gap-2"><span class="font-medium">{{ job.file_name || '文本导入' }} · {{ job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : job.status === 'pending' ? '等待处理' : job.status === 'review' ? '待确认筛选结果' : '处理中' }}</span><span>{{ job.processed_count }}/{{ job.total_count }}</span></div>
           <div class="h-1.5 rounded-full overflow-hidden" style="background: var(--t-line-light)"><div class="h-full" style="background: var(--t-brand)" :style="{ width: (job.total_count ? Math.min(100, job.processed_count / job.total_count * 100) : 0) + '%' }"></div></div>
-          <div class="text-[11px] text-text-muted">入库 {{ job.imported_count }} · 失败 {{ job.failed_count }} · 跳过 {{ job.skipped_count }} · {{ fmtTime(job.created_at) }}</div>
+          <div class="text-[11px] text-text-muted">筛选有效 {{ job.valid_count || job.total_count }} · 重复 {{ job.duplicate_count || 0 }} · 无效 {{ job.invalid_count || 0 }} · 已处理 {{ job.processed_count }} · 入库 {{ job.imported_count }} · 失败 {{ job.failed_count }} · {{ fmtTime(job.created_at) }}</div>
           <div v-if="job.last_error" class="text-[11px] text-text-muted break-words">{{ job.last_error }}</div>
           <t-button v-if="job.status === 'review'" size="small" theme="primary" @click="confirmImportJob(job.job_id)">确认有效链接并开始解析</t-button>
         </div>
@@ -206,7 +206,7 @@
         </p>
         <div v-if="importJob" class="text-xs rounded-lg p-3 space-y-2" style="background: color-mix(in srgb, var(--t-text-1) 6%, transparent);">
           <div class="flex justify-between gap-2">
-            <span class="font-medium">{{ importJob.status === 'completed' ? '导入完成' : importJob.status === 'failed' ? '导入失败' : '后台处理中' }}</span>
+            <span class="font-medium">{{ importJob.status === 'review' ? '筛选完成，等待确认' : importJob.status === 'completed' ? '解析完成' : importJob.status === 'failed' ? '解析失败' : '后台解析中' }}</span>
             <span>{{ importJob.processed_count }} / {{ importJob.total_count }}</span>
           </div>
           <div class="h-2 rounded-full overflow-hidden" style="background: var(--t-line-light);">
