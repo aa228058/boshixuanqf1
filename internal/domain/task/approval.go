@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mtgo-labs/mtgo/telegram"
+	"github.com/mtgo-labs/mtgo/tg"
 )
 
 func (e *Engine) StartApprovalChecker(ctx context.Context) {
@@ -125,14 +126,23 @@ func (e *Engine) isAccountInGroup(ctx context.Context, client *telegram.Client, 
 		}
 	}
 
-	// Do not treat GetFullChannel/GetFullChat success as proof of membership:
-	// those calls return chat metadata, not the current account's participant
-	// status. A matching dialog is the positive membership signal available
-	// here. If it is not present, keep the approval pending rather than
-	// incorrectly resolving it as approved.
-	//
-	// Do not re-import an invite link here. ImportChatInvite is mutating and can
-	// submit another join request while this checker is only observing status.
+	// For private invite links the chat ID is unknown until approval. Use
+	// messages.checkChatInvite, which is read-only, to distinguish an accepted
+	// invite (ChatInviteAlready) from a still-pending/rejected invite.
+	if targetLink != "" && (strings.Contains(targetLink, "+") || strings.Contains(targetLink, "joinchat")) {
+		hash := extractInviteHash(targetLink)
+		if hash != "" {
+			result, checkErr := client.Invoke(ctx, &tg.MessagesCheckChatInviteRequest{Hash: hash})
+			if checkErr == nil {
+				if _, ok := result.(*tg.ChatInviteAlready); ok {
+					return true
+				}
+			}
+		}
+	}
+
+	// Never re-import an invite link from the checker: ImportChatInvite is
+	// mutating and can submit another join request while merely polling status.
 	return false
 }
 
