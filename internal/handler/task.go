@@ -1356,6 +1356,11 @@ func (h *TaskHandler) StreamProgress(c echo.Context) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	// Send the authorized snapshot immediately; later ticks use the live cache/DB.
+	initialData, _ := json.Marshal(initialTask.Progress)
+	fmt.Fprintf(c.Response(), "data: %s\n\n", initialData)
+	c.Response().Flush()
+
 	for {
 		select {
 		case <-c.Request().Context().Done():
