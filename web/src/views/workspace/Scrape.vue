@@ -6,11 +6,11 @@
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
       </div>
       <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <t-button v-if="tasks.length" type="button" class="ui-t-button--text ui-t-button px-3 py-2 rounded-lg text-sm text-[var(--t-err)]/70 border border-[color:var(--t-err)]/20 hover:bg-[color:var(--t-err-dim)] hover:text-[var(--t-err)] transition-colors flex items-center gap-2" @click="clearLogs" variant="text">
+        <t-button v-if="tasks.length" type="button" class="ui-t-button ui-t-button--danger ui-t-button--text flex items-center gap-2" @click="clearLogs" variant="text">
           <Trash2 class="w-4 h-4" />
           清空记录
         </t-button>
-        <t-button type="button" class="ui-t-button--primary ui-t-button px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2" @click="showCreate = true"> 开始采集
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="showCreate = true"> 开始采集
         </t-button>
       </div>
     </div>
@@ -85,7 +85,7 @@
       </div>
       <div class="flex items-center justify-end gap-3 pt-2">
         <t-button @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button type="button" class="ui-t-button--primary ui-t-button px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : '开始采集' }}
         </t-button>
@@ -265,7 +265,7 @@ const clearing = ref(false)
 async function clearLogs() {
   const finished = tasks.value.filter(t => t.status !== 'running' && t.status !== 'queued')
   if (!finished.length) return
-  if (!await ask(`确定清空 ${finished.length} 条采集记录？此操作不可恢复`)) return
+  if (!await ask(`确定清空 ${finished.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })) return
   clearing.value = true
   try {
     await taskApi.batchDelete(finished.map(t => t.task_id))
