@@ -26,7 +26,7 @@
         全选
       </label>
       <span v-if="selectedIds.size" class="text-xs" style="color: var(--t-text-3);">已选 {{ selectedIds.size }} 个</span>
-      <button class="ml-auto text-xs font-bold" style="color: var(--t-brand);" @click="exitSelecting">完成</button>
+      <button class="ui-btn ui-btn--text ui-btn--sm ml-auto" @click="exitSelecting">完成</button>
     </div>
 
     <!-- 批量操作悬浮栏(R141 新皮肤适配): 实底浮层(深色模式不透字) + 令牌阴影 + 主题感知按钮底 -->
@@ -234,8 +234,7 @@
           <div class="relative ml-auto">
             <!-- R130 "更多"文字按钮(用户: 比 ⋯ 图标更易发现), 胶囊底常显 -->
             <button @click.stop="toggleMenu(acc?.account_id)"
-                    class="more-btn px-2.5 h-7 rounded-full text-xs font-bold transition-colors shrink-0"
-                    style="background: var(--t-surface-2); color: var(--t-text-2);"
+                    class="ui-btn ui-btn--secondary ui-btn--sm shrink-0"
                     aria-label="更多操作">更多</button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
             <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
@@ -601,10 +600,10 @@
     <!-- 分页控件(v1.19): 上一页/页码/下一页 -->
     <div v-if="accTotalPages > 1" class="flex items-center justify-center gap-2 mt-4">
       <button @click="accPage = Math.max(1, accPage - 1)" :disabled="accPage <= 1"
-              class="px-3 py-1.5 rounded-lg text-xs bg-ink-01 text-text-secondary hover:text-[var(--t-brand)] disabled:opacity-40">上一页</button>
+              class="ui-btn ui-btn--secondary ui-btn--sm" >上一页</button>
       <span class="text-xs text-text-muted tabular-nums">{{ accPage }} / {{ accTotalPages }}</span>
       <button @click="accPage = Math.min(accTotalPages, accPage + 1)" :disabled="accPage >= accTotalPages"
-              class="px-3 py-1.5 rounded-lg text-xs bg-ink-01 text-text-secondary hover:text-[var(--t-brand)] disabled:opacity-40">下一页</button>
+              class="ui-btn ui-btn--secondary ui-btn--sm" >下一页</button>
     </div>
 
     <!-- 批量改资料弹窗(批次2): 留空字段不变, 随机用户名为每号生成不同用户名 -->
