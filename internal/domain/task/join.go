@@ -55,7 +55,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	failed := 0
 
 	if len(task.AccountIDs) == 0 {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 		return
@@ -92,14 +92,14 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			status = string(acc.Status)
 		}
 		taskLog.Printf("[join] skip account %s: status=%s (not active)", accID, status)
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 		return
 	}
 	if acc.BlockedUntil != nil && acc.BlockedUntil.After(time.Now().UTC()) {
 		taskLog.Printf("[join] skip account %s: blocked_until=%s", accID, acc.BlockedUntil.Format(time.RFC3339))
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 		return
@@ -107,7 +107,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 
 	client, err := e.accEngine.GetClient(ctx, task.TenantID, accID)
 	if err != nil {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 		return
@@ -117,7 +117,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	completedTargets, checkpointErr := e.logRepo.ListCompletedJoinTargets(ctx, task.TenantID, task.TaskID, accID, task.TargetIDs)
 	if checkpointErr != nil {
 		taskLog.Printf("[join] 读取续传检查点失败，停止任务 task=%s: %v", task.TaskID, checkpointErr)
-		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 			taskLog.Printf("[join] 标记检查点读取失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
 		}
 		return
@@ -132,7 +132,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	resumedProgress := domain.TaskProgress{Total: total, Done: done}
 	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
 		taskLog.Printf("[join] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
-		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 			taskLog.Printf("[join] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
 		}
 		return
@@ -144,7 +144,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		case <-ctx.Done():
 			return
 		case <-e.stopCh:
-			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusPaused); err != nil {
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusPaused); err != nil {
 				taskLog.Printf("[task] UpdateStatus failed: %v", err)
 			}
 			return
@@ -395,7 +395,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := e.logRepo.Create(persistCtx, joinLog); err != nil {
 			log.Printf("[join] 创建检查点日志失败，停止任务以避免重复加群: %v", err)
-			if statusErr := e.repo.UpdateStatusOwned(persistCtx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+			if statusErr := e.repo.UpdateStatusOwned(persistCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 				log.Printf("[join] 检查点写入失败后标记任务失败也失败: %v", statusErr)
 			}
 			persistCancel()
@@ -504,11 +504,11 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	}
 
 	if failed == total && total > 0 {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 	} else {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusCompleted); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 	}

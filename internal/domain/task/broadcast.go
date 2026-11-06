@@ -59,7 +59,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		message = fmt.Sprint(v)
 	}
 	if message == "" {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 		return
@@ -282,7 +282,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		// Never send when durable idempotency state cannot be verified. Failing open
 		// here can duplicate messages after a worker restart or database interruption.
 		taskLog.Printf("[broadcast] 读取续传检查点失败，停止任务 task=%s: %v", task.TaskID, checkpointErr)
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[broadcast] 标记检查点读取失败任务失败时出错 task=%s: %v", task.TaskID, err)
 		}
 		return
@@ -302,7 +302,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	resumedProgress := domain.TaskProgress{Total: total, Done: done}
 	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
 		taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
-		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 			taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
 		}
 		return
@@ -399,7 +399,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 
 			if len(task.AccountIDs) == 0 || len(targets) == 0 {
 				taskLog.Printf("[task] broadcast task %s has empty account_ids or target_ids, marking failed", task.TaskID)
-				if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+				if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 				if err := e.logRepo.Create(ctx, &domain.TaskLog{
@@ -433,7 +433,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
 					}
-					if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusPaused); err != nil {
+					if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusPaused); err != nil {
 						taskLog.Printf("[task] UpdateStatus failed: %v", err)
 					}
 					return
