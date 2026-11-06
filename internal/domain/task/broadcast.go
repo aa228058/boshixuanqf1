@@ -169,7 +169,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	flushTicker := time.NewTicker(5 * time.Second)
 	defer flushTicker.Stop()
 	flushDone := make(chan struct{})
+	flushExited := make(chan struct{})
 	safego.Go(func() {
+		defer close(flushExited)
 		for {
 			select {
 			case <-flushTicker.C:
@@ -758,6 +760,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	}
 	wg.Wait()
 	close(flushDone)
+	<-flushExited // Ensure an in-flight periodic flush has either committed or requeued its batch.
 	close(sseDone)
 
 	// Final SSE flush: push any remaining pending data

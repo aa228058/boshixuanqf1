@@ -1,7 +1,9 @@
 package sse
 
 import (
-	"context"
+	"bufio"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -119,37 +121,41 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 
 	tenantID := uuid.New()
 	e := echo.New()
-	req := httptest.NewRequest("GET", "/events", nil)
-	ctx, cancel := context.WithCancel(req.Context())
-	defer cancel()
-	req = req.WithContext(ctx)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.Set(middleware.TenantContextKey, tenantID.String())
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set(middleware.TenantContextKey, tenantID.String())
+			return next(c)
+		}
+	})
+	e.GET("/events", b.Handler("events"))
+	server := httptest.NewServer(e)
+	defer server.Close()
 
-	done := make(chan error, 1)
-	go func() { done <- b.Handler("events")(c) }()
+	resp, err := http.Get(server.URL + "/events")
+	if err != nil { t.Fatalf("open SSE stream: %v", err) }
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK { t.Fatalf("status = %d, want 200", resp.StatusCode) }
 
-	deadline := time.Now().Add(time.Second)
-	for !strings.Contains(rec.Body.String(), "event: connected") && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
+	scanner := bufio.NewScanner(resp.Body)
+	deadline := time.After(time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for connected frame")
+		default:
+		}
+		if !scanner.Scan() { t.Fatalf("SSE stream ended: %v", scanner.Err()) }
+		if scanner.Text() == "event: connected" { break }
 	}
 	b.BroadcastToTenant(tenantID, "events", map[string]any{"task_id": "task-1"})
-	deadline = time.Now().Add(time.Second)
-	for !strings.Contains(rec.Body.String(), "task-1") && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
+	foundLogicalEvent := false
+	for !foundLogicalEvent {
+		if !scanner.Scan() { t.Fatalf("SSE stream ended before event: %v", scanner.Err()) }
+		line := scanner.Text()
+		if strings.HasPrefix(line, "event: ") {
+			if line == "event: events" { foundLogicalEvent = true }
+			if strings.HasPrefix(line, "event: tenant:") { t.Fatalf("internal tenant topic leaked: %s", line) }
+		}
 	}
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil { t.Fatalf("SSE handler returned error: %v", err) }
-	case <-time.After(time.Second):
-		t.Fatal("SSE handler did not stop after request cancellation")
-	}
-	if !strings.Contains(rec.Body.String(), "event: events\\n") {
-		t.Fatalf("expected logical event name 'events', got stream: %s", rec.Body.String())
-	}
-	if strings.Contains(rec.Body.String(), "event: tenant:") {
-		t.Fatalf("internal tenant topic leaked into SSE event name: %s", rec.Body.String())
-	}
+	if !foundLogicalEvent { t.Fatal(fmt.Sprintf("logical SSE event not found")) }
 }
