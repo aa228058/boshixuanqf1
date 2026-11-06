@@ -141,7 +141,7 @@
         <div class="sm:col-span-3">
           <label class="block text-xs text-text-secondary mb-1">模型名（留空用默认）</label>
           <input v-model="aiForm.model" :placeholder="aiForm.provider === 'qwen' ? 'qwen-vl-max' : 'glm-4v-flash'"
-            class="w-full px-3 py-2 rounded-lg glow-input text-sm font-mono bg-bg-card" />
+            class="ui-input !text-sm font-mono" />
         </div>
       </div>
       <div class="flex items-center gap-3">
