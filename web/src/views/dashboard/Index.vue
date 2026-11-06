@@ -163,6 +163,9 @@ const accId = computed(() => accountStore.currentAccount?.account_id || 'none')
 // 账号切换: 仪表盘只统计当前账号的数据
 const accountStore = useAccountStore()
 const currentAccount = computed(() => accountStore.currentAccount)
+// 请求序号防止快速切换账号时，较早的慢请求覆盖当前账号数据。
+let dashboardRequestId = 0
+watch(currentAccount, () => { loadDashboardData() })
 import { settingsApi } from '@/api/settings'
 import StatCard from '@/components/charts/StatCard.vue'
 import SendCalendar from '@/components/SendCalendar.vue'
@@ -326,8 +329,7 @@ onMounted(async () => {  // 先触发动画（首屏内容直接显示）
     document.querySelectorAll('.reveal').forEach((el) => el.classList.add('revealed'))
   })
 
-  // 侧边栏切换账号: 仪表盘数据跟随切换, 只显示该账号的统计
-  watch(currentAccount, () => { loadDashboardData() })
+  // 首次加载；账号切换监听在 setup 顶层注册，组件卸载时由 Vue 自动清理。
   loadDashboardData()
 
   // 后续页面切换时重新绑定
@@ -337,9 +339,12 @@ onMounted(async () => {  // 先触发动画（首屏内容直接显示）
 // ===== 诊断埋点: 页面上直接可见, 截图即真相 =====
 // 拉取仪表盘数据(首载与切账号共用, 避免整页刷新)
 async function loadDashboardData() {
+  const requestId = ++dashboardRequestId
+  const accountId = currentAccount.value?.account_id
   try {
     loading.value = true
-    const s = await dashboardApi.getStats(currentAccount.value?.account_id)
+    const s = await dashboardApi.getStats(accountId)
+    if (requestId !== dashboardRequestId) return
     if (s) {
       stats.value[0].value = String(s.online_accounts ?? 0)
       stats.value[1].value = String(s.completed_tasks_today ?? 0)
@@ -350,11 +355,14 @@ async function loadDashboardData() {
     }
 
     const re = await dashboardApi.getRiskEvents({ limit: 5 })
+    if (requestId !== dashboardRequestId) return
     riskEvents.value = (re as any)?.list || (Array.isArray(re) ? re : [])
     const al = await dashboardApi.getAuditLogs({ limit: 5 })
+    if (requestId !== dashboardRequestId) return
     auditLogs.value = (al )?.list || []
     try {
       const profile = await settingsApi.getProfile()
+      if (requestId !== dashboardRequestId) return
       if (profile.expires_at) {
         expiresAt.value = formatDate(profile.expires_at)
         const diff = new Date(profile.expires_at).getTime() - Date.now()
@@ -362,10 +370,11 @@ async function loadDashboardData() {
       }
     } catch (e) { /* ignore */ }
   } catch (e: unknown) {
+    if (requestId !== dashboardRequestId) return
     // 数据加载失败必须可见, 否则用户看到全 0 不知道原因
     toast({ type: 'error', title: '仪表盘数据加载失败', message: (e instanceof Error ? e.message : '请检查网络或联系管理员') })
   } finally {
-    loading.value = false
+    if (requestId === dashboardRequestId) loading.value = false
   }
 }
 onUnmounted(() => {
