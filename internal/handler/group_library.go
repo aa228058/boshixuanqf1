@@ -171,6 +171,15 @@ func (h *GroupLibraryHandler) Import(c echo.Context) error {
 	return c.JSON(http.StatusAccepted, job)
 }
 
+// ListImportJobs handles GET /group-library/import-jobs.
+func (h *GroupLibraryHandler) ListImportJobs(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil { return err }
+	jobs, err := h.lib.ListImportJobs(c.Request().Context(), tenantID, 30)
+	if err != nil { return echo.NewHTTPError(http.StatusInternalServerError, "读取导入任务失败") }
+	return c.JSON(http.StatusOK, map[string]interface{}{"list": jobs})
+}
+
 // GetImportJob handles GET /group-library/import-jobs/:id.
 func (h *GroupLibraryHandler) GetImportJob(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
