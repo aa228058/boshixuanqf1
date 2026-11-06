@@ -281,7 +281,7 @@ func getDiskInfo() (used, total float64) {
 
 // ListTenants returns paginated tenant list.
 func (s *AdminService) ListTenants(ctx context.Context, page, pageSize int, status, planID, search string) ([]*domain.Tenant, int, error) {
-	return s.tenantRepo.List(ctx, page, pageSize, status, planID)
+	return s.tenantRepo.List(ctx, page, pageSize, status, planID, search)
 }
 
 // CreateTenant creates a new tenant with a generated API key.
