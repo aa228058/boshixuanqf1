@@ -163,7 +163,7 @@
                style="background: var(--t-brand); box-shadow: 0 6px 14px color-mix(in srgb, var(--t-brand) 40%, transparent);">➤</div>
           <span class="text-caption font-extrabold tracking-tight whitespace-nowrap shrink-0 leading-none">博士轩 TG 助手</span>
           <!-- R130 版本徽章: 构建号一眼可见(部署验证), 令牌色跟主题 -->
-          <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0"
+          <span class="hidden sm:inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0"
                 style="background: var(--t-brand-dim); color: var(--t-brand);">{{ BUILD_TAG }}</span>
         </div>
         <div class="flex items-center gap-2">
