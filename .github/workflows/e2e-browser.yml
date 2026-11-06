@@ -1,6 +1,10 @@
 name: Browser UI audit
 
 on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/e2e-browser.yml'
   workflow_dispatch:
     inputs:
       base_url:
