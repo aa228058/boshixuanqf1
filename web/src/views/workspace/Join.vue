@@ -25,7 +25,7 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="Users" :title="tasksError" description="点击重试">
-        <t-button @click="fetchTasks" class="ui-t-button ui-t-button--ghost ui-t-button--sm mt-3">重新加载</t-button>
+        <t-button @click="fetchTasks" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
       <div v-else class="space-y-3 mb-4">
@@ -51,9 +51,9 @@
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-btn ui-btn--sm ui-btn--ghost">重试失败 ({{ progOf(t).failed }})</button>
+            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</t-button>
             <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
-            <t-button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--ghost">查看详情</t-button>
+            <t-button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">查看详情</t-button>
           </div>
         </div>
         </pull-down-refresh>
@@ -151,7 +151,7 @@
 
       <!-- 操作按钮 -->
       <div class="flex items-center justify-end gap-3">
-        <t-button type="button" class="ui-t-button ui-t-button--ghost px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors" @click="showCreate = false">取消</t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--secondary px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors" @click="showCreate = false">取消</t-button>
         <t-button type="button" class="ui-t-button ui-t-button--primary px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : `创建加群任务 (${validLinks.length})` }}
