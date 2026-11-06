@@ -209,8 +209,12 @@ func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 	ctx := context.Background()
 	tenantID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 	accountID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+	secondAccountID := "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
 	approvedTaskID := "cccccccc-cccc-cccc-cccc-cccccccccccc"
 	cancelledTaskID := "dddddddd-dddd-dddd-dddd-dddddddddddd"
+	approvedLink := "https://t.me/example_approval"
+	timeoutLink := "https://t.me/example_timeout"
+	cancelledLink := "https://t.me/example_cancel"
 
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
@@ -228,27 +232,53 @@ func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 	}
 	_, err = pool.Exec(ctx, `
 		INSERT INTO pending_approvals (task_id, tenant_id, account_id, target_link)
-		VALUES ($2, $1, $4, 'https://t.me/example_approval'),
-		       ($3, $1, $4, 'https://t.me/example_cancel')
-	`, tenantID, approvedTaskID, cancelledTaskID, accountID)
+		VALUES ($2, $1, $4, $6), ($2, $1, $5, $7), ($3, $1, $4, $8)
+	`, tenantID, approvedTaskID, cancelledTaskID, accountID, secondAccountID, approvedLink, timeoutLink, cancelledLink)
 	if err != nil {
 		t.Fatalf("seed pending approvals: %v", err)
 	}
 
 	approvalRepo := NewPendingApprovalRepository(pool)
-	resolved, err := approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), uuid.MustParse(approvedTaskID), "approved")
+	taskRepo := NewTaskRepository(pool)
+	var approvedID, timeoutID int
+	if err := pool.QueryRow(ctx, `SELECT id FROM pending_approvals WHERE task_id = $1 AND target_link = $2`, approvedTaskID, approvedLink).Scan(&approvedID); err != nil {
+		t.Fatalf("read approved approval id: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT id FROM pending_approvals WHERE task_id = $1 AND target_link = $2`, approvedTaskID, timeoutLink).Scan(&timeoutID); err != nil {
+		t.Fatalf("read timeout approval id: %v", err)
+	}
+
+	resolved, err := approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), approvedID, "approved")
 	if err != nil || !resolved {
 		t.Fatalf("first approval resolution = (%t, %v), want (true, nil)", resolved, err)
 	}
-	resolved, err = approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), uuid.MustParse(approvedTaskID), "timeout")
+	finalized, err := taskRepo.FinalizeTaskAfterApprovals(ctx, uuid.MustParse(tenantID), uuid.MustParse(approvedTaskID))
+	if err != nil || finalized {
+		t.Fatalf("task finalized with another approval pending = (%t, %v), want (false, nil)", finalized, err)
+	}
+	resolved, err = approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), approvedID, "timeout")
 	if err != nil {
-		t.Fatalf("second approval resolution: %v", err)
+		t.Fatalf("second resolution: %v", err)
 	}
 	if resolved {
 		t.Fatal("second resolution must not overwrite the first result")
 	}
+	resolved, err = approvalRepo.ResolvePending(ctx, uuid.MustParse(tenantID), timeoutID, "timeout")
+	if err != nil || !resolved {
+		t.Fatalf("timeout approval resolution = (%t, %v), want (true, nil)", resolved, err)
+	}
+	finalized, err = taskRepo.FinalizeTaskAfterApprovals(ctx, uuid.MustParse(tenantID), uuid.MustParse(approvedTaskID))
+	if err != nil || !finalized {
+		t.Fatalf("finalize all resolved approvals = (%t, %v), want (true, nil)", finalized, err)
+	}
+	var finalTaskStatus string
+	if err := pool.QueryRow(ctx, `SELECT status FROM tasks WHERE task_id = $1`, approvedTaskID).Scan(&finalTaskStatus); err != nil {
+		t.Fatalf("read finalized task status: %v", err)
+	}
+	if finalTaskStatus != "failed" {
+		t.Fatalf("final task status = %q, want failed because one approval timed out", finalTaskStatus)
+	}
 
-	taskRepo := NewTaskRepository(pool)
 	cancelled, err := taskRepo.CancelIfActive(ctx, uuid.MustParse(tenantID), uuid.MustParse(cancelledTaskID))
 	if err != nil || !cancelled {
 		t.Fatalf("cancel pending task = (%t, %v), want (true, nil)", cancelled, err)
@@ -264,14 +294,17 @@ func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 		t.Fatal("late approval must not overwrite cancelled task")
 	}
 
-	var approvedStatus, cancelledStatus string
-	if err := pool.QueryRow(ctx, `SELECT status FROM pending_approvals WHERE task_id = $1`, approvedTaskID).Scan(&approvedStatus); err != nil {
+	var approvedStatus, timeoutStatus, cancelledStatus string
+	if err := pool.QueryRow(ctx, `SELECT status FROM pending_approvals WHERE task_id = $1 AND target_link = $2`, approvedTaskID, approvedLink).Scan(&approvedStatus); err != nil {
 		t.Fatalf("read approved status: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT status FROM pending_approvals WHERE task_id = $1 AND target_link = $2`, approvedTaskID, timeoutLink).Scan(&timeoutStatus); err != nil {
+		t.Fatalf("read timeout status: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT status FROM pending_approvals WHERE task_id = $1`, cancelledTaskID).Scan(&cancelledStatus); err != nil {
 		t.Fatalf("read cancelled approval status: %v", err)
 	}
-	if approvedStatus != "approved" || cancelledStatus != "cancelled" {
-		t.Fatalf("approval statuses = %q/%q, want approved/cancelled", approvedStatus, cancelledStatus)
+	if approvedStatus != "approved" || timeoutStatus != "timeout" || cancelledStatus != "cancelled" {
+		t.Fatalf("approval statuses = %q/%q/%q, want approved/timeout/cancelled", approvedStatus, timeoutStatus, cancelledStatus)
 	}
 }
