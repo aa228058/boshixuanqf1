@@ -371,6 +371,7 @@ func (r *TaskLogRepository) ListFailedTargetsByAccount(ctx context.Context, tena
 	}
 	return result, rows.Err()
 }
+
 // HasUncertainBroadcastTargets reports whether any send may have succeeded
 // remotely but failed to persist its durable checkpoint. Such targets must
 // never be included in automatic failed-target retries.

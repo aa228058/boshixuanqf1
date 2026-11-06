@@ -153,8 +153,12 @@
               {{ log.message }}
               <span v-if="log._waitMsg" class="ml-1 text-text-muted/60">⏳ {{ log._waitMsg }}</span>
             </div>
-            <div v-if="log.error_code" class="mt-1 text-[var(--t-err)] text-xs bg-[var(--t-err)]/5 rounded px-2 py-1 inline-block">
-              {{ statusLabel(log.error_code) }}
+            <div v-if="log.tg_message_id" class="mt-1 text-text-muted text-[11px] font-mono">
+              Telegram 消息 ID：{{ log.tg_message_id }}
+            </div>
+            <div v-if="log.error_code" class="mt-1 text-xs rounded px-2 py-1 inline-block"
+                 :class="log.error_code === 'checkpoint_persist_failed' ? 'text-[var(--t-warning)] bg-[var(--t-warning)]/10' : 'text-[var(--t-err)] bg-[var(--t-err)]/5'">
+              {{ log.error_code === 'checkpoint_persist_failed' ? '发送结果待核实：请先到 Telegram 检查目标消息，禁止自动续发' : statusLabel(log.error_code) }}
             </div>
           </div>
         </div>
