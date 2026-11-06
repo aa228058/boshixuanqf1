@@ -107,8 +107,15 @@ func normalizeSystemGroupLink(value string) string {
 		return ""
 	}
 	path := parts[1]
-	if strings.HasPrefix(path, "+") || strings.HasPrefix(path, "joinchat/") {
-		// Invite hashes are case-sensitive; normalize only the host, never the hash.
+	if strings.HasPrefix(strings.ToLower(path), "s/") {
+		path = path[2:]
+	}
+	lowerPath := strings.ToLower(path)
+	if strings.HasPrefix(lowerPath, "joinchat/") {
+		path = "+" + path[len("joinchat/"):]
+	}
+	if strings.HasPrefix(path, "+") {
+		// Invite hashes are case-sensitive; normalize all invite URL forms to one key.
 		return "t.me/" + path
 	}
 	return "t.me/" + strings.ToLower(path)
