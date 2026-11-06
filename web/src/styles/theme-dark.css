@@ -109,6 +109,13 @@ html.theme-dark .mesh-svg { opacity: .1 !important; filter: brightness(.55) satu
 html.theme-dark .dot-grid { opacity: .5; }
 
 
+/* TDesign dark-only component fills; semantic brand tokens live in tdesign-theme.css. */
+html.theme-dark {
+  --td-component-bg: var(--t-surface-2)!important;
+  --td-component-bg-hover: var(--t-surface-3)!important;
+  --td-fill-color-hover: var(--t-surface-3)!important;
+}
+
 /* ═══════ R87-M8 未分层覆盖层(优先级高于 TDesign 与分层样式) ═══════ */
 /* R98 核规则: TDesign 边框实际画在内层元素(.t-input 本体等), 而非外层 wrap —
    之前只罩 wrap 导致白边漏网。此处内外双层通杀。 */
