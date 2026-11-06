@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
@@ -497,7 +497,8 @@ function pruneWaitInfo() {
     if (now - info._t > 5000) { const copy = { ...waitInfo.value }; delete copy[id]; waitInfo.value = copy }
   }
 }
-setInterval(pruneWaitInfo, 3000)
+const waitInfoTimer = window.setInterval(pruneWaitInfo, 3000)
+onUnmounted(() => window.clearInterval(waitInfoTimer))
 const accNameById = (id: string) => {
   const a = (accountStore.accounts || []).find((x: any) => String(x.account_id) === String(id))
   return a ? (a.first_name || a.remark || a.phone || id.slice(0, 6)) : id.slice(0, 6)
