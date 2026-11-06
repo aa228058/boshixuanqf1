@@ -777,11 +777,6 @@ import type { Account, AccountGroup } from '@/types'
 import { accountStatusLabel } from '@/utils/format'
 
 // R87-M8: 状态圆点配色(在线=绿点, 其余按状态色)
-// R127 号龄标签: level 字段(new/normal/old) → 中文(新号/正常/老号)
-function levelLabel(level?: string) {
-  return ({ new: '新号', fresh: '新号', normal: '正常', old: '老号', aged: '老号' } as Record<string, string>)[level || ''] || ''
-}
-
 // R124: 入参判空兜底 —— 上游传 undefined 时不再让 switch 炸渲染
 function statusDotClass(status?: string) {
   switch (status) {
@@ -1149,10 +1144,6 @@ async function togglePool(acc: any) {
 }
 const router = useRouter()
 
-// 2026-09-21 世界合并：协议号导入工具统一到账号管理页入口
-function goImportProtocol() {
-  router.push('/sessions')
-}
 const loading = computed(() => accountStore.loading)
 
 // 健康面板: 全局账号状态统计
