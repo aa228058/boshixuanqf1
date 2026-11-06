@@ -6,7 +6,7 @@
         <!-- R109: 移除"当前账号"标签(执行账号在创建弹窗里下拉选择) -->
         <p class="text-sm text-text-muted mt-1">执行账号在创建任务时选择</p>
       </div>
-      <button @click="showCreate = true" class="px-4 py-2 rounded-lg text-sm font-medium glow-btn flex items-center gap-2 shrink-0"> 新建加群任务
+      <button @click="showCreate = true" class="ui-btn ui-btn--primary flex items-center gap-2 shrink-0"> 新建加群任务
       </button>
     </div>
 
@@ -25,7 +25,7 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="Users" :title="tasksError" description="点击重试">
-        <button @click="fetchTasks" class="mt-3 px-4 py-1.5 rounded-lg text-xs border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] transition-colors">重新加载</button>
+        <button @click="fetchTasks" class="ui-btn ui-btn--ghost ui-btn--sm mt-3">重新加载</button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
       <div v-else class="space-y-3 mb-4">
@@ -51,9 +51,9 @@
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progOf(t).failed }})</button>
-            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="px-2 py-1 rounded text-xs bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)]">停止</button>
-            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="px-2 py-1 rounded text-xs border border-border text-text-secondary hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">查看详情</button>
+            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-btn ui-btn--sm ui-btn--ghost">重试失败 ({{ progOf(t).failed }})</button>
+            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-btn ui-btn--sm ui-btn--danger">停止</button>
+            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-btn ui-btn--sm ui-btn--ghost">查看详情</button>
           </div>
         </div>
         </pull-down-refresh>
