@@ -837,7 +837,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	if (failed == total && total > 0) || checkpointPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
-	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.workerID, finalStatus); err != nil {
+	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
 		taskLog.Printf("[task] UpdateStatus failed: %v", err)
 	}
 }
