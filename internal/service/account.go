@@ -772,7 +772,9 @@ func (s *AccountService) SetPoolStatus(ctx context.Context, tenantID, accountID 
 	}
 	if target == "standby" {
 		// 转备用: 断连接停业务, 标记离线
-		s.engine.DisconnectAccount(ctx, tenantID, accountID)
+		if err := s.engine.DisconnectAccount(ctx, tenantID, accountID); err != nil {
+			return fmt.Errorf("备用账号断开连接失败: %w", err)
+		}
 		if err := s.repo.UpdateStatus(ctx, tenantID, accountID, "offline"); err != nil {
 			return fmt.Errorf("账号转备用后更新离线状态失败: %w", err)
 		}
