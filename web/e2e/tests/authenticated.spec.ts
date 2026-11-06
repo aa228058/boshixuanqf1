@@ -25,7 +25,7 @@ if (accountId) {
   )
 }
 
-test('authenticated routes render without browser runtime errors', async ({ page }, testInfo) => {
+test('租户认证路由可渲染且没有浏览器运行时异常', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
 
@@ -34,7 +34,7 @@ test('authenticated routes render without browser runtime errors', async ({ page
     await expect(page.locator('body'), route).toBeVisible()
     await expect(page.locator('body'), route).not.toBeEmpty()
     await page.screenshot({
-      path: `screenshots/${testInfo.project.name}-${route.replace(/[^a-z0-9]+/gi, '_')}.png`,
+      path: testInfo.outputPath(`${route.replace(/[^a-z0-9]+/gi, '_')}.png`),
       fullPage: true,
     })
   }
@@ -42,7 +42,7 @@ test('authenticated routes render without browser runtime errors', async ({ page
   expect(runtimeErrors, '页面不应出现未处理的前端运行时异常').toEqual([])
 })
 
-test('常见视口没有明显横向溢出', async ({ page }) => {
+test('常见桌面视口没有明显横向溢出', async ({ page }) => {
   for (const route of ['/dashboard', '/accounts', '/settings']) {
     await page.goto(route)
     const overflow = await page.evaluate(() =>
