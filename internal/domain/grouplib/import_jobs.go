@@ -177,9 +177,22 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		lastError := ""
 		if result != nil {
 			imported, failed, skipped = len(result.Imported), len(result.Failed), result.Skipped
+			if len(result.Failed) > 0 {
+				// 将逐条失败原因持久化，任务中心可以直接展示，避免只看到失败数量。
+				lastError = strings.Join(result.Failed, "\n")
+				if len(lastError) > 4000 {
+					lastError = lastError[:4000] + "…（错误明细已截断）"
+				}
+			}
+		} else if importErr != nil {
+			// 整批调用失败时，不能把这一批记成零失败的成功任务。
+			failed = end - offset
 		}
 		if importErr != nil {
-			lastError = importErr.Error()
+			lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
+			if len(lastError) > 4000 {
+				lastError = lastError[:4000] + "…（错误明细已截断）"
+			}
 		}
 		nextStatus := "processing"
 		var finished any
