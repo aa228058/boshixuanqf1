@@ -38,6 +38,25 @@ func (r *SystemGroupRepository) attachLinks(ctx context.Context, groups []domain
 		if groups[i].TmeLink == "" && len(groups[i].Entries) > 0 {
 			groups[i].TmeLink = groups[i].Entries[0].TmeLink
 		}
+		// The API status is link validity, never whether a tenant account joined.
+		hasValid := false
+		allInvalid := len(groups[i].Entries) > 0
+		for _, entry := range groups[i].Entries {
+			if entry.Status == "valid" {
+				hasValid = true
+			}
+			if entry.Status != "invalid" {
+				allInvalid = false
+			}
+		}
+		switch {
+		case hasValid:
+			groups[i].Status = "valid"
+		case allInvalid || groups[i].Status == "invalid":
+			groups[i].Status = "invalid"
+		default:
+			groups[i].Status = "pending"
+		}
 	}
 	return nil
 }
