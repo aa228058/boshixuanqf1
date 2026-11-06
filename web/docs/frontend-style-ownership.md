@@ -42,6 +42,7 @@ Import order is part of runtime behavior. Do not reorder these files based only 
 2. Existing TDesign / Vue Final Modal component APIs and runtime behavior win over generic design-pattern suggestions.
 3. Token semantics win over hard-coded page colors. Theme files may map tokens; they must not introduce a competing token vocabulary.
 4. `ui-kit.css` owns reusable component geometry. TDesign-specific behavior exceptions belong in `tdesign-overrides.css`.
+   - On touch breakpoints, shared icon actions and menu rows must retain usable hit areas; compact `--xs` affordances are explicit exceptions and must not be the only way to reach an action.
 5. `modal-system.css` is the final authority for Vue Final Modal geometry. Do not replace desktop centering with bottom-sheet rules or vice versa.
 6. When two rules conflict, inspect selector specificity and actual import order before editing. Do not solve conflicts by adding another broad `!important` rule.
 7. Do not delete a legacy selector until repository-wide usage has been searched and its visual/runtime effect has been verified.
@@ -63,6 +64,7 @@ Import order is part of runtime behavior. Do not reorder these files based only 
 - [ ] No duplicate declarations added to compensate for unknown import order.
 - [ ] Desktop modal remains centered; mobile modal behavior remains intentionally differentiated.
 - [ ] Normal, eye, and dark themes retain readable surfaces, text, borders, focus and status colors.
+- [ ] Common mobile action targets are comfortably tappable; compact decorative/hover-only controls are not relied on for essential actions.
 - [ ] Reduced-motion preference remains respected.
 - [ ] Keyboard focus remains visible; icon-only controls retain accessible names.
 - [ ] Run `npm run typecheck`, `npm run test`, `npm run check:design-tokens`, and `npm run build` from `web/`.
