@@ -79,8 +79,9 @@ export const useAuthStore = defineStore('auth', () => {
       await refresh()
       return true
     } catch {
-      safeRemoveItem(SESSION_KEY)
-      return false
+      // request() 已在明确的 401 / 账号级 403 时清除会话标志。
+      // 若仍有标志，说明本次恢复可能只是网络/服务端临时故障，保留会话并允许后续请求重试。
+      return hasSession.value
     }
   }
 
