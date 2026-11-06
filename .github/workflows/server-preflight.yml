@@ -70,10 +70,10 @@ jobs:
           echo
           echo "===== SERVER CHECKOUT IDENTITY (READ ONLY) ====="
           if [ -d /www/tg-sender/.git ]; then
-            git -C /www/tg-sender rev-parse --short HEAD 2>&1
-            git -C /www/tg-sender status --short --branch 2>&1
+            git -c safe.directory=/www/tg-sender -C /www/tg-sender rev-parse --short HEAD 2>&1
+            git -c safe.directory=/www/tg-sender -C /www/tg-sender status --short --branch 2>&1
             echo "--- tracked deployment build files ---"
-            git -C /www/tg-sender ls-files -- Dockerfile nginx.conf docker-compose.yml deploy/compose.yaml
+            git -c safe.directory=/www/tg-sender -C /www/tg-sender ls-files -- Dockerfile nginx.conf docker-compose.yml deploy/compose.yaml
             echo "--- expected build/config files present ---"
             for f in Dockerfile nginx.conf docker-compose.yml deploy/compose.yaml; do
               if [ -f "/www/tg-sender/$f" ]; then echo "present: $f"; else echo "missing: $f"; fi
