@@ -39,7 +39,7 @@
 | `views/accounts/List.vue` | 0（本轮已迁移） |
 | `views/admin/codes/List.vue` | 0（本轮已迁移） |
 | `views/workspace/Broadcast.vue` | 0（本轮已迁移） |
-| `views/settings/Index.vue` | 32 |
+| `views/settings/Index.vue` | 0（本轮已迁移） |
 | `views/workspace/Join.vue` | 22 |
 | `views/workspace/Scrape.vue` | 21 |
 | `views/tasks/Detail.vue` | 21 |
@@ -63,7 +63,7 @@
 - `views/workspace/Broadcast.vue`：新建任务、任务卡片操作、重试/停止/详情、目标名称展开、批量导入、变量预览、媒体清除等普通动作按钮统一迁移到 TDesign Button + `.ui-t-button`；发送模式切换迁移到 `.ui-segmented__item`。页面 tabs、执行账号选择与消息变量快捷插入仍保留原生 button，因为它们是导航/选择/插入交互而非通用动作按钮。该页 `.ui-btn` 调用已清零。
 - `views/accounts/List.vue`：多选入口/退出、批量启用与转备用、克隆资料、账号卡片常规操作、重新登录验证码入口、添加账号/分组/备注/转移弹窗取消按钮、分页及批量资料/克隆/检测提交按钮迁移到 TDesign Button + `.ui-t-button`；保留禁用条件、事件修饰符、响应式显隐和原业务方法。独立图标按钮、更多菜单内部菜单项、分段登录模式切换继续保留原生语义。该页 `.ui-btn` 调用已清零。
 
-## 弹窗按钮类
+- `views/settings/Index.vue`：套餐升级/激活、通知保存与测试邮件、AI 配置保存/连通测试、数据导出、模板管理/保存/添加、客服复制及升级弹窗操作迁移为 TDesign Button + `.ui-t-button`；SMTP 服务商切换保留 `.ui-segmented__item`，顶部 Tab 保留 segmented 导航，通知事件开关与删除图标按钮保留专用原生交互。该页 `.ui-btn` 调用已清零。\n\n## 弹窗按钮类
 
 历史 `.modal-btn-*` 调用已迁移并清零：
 - `views/Layout.vue`：账号登录弹窗按钮已迁移。
@@ -113,4 +113,4 @@
 - [ ] 执行 typecheck、test、design-token check、build
 - [ ] 桌面/移动端三主题真实浏览器视觉验收
 
-**本轮收敛：任务页桌面/移动端操作按钮已统一到 TDesign Button + `.ui-t-button`，筛选按钮改用专用 segmented 样式；任务页 `.ui-btn` 调用清零。卡密管理页的桌面表格、移动端卡片、弹窗 footer 与批量操作按钮也已统一到 TDesign Button + `.ui-t-button`，该页 `.ui-btn` 调用清零。群发页普通动作按钮统一到 TDesign Button + `.ui-t-button`，发送模式切换使用 `.ui-segmented__item`，该页 `.ui-btn` 调用清零。账号管理页通用动作按钮、弹窗取消、分页及批量操作按钮迁移到 TDesign Button + `.ui-t-button`，独立图标按钮、菜单项和分段切换保留专用语义，该页 `.ui-btn` 调用清零。公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。`workspace/Join.vue` 和 `workspace/Scrape.vue` 已修复重复 class 属性，并移除这两页创建/采集按钮上冗余的 `.glow-btn`。本轮已清理 `.modal-btn-*` 与 `.glow-btn` 的业务调用和对应 CSS 皮肤；修复 Join/Scrape、管理登录/探测配置、用户登录/注册、会话、设置、任务页的重复 class 属性。`.ui-btn` 仍是大量业务页的独立按钮皮肤，尚未迁移，不能宣称全仓按钮体系已完全统一。尚未执行 typecheck、test、design-token check、build 与桌面/移动端视觉验收。**
+**本轮收敛：任务页桌面/移动端操作按钮已统一到 TDesign Button + `.ui-t-button`，筛选按钮改用专用 segmented 样式；任务页 `.ui-btn` 调用清零。卡密管理页的桌面表格、移动端卡片、弹窗 footer 与批量操作按钮也已统一到 TDesign Button + `.ui-t-button`，该页 `.ui-btn` 调用清零。群发页普通动作按钮统一到 TDesign Button + `.ui-t-button`，发送模式切换使用 `.ui-segmented__item`，该页 `.ui-btn` 调用清零。账号管理页通用动作按钮、弹窗取消、分页及批量操作按钮迁移到 TDesign Button + `.ui-t-button`，独立图标按钮、菜单项和分段切换保留专用语义，该页 `.ui-btn` 调用清零。系统设置页普通操作按钮迁移到 TDesign Button + `.ui-t-button`，SMTP 服务商切换和顶部 Tab 保留 segmented 导航，通知事件开关与图标删除保留专用语义，该页 `.ui-btn` 调用清零。公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。`workspace/Join.vue` 和 `workspace/Scrape.vue` 已修复重复 class 属性，并移除这两页创建/采集按钮上冗余的 `.glow-btn`。本轮已清理 `.modal-btn-*` 与 `.glow-btn` 的业务调用和对应 CSS 皮肤；修复 Join/Scrape、管理登录/探测配置、用户登录/注册、会话、设置、任务页的重复 class 属性。`.ui-btn` 仍是大量业务页的独立按钮皮肤，尚未迁移，不能宣称全仓按钮体系已完全统一。尚未执行 typecheck、test、design-token check、build 与桌面/移动端视觉验收。**
