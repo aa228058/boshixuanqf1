@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	securerand "tg-sender/internal/secure"
 	"mime"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"tg-sender/internal/domain"
+	securerand "tg-sender/internal/secure"
 
 	"github.com/google/uuid"
 	"github.com/mtgo-labs/mtgo/telegram"
