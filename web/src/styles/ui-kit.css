@@ -334,3 +334,23 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .ui-menu-item--danger { color: var(--t-err); }
 .ui-menu-item--danger:hover { color: var(--t-err); background: var(--t-err-dim); }
 .ui-icon-btn--xs { width: 20px; height: 20px; border-radius: 6px; background: var(--t-card); border-color: var(--t-line); }
+
+/* Mobile touch targets: keep compact desktop geometry, enlarge common actions on touch screens.
+   The xs avatar affordance is intentionally excluded because it is a hover-only decoration. */
+@media (max-width: 768px) {
+  .ui-icon-btn:not(.ui-icon-btn--xs) {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .ui-menu-item {
+    min-height: 44px;
+  }
+
+  .t-button.ui-t-button--sm {
+    min-height: 40px;
+  }
+}
+
