@@ -20,7 +20,7 @@
         :columns="tdColumns"
         :data="filteredTenants"
         hover
-        :pagination="{ current: page, pageSize: pageSize, total: total, onChange: (p: any) => page = p.current }"
+        :pagination="{ current: page, pageSize: pageSize, total: total, onChange: onPageChange }"
       >
         <template #status="{ row }">
           <span class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full font-bold whitespace-nowrap" :class="tenantStatusClass(row.status as string)">
@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useRouter } from 'vue-router'
 import { Eye, KeyRound, Trash2 } from 'lucide-vue-next'
@@ -162,15 +162,7 @@ const columns = [
   { key: 'actions', title: '操作' },
 ]
 
-const filteredTenants = computed(() => {
-  let list = tenants.value
-  if (statusFilter.value) list = list.filter(t => t.status === statusFilter.value)
-  if (search.value) {
-    const s = search.value.toLowerCase()
-    list = list.filter(t => t.name?.toLowerCase().includes(s) || t.tenant_name?.toLowerCase().includes(s))
-  }
-  return list
-})
+const filteredTenants = computed(() => tenants.value)
 
 // P2-50: 原 5 秒轮询对管理后台偏频繁——租户列表变化低频, 15 秒足够, 无谓的
 // DB/带宽压力直接降三分之二。
@@ -178,13 +170,28 @@ useAutoRefresh(fetchTenants, 15000)
 
 async function fetchTenants() {
   try {
-    const res = await adminApiMod.listTenants({ page: page.value, page_size: pageSize.value })
+    const res = await adminApiMod.listTenants({
+      page: page.value,
+      page_size: pageSize.value,
+      status: statusFilter.value || undefined,
+      search: search.value.trim() || undefined,
+    })
     tenants.value = res.list || []
     total.value = res.total || 0
   } catch (e: unknown) {
     toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
+
+function onPageChange(p: { current: number }) {
+  page.value = p.current
+  fetchTenants()
+}
+
+watch([search, statusFilter], () => {
+  page.value = 1
+  fetchTenants()
+})
 
 async function doCreate() {
   try {
