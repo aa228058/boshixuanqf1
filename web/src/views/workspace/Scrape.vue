@@ -86,7 +86,7 @@
         </label>
       </div>
       <div class="flex items-center justify-end gap-3 pt-2">
-        <button @click="showCreate = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors">取消</button>
+        <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
         <button @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting"
                 class="px-6 py-2 rounded-lg text-sm font-medium glow-btn disabled:opacity-50 flex items-center gap-2">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
@@ -120,8 +120,8 @@
                 <span v-else-if="task.status === 'completed'">点击展开查看结果</span>
                 <!-- R112: 导出前置 —— 完成后无需展开即可导出名单 -->
                 <template v-if="task.status === 'completed'">
-                  <button @click.stop="exportCSV(task.task_id)" class="text-[10.5px] px-2 py-0.5 rounded bg-[color:var(--t-ok-dim)] text-[var(--t-ok)] border border-[color:var(--t-ok)]/25 hover:bg-[var(--t-ok)]/20 transition-colors">导出 CSV</button>
-                  <button @click.stop="exportExcel(task.task_id)" class="text-[10.5px] px-2 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] border border-[color:var(--t-brand)]/25 hover:bg-[color:var(--t-brand-dim)] transition-colors">Excel</button>
+                  <button @click.stop="exportCSV(task.task_id)" class="ui-btn ui-btn--secondary ui-btn--sm">导出 CSV</button>
+                  <button @click.stop="exportExcel(task.task_id)" class="ui-btn ui-btn--primary ui-btn--sm">Excel</button>
                 </template>
                 <span v-else>{{ task.result_count || task.config?.member_count || 0 }} 成员</span>
               </div>
@@ -164,8 +164,8 @@
               </div>
             </div>
             <div class="flex justify-end gap-2 mt-3">
-              <button @click="exportCSV(task.task_id)" class="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-[color:var(--t-brand)] transition-colors">导出 CSV</button>
-              <button @click="exportExcel(task.task_id)" class="text-xs px-3 py-1.5 rounded-lg border border-border hover:border-[color:var(--t-brand)] transition-colors">导出 Excel</button>
+              <button @click="exportCSV(task.task_id)" class="ui-btn ui-btn--ghost ui-btn--sm">导出 CSV</button>
+              <button @click="exportExcel(task.task_id)" class="ui-btn ui-btn--ghost ui-btn--sm">导出 Excel</button>
             </div>
           </template>
         </div>
