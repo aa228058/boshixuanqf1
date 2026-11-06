@@ -153,9 +153,6 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 			gt = "private"
 		}
 		st := "active"
-		if status == "joined" {
-			st = "joined"
-		}
 		sg := &domain.SystemGroup{Source: "scraped", Title: firstNonEmpty(title, url), Username: username, TmeLink: url, GType: gt, MemberCount: mc, Status: st, TelegramChatID: chatID, ContributorTenantID: tenantID}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			upsertFailed = true
