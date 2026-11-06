@@ -33,17 +33,17 @@
         <template #actions="{ row }">
           <div class="flex items-center gap-1">
             <t-tooltip content="详情" position="top">
-              <button @click="viewDetail(row as any)" class="p-1.5 rounded hover:bg-bg-hover" aria-label="详情">
+              <button @click="viewDetail(row as any)" class="ui-icon-btn" aria-label="详情">
                 <Eye class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
             <t-tooltip content="重置Key" position="top">
-              <button @click="resetKey(row as any)" class="p-1.5 rounded hover:bg-bg-hover" aria-label="重置Key">
+              <button @click="resetKey(row as any)" class="ui-icon-btn" aria-label="重置Key">
                 <KeyRound class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
             <t-tooltip content="删除" position="top">
-              <button @click="confirmDelete(row as any)" class="p-1.5 rounded hover:bg-[color:var(--t-err-dim)]" aria-label="删除">
+              <button @click="confirmDelete(row as any)" class="ui-icon-btn" aria-label="删除">
                 <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
               </button>
             </t-tooltip>
@@ -72,17 +72,17 @@
           <span>{{ new Date(t.created_at).toLocaleDateString('zh-CN') }}</span>
           <div class="flex items-center gap-1">
             <t-tooltip content="详情" position="top">
-              <button @click="viewDetail(t)" class="p-2 rounded-lg hover:bg-bg-hover min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="详情">
+              <button @click="viewDetail(t)" class="ui-icon-btn" aria-label="详情">
                 <Eye class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
             <t-tooltip content="重置Key" position="top">
-              <button @click="resetKey(t)" class="p-2 rounded-lg hover:bg-bg-hover min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="重置Key">
+              <button @click="resetKey(t)" class="ui-icon-btn" aria-label="重置Key">
                 <KeyRound class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
             <t-tooltip content="删除" position="top">
-              <button @click="confirmDelete(t)" class="p-2 rounded-lg hover:bg-[color:var(--t-err-dim)] min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="删除">
+              <button @click="confirmDelete(t)" class="ui-icon-btn" aria-label="删除">
                 <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
               </button>
             </t-tooltip>
@@ -113,7 +113,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showCreate = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
+        <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
         <t-button theme="primary" @click="doCreate">创建</t-button>
       </template>
     </Modal>
