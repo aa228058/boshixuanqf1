@@ -326,3 +326,30 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
 }
 .elev-pop { box-shadow: var(--t-shadow-card) !important; }
+
+
+/* TDesign buttons: shared visual variants for legacy t-button call sites.
+   Keep the component's native loading/disabled/event behavior. */
+.t-button.ui-t-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--t-space-2);
+  min-height: var(--t-control-height-md);
+  padding-inline: var(--t-space-4);
+  border-radius: var(--t-control-radius);
+  font-family: inherit;
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-semibold);
+  box-shadow: none;
+  transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
+}
+.t-button.ui-t-button--sm { min-height: var(--t-control-height-sm); padding-inline: var(--t-space-3); font-size: var(--t-font-xs); }
+.t-button.ui-t-button--primary { color: var(--t-brand-ink); background: var(--t-brand); border-color: var(--t-brand); }
+.t-button.ui-t-button--primary:not(.t-is-disabled):hover { color: var(--t-brand-ink); background: var(--t-brand-hover); border-color: var(--t-brand-hover); }
+.t-button.ui-t-button--secondary { color: var(--t-text-2); background: var(--t-surface-2); border-color: var(--t-line); }
+.t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-text-1); background: var(--t-card); border-color: var(--t-line-strong); }
+.t-button.ui-t-button--text { color: var(--t-brand); background: transparent; border-color: transparent; }
+.t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
+.t-button.ui-t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+.t-button.ui-t-button.t-is-disabled { opacity: .45; }
