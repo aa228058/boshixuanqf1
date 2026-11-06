@@ -170,7 +170,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			SELECT account_id FROM accounts
 			WHERE tenant_id=$1 AND status='online'
 			  AND (blocked_until IS NULL OR blocked_until<NOW())
-			ORDER BY updated_at DESC
+			ORDER BY last_online DESC NULLS LAST
 			LIMIT 1`, tenantID).Scan(&accountID)
 		result, importErr := e.ImportByLinks(ctx, tenantID, accountID, lines[offset:end])
 		imported, failed, skipped := 0, 0, 0
