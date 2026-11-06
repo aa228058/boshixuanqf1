@@ -23,14 +23,14 @@ func NewSystemGroupRepository(db *pgxpool.Pool) *SystemGroupRepository {
 // SystemGroupFilter 列表筛选
 type SystemGroupFilter struct {
 	Keyword  string // 标题/username/link 模糊
-	GType    string // public | private | channel | unknown | ""
+	GType    string // group | supergroup | channel | unknown; legacy public/private
 	Status   string // active | invalid | ""
 	Source   string // scraped | joined | bio | ""
 	Page     int
 	PageSize int
 }
 
-// Upsert 归并写入: dedup_key 冲突时热度+1、取更优标题/更大成员数、刷新最后收录时间。
+// Upsert merges a shared group identity, refreshes available metadata, and attaches the submitted link.
 func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGroup) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
