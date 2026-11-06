@@ -6,13 +6,15 @@
       <div class="space-y-4">
         <div>
           <label for="support-type" class="block text-sm text-text-secondary mb-1.5">联系方式类型</label>
-          <div class="flex gap-2">
-            <button type="button"
+          <div class="ui-segmented w-full" role="group" aria-label="联系方式类型">
+            <button
               v-for="type in contactTypes"
               :key="type.value"
+              type="button"
               @click="form.contact_type = type.value as SupportConfig['contact_type']"
-              class="flex-1 py-2 rounded-lg text-sm border transition-colors"
-              :class="form.contact_type === type.value ? 'border-[color:var(--t-brand)]/30 bg-[var(--t-brand)]/5 text-[var(--t-brand)]' : 'border-border text-text-secondary'"
+              class="ui-segmented__item"
+              :class="{ 'is-active': form.contact_type === type.value }"
+              :aria-pressed="form.contact_type === type.value"
             >
               {{ type.label }}
             </button>
@@ -23,14 +25,14 @@
           <input
             v-model="form.contact_value"
             placeholder="如微信号、TG号、QQ号或邮箱"
-            class="w-full px-3 py-2.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="如微信号、TG号、QQ号或邮箱" />
+            class="ui-input !text-sm" aria-label="如微信号、TG号、QQ号或邮箱" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">显示名称</label>
           <input
             v-model="form.display_name"
             placeholder="如：联系客服开通套餐"
-            class="w-full px-3 py-2.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="如：联系客服开通套餐" />
+            class="ui-input !text-sm" aria-label="如：联系客服开通套餐" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">二维码图片（可选）</label>
