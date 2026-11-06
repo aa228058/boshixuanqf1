@@ -1,6 +1,6 @@
 <template>
   <!-- R125 "更多"功能导航页(示例2 语言): 用户卡 + 功能列表(图标+标题+描述+chevron) + 管理端分组 -->
-  <main class="flex-1 p-4 sm:p-6 overflow-y-auto pb-24 lg:pb-6 max-w-[720px] mx-auto w-full">
+  <main class="flex-1 p-4 sm:p-6 overflow-y-auto pb-24 md:pb-6 max-w-[720px] mx-auto w-full">
     <h1 class="text-display font-extrabold tracking-tight mt-2 mb-1" style="color: var(--t-text-1);">更多</h1>
     <p class="text-caption mb-5" style="color: var(--t-text-3);">{{ authStore.tenant?.name || '运营' }} · 全部功能入口</p>
 
