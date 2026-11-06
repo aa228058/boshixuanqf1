@@ -268,7 +268,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -332,6 +332,17 @@ const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
 const importJob = ref<any>(null)
+const importJobs = ref<any[]>([])
+
+async function loadImportJobs() {
+  try {
+    const res = await listGroupLibraryImportJobs()
+    importJobs.value = res.list || []
+    for (const job of importJobs.value) {
+      if (job.status === 'pending' || job.status === 'processing') pollImportJob(job.job_id)
+    }
+  } catch { /* history can be refreshed manually if temporarily unavailable */ }
+}
 
 async function onImportFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -353,6 +364,9 @@ async function pollImportJob(jobId: string) {
   try {
     const job = await getGroupLibraryImportJob(jobId)
     importJob.value = job
+    const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
+    if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
+    else importJobs.value.unshift(job)
     if (job.status === 'completed' || job.status === 'failed') {
       load()
       toast({ type: job.status === 'completed' ? 'success' : 'warning', title: job.status === 'completed' ? '导入完成' : '导入失败',
@@ -372,6 +386,7 @@ async function doImport() {
   try {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     importJob.value = job
+    importJobs.value.unshift(job)
     toast({ type: 'success', title: '任务已提交', message: `已提交后台任务，共 ${job.total_count} 条` })
     pollImportJob(job.job_id)
   } catch (err: any) {
@@ -497,6 +512,7 @@ function goDiy() {
 
 onMounted(() => {
   load()
+  loadImportJobs()
   if (!accountStore.accounts?.length) accountStore.fetchAccounts(true)
 })
 </script>
