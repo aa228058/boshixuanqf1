@@ -902,7 +902,7 @@ func (s *TaskService) Retry(ctx context.Context, tenantID, taskID uuid.UUID, sco
 					continue
 				}
 				accountTargets := make([]string, 0, len(targets))
-				for targetID := range targets {
+				for _, targetID := range targets {
 					accountTargets = append(accountTargets, targetID)
 				}
 				mappings = append(mappings, domain.AccountTargetMapping{AccountID: accountID, Targets: accountTargets})
