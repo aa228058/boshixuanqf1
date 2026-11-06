@@ -281,7 +281,7 @@
               <t-button @click="saveTemplate(t)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
                 保存
               </t-button>
-              <button type="button" @click="deleteTemplate(t.template_id)" class="ui-icon-btn">
+              <button type="button" @click="deleteTemplate(t.template_id)" class="ui-icon-btn" aria-label="删除消息模板">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
