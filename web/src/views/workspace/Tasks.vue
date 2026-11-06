@@ -165,7 +165,7 @@
                   class="ui-btn ui-btn--sm ui-btn--primary">重试</button>
           <button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                   @click.stop="retryTask(task.task_id, 'failed')"
-                  class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progressOf(task.progress).failed }})</button>
+                  class="ui-btn ui-btn--sm ui-btn--warning">重试失败 ({{ progressOf(task.progress).failed }})</button>
           <button @click.stop="showAccStats(task)" class="ui-btn ui-btn--sm ui-btn--ghost">统计</button>
         </div>
       </div>
