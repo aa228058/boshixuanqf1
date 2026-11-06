@@ -32,20 +32,6 @@
 
     <!-- 系统群库 -->
     <template v-if="tab === 'library'">
-      <section class="ui-card p-3 space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-sm font-semibold text-text-primary">导入任务记录</span>
-          <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="loadImportJobs">刷新任务</t-button>
-        </div>
-        <p v-if="!importJobs.length" class="text-xs text-text-muted">暂无导入记录。提交导入后，即使关闭弹窗，也可以在这里继续查看进度。</p>
-        <div v-for="job in importJobs" :key="job.job_id" class="rounded-lg p-2 space-y-1" style="background: color-mix(in srgb, var(--t-text-1) 5%, transparent);">
-          <div class="flex justify-between text-xs gap-2"><span class="font-medium">{{ job.file_name || '文本导入' }} · {{ job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : job.status === 'pending' ? '等待处理' : job.status === 'review' ? '待确认筛选结果' : '处理中' }}</span><span>{{ job.processed_count }}/{{ job.total_count }}</span></div>
-          <div class="h-1.5 rounded-full overflow-hidden" style="background: var(--t-line-light)"><div class="h-full" style="background: var(--t-brand)" :style="{ width: (job.total_count ? Math.min(100, job.processed_count / job.total_count * 100) : 0) + '%' }"></div></div>
-          <div class="text-[11px] text-text-muted">格式有效 {{ job.valid_count || job.total_count }} · 重复 {{ job.duplicate_count || 0 }} · 无效 {{ job.invalid_count || 0 }} · 已处理 {{ job.processed_count }} · 入库 {{ job.imported_count }} · 失败 {{ job.failed_count }} · {{ fmtTime(job.created_at) }}</div>
-          <div v-if="job.last_error" class="text-[11px] text-text-muted break-words">{{ job.last_error }}</div>
-          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" v-if="job.status === 'review'" size="small" theme="primary" @click="confirmImportJob(job.job_id)">确认有效链接并开始解析</t-button>
-        </div>
-      </section>
       <!-- 筛选条 -->
       <div class="ui-card p-3 flex flex-wrap items-center gap-2 lift">
         <div class="relative w-full sm:w-56">
@@ -291,7 +277,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -355,7 +341,6 @@ const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
 const importJob = ref<any>(null)
-const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
 const activeImportPolls = new Set<string>()
 const importPollTimers = new Map<string, number>()
@@ -375,17 +360,6 @@ onUnmounted(() => {
   for (const timer of importPollTimers.values()) window.clearTimeout(timer)
   importPollTimers.clear()
 })
-
-async function loadImportJobs() {
-  try {
-    const res = await listGroupLibraryImportJobs()
-    if (importPageUnmounted) return
-    importJobs.value = res.list || []
-    for (const job of importJobs.value) {
-      if (job.status === 'pending' || job.status === 'processing') pollImportJob(job.job_id)
-    }
-  } catch { /* history can be refreshed manually if temporarily unavailable */ }
-}
 
 watch(importText, () => {
   if (importJob.value?.status === 'review') importJob.value = null
@@ -591,7 +565,6 @@ function goDiy() {
 
 onMounted(() => {
   load()
-  loadImportJobs()
   if (!accountStore.accounts?.length) accountStore.fetchAccounts(true)
 })
 </script>
