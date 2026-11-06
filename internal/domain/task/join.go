@@ -256,18 +256,23 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 					if joinErr != nil {
 						if isInviteRequestSent(joinErr) {
 							status = "pending_approval"
-							if e.approvalRepo != nil {
-								if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
-									TaskID:     task.TaskID,
-									TenantID:   task.TenantID,
-									AccountID:  accID,
-									ChatID:     chatID,
-									TargetLink: link,
-									Status:     "pending",
-									MaxChecks:  12,
-								}); err != nil {
-									log.Printf("[join] 创建待审批记录失败: %v", err)
-								}
+							if e.approvalRepo == nil {
+								status = "failed"
+								errCode = "approval_repository_unavailable"
+								errMsg = "pending approval repository is unavailable"
+							} else if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
+								TaskID:     task.TaskID,
+								TenantID:   task.TenantID,
+								AccountID:  accID,
+								ChatID:     chatID,
+								TargetLink: link,
+								Status:     "pending",
+								MaxChecks:  12,
+							}); err != nil {
+								status = "failed"
+								errCode = "approval_record_create_failed"
+								errMsg = err.Error()
+								log.Printf("[join] 创建待审批记录失败: %v", err)
 							}
 						} else if isAlreadyMember(joinErr) {
 							status = "success"
