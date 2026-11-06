@@ -35,7 +35,7 @@
           <option value="failed">失败</option>
           <option value="cancelled">已取消</option>
         </select>
-        <button @click="clearFinished" title="清空已完成任务"
+        <button class="ui-btn ui-btn--ghost ui-btn--sm" @click="clearFinished" title="清空已完成任务"
                 class="ui-icon-btn ui-icon-btn--danger" aria-label="清空已完成任务">
           <Trash2 class="w-4 h-4" />
         </button>
