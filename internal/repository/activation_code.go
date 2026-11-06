@@ -63,7 +63,7 @@ func (r *ActivationCodeRepository) Generate(ctx context.Context, planID string, 
 			t := now.Add(time.Duration(*expiresDays) * 24 * time.Hour)
 			expiresAt = &t
 		}
-		_, err := tx.Exec(ctx, `
+		_, err = tx.Exec(ctx, `
 	        INSERT INTO activation_codes (code, plan_id, timing_type, expires_at, created_by, notes)
 	        VALUES ($1, $2, $3, $4, $5, $6)`,
 			code, planID, timingType, expiresAt, createdBy, notes,
