@@ -3,7 +3,7 @@ package monitor
 import (
 	"context"
 	"log"
-	"math/rand/v2"
+	securerand "tg-sender/internal/secure"
 	"reflect"
 	"regexp"
 	"strings"
@@ -252,7 +252,7 @@ func (e *Engine) pingRaffleBot(ctx context.Context, cl *telegram.Client, chatID 
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(time.Duration(3+rand.IntN(6)) * time.Second):
+	case <-time.After(time.Duration(3+securerand.IntN(6)) * time.Second):
 	}
 	if err := sendGroupText(sctx, cl, &tg.InputPeerUser{UserID: uID, AccessHash: uHash}, pingText); err != nil {
 		log.Printf("[raffle] 私聊激活发送失败 bot=@%s err=%v", uName, err)
@@ -458,7 +458,7 @@ func sendGroupText(ctx context.Context, cl *telegram.Client, peer tg.InputPeerCl
 	_, err := cl.Raw().MessagesSendMessage(cctx, &tg.MessagesSendMessageRequest{
 		Peer:     peer,
 		Message:  text,
-		RandomID: rand.Int64(), // TG 强制要求, 缺了报 RANDOM_ID_EMPTY (2026-10-21 实锤)
+		RandomID: securerand.Int64(), // TG 强制要求, 缺了报 RANDOM_ID_EMPTY (2026-10-21 实锤)
 	})
 	return err
 }
@@ -472,7 +472,7 @@ func (e *Engine) sendRaffleReply(ctx context.Context, cl *telegram.Client, chatI
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(time.Duration(5+rand.IntN(11)) * time.Second):
+	case <-time.After(time.Duration(5+securerand.IntN(11)) * time.Second):
 	}
 	if err := sendGroupText(ctx, cl, peer, text); err != nil {
 		log.Printf("[raffle] 中奖回复发送失败: %v", err)
@@ -489,13 +489,13 @@ func (e *Engine) joinRaffle(ctx context.Context, cl *telegram.Client, chatID int
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(time.Duration(2+rand.IntN(5)) * time.Second):
+	case <-time.After(time.Duration(2+securerand.IntN(5)) * time.Second):
 	}
 
 	sctx, scancel := context.WithTimeout(ctx, 15*time.Second)
 	defer scancel()
 	_, err := cl.Raw().MessagesSendMessage(sctx, &tg.MessagesSendMessageRequest{
-		Peer: peer, Message: keyword, RandomID: rand.Int64(),
+		Peer: peer, Message: keyword, RandomID: securerand.Int64(),
 	})
 	return err
 }
