@@ -26,7 +26,7 @@
       />
     </div>
     <template #footer>
-      <button v-if="unreadCount > 0" @click="markAllRead" class="text-sm text-cyan hover:text-cyan-bright transition-colors">
+      <button type="button" v-if="unreadCount > 0" @click="markAllRead" class="text-sm text-cyan hover:text-cyan-bright transition-colors">
         全部标记已读
       </button>
     </template>
