@@ -15,8 +15,7 @@
 
     <!-- 状态筛选 -->
     <div class="flex gap-2 flex-wrap">
-      <button v-for="t in tabs" :key="t.key" class="ui-segmented__item" @click="filterTab = t.key"
-        class="px-3 py-1 rounded-full text-xs transition-colors"
+      <button v-for="t in tabs" :key="t.key" class="ui-segmented__item px-3 py-1 rounded-full text-xs transition-colors" @click="filterTab = t.key"
         :class="filterTab === t.key ? 'bg-[var(--t-brand)] text-white' : 'text-text-secondary'"
         :style="filterTab === t.key ? '' : 'background: var(--t-surface-2);'">
         {{ t.label }} · {{ t.count }}
