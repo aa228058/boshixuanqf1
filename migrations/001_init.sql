@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS tenants (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS api_key_prefix VARCHAR(16);
+
 -- Accounts
 CREATE TABLE IF NOT EXISTS accounts (
     account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
