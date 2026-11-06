@@ -79,7 +79,7 @@
             <button
               @click="saveReply(replyEnabled, replyText)"
               :disabled="replySaving"
-              class="px-4 py-1.5 rounded-lg text-xs glow-btn disabled:opacity-50 whitespace-nowrap shrink-0"
+              class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ replySaving ? '保存中…' : '保存' }}
             </button>
@@ -122,7 +122,7 @@
             <button
               @click="savePing(pingEnabled, pingText)"
               :disabled="pingSaving"
-              class="px-4 py-2 rounded-lg text-xs glow-btn disabled:opacity-50 whitespace-nowrap shrink-0"
+              class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ pingSaving ? '保存中…' : '保存' }}
             </button>
@@ -135,7 +135,7 @@
       <div v-if="raffleEnabled" class="mt-4 pt-4 border-t border-border/50">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs text-text-muted">参与账号（关闭后该账号不再抢抽奖）</span>
-          <button class="text-xs text-cyan hover:underline" @click="toggleAll">
+          <button class="ui-btn ui-btn--text ui-btn--sm" @click="toggleAll">
             {{ allSelected ? '全不选' : '全选' }}
           </button>
         </div>
@@ -181,8 +181,8 @@
         <div class="font-extrabold text-body">参与记录</div>
         <div class="flex items-center gap-3 shrink-0">
           <!-- R128 清空记录: 确认后调 DELETE 端点, 日志不再无限叠加 -->
-          <button class="text-xs font-bold hover:underline" style="color: var(--t-err);" @click="clearAllResults">清空</button>
-          <button class="text-xs font-bold hover:underline" style="color: var(--t-brand);" @click="loadResults">刷新</button>
+          <button class="ui-btn ui-btn--danger ui-btn--sm" @click="clearAllResults">清空</button>
+          <button class="ui-btn ui-btn--text ui-btn--sm" @click="loadResults">刷新</button>
         </div>
       </div>
 
