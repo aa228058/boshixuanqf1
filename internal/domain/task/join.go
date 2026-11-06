@@ -358,16 +358,29 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		}
 		e.publishLog(task.TenantID, task.TaskID, joinLog)
 
-		// R87-M10: 加入失败 → 回写群库"已失效"状态(按 dedup_key 匹配, 已加入的群不降级)
-		if status == "failed" && e.systemGroupRepo != nil {
-			key := link
-			if strings.HasPrefix(key, "+") || strings.HasPrefix(key, "joinchat/") {
-				key = "l:t.me/" + strings.TrimPrefix(strings.TrimPrefix(key, "+"), "joinchat/")
-			} else if !strings.HasPrefix(key, "u:") && !strings.HasPrefix(key, "l:") {
-				key = "u:" + strings.ToLower(key)
+		// Only a confirmed invalid/expired Telegram identifier changes shared link validity.
+		// Account limits, bans, privacy and permission failures do not invalidate the group link.
+		if status == "failed" && e.systemGroupRepo != nil &&
+			(errCode == "invite_expired" || errCode == "invite_invalid" || errCode == "username_invalid") {
+			key := ""
+			if hash := extractInviteHash(link); hash != "" {
+				key = "l:t.me/+" + hash
+			} else {
+				username := strings.TrimSpace(link)
+				username = strings.TrimPrefix(username, "@")
+				username = strings.TrimPrefix(username, "https://t.me/")
+				username = strings.TrimPrefix(username, "http://t.me/")
+				username = strings.TrimPrefix(username, "t.me/")
+				username = strings.SplitN(username, "?", 2)[0]
+				username = strings.Trim(username, "/")
+				if username != "" {
+					key = "u:" + strings.ToLower(username)
+				}
 			}
-			if merr := e.systemGroupRepo.MarkInvalidByDedupKey(ctx, key); merr != nil {
-				log.Printf("[join] 标记群失效失败 %s: %v", key, merr)
+			if key != "" {
+				if merr := e.systemGroupRepo.MarkInvalidByDedupKey(ctx, key); merr != nil {
+					log.Printf("[join] 标记群链接失效失败 %s: %v", key, merr)
+				}
 			}
 		}
 
