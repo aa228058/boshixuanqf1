@@ -40,7 +40,7 @@
 | `views/admin/codes/List.vue` | 0（本轮已迁移） |
 | `views/workspace/Broadcast.vue` | 0（本轮已迁移） |
 | `views/settings/Index.vue` | 0（本轮已迁移） |
-| `views/workspace/Join.vue` | 22 |
+| `views/workspace/Join.vue` | 0（本轮已迁移） |
 | `views/workspace/Scrape.vue` | 21 |
 | `views/tasks/Detail.vue` | 21 |
 | `views/scrape/Links.vue` | 15 |
@@ -56,7 +56,7 @@
 | `views/more/Index.vue` | 3 |
 | `views/NotFound.vue` | 2 |
 
-### 已完成迁移的业务页
+- `views/workspace/Join.vue`：新建任务、加载重试、任务重试失败/停止/详情、弹窗取消与创建操作迁移为 TDesign Button + `.ui-t-button`；链接/邀请模式切换保留 `.ui-segmented__item`，无效链接展开、文件选择和通知开关等特殊交互保留原生控件。该页 `.ui-btn` 调用已清零。\n\n### 已完成迁移的业务页
 
 - `views/workspace/Tasks.vue`：桌面表格与移动端卡片中的停止、重试、仅重试失败目标、每账号统计操作，统一迁移为 TDesign Button + `.ui-t-button`；保留 `@click.stop`、状态条件和业务方法。类型/时间范围筛选改用独立 `.ui-segmented__item`，不再借用通用 `.ui-btn`。该页 `.ui-btn` 调用已清零，图标刷新/清空操作继续使用独立 `.ui-icon-btn`。
 - `views/admin/codes/List.vue`：桌面表格操作、移动端卡片操作、生成/详情弹窗 footer、批量操作栏中的普通操作按钮统一迁移为 TDesign Button + `.ui-t-button`；保留状态条件、原事件处理与批量操作确认逻辑；清空已选卡密继续使用 `.ui-icon-btn`。该页 `.ui-btn` 调用已清零。
