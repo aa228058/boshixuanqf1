@@ -7,14 +7,14 @@
         <p class="text-sm text-text-muted mt-1 max-w-[65ch]">全部账号的任务汇总, 点卡片查看详情</p>
       </div>
       <!-- 类型 Tab: 点一次直接过滤 -->
-      <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+      <div class="ui-segmented flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="按任务类型筛选">
         <button type="button" v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
                 class="ui-segmented__item whitespace-nowrap"
                 :class="{ 'is-active': typeFilter === t.value }">
           {{ t.label }}
         </button>
       </div>
-      <div class="flex gap-2 mb-3">
+      <div class="ui-segmented flex gap-2 mb-3" role="group" aria-label="按创建时间筛选">
   <button type="button" v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="ui-segmented__item"
@@ -124,7 +124,7 @@
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" class="md:hidden" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id" :style="{ '--i': ti }"
            :class="['p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : 'border-border']"
-           @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
+           @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.enter.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.space.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap" :class="statusClass(task.status)">
