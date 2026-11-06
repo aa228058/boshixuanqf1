@@ -151,7 +151,7 @@ func (e *Engine) HandleVerification(ctx context.Context, client *telegram.Client
 			VLID: st.logID, TenantID: tenantID, AccountID: accountID,
 			GroupChatID: chatID, GroupTitle: chatTitle, Status: "pending", Steps: st.steps,
 		}); err != nil {
-			log.Printf("[verifier] create verification log for account %s group %s failed: %v", accountID, chatID, err)
+			log.Printf("[verifier] create verification log for account %s group %d failed: %v", accountID, chatID, err)
 		}
 	}
 	e.vstates.put(accountID, chatID, st)
@@ -387,7 +387,7 @@ func (e *Engine) retestSpeak(ctx context.Context, client *telegram.Client, st *v
 				if _, err := client.Raw().MessagesDeleteMessages(dctx, &tg.MessagesDeleteMessagesRequest{
 					ID: []int32{delID}, Revoke: true,
 				}); err != nil {
-					log.Printf("[verifier] delete verification message %d in group %s failed: %v", msgID, st.chatID, err)
+					log.Printf("[verifier] delete verification message %d in group %d failed: %v", msgID, st.chatID, err)
 				}
 			}
 			dcancel()
