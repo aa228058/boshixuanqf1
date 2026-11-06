@@ -92,7 +92,6 @@ const router = createRouter({
         { path: 'audit', name: 'AdminAudit', component: () => import('@/views/admin/audit/Logs.vue'), meta: { title: '审计日志' } },
       ]
     },
-    { path: '/:pathMatch(.*)*', redirect: '/login' }
   ]
 })
 
