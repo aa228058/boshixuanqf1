@@ -6,13 +6,11 @@
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
       </div>
       <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <button v-if="tasks.length" class="ui-btn ui-btn--text ui-btn--sm" @click="clearLogs"
-                class="px-3 py-2 rounded-lg text-sm text-[var(--t-err)]/70 border border-[color:var(--t-err)]/20 hover:bg-[color:var(--t-err-dim)] hover:text-[var(--t-err)] transition-colors flex items-center gap-2">
+        <button v-if="tasks.length" type="button" class="ui-btn ui-btn--text ui-btn--sm px-3 py-2 rounded-lg text-sm text-[var(--t-err)]/70 border border-[color:var(--t-err)]/20 hover:bg-[color:var(--t-err-dim)] hover:text-[var(--t-err)] transition-colors flex items-center gap-2" @click="clearLogs">
           <Trash2 class="w-4 h-4" />
           清空记录
         </button>
-        <button class="ui-btn ui-btn--primary" @click="showCreate = true"
-                class="px-4 py-2 rounded-lg text-sm font-medium glow-btn flex items-center gap-2"> 开始采集
+        <button type="button" class="ui-btn ui-btn--primary px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2" @click="showCreate = true"> 开始采集
         </button>
       </div>
     </div>
@@ -87,8 +85,7 @@
       </div>
       <div class="flex items-center justify-end gap-3 pt-2">
         <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <button class="ui-btn ui-btn--primary" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting"
-                class="px-6 py-2 rounded-lg text-sm font-medium glow-btn disabled:opacity-50 flex items-center gap-2">
+        <button type="button" class="ui-btn ui-btn--primary px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : '开始采集' }}
         </button>
