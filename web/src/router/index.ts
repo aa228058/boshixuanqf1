@@ -136,9 +136,10 @@ router.beforeEach(async (to, from, next) => {
     // 预校验改为后台静默执行, 不阻塞导航:
     // 之前 await refreshTenant() 每次切页面都卡在网络往返上,
     // 弹窗长请求占满连接时直接表现为"页面卡死"
-    authStore.refreshTenant().catch(() => {
-      authStore.logout()
-      if (router.currentRoute.value.meta.requiresAuth) router.replace('/login')
+    authStore.refreshTenant().catch((error) => {
+      // refreshTenant 的普通网络/服务端错误不等于会话失效。
+      // 认证失效由 request.ts 在 refresh 明确 401 / 账号级 403 时统一处理。
+      console.warn('刷新租户信息暂时失败，保留当前会话:', error)
     })
     // 检查租户是否被停用（status 缺失时不拦截，由后端 403 兜底）
     if (authStore.tenant?.status && authStore.tenant.status !== 'active') {
