@@ -27,24 +27,24 @@
         </div>
         <label class="block text-xs text-text-secondary">月价（元）
           <input v-model.number="p.price_monthly" type="number" min="0" step="1"
-            class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+            class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
         </label>
         <div class="grid grid-cols-2 gap-2">
           <label class="block text-xs text-text-secondary">账号数
             <input v-model.number="p.max_accounts" type="number" min="1"
-              class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+              class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
           </label>
           <label class="block text-xs text-text-secondary">并发
             <input v-model.number="p.max_concurrent" type="number" min="1"
-              class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+              class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
           </label>
           <label class="block text-xs text-text-secondary">群发日限(0不限)
             <input v-model.number="p.max_daily_broadcasts" type="number" min="0"
-              class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+              class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
           </label>
           <label class="block text-xs text-text-secondary">搜群日限(0不限)
             <input v-model.number="p.daily_search_limit" type="number" min="0"
-              class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+              class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
           </label>
         </div>
       </div>
