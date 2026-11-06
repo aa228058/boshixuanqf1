@@ -42,11 +42,6 @@ html.theme-dark {
   --td-text-color-placeholder: var(--t-text-3)!important;
   --td-border-level-1-color: color-mix(in srgb, var(--t-text-1) 10%, transparent) !important;
   --td-component-border: color-mix(in srgb, var(--t-text-1) 10%, transparent) !important;
-  --td-brand-color: var(--t-brand)!important;
-  --td-brand-color-hover: var(--t-brand-hover)!important;
-  --td-brand-color-active: var(--t-brand-active)!important;
-  --td-brand-color-focus: var(--t-brand-dim)!important;
-
   color-scheme: dark !important;
 }
 
