@@ -102,14 +102,14 @@
       <div v-if="joinMode === 'invite'" class="space-y-3">
         <div>
           <label class="block text-xs font-semibold mb-1">我的群(邀请进这个群)</label>
-          <select v-model="inviteTargetId" class="w-full px-3 py-2.5 rounded-lg glow-input text-sm bg-bg-card">
+          <select v-model="inviteTargetId" class="ui-input !text-sm">
             <option value="">选择目标群</option>
             <option v-for="g in joinedGroups" :key="g.group_id" :value="g.group_id">{{ g.title || g.username || ('群' + g.tg_chat_id) }}</option>
           </select>
         </div>
         <div>
           <label class="block text-xs font-semibold mb-1">来源群(邀请这个群的成员)</label>
-          <select v-model="inviteSourceId" class="w-full px-3 py-2.5 rounded-lg glow-input text-sm bg-bg-card">
+          <select v-model="inviteSourceId" class="ui-input !text-sm">
             <option value="">选择来源群</option>
             <option v-for="g in inviteGroups" :key="g.group_id" :value="g.group_id">{{ g.title || g.username || ('群' + g.tg_chat_id) }} ({{ g.member_count || 0 }}人)</option>
           </select>
@@ -140,11 +140,11 @@
         <div class="grid grid-cols-2 gap-2">
           <label class="block text-xs text-text-secondary">最小间隔(分钟)
             <input v-model.number="joinIntervalMin" type="number" min="0" step="0.5" placeholder="默认2"
-              class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+              class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
           </label>
           <label class="block text-xs text-text-secondary">最大间隔(分钟)
             <input v-model.number="joinIntervalMax" type="number" min="0" step="0.5" placeholder="默认3"
-              class="mt-0.5 w-full px-2.5 py-1.5 rounded-lg glow-input text-sm bg-bg-card" />
+              class="ui-input mt-0.5 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" />
           </label>
         </div>
       </div>
