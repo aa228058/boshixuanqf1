@@ -194,7 +194,8 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 
 // List 分页查询
 func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) ([]domain.SystemGroup, int64, error) {
-	var where []string
+	// Exclude Telegram bot usernames, including legacy rows imported before bot filtering.
+	var where []string = []string{"(COALESCE(username,'') = '' OR username NOT ILIKE '%bot')"}
 	var args []interface{}
 	n := 0
 	// 关键字三字段模糊(同一参数复用)
