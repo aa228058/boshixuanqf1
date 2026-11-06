@@ -16,40 +16,6 @@
 .ui-card--lg { border-radius: var(--t-radius-xl); }
 .ui-card--hover:hover { border-color: var(--t-text-3); }
 
-/* ---------- .ui-btn 按钮: 全圆 + 按压反馈, 主=品牌纯色 / 次=surface-2 ---------- */
-.ui-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--t-space-2);
-  height: var(--t-control-height-md);
-  padding: 0 var(--t-space-5);
-  border-radius: var(--t-control-radius);
-  font-size: var(--t-font-sm);
-  font-weight: var(--t-weight-semibold);
-  border: none;
-  cursor: pointer;
-  transition: transform var(--t-duration-fast) var(--t-ease-standard), opacity var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.ui-btn:active { transform: scale(0.95); }
-.ui-btn--primary { background: var(--t-brand); color: var(--t-brand-ink); }
-.ui-btn--primary:hover { background: var(--t-brand-hover); }
-.ui-btn--secondary { background: var(--t-surface-2); color: var(--t-text-2); }
-.ui-btn--secondary:hover { color: var(--t-text-1); }
-.ui-btn--danger { background: var(--t-err); color: #fff; }
-.ui-btn--danger:hover { filter: brightness(0.94); }
-.ui-btn--warning { background: var(--t-warn-dim); color: var(--t-warn); border: 1px solid color-mix(in srgb, var(--t-warn) 22%, transparent); }
-.ui-btn--warning:hover { background: color-mix(in srgb, var(--t-warn) 18%, var(--t-warn-dim)); }
-.ui-btn--ghost { background: transparent; color: var(--t-text-2); border: 1px solid var(--t-line); }
-.ui-btn--ghost:hover { background: var(--t-surface-2); color: var(--t-text-1); }
-.ui-btn--text { height: auto; padding: 4px 6px; background: transparent; color: var(--t-brand); }
-.ui-btn:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; box-shadow: var(--t-shadow-focus); }
-.ui-btn:disabled, .ui-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
-.ui-btn:disabled:active, .ui-btn[aria-disabled="true"]:active { transform: none; }
-.ui-btn--sm { height: var(--t-control-height-sm); padding: 0 var(--t-space-3); font-size: var(--t-font-xs); }
-.ui-btn--lg { height: var(--t-control-height-lg); padding-inline: var(--t-space-6); font-size: var(--t-font-md); }
-
 /* ---------- .ui-segmented 分段切换: 统一标签页/模式切换 ---------- */
 .ui-segmented {
   display: inline-flex;
@@ -84,10 +50,6 @@
   font-weight: var(--t-weight-semibold);
 }
 .ui-segmented__item:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
-/* 紧凑筛选组: 与 segmented 同一交互语言, 适用于任务类型/时间范围 */
-.ui-btn--segmented { background: var(--t-surface-2); color: var(--t-text-2); border: 1px solid var(--t-line); }
-.ui-btn--segmented:hover { color: var(--t-text-1); border-color: var(--t-line-strong); }
-.ui-btn--segmented.is-active, .ui-btn--segmented[aria-pressed="true"] { background: var(--t-brand-dim); color: var(--t-brand); border-color: color-mix(in srgb, var(--t-brand) 30%, transparent); }
 @media (max-width: 420px) {
   .ui-segmented { width: 100%; }
   .ui-segmented__item { flex: 1; padding-inline: 10px; }
