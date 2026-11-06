@@ -643,7 +643,7 @@ func (c *Container) initHandlers() {
 func (c *Container) reconcileRaffleWatch(ctx context.Context) {
 	// P2-67 审计修复: 原来硬编码 List(1,1000)——超 1000 租户时漏对账。
 	// 改为大页循环(99万上限=实际无上限, 分页接口要求 int 传参)。
-	tenants, _, err := c.TenantRepo.List(ctx, 1, 990000, "", "")
+	tenants, _, err := c.TenantRepo.List(ctx, 1, 990000, "", "", "")
 	if err != nil {
 		return
 	}
