@@ -184,7 +184,7 @@
             aria-label="查看公告"
             title="查看公告"
             @click="showAnnouncements = true"
-            class="relative p-2.5 rounded-[var(--t-r-md)] hover:bg-bg-hover transition-colors"
+            class="ui-icon-btn relative !w-10 !h-10"
           >
             <Megaphone class="w-5 h-5 text-text-secondary" stroke-width="2" />
             <span v-if="unreadAnnouncements" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose" />
@@ -195,7 +195,7 @@
             aria-label="查看通知"
             title="查看通知"
             @click="showNotifications = true"
-            class="relative p-2.5 rounded-[var(--t-r-md)] hover:bg-bg-hover transition-colors"
+            class="ui-icon-btn relative !w-10 !h-10"
           >
             <BellRing class="w-5 h-5 text-text-secondary" stroke-width="2" />
             <span
@@ -225,18 +225,17 @@
                 <div class="text-[11px] mt-0.5" style="color: var(--t-text-3);">{{ authStore.tenant?.plan_id || '' }} · 到期 {{ (authStore.tenant?.expires_at || '').slice(0, 10) }}</div>
               </div>
               <router-link to="/settings" @click="avatarMenuOpen = false"
-                           class="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--t-r-md)] text-caption font-semibold hover:opacity-80 transition-opacity"
+                           class="ui-menu-item w-full"
                            style="color: var(--t-text-1);">
                 <UserRound class="w-4 h-4" style="color: var(--t-text-3);" /> 修改资料
               </router-link>
               <router-link to="/settings" @click="avatarMenuOpen = false"
-                           class="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--t-r-md)] text-caption font-semibold hover:opacity-80 transition-opacity"
+                           class="ui-menu-item w-full"
                            style="color: var(--t-text-1);">
                 <KeyRound class="w-4 h-4" style="color: var(--t-text-3);" /> 修改密码
               </router-link>
               <button type="button" @click="avatarMenuOpen = false; logout()"
-                      class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--t-r-md)] text-caption font-semibold hover:opacity-80 transition-opacity"
-                      style="color: var(--t-err);">
+                      class="ui-menu-item ui-menu-item--danger w-full">
                 <LogOut class="w-4 h-4" /> 退出登录
               </button>
             </div>
