@@ -32,7 +32,7 @@
 
     <!-- 系统群库 -->
     <template v-if="tab === 'library'">
-      <section class="glass rounded-[var(--t-r-md)] p-3 space-y-2">
+      <section class="ui-card p-3 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <span class="text-sm font-semibold text-text-primary">导入任务记录</span>
           <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="loadImportJobs">刷新任务</t-button>
@@ -47,7 +47,7 @@
         </div>
       </section>
       <!-- 筛选条 -->
-      <div class="glass rounded-[var(--t-r-md)] p-3 flex flex-wrap items-center gap-2 lift">
+      <div class="ui-card p-3 flex flex-wrap items-center gap-2 lift">
         <div class="relative w-full sm:w-56">
           <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input v-model="filters.keyword" class="ui-input !pl-9 !pr-3 !py-1.5 !min-h-[36px] !text-sm !w-full" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
@@ -81,12 +81,12 @@
       </div>
 
       <!-- 群列表: 窄屏可横向滑动, 不再挤压变形 -->
-      <div class="glass rounded-[var(--t-r-md)] overflow-x-auto lift">
+      <div class="ui-card overflow-x-auto lift">
         <!-- R87-M10: 表格横向滚动(移动端不再挤压截断), 卡片化改造留待专项批 -->
         <!-- R98 移动端卡片化: 小屏用卡片列表替代表格(不再挤压截断), 桌面仍用表格 -->
         <div class="md:hidden space-y-2">
           <div v-for="row in aggregatedList" :key="row.sg_id"
-               class="glass rounded-[var(--t-r-md)] p-3 flex items-center gap-3">
+               class="ui-card p-3 flex items-center gap-3">
             <input type="checkbox" :checked="selected.has(row.sg_id)" @change="toggle(row.sg_id)"
                    :aria-label="`选择群组 ${row.title || row.username || row.sg_id}`"
                    class="w-4 h-4 accent-[var(--t-brand)] shrink-0" />
@@ -178,7 +178,7 @@
     </template>
 
     <!-- 自助采集: 引导到工作区链接采集 -->
-    <div v-else class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3 lift">
+    <div v-else class="ui-card p-8 text-center space-y-3 lift">
       <Radar class="w-10 h-10 mx-auto text-[var(--t-brand)]" />
       <div class="text-text-primary font-medium">自助采集</div>
       <p class="text-sm text-text-secondary max-w-md mx-auto">
