@@ -84,14 +84,14 @@
             <p class="mt-1.5 text-xs text-text-secondary">没有卡密？请联系管理员获取</p>
           </div>
 
-          <button
+          <t-button
             type="submit"
             :disabled="loading"
-            class="ui-btn ui-btn--primary w-full disabled:opacity-50"
+            class="ui-t-button ui-t-button--primary w-full disabled:opacity-50"
             :class="[regFailed ? '!bg-rose !border-rose shake-x' : '']"
           >
             {{ loading ? '注册中...' : '注册' }}
-          </button>
+          </t-button>
         </form>
 
         <div v-if="error" class="mt-4 p-3.5 bg-rose/5 border border-rose/10 rounded-[var(--t-r-md)] text-rose text-sm text-center">
