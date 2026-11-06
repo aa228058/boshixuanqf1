@@ -25,6 +25,19 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 )
 
+// acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
+func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	select {
+	case semaphore <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Overall timeout: max 30 minutes for a broadcast task to prevent indefinite hanging
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -256,10 +269,36 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		}
 	}
 	successSet := map[string]bool{}
-	if ss, err := e.logRepo.HasSuccessForTargets(ctx, task.TenantID, task.TaskID, allTargets); err != nil {
-		log.Printf("[broadcast] 批量查询已发目标失败 task=%s: %v(防重降级为不检查)", task.TaskID, err)
-	} else {
-		successSet = ss
+	ss, checkpointErr := e.logRepo.HasSuccessForTargets(ctx, task.TenantID, task.TaskID, allTargets)
+	if checkpointErr != nil {
+		// Never send when durable idempotency state cannot be verified. Failing open
+		// here can duplicate messages after a worker restart or database interruption.
+		taskLog.Printf("[broadcast] 读取续传检查点失败，停止任务 task=%s: %v", task.TaskID, checkpointErr)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] 标记检查点读取失败任务失败时出错 task=%s: %v", task.TaskID, err)
+		}
+		return
+	}
+	successSet = ss
+	// Rebuild the completed counter from durable (account,target) success records.
+	// Old failures are deliberately retried and are not carried into the new attempt.
+	for accID, targets := range accountTargets {
+		for _, targetID := range targets {
+			if successSet[accID.String()+"|"+targetID] {
+				done++
+			}
+		}
+	}
+	if done > 0 {
+		resumedProgress := domain.TaskProgress{Total: total, Done: done}
+		if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+			taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
+			if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+				taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
+			}
+			return
+		}
+		e.publishProgress(task.TenantID, task.TaskID, resumedProgress)
 	}
 
 	for _, accID := range task.AccountIDs {
@@ -269,11 +308,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		}
 
 		wg.Add(1)
-		// P0-16 审计修复: 原写法 semaphore 不响应 ctx——任务取消且 worker 全占满时,
-		// 主协程永久阻塞在 <-struct{}{}, 任务永远停 running。select 让取消信号可中断。
-		select {
-		case semaphore <- struct{}{}:
-		case <-ctx.Done():
+		// Cancellation must not fall through and start a goroutine without owning
+		// a semaphore token (which would later block forever while releasing it).
+		if !acquireBroadcastSlot(ctx, semaphore) {
 			wg.Done()
 			break
 		}

@@ -808,7 +808,15 @@ func (s *TaskService) Pause(ctx context.Context, tenantID, taskID uuid.UUID) err
 	if !validTransitions[task.Status][domain.TaskStatusPaused] {
 		return fmt.Errorf("cannot pause task with status %s", task.Status)
 	}
-	return s.repo.UpdateStatus(ctx, tenantID, taskID, domain.TaskStatusPaused)
+	if err := s.repo.UpdateStatus(ctx, tenantID, taskID, domain.TaskStatusPaused); err != nil {
+		return err
+	}
+	// The DB status change invalidates the worker lease. Cancel its execution context
+	// immediately instead of waiting for the next heartbeat to discover the lost lease.
+	if s.engine != nil {
+		s.engine.PauseTask(taskID)
+	}
+	return nil
 }
 
 // Resume resumes a paused task.

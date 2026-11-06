@@ -354,17 +354,28 @@ const groupMap = ref<Record<string, string>>({})
 const normId = (id: any): string => String(id ?? '').replace(/^-100/, '')
 let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let sseConnecting = false
 let onVisCleanup: (() => void) | null = null
 // R87-M9: SSE 看门狗 —— 某些代理/网络下连接"假活"(不断开也不推数据),
 // onerror 永不触发导致日志假死。30秒无任何消息则判定假活, 主动断开重连。
 let sseWatchdog: ReturnType<typeof setTimeout> | null = null
+function scheduleSSEReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void connectSSE()
+  }, 3000)
+}
+
 function resetSseWatchdog() {
   if (sseWatchdog) clearTimeout(sseWatchdog)
   sseWatchdog = setTimeout(() => {
     console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连')
     try { eventSource?.close() } catch { /* 忽略 */ }
     eventSource = null
-    connectSSE()
+    connState.value = 'disconnected'
+    scheduleSSEReconnect()
   }, 45000)
 }
 
@@ -426,7 +437,9 @@ async function fetchLogs() {
     } else if (res && typeof res === 'object') {
       data = (res as any).list || (res as any).data || []
     }
-    logs.value = data
+    // The API returns the newest page first; render that page chronologically so
+    // SSE-appended entries and the scroll-to-bottom behavior remain consistent.
+    logs.value = data.sort((a, b) => new Date(a.executed_at).getTime() - new Date(b.executed_at).getTime())
     await nextTick()
     if (logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
@@ -437,63 +450,83 @@ async function fetchLogs() {
 }
 
 async function connectSSE() {
-  const authStore = useAuthStore(); const token = authStore.token
-  // 审计P0-03: 短期ticket替代URL里的JWT
-  let ticket = ''
+  if (sseConnecting || (eventSource && eventSource.readyState !== EventSource.CLOSED)) return
+  sseConnecting = true
   try {
-    // F-20: 使用内存中的 token（authStore 已在函数头部获取）
-    // P2-04: 同 Layout.vue——硬编码 /api/v1 改为可配置 base
+    const authStore = useAuthStore()
+    const token = authStore.token
+    if (!token) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+      return
+    }
+
+    // Short-lived ticket replaces the JWT in the EventSource URL.
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const tres = await fetch(`${apiBase}/events/ticket`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-    ticket = (await tres.json()).ticket || ''
-  } catch { /* 静默 */ }
-  const apiBase2 = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-  eventSource = new EventSource(`${apiBase2}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
-  eventSource.onopen = () => { connState.value = 'connected'; resetSseWatchdog() }
-  eventSource.onmessage = (e) => {
-    try {
-      resetSseWatchdog() // R87-M9: 收到任何消息都重置看门狗
-      const data = JSON.parse(e.data)
-      if (!data || !task.value) return
+    const ticketResponse = await fetch(`${apiBase}/events/ticket`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!ticketResponse.ok) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+      return
+    }
+    const ticket = (await ticketResponse.json()).ticket || ''
+    if (!ticket) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+      return
+    }
 
-      // Handle real-time task log
-      // 精读修复: useTaskEvents 全局通道也会推同一条日志, 去重防双份
-      if (data.type === 'task_log' && data.log) {
-        if (!logs.value.some((x: any) => x.log_id === data.log.log_id)) {
-          logs.value.push(data.log)
+    eventSource = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
+    eventSource.onopen = () => {
+      connState.value = 'connected'
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+      resetSseWatchdog()
+    }
+    eventSource.onmessage = (e) => {
+      try {
+        resetSseWatchdog()
+        const data = JSON.parse(e.data)
+        if (!data || !task.value) return
+
+        if (data.type === 'task_log' && data.log) {
+          if (!logs.value.some((x: any) => x.log_id === data.log.log_id)) {
+            logs.value.push(data.log)
+          }
+          if (logs.value.length > 500) logs.value = logs.value.slice(-500)
+          return
         }
-        // Keep max 500 logs in memory to prevent UI lag
-        if (logs.value.length > 500) {
-          logs.value = logs.value.slice(-500)
+
+        if (data.type === 'task_status') {
+          fetchTask()
+          return
         }
-        return
-      }
 
-      // 2026-09-23 修复: 任务状态变更(完成/失败/取消)时整任务刷新,
-      // 否则详情页永远停在"执行中"(原实现只处理日志和进度, 漏了状态事件)
-      if (data.type === 'task_status') {
-        fetchTask()
-        return
-      }
-
-      // Handle task progress update
-      const tp = task.value.progress || {}
-      task.value.progress = {
-        total: data.total ?? data.progress?.total ?? tp.total ?? 0,
-        done: data.done ?? data.progress?.done ?? tp.done ?? 0,
-        failed: data.failed ?? data.progress?.failed ?? tp.failed ?? 0,
-        current_target: data.current_target ?? data.progress?.current_target ?? tp.current_target ?? '',
-        account_progress: data.account_progress ?? data.progress?.account_progress ?? tp.account_progress ?? []
-      }
-    } catch (err) { /* ignore malformed SSE data */ }
-  }
-  eventSource.onerror = () => {
+        const tp = task.value.progress || {}
+        task.value.progress = {
+          total: data.total ?? data.progress?.total ?? tp.total ?? 0,
+          done: data.done ?? data.progress?.done ?? tp.done ?? 0,
+          failed: data.failed ?? data.progress?.failed ?? tp.failed ?? 0,
+          current_target: data.current_target ?? data.progress?.current_target ?? tp.current_target ?? '',
+          account_progress: data.account_progress ?? data.progress?.account_progress ?? tp.account_progress ?? []
+        }
+      } catch (err) { /* ignore malformed SSE data */ }
+    }
+    eventSource.onerror = () => {
+      connState.value = 'disconnected'
+      const failedSource = eventSource
+      eventSource = null
+      failedSource?.close()
+      if (sseWatchdog) { clearTimeout(sseWatchdog); sseWatchdog = null }
+      scheduleSSEReconnect()
+    }
+  } catch {
     connState.value = 'disconnected'
-    eventSource?.close()
-    // Auto-reconnect after 3 seconds
-    setTimeout(() => {
-      if (connState.value !== 'connected') connectSSE()
-    }, 3000)
+    scheduleSSEReconnect()
+  } finally {
+    sseConnecting = false
   }
 }
 
@@ -586,7 +619,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   eventSource?.close()
+  eventSource = null
   clearInterval(refreshTimer)
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  if (sseWatchdog) clearTimeout(sseWatchdog)
   if (onVisCleanup) onVisCleanup()
 })
 </script>

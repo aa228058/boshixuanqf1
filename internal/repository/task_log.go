@@ -292,6 +292,37 @@ func (r *TaskLogRepository) HasSuccessForTargets(ctx context.Context, tenantID, 
 	return result, rows.Err()
 }
 
+// ListCompletedJoinTargets returns targets whose join operation already completed or
+// whose join request is durably waiting for approval. Failed targets are intentionally
+// excluded so a resumed task can retry them.
+func (r *TaskLogRepository) ListCompletedJoinTargets(ctx context.Context, tenantID, taskID, accountID uuid.UUID, targetIDs []string) (map[string]bool, error) {
+	result := make(map[string]bool)
+	if len(targetIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT target_id, status
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2 AND account_id = $3
+		  AND action = 'join_group' AND target_id = ANY($4::text[])
+		  AND status IN ('success', 'pending_approval')
+	`, tenantID, taskID, accountID, targetIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list completed join targets: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var targetID, status string
+		if err := rows.Scan(&targetID, &status); err != nil {
+			return nil, err
+		}
+		if isJoinCheckpointStatus(status) {
+			result[targetID] = true
+		}
+	}
+	return result, rows.Err()
+}
+
 // ListFailedTargets 返回任务日志中标记为失败的去重目标列表, 用于断点续发(只重试失败目标)
 func (r *TaskLogRepository) ListFailedTargets(ctx context.Context, tenantID, taskID uuid.UUID) ([]string, error) {
 	rows, err := r.db.Query(ctx, `

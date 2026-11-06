@@ -833,6 +833,12 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 
 // CancelTask cancels a running task by its ID.
 
+func (e *Engine) PauseTask(taskID uuid.UUID) {
+	if cancel, ok := e.taskCtxs.Load(taskID.String()); ok {
+		cancel.(context.CancelFunc)()
+	}
+}
+
 func (e *Engine) CancelTask(taskID uuid.UUID) {
 	// M-05: 取消立即落库(原只触发内存cancel, DB状态要等worker退出才更新,
 	// 取消后列表长时间显示running造成"取消没生效"的错觉; worker认领时的状态双查会跳过已取消任务)

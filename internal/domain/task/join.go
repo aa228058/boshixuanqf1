@@ -45,6 +45,10 @@ func classifyJoinError(err error) string {
 	}
 }
 
+func isJoinCheckpointStatus(status string) bool {
+	return status == "success" || status == "pending_approval"
+}
+
 func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	total := len(task.TargetIDs)
 	done := 0
@@ -110,14 +114,46 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	}
 	defer e.accEngine.ReleaseClient(task.TenantID, accID, client)
 
+	completedTargets, checkpointErr := e.logRepo.ListCompletedJoinTargets(ctx, task.TenantID, task.TaskID, accID, task.TargetIDs)
+	if checkpointErr != nil {
+		taskLog.Printf("[join] 读取续传检查点失败，停止任务 task=%s: %v", task.TaskID, checkpointErr)
+		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+			taskLog.Printf("[join] 标记检查点读取失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
+		}
+		return
+	}
+	for _, link := range task.TargetIDs {
+		if completedTargets[link] {
+			done++
+		}
+	}
+	if done > 0 {
+		resumedProgress := domain.TaskProgress{Total: total, Done: done}
+		if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+			taskLog.Printf("[join] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
+			if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+				taskLog.Printf("[join] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
+			}
+			return
+		}
+		e.publishProgress(task.TenantID, task.TaskID, resumedProgress)
+	}
+
 	for _, link := range task.TargetIDs {
 		select {
+		case <-ctx.Done():
+			return
 		case <-e.stopCh:
 			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusPaused); err != nil {
 				taskLog.Printf("[task] UpdateStatus failed: %v", err)
 			}
 			return
 		default:
+		}
+		// Successful joins and persisted approval requests are durable checkpoints.
+		// Failed targets remain eligible for retry.
+		if completedTargets[link] {
+			continue
 		}
 
 		status := "success"

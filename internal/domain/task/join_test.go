@@ -24,3 +24,21 @@ func TestDefaultFreeSpeechStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestIsJoinCheckpointStatus(t *testing.T) {
+	cases := []struct {
+		status string
+		want   bool
+	}{
+		{status: "success", want: true},
+		{status: "pending_approval", want: true},
+		{status: "failed", want: false},
+		{status: "info", want: false},
+		{status: "", want: false},
+	}
+	for _, tc := range cases {
+		if got := isJoinCheckpointStatus(tc.status); got != tc.want {
+			t.Errorf("isJoinCheckpointStatus(%q)=%v, want %v", tc.status, got, tc.want)
+		}
+	}
+}
