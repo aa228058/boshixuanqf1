@@ -50,20 +50,20 @@
       <div class="ui-card p-3 flex flex-wrap items-center gap-2 lift">
         <div class="relative w-full sm:w-56">
           <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input v-model="filters.keyword" class="ui-input !pl-9 !pr-3 !py-1.5 !min-h-[36px] !text-sm !w-full" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
+          <input v-model="filters.keyword" class="ui-input !pl-9 !pr-3 !py-1.5 !min-h-[36px] !text-sm !w-full" aria-label="搜索群名称、用户名或链接" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
         </div>
-        <select v-model="filters.gtype" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
+        <select v-model="filters.gtype" aria-label="按群组类型筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部类型</option>
           <option value="public">公开群</option>
           <option value="private">私密群</option>
           <option value="channel">频道</option>
         </select>
-        <select v-model="filters.status" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
+        <select v-model="filters.status" aria-label="按群组状态筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部状态</option>
           <option value="active">可用链接 / 待验证</option>
                     <option value="invalid">已失效</option>
         </select>
-        <select v-model="filters.source" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
+        <select v-model="filters.source" aria-label="按群组来源筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部来源</option>
           <option value="scraped">链接采集</option>
                     <option value="bio">简介里发现</option>
