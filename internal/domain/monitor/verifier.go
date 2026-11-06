@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/rand/v2"
+	securerand "tg-sender/internal/secure"
 	"regexp"
 	"strings"
 	"sync"
@@ -343,19 +343,19 @@ func (e *Engine) retestSpeak(ctx context.Context, client *telegram.Client, st *v
 	if peer == nil {
 		return false
 	}
-	time.Sleep(time.Duration(6+rand.IntN(6)) * time.Second)
-	testText := fmt.Sprintf("%d", rand.IntN(90)+10)
+	time.Sleep(time.Duration(6+securerand.IntN(6)) * time.Second)
+	testText := fmt.Sprintf("%d", securerand.IntN(90)+10)
 	sctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	sent, err := client.Raw().MessagesSendMessage(sctx, &tg.MessagesSendMessageRequest{
-		Peer: peer, Message: testText, RandomID: rand.Int64(),
+		Peer: peer, Message: testText, RandomID: securerand.Int64(),
 	})
 	if err != nil {
 		st.addStep("retest_send_fail", truncate(err.Error(), 80))
 		return false
 	}
 	msgID := firstSentMsgID(sent)
-	time.Sleep(time.Duration(12+rand.IntN(10)) * time.Second)
+	time.Sleep(time.Duration(12+securerand.IntN(10)) * time.Second)
 	hctx, hcancel := context.WithTimeout(ctx, 20*time.Second)
 	defer hcancel()
 	// 返回类型为接口 tg.MessagesMessagesClass, 需断言取 .Messages
@@ -423,7 +423,7 @@ func (e *Engine) clickCallback(ctx context.Context, client *telegram.Client, can
 	if cand.peer == nil {
 		return fmt.Errorf("无会话 peer")
 	}
-	time.Sleep(time.Duration(1+rand.IntN(2)) * time.Second)
+	time.Sleep(time.Duration(1+securerand.IntN(2)) * time.Second)
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	_, err := client.Raw().MessagesGetBotCallbackAnswer(cctx, &tg.MessagesGetBotCallbackAnswerRequest{
@@ -455,7 +455,7 @@ func (e *Engine) followUrlAction(ctx context.Context, client *telegram.Client, s
 	}
 	if startParam != "" { // bot 深链
 		if _, err := client.Raw().MessagesSendMessage(cctx, &tg.MessagesSendMessageRequest{
-			Peer: peer, Message: "/start " + startParam, RandomID: rand.Int64(),
+			Peer: peer, Message: "/start " + startParam, RandomID: securerand.Int64(),
 		}); err != nil {
 			return err
 		}
@@ -545,7 +545,7 @@ func (e *Engine) replyText(ctx context.Context, client *telegram.Client, cand *v
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	_, err := client.Raw().MessagesSendMessage(cctx, &tg.MessagesSendMessageRequest{
-		Peer: cand.peer, Message: text, RandomID: rand.Int64(),
+		Peer: cand.peer, Message: text, RandomID: securerand.Int64(),
 	})
 	return err
 }
