@@ -188,9 +188,10 @@ function onPageChange(p: { current: number }) {
   fetchTenants()
 }
 
-watch([search, statusFilter], () => {
+watch([search, statusFilter], (_values, _oldValues, onCleanup) => {
   page.value = 1
-  fetchTenants()
+  const timer = setTimeout(() => fetchTenants(), 250)
+  onCleanup(() => clearTimeout(timer))
 })
 
 async function doCreate() {
