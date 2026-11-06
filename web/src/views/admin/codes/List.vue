@@ -2,17 +2,17 @@
   <main class="space-y-4">
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '卡密管理' }]" />
     <div class="flex items-center gap-2 overflow-x-auto pb-1">
-      <t-button theme="primary" size="sm" class="shrink-0" @click="showGenerate = true"> 生成卡密
+      <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showGenerate = true"> 生成卡密
       </t-button>
       <t-select v-model="statusFilter" :options="[
         { label: '全部状态', value: '' },
         { label: '未使用', value: 'unused' },
         { label: '已使用', value: 'used' }
       ]" class="w-24 shrink-0" />
-      <t-button theme="primary" size="sm" variant="outline" class="shrink-0" @click="exportCodes">
+      <t-button theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="exportCodes">
         导出
       </t-button>
-      <t-button v-if="selectedIds.length" size="sm" variant="outline" class="shrink-0" @click="copySelected">
+      <t-button v-if="selectedIds.length" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copySelected">
         复制选中({{ selectedIds.length }})
       </t-button>
     </div>
@@ -46,7 +46,7 @@
           <button @click="copyCode(row.code as string)" class="ui-btn ui-btn--text ui-btn--sm">复制</button>
           <button @click="viewCode(row as any)" class="ui-btn ui-btn--text ui-btn--sm">查看</button>
           <button v-if="row.status === 'unused'" @click="revokeCode(row as any)" class="ui-btn ui-btn--ghost ui-btn--sm">作废</button>
-          <button @click="delCode(row as any)" class="text-xs text-[var(--t-err)] hover:underline px-2 py-1 rounded hover:bg-[var(--t-err)]/5">删除</button>
+          <button @click="delCode(row as any)" class="ui-btn ui-btn--danger ui-btn--sm">删除</button>
         </template>
       </t-table>
     </div>
@@ -107,7 +107,7 @@
       </div>
       <template #footer>
         <button @click="showGenerate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button theme="primary" @click="doGenerate">生成</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doGenerate">生成</t-button>
       </template>
     </Modal>
 
