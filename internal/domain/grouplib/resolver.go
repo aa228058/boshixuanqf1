@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"log"
-	securerand "tg-sender/internal/secure"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	securerand "tg-sender/internal/secure"
 )
 
 const resolveBatchSize = 30
