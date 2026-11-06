@@ -43,24 +43,24 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 	}
 
 	for _, p := range pendings {
-		if _, loaded := e.approvalChecks.LoadOrStore(p.TaskID, true); loaded {
+		if _, loaded := e.approvalChecks.LoadOrStore(p.ID, true); loaded {
 			continue
 		}
 		if p.CheckCount >= p.MaxChecks {
-			resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "timeout")
+			resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.ID, "timeout")
 			if err != nil {
 				log.Printf("[approval] 更新状态失败: %v", err)
 			} else if resolved {
-				if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusFailed); err != nil {
+				if _, err := e.repo.FinalizeTaskAfterApprovals(ctx, p.TenantID, p.TaskID); err != nil {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 			}
-			e.approvalChecks.Delete(p.TaskID)
+			e.approvalChecks.Delete(p.ID)
 			continue
 		}
 
 		safego.Go(func() {
-			defer e.approvalChecks.Delete(p.TaskID)
+			defer e.approvalChecks.Delete(p.ID)
 			defer func() {
 				if r := recover(); r != nil {
 					taskLog.Printf("[task] approval check panic recovered: %v", r)
@@ -75,16 +75,16 @@ func (e *Engine) checkPendingApprovals(ctx context.Context) {
 
 			inGroup := e.isAccountInGroup(ctx, client, p.ChatID, p.AccessHash, p.TargetLink)
 			if inGroup {
-				resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.TaskID, "approved")
+				resolved, err := e.approvalRepo.ResolvePending(ctx, p.TenantID, p.ID, "approved")
 				if err != nil {
 					log.Printf("[approval] 更新状态失败: %v", err)
 				} else if resolved {
-					if _, err := e.repo.UpdateStatusUnlessCancelled(ctx, p.TenantID, p.TaskID, domain.TaskStatusCompleted); err != nil {
+					if _, err := e.repo.FinalizeTaskAfterApprovals(ctx, p.TenantID, p.TaskID); err != nil {
 						taskLog.Printf("[task] UpdateStatus failed: %v", err)
 					}
 				}
 			} else {
-				if err := e.approvalRepo.IncrementCheck(ctx, p.TenantID, p.TaskID); err != nil {
+				if err := e.approvalRepo.IncrementCheck(ctx, p.TenantID, p.ID); err != nil {
 					log.Printf("[approval] 增加检查次数失败: %v", err)
 				}
 			}
