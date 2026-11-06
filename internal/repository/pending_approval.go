@@ -103,13 +103,6 @@ func (r *PendingApprovalRepository) GetByAccountAndLink(ctx context.Context, acc
 	return pa, nil
 }
 
-func (r *PendingApprovalRepository) UpdateStatus(ctx context.Context, tenantID, taskID uuid.UUID, status string) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE pending_approvals SET status = $1, checked_at = NOW() WHERE tenant_id = $2 AND task_id = $3
-	`, status, tenantID, taskID)
-	return err
-}
-
 // ResolvePending performs a compare-and-set so timeout and approval cannot win simultaneously.
 func (r *PendingApprovalRepository) ResolvePending(ctx context.Context, tenantID, taskID uuid.UUID, status string) (bool, error) {
 	if status != "approved" && status != "timeout" {
