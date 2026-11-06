@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const authState = resolve(process.cwd(), '.auth/user.json')
-const hasAuthState = existsSync(authState)
+const hasAuthState = existsSync(authState)\nconst adminAuthState = resolve(process.cwd(), '.auth/admin.json')\nconst hasAdminAuthState = existsSync(adminAuthState)
 
 export default defineConfig({
   testDir: './tests',
@@ -36,7 +36,7 @@ export default defineConfig({
       name: 'authenticated-mobile',
       testMatch: /authenticated\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: authState },
-    }] : []),
+    }] : []),\n    ...(hasAdminAuthState ? [{\n      name: 'admin-desktop',\n      testMatch: /admin\\.spec\\.ts/,\n      use: { ...devices['Desktop Chrome'], storageState: adminAuthState },\n    }] : []),
   ],
   webServer: process.env.E2E_SKIP_WEBSERVER ? undefined : {
     command: 'npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
