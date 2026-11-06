@@ -140,7 +140,9 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 	lines := make(chan string, 16)
 	go func() {
 		scanner := bufio.NewScanner(resp.Body)
-		for scanner.Scan() { lines <- scanner.Text() }
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
 		close(lines)
 	}()
 	readLine := func() string {
@@ -156,13 +158,16 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 			return ""
 		}
 	}
-	for readLine() != "event: connected" {}
+	for readLine() != "event: connected" {
+	}
 	b.BroadcastToTenant(tenantID, "events", map[string]any{"task_id": "task-1"})
 	for {
 		line := readLine()
 		if strings.HasPrefix(line, "event: tenant:") {
 			t.Fatalf("internal tenant topic leaked: %s", line)
 		}
-		if line == "event: events" { break }
+		if line == "event: events" {
+			break
+		}
 	}
 }
