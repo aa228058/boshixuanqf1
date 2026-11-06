@@ -294,7 +294,7 @@
       <!-- 步骤1：输入手机号 -->
       <div v-if="addStep === 'phone'" class="space-y-4">
         <!-- 添加方式切换: 手机号登录 | 协议号导入(把原 sessions 页导入功能整合进添加弹窗) -->
-        <div class="flex rounded-lg bg-bg-card p-1 gap-1">
+        <div class="ui-segmented w-full">
           <button type="button" class="ui-segmented__item flex-1" :class="{ 'is-active': addMode === 'phone' }" @click="addMode = 'phone'">手机号登录</button>
           <button type="button" class="ui-segmented__item flex-1" :class="{ 'is-active': addMode === 'protocol' }" @click="addMode = 'protocol'">导入协议号</button>
         </div>
@@ -356,7 +356,7 @@
           @keyup.enter="submitVerificationCode"
         />
         <p v-if="codeError" class="text-sm text-[var(--t-err)]">{{ codeError }}</p>
-        <button @click="resendCode" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">
+        <button @click="resendCode" class="ui-btn ui-btn--text ui-btn--sm">
           没收到？重新获取
         </button>
       </div>
