@@ -6,8 +6,7 @@
         <!-- R109: 移除"当前账号"标签(群发已多账号池化, 单一账号标签误导) -->
         <p class="text-sm text-text-muted mt-1">执行账号在创建任务时选择, 可多选</p>
       </div>
-      <button @click="showCreate = true" class="ui-btn ui-btn--primary flex items-center gap-2 shrink-0"> 新建群发任务
-      </button>
+      <t-button theme="primary" class="ui-t-button ui-t-button--primary shrink-0" @click="showCreate = true">新建群发任务</t-button>
     </div>
 
     <!-- 页面 tab: 任务列表 / 发送日历(发送日历合并自原独立页) -->
@@ -42,7 +41,7 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="MessageSquare" :title="tasksError" description="点击重试">
-        <button @click="fetchTasks" class="ui-btn ui-btn--ghost ui-btn--sm mt-3">重新加载</button>
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3" @click="fetchTasks">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
       <div v-else class="space-y-3 mb-4">
@@ -81,9 +80,9 @@
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-btn ui-btn--sm ui-btn--ghost">重试失败 ({{ progOf(t).failed }})</button>
-            <button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-btn ui-btn--sm ui-btn--danger">停止</button>
-            <button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-btn ui-btn--sm ui-btn--ghost">查看详情</button>
+            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="retryFailed(t.task_id)">重试失败 ({{ progOf(t).failed }})</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
+            <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)">查看详情</t-button>
           </div>
         </div>
         </pull-down-refresh>
@@ -107,7 +106,7 @@
             <!-- R118: 显示群名而不只是数量 —— 前3个群名 + 剩余折叠 -->
             <template v-else>
               <span class="text-sm">已选 {{ selectedTargets.length }} 个目标</span>
-              <button type="button" class="ui-btn ui-btn--text ui-btn--sm ml-auto shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</button>
+              <t-button type="button" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm ml-auto shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</t-button>
             </template>
           </div>
           <!-- 群名 chips: 全部列出, 小字, 可滚动 -->
@@ -145,7 +144,7 @@
       </div>
 
       <div class="mt-2">
-        <button type="button" @click="showImport = !showImport" class="ui-btn ui-btn--text ui-btn--sm">批量导入目标（粘贴列表/上传文件）</button>
+        <t-button type="button" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="showImport = !showImport">批量导入目标（粘贴列表/上传文件）</t-button>
         <div v-if="showImport" class="mt-2 space-y-2">
           <textarea v-model="importText" rows="4" class="w-full bg-bg-card border border-border rounded-lg px-3 py-2 text-sm"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
@@ -173,7 +172,7 @@
                     placeholder="输入要发送的消息... 变量: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}； 随机语法: {你好|Hi|Hello}" />
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
-          <button @click="showPreview = true" class="ui-btn ui-btn--text ui-btn--sm">预览变量效果</button>
+          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="showPreview = true">预览变量效果</t-button>
         </div>
       </div>
 
@@ -206,7 +205,7 @@
             </label>
             <span v-if="mediaPath" class="text-xs text-[var(--t-brand)]">已上传: {{ mediaPath }}</span>
             <span v-if="uploadingMedia" class="text-xs text-text-muted">上传中…</span>
-            <button v-if="mediaPath || mediaUrl" @click="clearMedia" class="ui-btn ui-btn--text ui-btn--sm">清除</button>
+            <t-button v-if="mediaPath || mediaUrl" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="clearMedia">清除</t-button>
           </div>
         </div>
       </div>
@@ -236,10 +235,10 @@
       <div>
         <label class="block text-sm font-medium mb-2">发送模式</label>
         <div class="flex rounded-lg bg-ink-01 p-1 gap-1 w-fit">
-          <button type="button" class="ui-btn ui-btn--segmented ui-btn--sm"
+          <button type="button" class="ui-segmented__item"
                   :class="!isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary'"
                   @click="isLoop = false">只发一次</button>
-          <button type="button" class="ui-btn ui-btn--segmented ui-btn--sm relative"
+          <button type="button" class="ui-segmented__item relative"
                   :class="[isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary', !loopFeature && 'opacity-60']"
                   @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', title: '套餐未开通循环群发', message: '请联系管理员升级' })">
             循环群发
