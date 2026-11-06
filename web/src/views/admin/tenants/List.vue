@@ -2,7 +2,7 @@
   <main class="space-y-4">
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '租户管理' }]" />
     <div class="flex items-center gap-2 overflow-x-auto pb-1">
-      <t-button theme="primary" size="sm" class="shrink-0" @click="showCreate = true"> 创建租户
+      <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 创建租户
       </t-button>
       <t-select v-model="statusFilter" :options="[
         { label: '全部状态', value: '' },
@@ -114,7 +114,7 @@
       </div>
       <template #footer>
         <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button theme="primary" @click="doCreate">创建</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doCreate">创建</t-button>
       </template>
     </Modal>
 
