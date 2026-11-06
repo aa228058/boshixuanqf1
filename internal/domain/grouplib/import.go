@@ -53,6 +53,13 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			if name == "" {
 				continue
 			}
+			// Telegram bot usernames conventionally end in "bot" (case-insensitive).
+			// They are not groups/channels and must never enter the shared group library.
+			if kind != "+" && kind != "joinchat/" && !strings.HasPrefix(name, "+") && strings.HasSuffix(strings.ToLower(name), "bot") {
+				skipped++
+				found = true
+				continue
+			}
 			if kind == "+" || kind == "joinchat/" || strings.HasPrefix(name, "+") {
 				hash := strings.TrimPrefix(name, "+")
 				if len(hash) < 5 {
