@@ -10,10 +10,10 @@ export interface SystemGroup {
   title: string
   username?: string
   tme_link?: string
-  gtype: string // public | private | channel | unknown
+  gtype: string // group | supergroup | channel | unknown; legacy: public/private
   member_count: number
   free_speech_status: string // allowed | restricted | unknown
-  status: string // active | invalid
+  status: string // valid | invalid | pending
   ref_count: number
   last_seen_at: string
 }
