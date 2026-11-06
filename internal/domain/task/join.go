@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	securerand "tg-sender/internal/secure"
 	"strings"
 	"time"
 
 	"tg-sender/internal/domain"
+	securerand "tg-sender/internal/secure"
 
 	"github.com/google/uuid"
 	"github.com/mtgo-labs/mtgo/telegram"
