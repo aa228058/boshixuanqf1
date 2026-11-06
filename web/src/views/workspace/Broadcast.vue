@@ -253,12 +253,13 @@
         <p v-if="isLoop" class="text-xs text-text-muted mt-1">混淆文案每轮重新随机, 目标列表去重不重复轰炸</p>
       </div>
 
-      <!-- 操作按钮 -->
-      <div class="flex items-center justify-end gap-3">
-        <t-button class="ui-t-button ui-t-button--secondary" variant="outline" theme="default" @click="showCreate = false">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">创建任务</t-button>
-      </div>
     </div>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <t-button type="button" class="ui-t-button ui-t-button--secondary" variant="outline" theme="default" @click="showCreate = false">取消</t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--primary" theme="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">创建任务</t-button>
+      </div>
+    </template>
     </Modal>
 
     <!-- 变量预览弹窗(统一走 Modal 封装) -->
