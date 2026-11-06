@@ -669,14 +669,14 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				}
 
 				progressDelta := domain.TaskProgress{Done: 0, Failed: 0, CurrentTarget: targetID}
-				if status == "success" {
+				var persistErr error
+				if status == "success""
 					// A sent message is an external side effect: write its idempotency
 					// checkpoint before continuing, rather than waiting for the 5s batch.
 					persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
-					persistErr := e.logRepo.Create(persistCtx, tl)
+					persistErr = e.logRepo.Create(persistCtx, tl)
 					persistCancel()
 					if persistErr != nil {
-						checkpointPersistErr = persistErr // workers are joined before this is read
 						status = "failed"
 						tl.Status = "failed"
 						tl.ErrorCode = "checkpoint_persist_failed"
@@ -691,6 +691,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				}
 
 				mu.Lock()
+				if persistErr != nil && checkpointPersistErr == nil {
+					checkpointPersistErr = persistErr
+				}
 				// Successful rows were already persisted above; batch only non-success logs.
 				if status != "success" {
 					batchLogs = append(batchLogs, tl)
@@ -795,16 +798,16 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		e.publishProgress(task.TenantID, task.TaskID, prog)
 	}
 
+	// Final flush and status writes must survive task-context cancellation.
+	finalCtx, finalCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer finalCancel()
+
 	// Final flush of remaining logs
 	mu.Lock()
 	if len(batchLogs) > 0 {
 		logs := batchLogs
 		batchLogs = nil
 		mu.Unlock()
-		// The worker context may already be cancelled by pause/cancel/timeout.
-		// Persist the final log batch with a short bounded context independent of it.
-		finalCtx, finalCancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer finalCancel()
 		if err := e.logRepo.CreateBatch(finalCtx, logs); err != nil {
 			taskLog.Printf("[task] final flush logs failed: %v", err)
 		}
