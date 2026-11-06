@@ -3,21 +3,19 @@ import { createPinia } from 'pinia'
 import { createVfm } from 'vue-final-modal'
 import router from './router'
 import App from './App.vue'
-import './styles/tokens.css'      // R87: 设计令牌唯一真相源, 必须最先引入
+// 第三方组件样式先加载，项目设计令牌与覆盖层后加载，避免 TDesign 默认按钮覆盖统一规范。
+import 'tdesign-vue-next/es/style/index.css'
+import 'vue-final-modal/style.css'
+import './styles/tokens.css'
 import './styles/tailwind.css'
 import './styles/animations.css'
 import './styles/theme-stripe.css'
 import './styles/theme-dark.css'
-import './styles/ui-refined.css'  // 视觉令牌与组件统一覆盖
+import './styles/ui-refined.css'
 import './styles/ui-polish.css'
-// R125: tdesign 残留组件的玻璃紫皮肤(一处 CSS 覆盖 17 个页面, 详见文件头注释)
 import './styles/tdesign-skin.css'
-// R131 规范 v2.0 五大基类(最后引入, 覆盖级最高)
-import './styles/ui-kit.css'   // 交互精修层: 动画/表单/表格/按钮反馈(最终引入, 优先级最高)
 import './styles/tdesign-theme.css'
-import 'tdesign-vue-next/es/style/index.css'
-import 'vue-final-modal/style.css'
-// 第三方默认样式必须先加载；项目覆盖层放在后面，确保弹窗居中规则生效。
+import './styles/ui-kit.css'
 import './styles/tdesign-overrides.css'
 import './styles/modal-system.css'
 // 按需注册: 全项目仅用到以下 17 种组件(统计自全部模板标签),
