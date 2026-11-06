@@ -49,7 +49,7 @@
       </div>
       <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-border">
         <button @click="fetchConfig" class="ui-btn ui-btn--ghost">重置</button>
-        <t-button theme="primary" @click="saveConfig">保存配置</t-button>
+        <t-button theme="primary" class="ui-btn ui-btn--primary" @click="saveConfig">保存配置</t-button>
       </div>
     </div>
 
