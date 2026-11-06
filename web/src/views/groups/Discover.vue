@@ -191,7 +191,7 @@
     </div>
 
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
-    <Modal v-model="importModalVisible" title="导入群链接" class="max-w-xl">
+    <Modal v-model="importModalVisible" title="导入群链接">
       <div class="space-y-3 pb-2">
         <label class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
         <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs"
