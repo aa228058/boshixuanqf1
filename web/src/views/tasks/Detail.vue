@@ -439,7 +439,7 @@ async function fetchLogs() {
     }
     // The API returns the newest page first; render that page chronologically so
     // SSE-appended entries and the scroll-to-bottom behavior remain consistent.
-    logs.value = data.sort((a, b) => new Date(a.executed_at).getTime() - new Date(b.executed_at).getTime())
+    logs.value = data.sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
     await nextTick()
     if (logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
