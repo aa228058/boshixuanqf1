@@ -7,9 +7,8 @@
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
         <t-button theme="default" class="flex-1 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
         <!-- 多选模式入口(桌面端; 移动端可长按列表行进入) -->
-        <button class="ui-btn ui-btn--secondary ui-btn--sm whitespace-nowrap"
-                style="background: var(--t-surface-2); color: var(--t-text-2); border: 1px solid var(--t-line);"
-                @click="enterSelecting">多选</button>
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap"
+                @click="enterSelecting">多选</t-button>
       </div>
       <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full">
         <template #prefix>
@@ -26,7 +25,7 @@
         全选
       </label>
       <span v-if="selectedIds.size" class="text-xs" style="color: var(--t-text-3);">已选 {{ selectedIds.size }} 个</span>
-      <button class="ui-btn ui-btn--text ui-btn--sm ml-auto" @click="exitSelecting">完成</button>
+      <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm ml-auto" @click="exitSelecting">完成</t-button>
     </div>
 
     <!-- 批量操作悬浮栏(R141 新皮肤适配): 实底浮层(深色模式不透字) + 令牌阴影 + 主题感知按钮底 -->
@@ -36,18 +35,18 @@
            style="background: var(--t-card); border: 1px solid var(--t-line-strong); box-shadow: var(--t-shadow-pop);">
         <span class="text-xs font-semibold whitespace-nowrap" style="color: var(--t-text-1);">已选 <b class="tabular-nums" style="color: var(--t-brand);">{{ selectedIds.size }}</b> 项</span>
         <span class="w-px h-4 shrink-0" style="background: var(--t-line-strong);" />
-        <button @click="batchSetPool('standby')" :disabled="batchingPool"
-                class="ui-btn ui-btn--secondary ui-btn--sm whitespace-nowrap">
+        <t-button theme="default" variant="outline" size="sm" @click="batchSetPool('standby')" :disabled="batchingPool"
+                class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
           转备用
-        </button>
-        <button @click="batchSetPool('active')" :disabled="batchingPool"
-                class="ui-btn ui-btn--primary ui-btn--sm whitespace-nowrap">
+        </t-button>
+        <t-button theme="primary" size="sm" @click="batchSetPool('active')" :disabled="batchingPool"
+                class="ui-t-button ui-t-button--primary ui-t-button--sm whitespace-nowrap">
           启用
-        </button>
-        <button @click="showClone = true"
-                class="ui-btn ui-btn--secondary ui-btn--sm whitespace-nowrap">
+        </t-button>
+        <t-button theme="default" variant="outline" size="sm" @click="showClone = true"
+                class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
           克隆资料
-        </button>
+        </t-button>
         <button @click="exitSelecting" title="退出多选"
                 class="ui-icon-btn shrink-0">
           ✕
@@ -205,33 +204,33 @@
             <Unplug v-else class="w-3.5 h-3.5" />
           </button>
           <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
-          <button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" @click.stop="showAuthModal(acc)"
-                  class="ui-btn ui-btn--warning ui-btn--sm whitespace-nowrap">
+          <t-button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" theme="warning" size="sm" @click.stop="showAuthModal(acc)"
+                  class="ui-t-button ui-t-button--warning ui-t-button--sm whitespace-nowrap">
             <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
-          </button>
+          </t-button>
           <span v-else-if="acc?.status === 'restricted'"
                 class="h-7 px-2 rounded-lg text-[10.5px] text-text-muted bg-text-muted/10 flex items-center gap-1 cursor-help whitespace-nowrap"
                 :title="cooldownText(acc) ? `受限中 · ${cooldownText(acc)}后恢复` : '受限中'">
             <ShieldAlert class="w-3.5 h-3.5" />受限
           </span>
-          <button @click.stop="togglePool(acc)" class="ui-btn ui-btn--secondary ui-btn--sm hidden sm:inline-flex whitespace-nowrap">
+          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)" class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
             <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" /> {{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
-          </button>
+          </t-button>
           <!-- R128 窄屏适配: 资料/检测桌面直出, 移动端收进 ⋯ 菜单(原窄屏被信息区挤出屏幕) -->
-          <button @click="openProfile(acc)"
-                  class="ui-btn ui-btn--secondary ui-btn--sm hidden sm:inline-flex whitespace-nowrap">
+          <t-button theme="default" variant="outline" size="sm" @click="openProfile(acc)"
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
             <UserRoundPen class="w-3.5 h-3.5" /> 资料
-          </button>
+          </t-button>
           <!-- R119: 能力检测(8 项矩阵, 全套餐可用) -->
-          <button @click="openProbe(acc)"
-                  class="ui-btn ui-btn--secondary ui-btn--sm hidden sm:inline-flex whitespace-nowrap">
+          <t-button theme="default" variant="outline" size="sm" @click="openProbe(acc)"
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
             <ShieldCheck class="w-3.5 h-3.5" /> 检测
-          </button>
+          </t-button>
           <div class="relative ml-auto">
             <!-- R130 "更多"文字按钮(用户: 比 ⋯ 图标更易发现), 胶囊底常显 -->
-            <button @click.stop="toggleMenu(acc?.account_id)"
-                    class="ui-btn ui-btn--secondary ui-btn--sm shrink-0"
-                    aria-label="更多操作">更多</button>
+            <t-button theme="default" variant="outline" size="sm" @click.stop="toggleMenu(acc?.account_id)"
+                    class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0"
+                    aria-label="更多操作">更多</t-button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
             <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
@@ -356,9 +355,9 @@
           @keyup.enter="submitVerificationCode"
         />
         <p v-if="codeError" class="text-sm text-[var(--t-err)]">{{ codeError }}</p>
-        <button @click="resendCode" class="ui-btn ui-btn--text ui-btn--sm">
+        <t-button theme="primary" variant="text" size="sm" @click="resendCode" class="ui-t-button ui-t-button--text ui-t-button--sm">
           没收到？重新获取
-        </button>
+        </t-button>
       </div>
       <!-- 步骤3：两步验证 -->
       <div v-else-if="addStep === '2fa'" class="space-y-4 text-center">
@@ -379,7 +378,7 @@
       </div>
       <template #footer>
         <div class="flex gap-3">
-          <button @click="closeAddModal" class="ui-btn ui-btn--ghost" aria-label="关闭">取消</button>
+          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="closeAddModal" aria-label="关闭">取消</t-button>
           <t-button class="ui-t-button ui-t-button--primary" theme="primary"
             v-if="addStep === 'phone' && addMode === 'phone'"
             :disabled="!newPhone || adding"
@@ -461,7 +460,7 @@
       </div>
       <template #footer>
         <div class="flex gap-3">
-          <button @click="showEditGroup = false" class="ui-btn ui-btn--ghost" aria-label="编辑">取消</button>
+          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showEditGroup = false" aria-label="编辑">取消</t-button>
           <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="saveGroup">保存</t-button>
         </div>
       </template>
@@ -492,7 +491,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showAuth = false" :disabled="oldAuthStarting || oldAuthSubmitting" class="ui-btn ui-btn--ghost">取消</button>
+        <t-button theme="default" variant="outline" :disabled="oldAuthStarting || oldAuthSubmitting" class="ui-t-button ui-t-button--secondary" @click="showAuth = false">取消</t-button>
         <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="oldAuthStarting || oldAuthSubmitting || (!need2FA && !oldAuthCode.trim()) || (need2FA && !oldTwoFAPassword)" @click="need2FA ? submitOld2FA() : submitOldCode()">
           {{ oldAuthStarting ? '正在启动…' : oldAuthSubmitting ? '正在验证…' : '确认' }}
         </t-button>
@@ -525,7 +524,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showEditRemark = false" class="ui-btn ui-btn--ghost">取消</button>
+        <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showEditRemark = false">取消</t-button>
         <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="saveRemark">保存</t-button>
       </template>
     </Modal>
@@ -572,7 +571,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showTransfer = false" class="ui-btn ui-btn--ghost">关闭</button>
+        <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showTransfer = false">关闭</t-button>
         <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="transferRunning || !transferTargetId" @click="doTransfer">
           <Loader2 v-if="transferRunning" class="w-3.5 h-3.5 animate-spin mr-1" />
           {{ transferRunning ? '采集中(私群逐个导链接)…' : (transferResult ? '再次转移' : '开始转移') }}
@@ -595,11 +594,11 @@
 
     <!-- 分页控件(v1.19): 上一页/页码/下一页 -->
     <div v-if="accTotalPages > 1" class="flex items-center justify-center gap-2 mt-4">
-      <button @click="accPage = Math.max(1, accPage - 1)" :disabled="accPage <= 1"
-              class="ui-btn ui-btn--secondary ui-btn--sm" >上一页</button>
+      <t-button theme="default" variant="outline" size="sm" @click="accPage = Math.max(1, accPage - 1)" :disabled="accPage <= 1"
+              class="ui-t-button ui-t-button--secondary ui-t-button--sm">上一页</t-button>
       <span class="text-xs text-text-muted tabular-nums">{{ accPage }} / {{ accTotalPages }}</span>
-      <button @click="accPage = Math.min(accTotalPages, accPage + 1)" :disabled="accPage >= accTotalPages"
-              class="ui-btn ui-btn--secondary ui-btn--sm" >下一页</button>
+      <t-button theme="default" variant="outline" size="sm" @click="accPage = Math.min(accTotalPages, accPage + 1)" :disabled="accPage >= accTotalPages"
+              class="ui-t-button ui-t-button--secondary ui-t-button--sm">下一页</t-button>
     </div>
 
     <!-- 批量改资料弹窗(批次2): 留空字段不变, 随机用户名为每号生成不同用户名 -->
@@ -630,11 +629,11 @@
           <span v-if="avatarUploading" class="text-xs text-[var(--t-brand)] shrink-0">上传中…</span>
         </div>
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="showBatchProfile = false" class="ui-btn ui-btn--ghost">取消</button>
-          <button @click="runBatchProfile" :disabled="batchingProfile"
-                  class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50">
+          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showBatchProfile = false">取消</t-button>
+          <t-button theme="primary" size="sm" @click="runBatchProfile" :disabled="batchingProfile"
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
             {{ batchingProfile ? '执行中…' : '开始批量修改' }}
-          </button>
+          </t-button>
         </div>
       </div>
     </Modal>
@@ -651,10 +650,10 @@
         />
         <div class="flex items-center justify-between text-xs text-text-muted">
           <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
-          <button @click="runClone" :disabled="cloning"
-                  class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50">
+          <t-button theme="primary" size="sm" @click="runClone" :disabled="cloning"
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
             {{ cloning ? '克隆中…' : '开始克隆' }}
-          </button>
+          </t-button>
         </div>
       </div>
     </Modal>
@@ -694,11 +693,11 @@
         <!-- 操作行 -->
         <div class="flex items-center justify-between pt-1">
           <span class="text-[11px] text-text-muted">同一账号 24 小时内限测 2 次</span>
-          <button @click="runProbe" :disabled="probeRunning"
-                  class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50">
+          <t-button theme="primary" size="sm" @click="runProbe" :disabled="probeRunning"
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
             <Loader2 v-if="probeRunning" class="w-3.5 h-3.5 animate-spin" />
             {{ probeRunning ? '检测中…(约 30 秒)' : '开始检测' }}
-          </button>
+          </t-button>
         </div>
       </div>
     </Modal>
