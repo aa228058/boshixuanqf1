@@ -55,7 +55,7 @@
       <div
         v-for="c in codes"
         :key="c.code_id"
-        class="glass rounded-[var(--t-r-md)] p-4 space-y-2 lift"
+        class="ui-card p-4 space-y-2 lift"
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
@@ -81,6 +81,13 @@
         </div>
       </div>
       <EmptyState v-if="!codes.length" icon="Key" title="暂无卡密" description="点击上方按钮生成卡密" />
+      <div v-if="total > 20" class="flex items-center justify-between gap-3 pt-1">
+        <span class="text-xs text-text-muted">共 {{ total }} 条 · 第 {{ page }} / {{ Math.ceil(total / 20) }} 页</span>
+        <div class="flex items-center gap-2">
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="page = page - 1; fetchCodes()">上一页</t-button>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / 20)" @click="page = page + 1; fetchCodes()">下一页</t-button>
+        </div>
+      </div>
     </div>
 
     <Modal v-model="showGenerate" title="生成卡密">
