@@ -349,6 +349,8 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .t-button.ui-t-button--primary:not(.t-is-disabled):hover { color: var(--t-brand-ink); background: var(--t-brand-hover); border-color: var(--t-brand-hover); }
 .t-button.ui-t-button--secondary { color: var(--t-text-2); background: var(--t-surface-2); border-color: var(--t-line); }
 .t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-text-1); background: var(--t-card); border-color: var(--t-line-strong); }
+.t-button.ui-t-button--danger { color: #fff; background: var(--t-err); border-color: var(--t-err); }
+.t-button.ui-t-button--danger:not(.t-is-disabled):hover { color: #fff; background: color-mix(in srgb, var(--t-err) 88%, #000); border-color: color-mix(in srgb, var(--t-err) 88%, #000); }
 .t-button.ui-t-button--text { color: var(--t-brand); background: transparent; border-color: transparent; }
 .t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
 .t-button.ui-t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
