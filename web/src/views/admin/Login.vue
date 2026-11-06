@@ -47,7 +47,7 @@
             </t-input>
           </div>
           <p v-if="errorMsg" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
-          <t-button theme="primary"
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary"
             class="w-full"
             :disabled="loading"
             @click="handleLogin"
