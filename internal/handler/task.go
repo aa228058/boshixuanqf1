@@ -911,7 +911,16 @@ func (h *TaskHandler) GetLogs(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "任务ID格式错误")
 	}
 
-	logs, err := h.svc.GetLogs(c.Request().Context(), tenantID, taskID, 1, 50)
+	page := 1
+	if value, parseErr := strconv.Atoi(c.QueryParam("page")); parseErr == nil && value > 0 {
+		page = value
+	}
+	pageSize := 50
+	if value, parseErr := strconv.Atoi(c.QueryParam("page_size")); parseErr == nil && value > 0 {
+		pageSize = min(value, 200)
+	}
+
+	logs, err := h.svc.GetLogs(c.Request().Context(), tenantID, taskID, page, pageSize)
 	if err != nil {
 		log.Printf("[handler] 获取任务日志失败: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "服务器内部错误")
