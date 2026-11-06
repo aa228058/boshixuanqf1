@@ -32,8 +32,8 @@
 
 | 项 | 移动端（≤768px） | 桌面端（>768px） |
 |---|---|---|
-| 宽度 | 100% 占满 | max-width: 520px |
-| 高度上限 | 92dvh | 88vh |
+| 宽度 | 100% 占满 | max-width: 560px（视口不足时自适应） |
+| 高度上限 | 88dvh | min(88dvh, 900px) |
 | 位置 | 底部抽屉（贴底） | 屏幕居中 |
 | 圆角 | 仅顶部 20px | 四边 20px |
 | 把手 | 40×4px 圆角灰条 | 不显示 |
@@ -45,7 +45,7 @@
 
 | 用途 | 变量 | 说明 |
 |---|---|---|
-| 弹窗背景 | `--td-bg-color-container` | 深浅主题各自适配 |
+| 弹窗背景 | `--t-modal-bg` | 由 tokens.css 按主题统一定义 |
 | 标题文字 | `--td-text-color-primary` | 18px / 700 |
 | 正文/次级 | `--td-text-color-secondary` | 13-14px |
 | 遮罩 | `rgba(0,0,0,0.45)` + `backdrop-filter: blur(4px)` | 毛玻璃效果 |
@@ -127,8 +127,9 @@ H5 弹窗内点输入框时原生键盘弹起，底部抽屉按钮容易被顶�
 ## 8.4 设计令牌解耦
 
 所有弹窗颜色禁止直接使用 `--td-*` 变量（避免未来换 UI 库时连锁修改）。
-统一走 `--modal-bg` / `--modal-text-primary` / `--modal-text-secondary`
-三个自有令牌，在 `modal-system.css` 顶层做一层映射：
+背景统一走 tokens.css 定义的 `--t-modal-bg`；文字令牌
+`--modal-text-primary` / `--modal-text-secondary` 在 `modal-system.css`
+顶层映射。Modal.vue 的背景直接使用 `--t-modal-bg`：
 
 ```css
 :root {
