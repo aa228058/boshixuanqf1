@@ -98,10 +98,8 @@ services:
           cpus: '0.5'
           memory: 128M
     ports:
-      - "443:443"
       - "80:80"
     volumes:
-      - ./deploy/nginx/ssl:/etc/nginx/ssl:ro
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       # 前端构建产物挂载——此前缺失，stock nginx 只能 serve 默认欢迎页
       - ./web/dist:/usr/share/nginx/html:ro
