@@ -5,7 +5,7 @@
         <h2 class="text-lg font-bold text-text-primary">验证记录</h2>
         <p class="text-xs text-text-secondary mt-1">入群验证的自动处理记录：通过的、失败的、以及为什么停止（付费验证/外部链接等）。</p>
       </div>
-      <t-button size="small" variant="outline" @click="load">刷新</t-button>
+      <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load">刷新</t-button>
     </div>
 
     <div v-if="!list.length && !loading" class="glass rounded-[var(--t-r-md)] p-12 text-center text-text-muted text-sm lift">
