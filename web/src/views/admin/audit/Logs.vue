@@ -13,7 +13,7 @@
         type="date"
         class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0"
         aria-label="结束日期" />
-      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="fetchLogs">查询</t-button>
+      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="page = 1; fetchLogs()">查询</t-button>
     </div>
 
     <!-- 桌面端表格 -->
