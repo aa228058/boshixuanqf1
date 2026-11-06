@@ -347,13 +347,10 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
             return newToken
           })
           .catch((err: unknown) => {
+            // 只有 refresh 接口明确返回 401，或账号级 403 时才由 request() 登出。
+            // 网络错误、超时、5xx 不能证明会话失效，保留本地会话标志以便后续重试。
             isRefreshing = false
             refreshPromise = null
-            authStore.logout()
-            const publicPaths = ['/login', '/register', '/admin/login']
-            if (!publicPaths.includes(window.location.pathname)) {
-              router.push('/login')
-            }
             throw err
           })
       }
