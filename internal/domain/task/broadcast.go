@@ -180,6 +180,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					mu.Unlock()
 					if err := e.logRepo.CreateBatch(ctx, logs); err != nil {
 						taskLog.Printf("[task] periodic flush logs failed: %v", err)
+						// Do not discard logs on a transient database failure. Put the
+						// batch back ahead of newer entries for the final flush/retry.
+						mu.Lock()
+						batchLogs = append(logs, batchLogs...)
+						mu.Unlock()
 					}
 				} else {
 					mu.Unlock()
@@ -775,9 +780,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		logs := batchLogs
 		batchLogs = nil
 		mu.Unlock()
-		if err := e.logRepo.CreateBatch(ctx, logs); err != nil {
+		// The worker context may already be cancelled by pause/cancel/timeout.
+		// Persist the final log batch with a short bounded context independent of it.
+		flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := e.logRepo.CreateBatch(flushCtx, logs); err != nil {
 			taskLog.Printf("[task] final flush logs failed: %v", err)
 		}
+		flushCancel()
 	} else {
 		mu.Unlock()
 	}

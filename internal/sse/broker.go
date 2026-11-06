@@ -233,7 +233,10 @@ func (b *Broker) Handler(topic string) echo.HandlerFunc {
 			// Escape newlines in payload to comply with SSE protocol:
 			// multi-line data must be split into multiple "data: " fields
 			payloadStr := strings.ReplaceAll(string(data), "\n", "\ndata: ")
-			fmt.Fprintf(c.Response(), "event: %s\ndata: %s\n\n", event.Topic, payloadStr)
+			// The handler subscribes to one logical event name (usually "events").
+			// Internal broker topics include tenant IDs and must never become SSE event names;
+			// clients listen for the configured logical name, not the internal routing key.
+			fmt.Fprintf(c.Response(), "event: %s\ndata: %s\n\n", topic, payloadStr)
 			flusher.Flush()
 		}
 

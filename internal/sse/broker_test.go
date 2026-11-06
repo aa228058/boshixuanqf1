@@ -1,8 +1,14 @@
 package sse
 
 import (
+	"context"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/labstack/echo/v4"
+	"tg-sender/internal/middleware"
 
 	"github.com/google/uuid"
 	"tg-sender/internal/config"
@@ -104,4 +110,46 @@ func TestBroadcastGlobal_ReachesGlobalTopicNotTenantTopics(t *testing.T) {
 	}
 
 	assertNoEvent(t, chOther, 50*time.Millisecond)
+}
+
+
+func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
+	b := newTestBroker()
+	defer b.Close()
+
+	tenantID := uuid.New()
+	e := echo.New()
+	req := httptest.NewRequest("GET", "/events", nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set(middleware.TenantContextKey, tenantID.String())
+
+	done := make(chan error, 1)
+	go func() { done <- b.Handler("events")(c) }()
+
+	deadline := time.Now().Add(time.Second)
+	for !strings.Contains(rec.Body.String(), "event: connected") && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	b.BroadcastToTenant(tenantID, "events", map[string]any{"task_id": "task-1"})
+	deadline = time.Now().Add(time.Second)
+	for !strings.Contains(rec.Body.String(), "task-1") && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil { t.Fatalf("SSE handler returned error: %v", err) }
+	case <-time.After(time.Second):
+		t.Fatal("SSE handler did not stop after request cancellation")
+	}
+	if !strings.Contains(rec.Body.String(), "event: events\\n") {
+		t.Fatalf("expected logical event name 'events', got stream: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "event: tenant:") {
+		t.Fatalf("internal tenant topic leaked into SSE event name: %s", rec.Body.String())
+	}
 }
