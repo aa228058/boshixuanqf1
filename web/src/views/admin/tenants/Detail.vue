@@ -3,12 +3,12 @@
        v-if 链顺序: invalidId 先行, tenant 内容 v-else-if 跟随 -->
   <main v-if="invalidId" class="max-w-4xl mx-auto py-16 text-center space-y-4">
     <p class="text-text-muted">租户 ID 无效或链接已损坏</p>
-    <button @click="router.replace('/admin/tenants')" class="ui-btn ui-btn--secondary">返回租户列表</button>
+    <button @click="router.replace('/admin/tenants')" class="ui-btn ui-btn--secondary ui-btn--sm">返回租户列表</button>
   </main>
   <main class="max-w-4xl mx-auto space-y-6" v-else-if="tenant">
     <Breadcrumb :items="[{ path: '/admin/tenants', label: '租户管理' }, { path: '', label: '租户详情' }]" />
     <div class="flex items-center gap-3">
-      <button @click="$router.back()" class="ui-icon-btn" aria-label="返回">
+      <button type="button" @click="$router.back()" class="ui-icon-btn" aria-label="返回" title="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
       <h2 class="text-lg font-semibold text-gradient">租户详情</h2>
@@ -53,9 +53,9 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border">
-        <t-button theme="primary" size="sm" @click="showEdit = true">修改套餐</t-button>
-        <t-button theme="primary" size="sm" variant="outline" class="shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
-        <t-button theme="primary" size="sm" @click="toggleStatus">
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
+        <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
           {{ tenant.status === 'active' ? '停用租户' : '启用租户' }}
         </t-button>
       </div>
@@ -73,8 +73,8 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showEdit = false" class="ui-btn ui-btn--ghost" aria-label="编辑">取消</button>
-        <t-button theme="primary" @click="saveEdit">保存</t-button>
+        <button type="button" @click="showEdit = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
       </template>
     </Modal>
   </main>
