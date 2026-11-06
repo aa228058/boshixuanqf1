@@ -11,8 +11,8 @@
 
 1. TDesign 原生按钮：`<t-button>` / `.t-button`
 2. 项目通用按钮类：`.ui-btn`
-3. 弹窗专用按钮类：`.modal-btn-primary`、`.modal-btn-ghost`、`.modal-btn-danger`
-4. 旧视觉按钮：`.glow-btn`、`.btn-success`、`.btn-error`
+3. 历史兼容按钮类：`.ui-btn`（仍有业务调用）
+4. 少量旧状态类：`.btn-success`、`.btn-error`（需结合 `useAsyncBtn` 继续确认调用）
 
 此外，`.ui-icon-btn` 是独立图标操作按钮样式；原生 `<button>` 还会被全局规则影响。当前不能将所有路径机械合并：TDesign 组件保留 loading/disabled/事件语义，原生 button 可能承载表单提交、菜单、弹窗和图标操作，必须按语义迁移。
 
@@ -21,11 +21,11 @@
 | 文件 | 定义/影响 |
 |---|---|
 | `styles/ui-kit.css` | `.ui-btn` 全套主/次/危险/警告/ghost/text/尺寸；`.ui-icon-btn`；基础 `.t-button` 几何；`.t-button.ui-t-button` 统一视觉入口及 primary/secondary/text/size 变体 |
-| `styles/modal-system.css` | 三种 `.modal-btn-*`；弹窗 footer 中原生 button 和 TDesign 按钮的尺寸覆盖 |
+| `styles/modal-system.css` | Modal footer 的布局、定位与尺寸规则；旧 `.modal-btn-*` 按钮皮肤已删除 |
 | `styles/tdesign-skin.css` | 对所有 `.t-button` 使用 `!important` 设置背景、边框、颜色；primary/base 又叠加渐变 |
 | `styles/tdesign-overrides.css` | Dialog footer、modal footer、legacy modal 的 button 覆盖 |
-| `styles/ui-refined.css` | `.glow-btn`、`.btn-success`、`.btn-error` |
-| `styles/ui-polish.css` | 全局 `button` 与 `.glow-btn` 的 hover/active/transition 等通用规则 |
+| `styles/ui-refined.css` | `.btn-success`、`.btn-error` 状态类；旧 `.glow-btn` 皮肤已删除 |
+| `styles/ui-polish.css` | 原生 `button` 的通用 hover/active/transition 规则；旧 `.glow-btn` 特殊规则已删除 |
 | `App.vue` | 再次对全局 `button` 设置 transition 与 active transform |
 
 ## 3. 已确认的调用点（源码静态计数）
@@ -59,11 +59,11 @@
 
 ### 弹窗按钮类
 
-已确认调用：
-- `views/Layout.vue`：三组取消/确认按钮，合计 6 处类名引用。
-- `components/ui/ConfirmDialog.vue`：ghost、danger、primary 动态类组合。
-- `components/ui/ConfirmHost.vue`：ghost 与 danger/primary 动态切换。
-- `views/workspace/Broadcast.vue`：至少 1 处 primary 类引用。
+历史 `.modal-btn-*` 调用已迁移并清零：
+- `views/Layout.vue`：账号登录弹窗按钮已迁移。
+- `components/ui/ConfirmDialog.vue` / `ConfirmHost.vue`：公共确认按钮已迁移。
+- `views/workspace/Broadcast.vue`：预览弹窗按钮已迁移。
+- `styles/modal-system.css`：旧按钮皮肤定义已删除，保留 Modal footer 布局与尺寸规则。
 
 ### TDesign 与原生按钮共存
 
@@ -81,9 +81,9 @@
 
 1. `ui-kit.css` 定义 `.ui-btn` 和 TDesign 按钮样式，但 `tdesign-skin.css` 又对所有 `.t-button` 使用 `!important`，形成两层视觉规则。
 2. `.t-button.ui-t-button` 已有实际调用（例如 `views/groups/Discover.vue`），是当前项目 TDesign 按钮统一视觉入口；此前审计把“是否有调用”列为待确认项，现已纠正。
-3. `modal-system.css` 独立定义弹窗按钮几何和颜色，和 `.ui-btn` / `.ui-t-button` 的语义、尺寸体系重复。公共确认弹窗、Layout 账号登录弹窗和 Broadcast 预览弹窗已迁移到 `.ui-t-button`；其他业务弹窗仍保留兼容类，后续按调用点逐页迁移。
+3. `modal-system.css` 独立定义弹窗按钮几何和颜色，和 `.ui-btn` / `.ui-t-button` 的语义、尺寸体系重复。公共确认弹窗、Layout 账号登录弹窗和 Broadcast 预览弹窗已迁移到 `.ui-t-button`；相关公共与业务弹窗按钮均已迁移；旧类定义已清理。
 4. `ui-polish.css` 对通用 `button` 和 `.glow-btn` 加交互效果，`App.vue` 再对所有 button 加 transition/active，可能影响本应由组件自身控制的按钮。
-5. `ui-refined.css` 中 `.glow-btn` 是历史视觉入口；当前至少在 `workspace/Join.vue`、`workspace/Scrape.vue` 被引用，不能直接删除。
+5. `.glow-btn` 的业务调用已从 `workspace/Join.vue`、`workspace/Scrape.vue` 移除，`ui-refined.css` / `ui-polish.css` 中对应特殊皮肤规则也已删除。
 6. `.ui-icon-btn` 应继续作为图标按钮语义单独治理，不应强行套普通文字按钮的 padding/宽度。
 
 ## 5. 建议的统一目标
@@ -91,9 +91,9 @@
 - **基础控件主入口：** TDesign Button。需要保持 TDesign 的 loading、disabled、事件、表单行为。
 - **项目统一视觉入口：** TDesign Button + `.ui-t-button`，通过 `ui-t-button--primary/secondary/danger/text` 与 `ui-t-button--sm` 表达语义；禁止新建平行 Button 视觉类。
 - **原生 button：** 仅用于菜单触发、特殊交互、原生表单语义或基础库不适配的场景；不再用全局 button 规则赋予完整视觉皮肤。
-- **弹窗按钮：** 公共 `ConfirmDialog.vue` / `ConfirmHost.vue`、`Layout.vue` 的账号登录弹窗、`workspace/Broadcast.vue` 的预览弹窗已迁移到 TDesign Button + `.ui-t-button`；保留 Modal footer 布局规则。旧 `.modal-btn-*` CSS 定义暂时保留，待全仓库确认调用归零后再删除。
+- **弹窗按钮：** 公共 `ConfirmDialog.vue` / `ConfirmHost.vue`、`Layout.vue` 的账号登录弹窗、`workspace/Broadcast.vue` 的预览弹窗已迁移到 TDesign Button + `.ui-t-button`；保留 Modal footer 布局规则。旧 `.modal-btn-*` CSS 定义已删除；保留 Modal footer 的桌面横排与移动端布局规则。
 - **图标按钮：** 保留独立尺寸/命中区域/aria-label 规范，继续使用 `.ui-icon-btn`，并核查所有调用。
-- **旧类：** `.ui-btn`、`.modal-btn-*`、`.glow-btn` 暂时兼容；每迁移一个页面就检查调用数，归零后才能删除定义。
+- **旧类：** `.ui-btn` 仍有大量业务调用，是下一阶段的主要收敛对象；`.btn-success` / `.btn-error` 暂保留，待确认 `useAsyncBtn` 的真实使用后再决定是否清理。
 
 ## 6. 本部分完成状态
 
@@ -101,9 +101,10 @@
 - [x] 找出主要按钮 CSS 定义入口
 - [x] 抽查业务页、弹窗和管理端按钮调用
 - [x] 明确不可直接批量替换的业务语义风险
-- [ ] 全量调用点机器统计（包括脚本动态 class 和非 Vue 模板字符串）
+- [x] 对已迁移的公共弹窗、Join、Scrape、认证、设置、会话、任务页执行重复 class 属性静态检查
+- [ ] `.ui-btn` 全仓调用迁移与动态调用统计（包括脚本动态 class 和非 Vue 模板字符串）
 - [x] 确认现有 Button API：TDesign Button + `.ui-t-button`；迁移公共 ConfirmDialog/ConfirmHost
 - [ ] 执行 typecheck、test、design-token check、build
 - [ ] 桌面/移动端三主题真实浏览器视觉验收
 
-**本轮收敛：公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。`workspace/Join.vue` 和 `workspace/Scrape.vue` 已修复重复 class 属性，并移除这两页创建/采集按钮上冗余的 `.glow-btn`。`.ui-btn` 仍是现有大量业务页的按钮样式入口，暂不整体删除或强行换成 TDesign；尚未完成全仓库旧类调用统计、自动化测试与桌面/移动端视觉验收。**
+**本轮收敛：公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。`workspace/Join.vue` 和 `workspace/Scrape.vue` 已修复重复 class 属性，并移除这两页创建/采集按钮上冗余的 `.glow-btn`。本轮已清理 `.modal-btn-*` 与 `.glow-btn` 的业务调用和对应 CSS 皮肤；修复 Join/Scrape、管理登录/探测配置、用户登录/注册、会话、设置、任务页的重复 class 属性。`.ui-btn` 仍是大量业务页的独立按钮皮肤，尚未迁移，不能宣称全仓按钮体系已完全统一。尚未执行 typecheck、test、design-token check、build 与桌面/移动端视觉验收。**
