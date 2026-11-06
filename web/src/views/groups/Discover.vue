@@ -40,9 +40,11 @@
         </div>
         <select v-model="filters.gtype" aria-label="按群组类型筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部类型</option>
-          <option value="public">公开群</option>
-          <option value="private">私密群</option>
+          <option value="group">普通群</option>
+          <option value="supergroup">超级群</option>
           <option value="channel">频道</option>
+          <option value="public">旧版公开群</option>
+          <option value="private">旧版私密群</option>
         </select>
         <select v-model="filters.status" aria-label="按群组状态筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部状态</option>
@@ -88,7 +90,7 @@
                   {{ statusLabel(row.status) }}
                 </span>
               </div>
-              <div class="text-[10.5px] text-text-muted mt-1">{{ Number(row.member_count || 0).toLocaleString() }} 成员 · 最近收录 {{ fmtTime(row.last_seen_at) }}</div>
+              <div class="text-[10.5px] text-text-muted mt-1">{{ Number(row.member_count || 0).toLocaleString() }} 成员 · {{ freeSpeechLabel(row.free_speech_status) }} · 最近收录 {{ fmtTime(row.last_seen_at) }}</div>
               <div class="flex items-center gap-2 min-w-0 mt-1">
                 <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer" class="text-[10.5px] text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
                 <span v-else class="text-[10.5px] text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
@@ -136,6 +138,9 @@
           </template>
           <template #member_count="{ row }">
             <span class="text-xs tabular-nums">{{ Number(row.member_count || 0).toLocaleString() }}</span>
+          </template>
+          <template #free_speech_status="{ row }">
+            <span class="text-xs whitespace-nowrap" :class="row.free_speech_status === 'allowed' ? 'text-[var(--t-ok)]' : row.free_speech_status === 'restricted' ? 'text-[var(--t-warn)]' : 'text-text-muted'">{{ freeSpeechLabel(row.free_speech_status) }}</span>
           </template>
           <template #link="{ row }">
             <div class="flex items-center gap-2 min-w-0">
@@ -470,6 +475,7 @@ const tableCols = [
   { colKey: 'gtype', title: '类型', width: 88 },
   { colKey: 'status', title: '状态', width: 96 },
   { colKey: 'member_count', title: '成员', width: 88 },
+  { colKey: 'free_speech_status', title: '自由发言', width: 104 },
   { colKey: 'last_seen_at', title: '最近收录', width: 140 },
   { colKey: 'link', title: '链接', minWidth: 220, ellipsis: true },
 ]
@@ -480,7 +486,10 @@ const joinableAccounts = computed(() =>
 )
 
 function gtypeLabel(t: string) {
-  return t === 'private' ? '私密群' : t === 'channel' ? '频道' : t === 'public' ? '公开群' : '未知'
+  return t === 'group' ? '普通群' : t === 'supergroup' ? '超级群' : t === 'channel' ? '频道' : t === 'private' ? '旧版私密群' : t === 'public' ? '旧版公开群' : '未知'
+}
+function freeSpeechLabel(s: string) {
+  return s === 'allowed' ? '支持自由发言' : s === 'restricted' ? '禁止自由发言' : '未知'
 }
 function statusLabel(s: string) {
   return s === 'valid' ? '链接有效' : s === 'invalid' ? '链接无效' : '待验证'
