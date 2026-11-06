@@ -9,7 +9,7 @@
       <!-- 类型 Tab: 点一次直接过滤 -->
       <div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
         <button v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
-                class="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
+                class="ui-btn ui-btn--sm ui-btn--segmented whitespace-nowrap"
                 :class="typeFilter === t.value ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] font-medium' : 'text-text-secondary hover:bg-bg-hover'">
           {{ t.label }}
         </button>
@@ -17,7 +17,7 @@
       <div class="flex gap-2 mb-3">
   <button v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
-    class="px-3 py-1 rounded-full text-xs transition-colors"
+    class="ui-btn ui-btn--sm ui-btn--segmented"
     :class="range === r[0] ? 'bg-[var(--t-brand)] text-white font-semibold shadow-sm' : 'bg-bg border border-border text-text-secondary hover:text-text-primary'">
     {{ r[1] }}
   </button>
@@ -36,10 +36,10 @@
           <option value="cancelled">已取消</option>
         </select>
         <button @click="clearFinished" title="清空已完成任务"
-                class="p-2 rounded-lg bg-[color:var(--t-err-dim)] text-[var(--t-err)] hover:bg-[color:var(--t-err-dim)] transition-colors">
+                class="ui-icon-btn ui-icon-btn--danger" aria-label="清空已完成任务">
           <Trash2 class="w-4 h-4" />
         </button>
-        <button @click="fetchTasks" class="p-2 rounded-lg bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] hover:bg-[var(--t-brand)]/20 transition-colors">
+        <button @click="fetchTasks" class="ui-icon-btn" aria-label="刷新任务">
           <RefreshCw class="w-4 h-4" />
         </button>
       </div>
@@ -109,7 +109,7 @@
               <button v-if="row.status === 'running'" @click.stop="cancelTask(row.task_id)" class="ui-btn ui-btn--sm ui-btn--danger">停止</button>
               <button v-if="row.status === 'failed'" @click.stop="retryTask(row.task_id)" class="ui-btn ui-btn--sm ui-btn--primary">重试</button>
               <button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
-                      @click.stop="retryTask(row.task_id, 'failed')" class="px-2 py-1 rounded text-xs bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] hover:bg-[color:var(--t-warn-dim)]">重试失败 ({{ progressOf(row.progress).failed }})</button>
+                      @click.stop="retryTask(row.task_id, 'failed')" class="ui-btn ui-btn--sm ui-btn--warning">重试失败 ({{ progressOf(row.progress).failed }})</button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
                 <button @click.stop="showAccStats(row)" class="ui-btn ui-btn--sm ui-btn--ghost">
