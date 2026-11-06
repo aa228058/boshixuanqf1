@@ -18,7 +18,7 @@ Use a trusted local machine. This opens a visible browser; sign in manually, the
 BASE_URL=https://boshixuan.duckdns.org npm run auth:setup
 ```
 
-The resulting `.auth/user.json` contains session credentials. Never commit it, upload it to CI artifacts, or share it.
+The resulting `.auth/user.json` contains session credentials. Never commit it, upload it to CI artifacts, or share it.\n\nFor the admin console, save a separate session:\n\n```bash\nBASE_URL=https://boshixuan.duckdns.org LOGIN_PATH=/admin/login AUTH_STATE_PATH=.auth/admin.json npm run auth:setup\n```
 
 ## Run
 
