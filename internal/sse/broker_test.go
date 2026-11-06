@@ -2,7 +2,6 @@ package sse
 
 import (
 	"bufio"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -136,26 +135,30 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK { t.Fatalf("status = %d, want 200", resp.StatusCode) }
 
-	scanner := bufio.NewScanner(resp.Body)
-	deadline := time.After(time.Second)
-	for {
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() { lines <- scanner.Text() }
+		close(lines)
+	}()
+	readLine := func() string {
+		t.Helper()
 		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for connected frame")
-		default:
+		case line, ok := <-lines:
+			if !ok { t.Fatal("SSE stream ended unexpectedly") }
+			return line
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for SSE frame")
+			return ""
 		}
-		if !scanner.Scan() { t.Fatalf("SSE stream ended: %v", scanner.Err()) }
-		if scanner.Text() == "event: connected" { break }
 	}
+	for readLine() != "event: connected" {}
 	b.BroadcastToTenant(tenantID, "events", map[string]any{"task_id": "task-1"})
-	foundLogicalEvent := false
-	for !foundLogicalEvent {
-		if !scanner.Scan() { t.Fatalf("SSE stream ended before event: %v", scanner.Err()) }
-		line := scanner.Text()
-		if strings.HasPrefix(line, "event: ") {
-			if line == "event: events" { foundLogicalEvent = true }
-			if strings.HasPrefix(line, "event: tenant:") { t.Fatalf("internal tenant topic leaked: %s", line) }
+	for {
+		line := readLine()
+		if strings.HasPrefix(line, "event: tenant:") {
+			t.Fatalf("internal tenant topic leaked: %s", line)
 		}
+		if line == "event: events" { break }
 	}
-	if !foundLogicalEvent { t.Fatal(fmt.Sprintf("logical SSE event not found")) }
 }
