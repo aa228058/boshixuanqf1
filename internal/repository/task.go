@@ -461,13 +461,13 @@ func (r *TaskRepository) UpdateStatusUnlessCancelled(ctx context.Context, tenant
 func (r *TaskRepository) FinalizeTaskAfterApprovals(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
 	res, err := r.db.Exec(ctx, `
 		UPDATE tasks AS t
-		SET status = CASE WHEN EXISTS (
+		SET status = CASE WHEN t.status = 'failed' OR EXISTS (
 			SELECT 1 FROM pending_approvals pa
 			WHERE pa.tenant_id = t.tenant_id AND pa.task_id = t.task_id AND pa.status = 'timeout'
 		) THEN 'failed' ELSE 'completed' END,
 		completed_at = NOW(), locked_at = NULL, worker_id = NULL
 		WHERE t.tenant_id = $1 AND t.task_id = $2
-		  AND t.status <> 'cancelled'
+		  AND t.status IN ('completed', 'failed')
 		  AND NOT EXISTS (
 			SELECT 1 FROM pending_approvals pa
 			WHERE pa.tenant_id = t.tenant_id AND pa.task_id = t.task_id AND pa.status = 'pending'
