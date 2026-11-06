@@ -587,7 +587,6 @@ type PendingApprovalRepository interface {
 	GetPending(ctx context.Context, tenantID uuid.UUID, limit int) ([]*PendingApproval, error)
 	GetPendingAll(ctx context.Context, limit int) ([]*PendingApproval, error)
 	GetByAccountAndLink(ctx context.Context, accountID uuid.UUID, targetLink string) (*PendingApproval, error)
-	UpdateStatus(ctx context.Context, tenantID, taskID uuid.UUID, status string) error
 	IncrementCheck(ctx context.Context, tenantID, taskID uuid.UUID) error
 	CancelPendingForTask(ctx context.Context, tenantID, taskID uuid.UUID) error
 }
