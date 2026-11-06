@@ -325,4 +325,21 @@ func TestTaskLifecycleUpdatesRespectCurrentStatus(t *testing.T) {
 	if status != "completed" {
 		t.Fatalf("completed task status = %q, want completed", status)
 	}
+
+	finishedLoopID := seedTask(t, pool, tenant, string(domain.TaskTypeScheduledBroadcast), 5)
+	if _, err := pool.Exec(ctx, `UPDATE tasks SET is_loop = TRUE, status = 'completed' WHERE task_id = $1`, finishedLoopID); err != nil {
+		t.Fatalf("mark completed loop task: %v", err)
+	}
+	if err := repo.StopLoop(ctx, tenant, finishedLoopID); err != nil {
+		t.Fatalf("StopLoop on completed cycle: %v", err)
+	}
+	if err := repo.RescheduleLoopTask(ctx, tenant, finishedLoopID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("RescheduleLoopTask after stop: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT status, is_loop FROM tasks WHERE task_id = $1`, finishedLoopID).Scan(&status, &isLoop); err != nil {
+		t.Fatalf("read stopped loop task: %v", err)
+	}
+	if status != "paused" || isLoop {
+		t.Fatalf("stopped loop state = status:%s loop:%t; want paused/false", status, isLoop)
+	}
 }
