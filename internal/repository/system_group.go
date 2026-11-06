@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"tg-sender/internal/domain"
 )
@@ -286,4 +287,42 @@ func (r *SystemGroupRepository) UpdateFreeSpeechStatusByChatID(ctx context.Conte
 		WHERE telegram_chat_id=$1
 	`, chatID, status)
 	return err
+}
+
+ 
+// UpsertJoinedGroup merges a confirmed membership into the canonical shared
+// group record, including a previously imported username/invite placeholder.
+func (r *SystemGroupRepository) UpsertJoinedGroup(ctx context.Context, sg *domain.SystemGroup, freeSpeechStatus string) error {
+	if sg == nil || sg.TelegramChatID == 0 {
+		return fmt.Errorf("joined group identity is incomplete")
+	}
+	identity := domain.SystemGroup{Username: sg.Username, TmeLink: sg.TmeLink}
+	dedupKey := identity.DedupKey()
+	var existingID uuid.UUID
+	err := r.db.QueryRow(ctx, `
+		SELECT sg_id
+		FROM system_groups
+		WHERE telegram_chat_id=$1 OR dedup_key=$2
+		ORDER BY CASE WHEN telegram_chat_id=$1 THEN 1 ELSE 0 END
+		LIMIT 1
+	`, sg.TelegramChatID, dedupKey).Scan(&existingID)
+	if err == nil {
+		if err := r.UpdateResolvedInfo(ctx, existingID, sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID); err != nil {
+			return err
+		}
+		_, err = r.db.Exec(ctx, "UPDATE system_groups SET status='joined' WHERE telegram_chat_id=$1", sg.TelegramChatID)
+		if err != nil {
+			return err
+		}
+	} else if err == pgx.ErrNoRows {
+		if err := r.Upsert(ctx, sg); err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+	if freeSpeechStatus != "" && freeSpeechStatus != "unknown" {
+		return r.UpdateFreeSpeechStatusByChatID(ctx, sg.TelegramChatID, freeSpeechStatus)
+	}
+	return nil
 }
