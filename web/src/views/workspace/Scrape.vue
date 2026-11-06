@@ -83,7 +83,6 @@
           <span class="text-xs text-text-muted">无头像多为小号/机器号</span>
         </label>
       </div>
-    </Modal>
     <template #footer>
       <div class="flex items-center justify-end gap-3">
         <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
@@ -93,6 +92,7 @@
         </t-button>
       </div>
     </template>
+    </Modal>
 
     <!-- 采集任务列表 -->
     <div class="space-y-3">
