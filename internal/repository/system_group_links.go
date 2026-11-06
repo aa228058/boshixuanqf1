@@ -65,10 +65,43 @@ func (r *SystemGroupRepository) UpdateLinkValidity(ctx context.Context, sgID uui
 	if status != "valid" && status != "invalid" && status != "pending" {
 		return nil
 	}
+	var err error
 	if chatID != 0 {
-		_, err := r.db.Exec(ctx, "UPDATE system_group_links SET validity_status=$3,last_verified_at=NOW() WHERE sg_id IN (SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 OR sg_id=$2)", chatID, sgID, status)
+		_, err = r.db.Exec(ctx, "UPDATE system_group_links SET validity_status=$3,last_verified_at=NOW() WHERE sg_id IN (SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 OR sg_id=$2)", chatID, sgID, status)
+	} else {
+		_, err = r.db.Exec(ctx, "UPDATE system_group_links SET validity_status=$2,last_verified_at=NOW() WHERE sg_id=$1", sgID, status)
+	}
+	if err != nil {
 		return err
 	}
-	_, err := r.db.Exec(ctx, "UPDATE system_group_links SET validity_status=$2,last_verified_at=NOW() WHERE sg_id=$1", sgID, status)
+	if status == "valid" {
+		if chatID != 0 {
+			_, err = r.db.Exec(ctx, "UPDATE system_groups SET status='active' WHERE telegram_chat_id=$1 OR sg_id=$2", chatID, sgID)
+		} else {
+			_, err = r.db.Exec(ctx, "UPDATE system_groups SET status='active' WHERE sg_id=$1", sgID)
+		}
+	} else if status == "invalid" {
+		if chatID != 0 {
+			_, err = r.db.Exec(ctx, `
+				UPDATE system_groups
+				SET status='invalid'
+				WHERE (telegram_chat_id=$1 OR sg_id=$2)
+				  AND NOT EXISTS (
+					SELECT 1 FROM system_group_links l
+					WHERE l.sg_id=system_groups.sg_id AND l.validity_status<>'invalid'
+				  )
+			`, chatID, sgID)
+		} else {
+			_, err = r.db.Exec(ctx, `
+				UPDATE system_groups
+				SET status='invalid'
+				WHERE sg_id=$1
+				  AND NOT EXISTS (
+					SELECT 1 FROM system_group_links l
+					WHERE l.sg_id=system_groups.sg_id AND l.validity_status<>'invalid'
+				  )
+			`, sgID)
+		}
+	}
 	return err
 }
