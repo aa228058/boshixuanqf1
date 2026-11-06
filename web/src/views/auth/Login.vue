@@ -74,7 +74,7 @@
             </div>
           </div>
 
-          <t-button type="submit" class="ui-t-button--primary ui-t-button mt-1 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white active:scale-[0.98] transition-transform disabled:opacity-60" :disabled="loading"
+          <t-button type="submit" class="ui-t-button ui-t-button--primary mt-1 w-full font-extrabold disabled:opacity-60" :disabled="loading"
                   :style="{ background: loginFailed ? 'var(--t-err)' : 'var(--t-brand)' }">
             <!-- R140 用户拍板: 删除转圈加载动画, 保留"登录中…"文字反馈 -->
             {{ loading ? '登录中…' : '登录并进入工作台 →' }}
@@ -93,7 +93,7 @@
           <input v-model="renewCode" type="text" placeholder="输入续费卡密"
                  class="ui-input !min-h-[40px] !rounded-lg !px-4 !py-2.5 !text-sm"
                  @keyup.enter="doRenew" />
-          <t-button type="button" class="ui-t-button--primary ui-t-button w-full rounded-lg py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
+          <t-button type="button" class="ui-t-button ui-t-button--primary w-full font-bold disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
                   style="background: var(--t-warn);"
                   @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</t-button>
           <div v-if="renewMsg" class="text-xs text-center" :style="{ color: renewOk ? 'var(--t-ok)' : 'var(--t-err)' }">{{ renewMsg }}</div>
