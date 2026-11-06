@@ -1,6 +1,6 @@
 <template>
   <!-- R125 示例2 语言: 底部悬浮玻璃 Tab —— 首页/群发/账号/任务/更多, 等分五键 -->
-  <nav class="lg:hidden fixed left-3 right-3 bottom-3 z-40 h-[68px] px-1.5 flex justify-around items-center"
+  <nav class="md:hidden fixed left-3 right-3 bottom-3 z-40 h-[68px] px-1.5 flex justify-around items-center"
        style="background: color-mix(in srgb, var(--t-surface-1) 88%, transparent); border: 1px solid var(--t-line); border-radius: 26px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding-bottom: env(safe-area-inset-bottom);">
     <router-link v-for="t in tabs" :key="t.path" :to="t.path"
                  class="flex flex-col items-center gap-[3px] min-w-[56px] py-1.5 px-2.5"
