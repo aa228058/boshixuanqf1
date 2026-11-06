@@ -56,8 +56,6 @@
   .modal-content {
     width: min(560px, calc(100vw - 48px)) !important;
     max-width: 560px !important;
-    max-height: min(88dvh, 900px) !important;
-    margin: auto !important;
   }
   .modal-card { border-radius: 20px !important; }
 }
