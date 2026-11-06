@@ -591,7 +591,7 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			shared := &domain.SystemGroup{
 				Source: "joined", Title: title, Username: username, TmeLink: link,
 				GType: gtype, MemberCount: memberCount, TelegramChatID: chatID,
-				Status: "joined", ContributorTenantID: task.TenantID,
+				Status: "active", ContributorTenantID: task.TenantID,
 			}
 			if err := e.systemGroupRepo.UpsertJoinedGroup(ctx, shared, freeSpeechStatus); err != nil {
 				log.Printf("[join] 共享群组库补齐失败 chat=%d: %v", chatID, err)
