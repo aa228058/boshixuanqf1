@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
+	securerand "tg-sender/internal/secure"
 	"strings"
 	"time"
 
@@ -112,7 +112,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 			case <-ctx.Done():
 				saveProgress()
 				return ctx.Err()
-			case <-time.After(time.Duration(1500+rand.IntN(2000)) * time.Millisecond):
+			case <-time.After(time.Duration(1500+securerand.IntN(2000)) * time.Millisecond):
 			}
 		}
 	}
