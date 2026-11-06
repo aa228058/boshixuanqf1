@@ -34,7 +34,6 @@ if (accountId) {
     `/workspace/${encodeURIComponent(accountId)}/scrape-links`,
     `/workspace/${encodeURIComponent(accountId)}/monitor`,
     `/workspace/${encodeURIComponent(accountId)}/tasks`,
-    `/workspace/${encodeURIComponent(accountId)}/tasks/playwright-audit-detail`,
   )
 }
 
