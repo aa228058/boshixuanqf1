@@ -56,7 +56,7 @@
       <div
         v-for="t in filteredTenants"
         :key="t.tenant_id"
-        class="glass rounded-[var(--t-r-md)] p-4 space-y-2 lift"
+        class="ui-card p-4 space-y-2 lift"
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="font-medium text-sm truncate">{{ t.name }}</span>
@@ -90,6 +90,13 @@
         </div>
       </div>
       <EmptyState v-if="!filteredTenants.length" icon="Users" title="暂无租户" description="点击上方按钮创建租户" />
+      <div v-if="total > pageSize" class="flex items-center justify-between gap-3 pt-1">
+        <span class="text-xs text-text-muted">共 {{ total }} 条 · 第 {{ page }} / {{ Math.ceil(total / pageSize) }} 页</span>
+        <div class="flex items-center gap-2">
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="onPageChange({ current: page - 1 })">上一页</t-button>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / pageSize)" @click="onPageChange({ current: page + 1 })">下一页</t-button>
+        </div>
+      </div>
     </div>
 
     <!-- 创建租户弹窗 -->
