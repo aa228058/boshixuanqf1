@@ -23,10 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Build frontend
+      - name: Install frontend dependencies and run checks
         working-directory: web
         run: |
           npm install --no-audit --no-fund
+          npm run typecheck
+          npm test
           npm run build
       - name: Install Playwright
         working-directory: web/e2e
@@ -36,7 +38,9 @@ jobs:
       - name: Run browser audit
         working-directory: web/e2e
         env:
-          BASE_URL: ${{ inputs.base_url }}
+          BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:4173' }}
+          E2E_TENANT_USERNAME: ${{ secrets.E2E_TENANT_USERNAME }}
+          E2E_TENANT_PASSWORD: ${{ secrets.E2E_TENANT_PASSWORD }}
         run: npm test
       - name: Upload browser report
         if: always()
