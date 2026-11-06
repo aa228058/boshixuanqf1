@@ -173,7 +173,7 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 	}
 	rows, err := r.db.Query(ctx, `
 		SELECT sg_id, source, COALESCE(title,''), COALESCE(username,''), COALESCE(tme_link,''),
-		       gtype, member_count, status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,'')
+		       gtype, member_count, COALESCE(free_speech_status,'unknown'), status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,'')
 		FROM system_groups WHERE sg_id = ANY($1)`, ids)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 	var out []domain.SystemGroup
 	for rows.Next() {
 		var g domain.SystemGroup
-		if err := rows.Scan(&g.SGID, &g.Source, &g.Title, &g.Username, &g.TmeLink, &g.GType, &g.MemberCount, &g.Status, &g.RefCount, &g.LastSeenAt, &g.FirstContributorTenantName); err != nil {
+		if err := rows.Scan(&g.SGID, &g.Source, &g.Title, &g.Username, &g.TmeLink, &g.GType, &g.MemberCount, &g.FreeSpeechStatus, &g.Status, &g.RefCount, &g.LastSeenAt, &g.FirstContributorTenantName); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
@@ -268,4 +268,22 @@ func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) (
 		return nil, 0, err
 	}
 	return out, total, nil
+}
+
+ 
+// UpdateFreeSpeechStatusByChatID stores the shared default speaking rule for a
+// Telegram group. It deliberately does not store account-specific mute state.
+func (r *SystemGroupRepository) UpdateFreeSpeechStatusByChatID(ctx context.Context, chatID int64, status string) error {
+	if chatID == 0 {
+		return fmt.Errorf("telegram chat id is required")
+	}
+	if status != "allowed" && status != "restricted" && status != "unknown" {
+		return fmt.Errorf("invalid free-speech status %q", status)
+	}
+	_, err := r.db.Exec(ctx, `
+		UPDATE system_groups
+		SET free_speech_status=$2, last_seen_at=NOW()
+		WHERE telegram_chat_id=$1
+	`, chatID, status)
+	return err
 }
