@@ -311,7 +311,6 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .t-button.ui-t-button--danger:not(.t-is-disabled):hover { color: #fff; background: color-mix(in srgb, var(--t-err) 88%, #000); border-color: color-mix(in srgb, var(--t-err) 88%, #000); }
 .t-button.ui-t-button--text { color: var(--t-brand); background: transparent; border-color: transparent; }
 .t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
-.t-button.ui-t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
 .t-button.ui-t-button.t-is-disabled { opacity: .45; }
 
 /* Account action menu: consistent compact rows across desktop popover/mobile sheet. */
