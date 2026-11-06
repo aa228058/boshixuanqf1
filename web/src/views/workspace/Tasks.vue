@@ -180,7 +180,8 @@
       <div v-if="accStatsLoading" class="py-8 flex justify-center">
         <div class="skeleton-shimmer w-full h-8 rounded mb-2" v-for="i in 4" :key="i" />
       </div>
-      <table v-else-if="accStatsData.length" class="w-full text-sm">
+      <div v-else-if="accStatsData.length" class="w-full overflow-x-auto">
+      <table class="w-full min-w-[420px] text-sm">
         <thead>
           <tr class="text-left text-xs text-text-muted border-b border-border">
             <th class="py-2 pr-2 font-medium">执行账号</th>
@@ -209,6 +210,7 @@
           </tr>
         </tfoot>
       </table>
+      </div>
       <p v-else class="py-8 text-center text-sm text-text-muted">该任务暂无执行记录</p>
     </Modal>
   </main>
