@@ -81,7 +81,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		var chatID int64
 		var resolveErr error
 		if len(accs) > 0 {
-			a := accs[securerand.Intn(len(accs))]
+			a := accs[securerand.IntN(len(accs))]
 			client, clientErr := e.acc.GetClient(ctx, a.tenantID, a.accountID)
 			if clientErr == nil {
 				if p.gtype == "private" {
