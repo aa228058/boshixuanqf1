@@ -111,6 +111,32 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
     expect(authMock.logout).not.toHaveBeenCalled()
   })
 
+  it('refresh 明确返回 401 时仍然清除会话', async () => {
+    mockFetchSequence([
+      { status: 401, body: { message: 'access token expired' } },
+      { status: 401, body: { message: 'refresh token expired' } },
+    ])
+    authMock.refresh.mockImplementationOnce(() => request('/auth/refresh'))
+    const p = request('/protected').catch((e) => e)
+    await vi.runAllTimersAsync()
+
+    expect(await p).toBeInstanceOf(Error)
+    expect(authMock.logout).toHaveBeenCalledTimes(1)
+  })
+
+  it('refresh 明确返回账号停用/过期 403 时仍然清除会话', async () => {
+    mockFetchSequence([
+      { status: 401, body: { message: 'access token expired' } },
+      { status: 403, body: { message: 'tenant expired' } },
+    ])
+    authMock.refresh.mockImplementationOnce(() => request('/auth/refresh'))
+    const p = request('/protected').catch((e) => e)
+    await vi.runAllTimersAsync()
+
+    expect(await p).toBeInstanceOf(Error)
+    expect(authMock.logout).toHaveBeenCalledTimes(1)
+  })
+
   it('请求超时会 abort 底层请求', async () => {
     let signal: AbortSignal | undefined
     const spy = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
