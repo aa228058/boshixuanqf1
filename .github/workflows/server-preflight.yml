@@ -30,34 +30,38 @@ jobs:
           df -h /
           free -h
           echo
-          echo "===== DOCKER ====="
-          if command -v docker >/dev/null 2>&1; then
-            docker --version
-            docker compose version
-            docker info --format 'Docker server: {{.ServerVersion}}' 2>&1
-            echo "--- containers ---"
-            docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' 2>&1
-            echo "--- volumes ---"
-            docker volume ls 2>&1
+          echo "===== DOCKER CLIENT AND SOCKET PERMISSIONS ====="
+          docker --version 2>&1
+          docker compose version 2>&1
+          if [ -S /var/run/docker.sock ]; then
+            stat -c 'docker.sock: mode=%a owner=%U group=%G' /var/run/docker.sock
+            namei -l /var/run/docker.sock 2>&1
           else
-            echo "Docker command not found"
+            echo "Docker socket not found at /var/run/docker.sock"
           fi
+          echo "--- current non-interactive sudo permissions ---"
+          sudo -n -l 2>&1
+          echo "--- docker access test (no changes) ---"
+          docker info --format 'Docker server: {{.ServerVersion}}' 2>&1
+          echo
+          echo "===== DEPLOYMENT DIRECTORY PERMISSIONS ====="
+          for path in /opt /opt/tgqf /opt/tgqf/deploy /opt/tgqf/deploy/compose.yaml /opt/tgqf/.env; do
+            if [ -e "$path" ]; then
+              stat -c '%A %a %U:%G %n' "$path" 2>&1
+            else
+              printf 'not accessible or absent: %s\n' "$path"
+            fi
+          done
+          echo "--- deployment file names only (no file contents) ---"
+          find /opt/tgqf -maxdepth 3 -type f ! -name '.env' -printf '%M %u:%g %p\n' 2>&1
           echo
           echo "===== LISTENING PORTS ====="
           if command -v ss >/dev/null 2>&1; then ss -lnt 2>&1; else echo "ss not installed"; fi
           echo
-          echo "===== DEPLOYMENT FILE LOCATIONS (PATHS ONLY) ====="
-          for base in /opt /srv /var/www /home /root; do
+          echo "===== OTHER COMPOSE FILE LOCATIONS (PATHS ONLY) ====="
+          for base in /srv /var/www /home /root; do
             if [ -d "$base" ]; then
               find "$base" -maxdepth 4 -type f \( -name docker-compose.yml -o -name compose.yaml -o -name compose.yml \) -print 2>/dev/null
-            fi
-          done
-          echo
-          echo "===== COMMON DEPLOYMENT DIRECTORIES ====="
-          for path in /opt/tg* /srv/tg* /var/www/tg* /home/*/tg*; do
-            if [ -d "$path" ]; then
-              printf '%s exists\n' "$path"
-              if [ -f "$path/.env" ]; then echo "  .env: present (contents intentionally not displayed)"; else echo "  .env: absent"; fi
             fi
           done
           echo
