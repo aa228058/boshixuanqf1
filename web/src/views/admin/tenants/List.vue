@@ -43,7 +43,7 @@
               </button>
             </t-tooltip>
             <t-tooltip content="删除" position="top">
-              <button @click="confirmDelete(row as any)" class="ui-icon-btn" aria-label="删除">
+              <button type="button" @click="confirmDelete(row as any)" class="ui-icon-btn ui-icon-btn--danger" aria-label="删除租户" title="删除租户">
                 <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
               </button>
             </t-tooltip>
@@ -82,7 +82,7 @@
               </button>
             </t-tooltip>
             <t-tooltip content="删除" position="top">
-              <button @click="confirmDelete(t)" class="ui-icon-btn" aria-label="删除">
+              <button type="button" @click="confirmDelete(t)" class="ui-icon-btn ui-icon-btn--danger" aria-label="删除租户" title="删除租户">
                 <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
               </button>
             </t-tooltip>
@@ -113,8 +113,8 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doCreate">创建</t-button>
+        <button type="button" @click="showCreate = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doCreate">创建</t-button>
       </template>
     </Modal>
 
