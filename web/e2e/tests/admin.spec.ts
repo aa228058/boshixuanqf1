@@ -37,7 +37,7 @@ test('管理员路由可渲染且没有浏览器运行时异常', async ({ page 
       window.history.pushState({}, '', path)
       window.dispatchEvent(new PopStateEvent('popstate'))
     }, route)
-    await expect(page).toHaveURL(new RegExp(`${route.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`))
+    await expect.poll(() => new URL(page.url()).pathname).toBe(route)
     await expect(page.locator('body'), route).toBeVisible()
     await expect(page.locator('body'), route).not.toBeEmpty()
     await page.screenshot({
