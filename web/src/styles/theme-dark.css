@@ -108,18 +108,6 @@ html.theme-dark .t-input__inner::placeholder {
 html.theme-dark .mesh-svg { opacity: .1 !important; filter: brightness(.55) saturate(.6); }
 html.theme-dark .dot-grid { opacity: .5; }
 
-/* ---------- R87 设计令牌: TDesign 品牌色映射为 demo 青绿 ---------- */
-html.theme-dark {
-  --td-brand-color: var(--t-brand)!important;
-  --td-brand-color-hover: var(--t-brand-hover)!important;
-  --td-brand-color-active: var(--t-brand-active)!important;
-  --td-brand-color-focus: var(--t-brand-dim)!important;
-  /* R87-M8: 组件背景/边框深色映射 —— 缺失会导致 default 按钮/输入框
-     深色下白底白字("分组管理"白按钮、输入框白底探照灯同款根因) */
-  --td-component-bg: var(--t-surface-2)!important;
-  --td-component-bg-hover: var(--t-surface-3)!important;
-  --td-fill-color-hover: var(--t-surface-3)!important;
-}
 
 /* ═══════ R87-M8 未分层覆盖层(优先级高于 TDesign 与分层样式) ═══════ */
 /* R98 核规则: TDesign 边框实际画在内层元素(.t-input 本体等), 而非外层 wrap —
