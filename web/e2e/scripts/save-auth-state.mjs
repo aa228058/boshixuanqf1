@@ -6,13 +6,13 @@ import { stdin, stdout } from 'node:process'
 
 const baseURL = process.env.BASE_URL ?? 'https://boshixuan.duckdns.org'
 const authDir = resolve('.auth')
-const authFile = resolve(authDir, 'user.json')
+const authFile = resolve(process.env.AUTH_STATE_PATH ?? '.auth/user.json')
 const browser = await chromium.launch({ headless: false })
 const context = await browser.newContext()
 const page = await context.newPage()
 
 try {
-  await page.goto(new URL('/login', baseURL).toString(), { waitUntil: 'domcontentloaded' })
+  await page.goto(new URL(process.env.LOGIN_PATH ?? '/login', baseURL).toString(), { waitUntil: 'domcontentloaded' })
   console.log('\n请在打开的浏览器中手动登录 TG Sender。')
   console.log('登录成功并进入后台后，回到此终端按 Enter 保存登录状态。')
   const readline = createInterface({ input: stdin, output: stdout })
