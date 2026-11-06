@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"math/rand"
+	securerand "tg-sender/internal/secure"
 	"strings"
 	"time"
 
@@ -17,7 +17,7 @@ const resolveBatchSize = 30
 // from creating a fixed, burst-like request pattern. It is rate control, not
 // a mechanism for bypassing Telegram access restrictions.
 func randomResolveDelay() time.Duration {
-	return 5*time.Second + time.Duration(rand.Int63n(int64(10*time.Second)+1))
+	return 5*time.Second + time.Duration(securerand.Int63n(int64(10*time.Second)+1))
 }
 
 func (e *Engine) resolvePendingTitles(ctx context.Context) {
@@ -80,7 +80,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		var chatID int64
 		var resolveErr error
 		if len(accs) > 0 {
-			a := accs[rand.Intn(len(accs))]
+			a := accs[securerand.Intn(len(accs))]
 			client, clientErr := e.acc.GetClient(ctx, a.tenantID, a.accountID)
 			if clientErr == nil {
 				if p.gtype == "private" {
