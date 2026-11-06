@@ -5,12 +5,14 @@
       <input
         v-model="startDate"
         type="date"
-        class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0" />
+        class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0"
+        aria-label="开始日期" />
       <span class="text-text-muted shrink-0">至</span>
       <input
         v-model="endDate"
         type="date"
-        class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0" />
+        class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0"
+        aria-label="结束日期" />
       <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="fetchLogs">查询</t-button>
     </div>
 
