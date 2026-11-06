@@ -1,5 +1,5 @@
 <template>
-  <main class="p-6">
+  <main class="space-y-4">
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
       <div>
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">任务列表</h1>
