@@ -26,7 +26,7 @@
           <div class="font-semibold text-text-primary">自动参与抽奖</div>
           <div class="text-xs text-text-muted mt-0.5">关闭后所有账号停止参与；开启时按下方账号列表逐个生效</div>
         </div>
-        <button
+        <button type="button"
           role="switch"
           :aria-checked="raffleEnabled"
           :disabled="toggling"
@@ -49,7 +49,7 @@
             <div class="font-semibold text-text-primary">中奖自动回复</div>
             <div class="text-xs text-text-muted mt-0.5">中奖后 5~15 秒自动在抽奖群发送以下文案(普通群消息)</div>
           </div>
-          <button
+          <button type="button"
             role="switch"
             :aria-checked="replyEnabled"
             :disabled="replySaving"
@@ -95,7 +95,7 @@
             <div class="font-semibold text-text-primary">私聊激活 · 中奖双重保险</div>
             <div class="text-xs text-text-muted mt-0.5">参与后自动私聊抽奖机器人, 中奖时机器人私聊通知(100% 准确判定)</div>
           </div>
-          <button
+          <button type="button"
             role="switch"
             :aria-checked="pingEnabled"
             :disabled="pingSaving"
