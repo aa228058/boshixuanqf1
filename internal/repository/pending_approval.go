@@ -66,7 +66,8 @@ func (r *PendingApprovalRepository) GetPendingAll(ctx context.Context, limit int
 		       pa.status, pa.check_count, pa.max_checks, pa.created_at, pa.checked_at
 		FROM pending_approvals pa
 		JOIN tenants t ON t.tenant_id = pa.tenant_id
-		WHERE pa.status = 'pending' AND t.status = 'active'
+		JOIN tasks task ON task.tenant_id = pa.tenant_id AND task.task_id = pa.task_id
+		WHERE pa.status = 'pending' AND task.status <> 'cancelled' AND t.status = 'active'
 		  AND (t.expires_at IS NULL OR t.expires_at > NOW())
 		ORDER BY pa.created_at
 		LIMIT $1
