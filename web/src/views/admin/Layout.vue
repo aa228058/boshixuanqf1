@@ -1,17 +1,20 @@
 <template>
   <div class="flex h-[100dvh] bg-bg-secondary">
     <!-- 移动端遮罩 -->
-    <div
+    <button
       v-if="mobileMenuOpen"
-      class="fixed inset-0 bg-ink-03 z-40 lg:hidden"
+      type="button"
+      class="fixed inset-0 z-40 lg:hidden border-0 p-0 bg-ink-03 cursor-default"
+      aria-label="关闭管理菜单"
       @click="mobileMenuOpen = false"
-      tabindex="0" role="button"
     />
 
     <!-- 侧边栏 -->
     <aside
+      id="admin-sidebar"
       class="fixed lg:static inset-y-0 left-0 z-50 w-64 shrink-0 border-r border-border bg-bg-card backdrop-blur-xl flex flex-col transition-transform duration-300"
       :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+      aria-label="管理后台导航"
     >
       <div class="h-16 flex items-center px-6 border-b border-border">
         <div class="w-8 h-8 rounded-lg bg-[var(--t-brand)]/10 flex items-center justify-center mr-3">
@@ -36,6 +39,7 @@
 
       <div class="p-4 border-t border-border">
         <button
+          type="button"
           @click="logout"
           class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-[var(--t-err)] hover:bg-[var(--t-err)]/5 transition-colors"
         >
@@ -49,8 +53,11 @@
       <header class="h-16 border-b border-border flex items-center justify-between px-4 lg:px-6 bg-ink-01 backdrop-blur-xl">
         <div class="flex items-center gap-2">
           <button
+            type="button"
             class="lg:hidden p-2 rounded-lg hover:bg-bg-hover"
             @click="mobileMenuOpen = !mobileMenuOpen"
+            :aria-expanded="mobileMenuOpen"
+            aria-controls="admin-sidebar"
             aria-label="切换菜单"
           >
             <Menu class="w-5 h-5" />
