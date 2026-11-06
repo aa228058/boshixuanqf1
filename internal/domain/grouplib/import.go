@@ -131,6 +131,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				title, count, gtype, rerr = resolvePublicGroupInfoViaWeb(ctx, en.username)
 			}
 		}
+		if rerr == nil && gtype == "user" {
+			rerr = fmt.Errorf("链接指向用户或机器人，不是群组/频道")
+		}
 		if rerr != nil || strings.TrimSpace(title) == "" {
 			if rerr == nil {
 				rerr = fmt.Errorf("解析结果缺少群组名称，暂不入库")
