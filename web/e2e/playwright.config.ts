@@ -27,6 +27,11 @@ export default defineConfig({
       testMatch: /public\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'public-mobile',
+      testMatch: /public\.spec\.ts/,
+      use: { ...devices['iPhone 13'], browserName: 'chromium' },
+    },
     ...(hasAuthState ? [
       {
         name: 'authenticated-desktop',
@@ -44,6 +49,11 @@ export default defineConfig({
         name: 'admin-desktop',
         testMatch: /admin\.spec\.ts/,
         use: { ...devices['Desktop Chrome'] },
+      },
+      {
+        name: 'admin-mobile',
+        testMatch: /admin\.spec\.ts/,
+        use: { ...devices['iPhone 13'], browserName: 'chromium' },
       },
     ] : []),
   ],
