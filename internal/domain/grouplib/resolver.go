@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 
 	securerand "tg-sender/internal/secure"
 )
