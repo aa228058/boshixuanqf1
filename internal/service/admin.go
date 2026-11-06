@@ -280,7 +280,7 @@ func getDiskInfo() (used, total float64) {
 }
 
 // ListTenants returns paginated tenant list.
-func (s *AdminService) ListTenants(ctx context.Context, page, pageSize int, status, planID string) ([]*domain.Tenant, int, error) {
+func (s *AdminService) ListTenants(ctx context.Context, page, pageSize int, status, planID, search string) ([]*domain.Tenant, int, error) {
 	return s.tenantRepo.List(ctx, page, pageSize, status, planID)
 }
 
