@@ -604,7 +604,7 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			sharedLink = "https://t.me/" + username
 		}
 		if e.systemGroupRepo != nil {
-			shared := &domain.SystemGroup{Source: "joined", Title: title, Username: username, TmeLink: sharedLink, GType: gtype, MemberCount: memberCount, TelegramChatID: chatID, Status: "active", ContributorTenantID: task.TenantID}
+			shared := &domain.SystemGroup{Source: "joined", Title: title, Username: username, TmeLink: sharedLink, GType: gtype, MemberCount: memberCount, TelegramChatID: sharedChatID, Status: "active", ContributorTenantID: task.TenantID}
 			if err := e.systemGroupRepo.UpsertJoinedGroup(ctx, shared, freeSpeechStatus); err != nil {
 				log.Printf("[join] 邀请加入后补齐共享群库失败 chat=%d: %v", chatID, err)
 			}
@@ -655,6 +655,7 @@ func defaultFreeSpeechStatus(rights *tg.ChatBannedRights) string {
 func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, updates *tg.Updates, sourceLink string) {
 	for _, chat := range updates.Chats {
 		var chatID int64
+		var sharedChatID int64
 		var title string
 		var gtype string
 		var accessHash int64
@@ -665,6 +666,7 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 		switch c := chat.(type) {
 		case *tg.Chat:
 			chatID = c.ID
+			sharedChatID = int64(c.ID)
 			title = c.Title
 			memberCount = int(c.ParticipantsCount)
 			gtype = "group"
@@ -672,6 +674,7 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 		case *tg.Channel:
 			// Convert internal channel ID to external format (-100{channel_id})
 			chatID = -(1000000000000 + c.ID)
+			sharedChatID = int64(c.ID)
 			title = c.Title
 			username = c.Username
 			memberCount = int(c.ParticipantsCount)
