@@ -4,22 +4,22 @@
    ══════════════════════════════════════════════════════════════ */
 
 /* 按钮: 玻璃底 + 紫品牌 */
-.t-button {
+.t-button:not(.ui-t-button) {
   background: var(--t-surface-2) !important;
   border: 1px solid var(--t-line) !important;
   color: var(--t-text-1) !important;
   border-radius: var(--t-control-radius) !important;
   transition: all 0.15s ease !important;
 }
-.t-button:hover { border-color: var(--t-brand) !important; }
-.t-button.t-button--variant-base,
-.t-button.t-button--variant-primary {
+.t-button:not(.ui-t-button):hover { border-color: var(--t-brand) !important; }
+.t-button.t-button--variant-base:not(.ui-t-button),
+.t-button.t-button--variant-primary:not(.ui-t-button) {
   background: linear-gradient(135deg, var(--t-brand-active), var(--t-brand)) !important;
   border-color: transparent !important;
   color: var(--t-brand-ink) !important;
   box-shadow: var(--t-shadow-sm) !important;
 }
-.t-button.t-is-disabled { opacity: 0.45 !important; }
+.t-button.t-is-disabled:not(.ui-t-button) { opacity: 0.45 !important; }
 
 /* 输入框/文本域: 深底 + 玻璃边框 —— R127 修正: 原写死 rgba(0,0,0,.28) 在浅色主题下
    呈灰色(22:45 用户反馈), 改用 color-mix 按主题文字色混合, 深浅主题自动协调 */
