@@ -41,14 +41,14 @@
             </label>
             <span class="text-xs text-text-muted">支持 JPG、PNG 格式</span>
             <img v-if="form.qr_code_url" :src="form.qr_code_url" class="w-16 h-16 rounded-lg object-cover" alt="二维码" loading="lazy">
-            <button v-if="form.qr_code_url" type="button" @click="clearQr" class="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-[color:var(--t-err)] hover:text-[var(--t-err)] transition-colors">
+            <button v-if="form.qr_code_url" type="button" @click="clearQr" class="ui-btn ui-btn--danger ui-btn--sm">
               清除图片
             </button>
           </div>
         </div>
       </div>
       <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-border">
-        <button @click="fetchConfig" class="px-4 py-2 rounded-lg text-sm text-text-secondary">重置</button>
+        <button @click="fetchConfig" class="ui-btn ui-btn--ghost">重置</button>
         <t-button theme="primary" @click="saveConfig">保存配置</t-button>
       </div>
     </div>
