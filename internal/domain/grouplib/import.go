@@ -20,10 +20,10 @@ var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|t
 
 // ImportResult 批量导入结果汇总。
 type ImportResult struct {
-	Processed int                // 已完成解析的链接数；遇到 429 的当前链接不计入
+	Processed int                  // 已完成解析的链接数；遇到 429 的当前链接不计入
 	Imported  []domain.SystemGroup // 成功解析并入群库的条目
-	Failed   []string             // 解析失败的原因(如 "xxx: 群组不存在")
-	Skipped  int                  // 重复/无效的原始行数
+	Failed    []string             // 解析失败的原因(如 "xxx: 群组不存在")
+	Skipped   int                  // 重复/无效的原始行数
 }
 
 // ImportByLinks 批量导入: 逐条解析链接→调 TG 补全群名/成员数/类型→归并入群库。
@@ -212,7 +212,9 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 		return "", 0, "", 0, fmt.Errorf("邀请响应异常")
 	}
 	gt := "group"
-	if inv.Broadcast { gt = "channel" }
+	if inv.Broadcast {
+		gt = "channel"
+	}
 	return inv.Title, int(inv.ParticipantsCount), gt, 0, nil
 }
 

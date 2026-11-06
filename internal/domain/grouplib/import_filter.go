@@ -70,15 +70,21 @@ func filterImportLinks(payload string) importFilterResult {
 func normalizeImportCandidate(candidate string) (normalized, key string, ok bool) {
 	if strings.HasPrefix(strings.ToLower(candidate), "tg://") {
 		u, err := url.Parse(candidate)
-		if err != nil { return "", "", false }
+		if err != nil {
+			return "", "", false
+		}
 		if strings.EqualFold(u.Host, "resolve") {
 			username := u.Query().Get("domain")
-			if len(username) < 5 || len(username) > 32 { return "", "", false }
+			if len(username) < 5 || len(username) > 32 {
+				return "", "", false
+			}
 			return "https://t.me/" + username, "u:" + strings.ToLower(username), true
 		}
 		if strings.EqualFold(u.Host, "join") {
 			hash := u.Query().Get("invite")
-			if len(hash) < 5 || len(hash) > 64 { return "", "", false }
+			if len(hash) < 5 || len(hash) > 64 {
+				return "", "", false
+			}
 			return "https://t.me/+" + hash, "p:" + hash, true
 		}
 		return "", "", false
@@ -110,7 +116,9 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 		return "", "", false
 	}
 	path := parts[1]
-	if strings.HasPrefix(strings.ToLower(path), "s/") { path = path[2:] }
+	if strings.HasPrefix(strings.ToLower(path), "s/") {
+		path = path[2:]
+	}
 	lowerPath := strings.ToLower(path)
 	if strings.HasPrefix(path, "+") || strings.HasPrefix(lowerPath, "joinchat/") {
 		hash := path

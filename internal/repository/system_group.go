@@ -271,7 +271,6 @@ func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) (
 	return out, total, nil
 }
 
- 
 // UpdateFreeSpeechStatusByChatID stores the shared default speaking rule for a
 // Telegram group. It deliberately does not store account-specific mute state.
 func (r *SystemGroupRepository) UpdateFreeSpeechStatusByChatID(ctx context.Context, chatID int64, status string) error {
@@ -289,7 +288,6 @@ func (r *SystemGroupRepository) UpdateFreeSpeechStatusByChatID(ctx context.Conte
 	return err
 }
 
- 
 // UpsertJoinedGroup merges a confirmed membership into the canonical shared
 // group record, including a previously imported username/invite placeholder.
 func (r *SystemGroupRepository) UpsertJoinedGroup(ctx context.Context, sg *domain.SystemGroup, freeSpeechStatus string) error {
