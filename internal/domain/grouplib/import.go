@@ -146,6 +146,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 		if err := e.repo.Upsert(ctx, &sg); err != nil {
 			res.Failed = append(res.Failed, fmt.Sprintf("%s: 入库失败 %v", en.link, err))
+			res.Processed++
 			continue
 		}
 		res.Imported = append(res.Imported, sg)
@@ -203,7 +204,7 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			case *tg.Channel:
 				gt := "channel"
 				if c.Megagroup {
-					gt = "private"
+					gt = "supergroup"
 				}
 				return c.Title, int(c.ParticipantsCount), gt, int64(c.ID), nil
 			}
