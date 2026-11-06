@@ -22,18 +22,12 @@
 }
 
 /* ---------- 2. 按钮按压反馈: 主按钮/幽灵按钮/文字按钮统一手感 ---------- */
-.glow-btn:active,
 button:not(.t-button):not([role='switch']):not(:disabled):active {
   transform: scale(0.97);
 }
-.glow-btn,
 button {
   transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease,
     border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
-}
-/* 主按钮悬停光晕加深 */
-.glow-btn:hover:not(:disabled) {
-  box-shadow: 0 0 0 1px var(--t-brand-dim), 0 8px 24px -8px var(--t-brand-dim);
 }
 
 /* ---------- 3. 表单聚焦: 输入框/文本域统一柔和聚焦环(带扩散动画) ---------- */
