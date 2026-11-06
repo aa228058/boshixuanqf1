@@ -83,14 +83,16 @@
           <span class="text-xs text-text-muted">无头像多为小号/机器号</span>
         </label>
       </div>
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <t-button @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
+    </Modal>
+    <template #footer>
+      <div class="flex items-center justify-end gap-3">
+        <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
         <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : '开始采集' }}
         </t-button>
       </div>
-    </Modal>
+    </template>
 
     <!-- 采集任务列表 -->
     <div class="space-y-3">
