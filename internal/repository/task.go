@@ -456,6 +456,29 @@ func (r *TaskRepository) UpdateStatusUnlessCancelled(ctx context.Context, tenant
 	return res.RowsAffected() == 1, nil
 }
 
+// FinalizeTaskAfterApprovals updates the task only after every approval record is resolved.
+// Any timed-out approval makes the overall join task fail; cancellation always wins.
+func (r *TaskRepository) FinalizeTaskAfterApprovals(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks AS t
+		SET status = CASE WHEN EXISTS (
+			SELECT 1 FROM pending_approvals pa
+			WHERE pa.tenant_id = t.tenant_id AND pa.task_id = t.task_id AND pa.status = 'timeout'
+		) THEN 'failed' ELSE 'completed' END,
+		completed_at = NOW(), locked_at = NULL, worker_id = NULL
+		WHERE t.tenant_id = $1 AND t.task_id = $2
+		  AND t.status <> 'cancelled'
+		  AND NOT EXISTS (
+			SELECT 1 FROM pending_approvals pa
+			WHERE pa.tenant_id = t.tenant_id AND pa.task_id = t.task_id AND pa.status = 'pending'
+		  )
+	`, tenantID, taskID)
+	if err != nil {
+		return false, fmt.Errorf("finalize task approvals: %w", err)
+	}
+	return res.RowsAffected() == 1, nil
+}
+
 // ResetToQueued resets a failed task to queued for retry.
 func (r *TaskRepository) ResetToQueued(ctx context.Context, tenantID, taskID uuid.UUID) error {
 	res, err := r.db.Exec(ctx, `
