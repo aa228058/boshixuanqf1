@@ -95,7 +95,7 @@
         </div>
       </div>
       <template #footer>
-        <button type="button" @click="showCreate = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="showCreate = false">取消</t-button>
         <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement">
           {{ editing ? '保存' : '发布' }}
         </t-button>
