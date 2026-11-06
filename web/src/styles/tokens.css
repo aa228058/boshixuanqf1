@@ -243,24 +243,6 @@ html.theme-stripe {
   --r-xl: var(--t-radius-xl);
   --r-pill: var(--t-radius-pill);
 
-  /* TDesign semantic bridge */
-  --td-brand-color: var(--t-brand);
-  --td-brand-color-hover: var(--t-brand-hover);
-  --td-brand-color-active: var(--t-brand-active);
-  --td-brand-color-focus: var(--t-brand-dim);
-  --td-success-color: var(--t-ok);
-  --td-warning-color: var(--t-warn);
-  --td-error-color: var(--t-err);
-  --td-text-color-primary: var(--t-text-1);
-  --td-text-color-secondary: var(--t-text-2);
-  --td-text-color-placeholder: var(--t-text-3);
-  --td-bg-color-page: var(--t-bg);
-  --td-bg-color-container: var(--t-card);
-  --td-bg-color-container-hover: var(--t-surface-2);
-  --td-component-border: var(--t-line);
-  --td-radius-default: var(--t-control-radius);
-  --td-radius-medium: var(--t-radius-md);
-  --td-radius-large: var(--t-radius-lg);
 }
 
 html {
