@@ -10,14 +10,14 @@
       </div>
       <div class="flex items-center gap-2">
         <span class="text-xs text-text-secondary">共 {{ total }} 条 · 已跨页选中 {{ selected.size }} 条</span>
-        <t-button size="small" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">{{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}</t-button>
-        <t-button v-if="selected.size > 0" size="small" variant="text" @click="selected.clear()" title="清空所有勾选(含其他页)">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">{{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}</t-button>
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" v-if="selected.size > 0" size="small" variant="text" @click="selected.clear()" title="清空所有勾选(含其他页)">
           清空
         </t-button>
-        <t-button size="small" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名, 自动解析群名">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名, 自动解析群名">
           导入
         </t-button>
-        <t-button theme="primary" :disabled="selected.size === 0 || joining" @click="joinModalVisible = true">
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="selected.size === 0 || joining" @click="joinModalVisible = true">
           <CheckSquare class="w-4 h-4 mr-1" />
           加入所选 ({{ selected.size }})
         </t-button>
@@ -35,7 +35,7 @@
       <section class="glass rounded-[var(--t-r-md)] p-3 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <span class="text-sm font-semibold text-text-primary">导入任务记录</span>
-          <t-button size="small" variant="text" @click="loadImportJobs">刷新任务</t-button>
+          <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="loadImportJobs">刷新任务</t-button>
         </div>
         <p v-if="!importJobs.length" class="text-xs text-text-muted">暂无导入记录。提交导入后，即使关闭弹窗，也可以在这里继续查看进度。</p>
         <div v-for="job in importJobs" :key="job.job_id" class="rounded-lg p-2 space-y-1" style="background: color-mix(in srgb, var(--t-text-1) 5%, transparent);">
@@ -43,7 +43,7 @@
           <div class="h-1.5 rounded-full overflow-hidden" style="background: var(--t-line-light)"><div class="h-full" style="background: var(--t-brand)" :style="{ width: (job.total_count ? Math.min(100, job.processed_count / job.total_count * 100) : 0) + '%' }"></div></div>
           <div class="text-[11px] text-text-muted">格式有效 {{ job.valid_count || job.total_count }} · 重复 {{ job.duplicate_count || 0 }} · 无效 {{ job.invalid_count || 0 }} · 已处理 {{ job.processed_count }} · 入库 {{ job.imported_count }} · 失败 {{ job.failed_count }} · {{ fmtTime(job.created_at) }}</div>
           <div v-if="job.last_error" class="text-[11px] text-text-muted break-words">{{ job.last_error }}</div>
-          <t-button v-if="job.status === 'review'" size="small" theme="primary" @click="confirmImportJob(job.job_id)">确认有效链接并开始解析</t-button>
+          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" v-if="job.status === 'review'" size="small" theme="primary" @click="confirmImportJob(job.job_id)">确认有效链接并开始解析</t-button>
         </div>
       </section>
       <!-- 筛选条 -->
@@ -71,13 +71,13 @@
           <option value="search">Telegram 搜索</option>
         </select>
         <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
-        <t-button size="small" theme="primary" @click="search">群库内搜索</t-button>
-        <t-button size="small" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="search">群库内搜索</t-button>
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
           <Loader2 v-if="kwSearching" class="w-3.5 h-3.5 animate-spin mr-1" />
           TG全网搜
         </t-button>
         <span class="flex-1" />
-        <t-button size="small" variant="text" @click="load">刷新</t-button>
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="load">刷新</t-button>
       </div>
 
       <!-- 群列表: 窄屏可横向滑动, 不再挤压变形 -->
@@ -169,8 +169,8 @@
         <div class="flex items-center justify-between px-4 py-3 border-t border-border">
           <span class="text-xs text-text-secondary">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
           <div class="flex gap-2">
-            <t-button size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</t-button>
-            <t-button size="small" variant="outline" :disabled="page >= totalPages" @click="nextPage">下一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page >= totalPages" @click="nextPage">下一页</t-button>
           </div>
         </div>
       </div>
@@ -183,7 +183,7 @@
       <p class="text-sm text-text-secondary max-w-md mx-auto">
         用你自己的账号做定向采集：监听指定群/频道里的 t.me 链接、挖成员简介，采集结果自动汇入系统群库。
       </p>
-      <t-button theme="primary" class="whitespace-nowrap" @click="goDiy">去工作区采集</t-button>
+      <t-button theme="primary" class="whitespace-nowrap ui-t-button ui-t-button--primary" @click="goDiy">去工作区采集</t-button>
     </div>
 
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
@@ -215,8 +215,8 @@
         </div>
       </div>
       <template #footer>
-        <t-button size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
-        <t-button size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
       </template>
     </Modal>
 
@@ -251,8 +251,8 @@
           <input type="number" v-model.number="joinIntervalMax" min="0" step="1" placeholder="最大间隔" class="px-2 py-1.5 rounded-lg glow-input text-sm" />
         </div>
         <div class="flex justify-end gap-2 pt-2">
-          <t-button variant="outline" @click="joinModalVisible = false">取消</t-button>
-          <t-button theme="primary" :disabled="joinAccounts.length === 0 || joining" @click="doJoin">
+          <t-button class="ui-t-button ui-t-button--secondary" variant="outline" @click="joinModalVisible = false">取消</t-button>
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="joinAccounts.length === 0 || joining" @click="doJoin">
             <Loader2 v-if="joining" class="w-4 h-4 animate-spin" />
             开始加入
           </t-button>
