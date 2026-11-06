@@ -43,10 +43,11 @@
         </div>
         <p v-if="!importJobs.length" class="text-xs text-text-muted">暂无导入记录。提交导入后，即使关闭弹窗，也可以在这里继续查看进度。</p>
         <div v-for="job in importJobs" :key="job.job_id" class="rounded-lg p-2 space-y-1" style="background: color-mix(in srgb, var(--t-text-1) 5%, transparent);">
-          <div class="flex justify-between text-xs gap-2"><span class="font-medium">{{ job.file_name || '文本导入' }} · {{ job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : job.status === 'pending' ? '等待处理' : '处理中' }}</span><span>{{ job.processed_count }}/{{ job.total_count }}</span></div>
+          <div class="flex justify-between text-xs gap-2"><span class="font-medium">{{ job.file_name || '文本导入' }} · {{ job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : job.status === 'pending' ? '等待处理' : job.status === 'review' ? '待确认筛选结果' : '处理中' }}</span><span>{{ job.processed_count }}/{{ job.total_count }}</span></div>
           <div class="h-1.5 rounded-full overflow-hidden" style="background: var(--t-line-light)"><div class="h-full" style="background: var(--t-brand)" :style="{ width: (job.total_count ? Math.min(100, job.processed_count / job.total_count * 100) : 0) + '%' }"></div></div>
           <div class="text-[11px] text-text-muted">入库 {{ job.imported_count }} · 失败 {{ job.failed_count }} · 跳过 {{ job.skipped_count }} · {{ fmtTime(job.created_at) }}</div>
-          <div v-if="job.last_error" class="text-[11px] text-[var(--t-err)] break-words">{{ job.last_error }}</div>
+          <div v-if="job.last_error" class="text-[11px] text-text-muted break-words">{{ job.last_error }}</div>
+          <t-button v-if="job.status === 'review'" size="small" theme="primary" @click="confirmImportJob(job.job_id)">确认有效链接并开始解析</t-button>
         </div>
       </section>
       <!-- 筛选条 -->
@@ -212,13 +213,14 @@
             <div class="h-full rounded-full" style="background: var(--t-brand);"
               :style="{ width: (importJob.total_count ? Math.min(100, importJob.processed_count / importJob.total_count * 100) : 0) + '%' }"></div>
           </div>
-          <div class="text-text-muted">入库 {{ importJob.imported_count }} · 失败 {{ importJob.failed_count }} · 跳过 {{ importJob.skipped_count }}</div>
+          <div v-if="importJob.status === 'review'" class="text-text-muted">原始 {{ importJob.raw_count }} 条 · 有效 {{ importJob.valid_count }} 条 · 重复 {{ importJob.duplicate_count }} 条 · 无效 {{ importJob.invalid_count }} 条</div>
+          <div v-else class="text-text-muted">入库 {{ importJob.imported_count }} · 失败 {{ importJob.failed_count }} · 跳过 {{ importJob.skipped_count }}</div>
           <div v-if="importJob.last_error" class="text-[var(--t-err)] break-words">{{ importJob.last_error }}</div>
         </div>
       </div>
       <template #footer>
         <t-button size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
-        <t-button size="small" theme="primary" :loading="importing" @click="doImport">开始导入</t-button>
+        <t-button size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
       </template>
     </Modal>
 
@@ -265,10 +267,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -344,6 +346,10 @@ async function loadImportJobs() {
   } catch { /* history can be refreshed manually if temporarily unavailable */ }
 }
 
+watch(importText, () => {
+  if (importJob.value?.status === 'review') importJob.value = null
+})
+
 async function onImportFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
@@ -379,18 +385,37 @@ async function pollImportJob(jobId: string) {
   window.setTimeout(() => pollImportJob(jobId), 2000)
 }
 
+async function confirmImportJob(jobId: string) {
+  try {
+    const job = await confirmImportLibraryGroups(jobId)
+    importJob.value = job
+    const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
+    if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
+    toast({ type: 'success', title: '已开始解析', message: `已确认 ${job.valid_count} 条有效链接，进入后台群组解析队列` })
+    pollImportJob(job.job_id)
+  } catch (err: any) {
+    toast({ type: 'error', title: '确认失败', message: err?.message || '确认导入任务失败' })
+  }
+}
+
 async function doImport() {
-  if (importing.value || !importText.value.trim()) return
+  if (importing.value) return
+  if (importJob.value?.status === 'review') {
+    importing.value = true
+    try { await confirmImportJob(importJob.value.job_id) }
+    finally { importing.value = false }
+    return
+  }
+  if (!importText.value.trim()) return
   importing.value = true
   importJob.value = null
   try {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     importJob.value = job
     importJobs.value.unshift(job)
-    toast({ type: 'success', title: '任务已提交', message: `已提交后台任务，共 ${job.total_count} 条` })
-    pollImportJob(job.job_id)
+    toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
   } catch (err: any) {
-    toast({ type: 'error', title: '提交失败', message: err?.message || '提交导入任务失败' })
+    toast({ type: 'error', title: '筛选失败', message: err?.message || '筛选导入内容失败' })
   } finally {
     importing.value = false
   }
