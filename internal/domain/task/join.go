@@ -536,6 +536,7 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 
 		// Read shared group metadata from Telegram after the account has joined.
 		// DefaultBannedRights describes the group-wide default, not this account's mute state.
+		metadataResolved := false
 		if gtype == "channel" && accessHash != 0 {
 			fullReq := &tg.ChannelsGetFullChannelRequest{
 				Channel: &tg.InputChannel{ChannelID: chatID, AccessHash: accessHash},
@@ -546,6 +547,7 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 						if ch, ok := item.(*tg.Channel); ok && int64(ch.ID) == chatID {
 							title = ch.Title
 							memberCount = int(ch.ParticipantsCount)
+							metadataResolved = strings.TrimSpace(title) != ""
 							if ch.Megagroup {
 								gtype = "supergroup"
 								if ch.DefaultBannedRights == nil || !ch.DefaultBannedRights.SendMessages {
@@ -569,6 +571,7 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 						if ch, ok := item.(*tg.Chat); ok && ch.ID == chatID {
 							title = ch.Title
 							memberCount = int(ch.ParticipantsCount)
+							metadataResolved = strings.TrimSpace(title) != ""
 							if ch.DefaultBannedRights == nil || !ch.DefaultBannedRights.SendMessages {
 								freeSpeechStatus = "allowed"
 							} else {
@@ -580,14 +583,17 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 				}
 			}
 		}
-		// Fallback to link if title still empty
+		if !metadataResolved {
+			gtype = "unknown"
+		}
+		// Fallback to link for the tenant-local record only; never publish this as a shared group title.
 		if title == "" {
 			title = link
 		}
 
 		// Any successful tenant-account membership enriches the system-wide shared group library.
 		// Account-specific mute state is intentionally not read or persisted here.
-		if e.systemGroupRepo != nil {
+		if e.systemGroupRepo != nil && metadataResolved && strings.TrimSpace(title) != "" {
 			shared := &domain.SystemGroup{
 				Source: "joined", Title: title, Username: username, TmeLink: link,
 				GType: gtype, MemberCount: memberCount, TelegramChatID: chatID,
@@ -686,7 +692,7 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 		if username != "" {
 			sharedLink = "https://t.me/" + username
 		}
-		if e.systemGroupRepo != nil {
+		if e.systemGroupRepo != nil && strings.TrimSpace(title) != "" {
 			shared := &domain.SystemGroup{
 				Source: "joined", Title: title, Username: username, TmeLink: sharedLink,
 				GType: gtype, MemberCount: memberCount, TelegramChatID: sharedChatID,
