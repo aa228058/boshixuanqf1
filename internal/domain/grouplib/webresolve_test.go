@@ -44,6 +44,8 @@ func TestDetectTelegramPageTypeRequiresExplicitActionLabel(t *testing.T) {
 		{page: "<a>View in Telegram</a>", want: "group"},
 		{page: "<a>Join Channel</a>", want: "channel"},
 		{page: "<a>Preview channel</a>", want: "channel"},
+		{page: "<a>Send Message</a>", want: "user"},
+		{page: "<a>Start Bot</a>", want: "user"},
 		{page: "<title>Telegram: Some Place</title>", want: "unknown"},
 	}
 	for _, tc := range cases {
