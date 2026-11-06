@@ -24,7 +24,7 @@ func NewSystemGroupRepository(db *pgxpool.Pool) *SystemGroupRepository {
 type SystemGroupFilter struct {
 	Keyword  string // 标题/username/link 模糊
 	GType    string // public | private | channel | unknown | ""
-	Status   string // active | joined | invalid | ""
+	Status   string // active | invalid | ""
 	Source   string // scraped | joined | bio | ""
 	Page     int
 	PageSize int
@@ -50,7 +50,7 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 		}
 	}
 	if sgID == uuid.Nil {
-		_, err = tx.Exec(ctx, "INSERT INTO system_groups (dedup_key,source,title,username,tme_link,gtype,member_count,status,ref_count,last_seen_at,telegram_chat_id,resolution_status,member_count_updated_at,first_contributor_tenant_id,first_contributor_tenant_name) VALUES ($1,$2,$3::text,$4,$5,$6,$7,$8,1,NOW(),NULLIF($9,0),CASE WHEN $9<>0 THEN 'resolved' WHEN COALESCE($3::text,'')<>'' OR $7>0 THEN 'identity_pending' ELSE 'pending' END,CASE WHEN $7>0 THEN NOW() ELSE NULL END,NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid,COALESCE((SELECT name FROM tenants WHERE tenant_id=NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid),'')) ON CONFLICT (dedup_key) DO UPDATE SET ref_count=system_groups.ref_count+1, telegram_chat_id=COALESCE(system_groups.telegram_chat_id,NULLIF(EXCLUDED.telegram_chat_id,0)), resolution_status=CASE WHEN EXCLUDED.resolution_status='resolved' THEN 'resolved' WHEN EXCLUDED.resolution_status='identity_pending' AND system_groups.resolution_status='pending' THEN 'identity_pending' ELSE system_groups.resolution_status END, first_contributor_tenant_id=COALESCE(system_groups.first_contributor_tenant_id,EXCLUDED.first_contributor_tenant_id), first_contributor_tenant_name=CASE WHEN system_groups.first_contributor_tenant_id IS NULL THEN EXCLUDED.first_contributor_tenant_name ELSE system_groups.first_contributor_tenant_name END, member_count_updated_at=CASE WHEN EXCLUDED.member_count>0 THEN NOW() ELSE system_groups.member_count_updated_at END, member_count=CASE WHEN EXCLUDED.member_count>0 THEN EXCLUDED.member_count ELSE system_groups.member_count END, last_seen_at=NOW(), status=CASE WHEN system_groups.status='joined' THEN 'joined' ELSE EXCLUDED.status END, title=CASE WHEN COALESCE(system_groups.title,'')='' OR system_groups.title=system_groups.tme_link THEN EXCLUDED.title ELSE system_groups.title END, username=COALESCE(NULLIF(system_groups.username,''),EXCLUDED.username), gtype=CASE WHEN system_groups.gtype='unknown' THEN EXCLUDED.gtype ELSE system_groups.gtype END", sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status, sg.TelegramChatID, sg.ContributorTenantID)
+		_, err = tx.Exec(ctx, "INSERT INTO system_groups (dedup_key,source,title,username,tme_link,gtype,member_count,status,ref_count,last_seen_at,telegram_chat_id,resolution_status,member_count_updated_at,first_contributor_tenant_id,first_contributor_tenant_name) VALUES ($1,$2,$3::text,$4,$5,$6,$7,$8,1,NOW(),NULLIF($9,0),CASE WHEN $9<>0 THEN 'resolved' WHEN COALESCE($3::text,'')<>'' OR $7>0 THEN 'identity_pending' ELSE 'pending' END,CASE WHEN $7>0 THEN NOW() ELSE NULL END,NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid,COALESCE((SELECT name FROM tenants WHERE tenant_id=NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid),'')) ON CONFLICT (dedup_key) DO UPDATE SET ref_count=system_groups.ref_count+1, telegram_chat_id=COALESCE(system_groups.telegram_chat_id,NULLIF(EXCLUDED.telegram_chat_id,0)), resolution_status=CASE WHEN EXCLUDED.resolution_status='resolved' THEN 'resolved' WHEN EXCLUDED.resolution_status='identity_pending' AND system_groups.resolution_status='pending' THEN 'identity_pending' ELSE system_groups.resolution_status END, first_contributor_tenant_id=COALESCE(system_groups.first_contributor_tenant_id,EXCLUDED.first_contributor_tenant_id), first_contributor_tenant_name=CASE WHEN system_groups.first_contributor_tenant_id IS NULL THEN EXCLUDED.first_contributor_tenant_name ELSE system_groups.first_contributor_tenant_name END, member_count_updated_at=CASE WHEN EXCLUDED.member_count>0 THEN NOW() ELSE system_groups.member_count_updated_at END, member_count=CASE WHEN EXCLUDED.member_count>0 THEN EXCLUDED.member_count ELSE system_groups.member_count END, last_seen_at=NOW(), status=EXCLUDED.status, title=CASE WHEN COALESCE(system_groups.title,'')='' OR system_groups.title=system_groups.tme_link THEN EXCLUDED.title ELSE system_groups.title END, username=COALESCE(NULLIF(system_groups.username,''),EXCLUDED.username), gtype=CASE WHEN system_groups.gtype='unknown' THEN EXCLUDED.gtype ELSE system_groups.gtype END", sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status, sg.TelegramChatID, sg.ContributorTenantID)
 		if err != nil {
 			return err
 		}
@@ -163,7 +163,7 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 // 已加入的群不降级。
 func (r *SystemGroupRepository) MarkInvalidByDedupKey(ctx context.Context, key string) error {
 	_, err := r.db.Exec(ctx,
-		`UPDATE system_groups SET status='invalid' WHERE dedup_key=$1 AND status != 'joined'`, key)
+		`UPDATE system_groups SET status='invalid' WHERE dedup_key=$1`, key)
 	return err
 }
 
