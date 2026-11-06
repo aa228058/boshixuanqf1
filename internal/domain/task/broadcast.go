@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand/v2"
+	securerand "tg-sender/internal/secure"
 	"mime"
 	"os"
 	"path/filepath"
@@ -505,7 +505,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					} else if chatID < 0 {
 						_, _ = client.Raw().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: &tg.InputPeerChat{ChatID: chatID}, Action: &tg.SendMessageTypingAction{}})
 					}
-					time.Sleep(time.Duration(1000+rand.IntN(2000)) * time.Millisecond)
+					time.Sleep(time.Duration(1000+securerand.IntN(2000)) * time.Millisecond)
 
 					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax/变量/混淆已全部解析,
 					// 转义后的 \{ \} 不再参与语法匹配, 用户写的 {你好|Hi} 能正常随机取值)
@@ -813,7 +813,7 @@ func (b *dictBag) fill(msg string) string {
 		if len(ws) == 0 {
 			return m // 词典不存在/空 → 保留原文, 不影响发送
 		}
-		return ws[rand.IntN(len(ws))]
+		return ws[securerand.IntN(len(ws))]
 	})
 }
 
@@ -845,15 +845,15 @@ func autoVaryMessage(msg string) string {
 	s := msg
 	for _, k := range varyKeysByLen {
 		if v, ok := autoVarySynonyms[k]; ok && strings.Contains(s, k) {
-			s = strings.ReplaceAll(s, k, v[rand.IntN(len(v))])
+			s = strings.ReplaceAll(s, k, v[securerand.IntN(len(v))])
 		}
 	}
 	// 2. 每个换行段落后随机追加语气后缀(部分段不加, 保持自然)
 	lines := strings.Split(s, "\n")
 	for i, ln := range lines {
 		ln = strings.TrimRight(ln, "。！!~～")
-		if ln != "" && rand.IntN(3) > 0 {
-			lines[i] = ln + "。" + varySuffixes[rand.IntN(len(varySuffixes))]
+		if ln != "" && securerand.IntN(3) > 0 {
+			lines[i] = ln + "。" + varySuffixes[securerand.IntN(len(varySuffixes))]
 		} else if ln != "" {
 			lines[i] = ln + "。"
 		}
@@ -884,7 +884,7 @@ var varyKeysByLen = func() []string {
 func varyFullWidth(s string) string {
 	pairs := map[rune]rune{',': '，', '!': '！', '?': '？', ';': '；', ':': '：'}
 	return strings.Map(func(r rune) rune {
-		if fw, ok := pairs[r]; ok && rand.IntN(2) == 0 {
+		if fw, ok := pairs[r]; ok && securerand.IntN(2) == 0 {
 			return fw
 		}
 		return r
@@ -936,15 +936,15 @@ var obfZeroWidth = []rune{0x200b, 0x200c, 0x200d, 0xfeff}
 
 func obfuscateMessage(text string) string {
 	runes := []rune(text)
-	n := 1 + rand.IntN(2)
+	n := 1 + securerand.IntN(2)
 	for i := 0; i < n; i++ {
-		e := obfEmojis[rand.IntN(len(obfEmojis))]
-		pos := rand.IntN(len(runes) + 1)
+		e := obfEmojis[securerand.IntN(len(obfEmojis))]
+		pos := securerand.IntN(len(runes) + 1)
 		runes = append(runes[:pos], append([]rune(e), runes[pos:]...)...)
 	}
-	zn := 1 + rand.IntN(4)
+	zn := 1 + securerand.IntN(4)
 	for i := 0; i < zn; i++ {
-		runes = append(runes, obfZeroWidth[rand.IntN(len(obfZeroWidth))])
+		runes = append(runes, obfZeroWidth[securerand.IntN(len(obfZeroWidth))])
 	}
 	return string(runes)
 }
@@ -1089,6 +1089,6 @@ func spintaxSpin(s string) string {
 		if len(parts) == 0 {
 			return m
 		}
-		return strings.TrimSpace(parts[rand.IntN(len(parts))])
+		return strings.TrimSpace(parts[securerand.IntN(len(parts))])
 	})
 }
