@@ -1327,6 +1327,15 @@ func (h *TaskHandler) StreamProgress(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "任务ID格式错误")
 	}
+	// Verify tenant ownership before committing the streaming response or allocating
+	// a long-lived broker subscription. Unknown/foreign task IDs must fail fast.
+	initialTask, err := h.svc.GetByID(c.Request().Context(), tenantID, taskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return echo.NewHTTPError(http.StatusNotFound, "任务不存在")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "查询任务失败")
+	}
 
 	c.Response().Header().Set(echo.HeaderContentType, "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
@@ -1367,17 +1376,19 @@ func (h *TaskHandler) StreamProgress(c echo.Context) error {
 		case <-ticker.C:
 			// 优先读引擎内存进度缓存：N 个前端同时看进度时 DB QPS 归零
 			// （此前每个连接每秒查一次 tasks 表整行）。未命中回退查库。
-			if p, ok := h.engine.GetProgress(taskID); ok {
-				data, _ := json.Marshal(p)
-				fmt.Fprintf(c.Response(), "data: %s\n\n", data)
-				c.Response().Flush()
-				continue
+			if h.engine != nil {
+				if p, ok := h.engine.GetProgress(taskID); ok {
+					data, _ := json.Marshal(p)
+					fmt.Fprintf(c.Response(), "data: %s\n\n", data)
+					c.Response().Flush()
+					continue
+				}
 			}
-			task, err := h.svc.GetByID(c.Request().Context(), tenantID, taskID)
+			currentTask, err := h.svc.GetByID(c.Request().Context(), tenantID, taskID)
 			if err != nil {
 				continue
 			}
-			data, _ := json.Marshal(task.Progress)
+			data, _ := json.Marshal(currentTask.Progress)
 			fmt.Fprintf(c.Response(), "data: %s\n\n", data)
 			c.Response().Flush()
 		}
