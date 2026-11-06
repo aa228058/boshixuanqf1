@@ -307,7 +307,7 @@
               id="add-phone"
               v-model="newPhone"
               placeholder="86 13800138000"
-              class="flex-1 px-3 h-[44px] rounded-r-lg glow-input text-sm"
+              class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm"
               @keyup.enter="getVerificationCode" aria-label="手机号" />
           </div>
           <p class="text-xs text-text-secondary mt-1">输入国际格式手机号，如 86 13800138000</p>
@@ -318,7 +318,7 @@
             id="add-remark"
             v-model="newRemark"
             placeholder="如：主号-客服"
-            class="w-full px-3 py-2.5 rounded-lg glow-input text-sm" aria-label="备注" />
+            class="ui-input !min-h-[44px] !text-sm" aria-label="备注" />
         </div>
         <div>
           <label for="add-group" class="block text-sm text-text-secondary mb-1.5">分组（可选）</label>
@@ -330,7 +330,7 @@
         <template v-else>
           <div>
             <label class="block text-sm text-text-secondary mb-1.5">Session 字符串（每行一个）</label>
-            <textarea v-model="importText" rows="5" class="w-full px-3 py-2.5 rounded-lg glow-input text-sm font-mono bg-bg-card" placeholder="每行粘贴一个 session 字符串，可批量导入" aria-label="session 字符串"></textarea>
+            <textarea v-model="importText" rows="5" class="ui-input !text-sm font-mono" placeholder="每行粘贴一个 session 字符串，可批量导入" aria-label="session 字符串"></textarea>
           </div>
           <div>
             <label class="block text-sm text-text-secondary mb-1.5">或上传 session 文件（可多选）</label>
@@ -349,7 +349,7 @@
           inputmode="numeric"
           pattern="[0-9]*"
           
-          class="w-full px-4 py-3 rounded-lg glow-input text-center text-lg font-mono tracking-widest"
+          class="ui-input !min-h-[48px] !px-4 !py-3 !text-center !text-lg font-mono tracking-widest"
           maxlength="6"
           aria-label="验证码"
           @keyup.enter="submitVerificationCode"
@@ -370,7 +370,7 @@
           type="password"
           placeholder="请输入两步验证密码"
           
-          class="w-full px-4 py-3 rounded-lg glow-input text-center"
+          class="ui-input !min-h-[48px] !px-4 !py-3 !text-center"
           aria-label="两步验证密码"
           @keyup.enter="submit2FA"
         />
@@ -436,7 +436,7 @@
           <input
             id="group-name" v-model="newGroupName"
             placeholder="新分组名称..."
-            class="flex-1 px-2.5 py-1.5 rounded-lg glow-input text-sm" aria-label="新分组名称..." />
+            class="ui-input !w-auto flex-1 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="新分组名称..." />
           <input
             id="group-color" v-model="newGroupColor"
             type="color"
@@ -451,7 +451,7 @@
       <div class="space-y-3">
         <div>
           <label for="group-name" class="block text-sm text-text-secondary mb-1">分组名称</label>
-          <input id="group-name" v-model="editGroupName" class="w-full px-2.5 py-1.5 rounded-lg glow-input text-sm" aria-label="群组名称" />
+          <input id="group-name" v-model="editGroupName" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="群组名称" />
         </div>
         <div>
           <label for="group-color" class="block text-sm text-text-secondary mb-1">颜色</label>
@@ -479,7 +479,7 @@
           placeholder="请输入验证码"
           inputmode="numeric"
           pattern="[0-9]*"
-          class="w-full px-4 py-3 rounded-lg glow-input text-center text-lg font-mono tracking-widest"
+          class="ui-input !min-h-[48px] !px-4 !py-3 !text-center !text-lg font-mono tracking-widest"
           maxlength="6" aria-label="请输入验证码" />
         <div v-if="need2FA" class="space-y-2">
           <input
@@ -487,7 +487,7 @@
             :disabled="oldAuthSubmitting"
             type="password"
             placeholder="两步验证密码"
-            class="w-full px-4 py-3 rounded-lg glow-input text-center" aria-label="两步验证密码" />
+            class="ui-input !min-h-[48px] !px-4 !py-3 !text-center" aria-label="两步验证密码" />
         </div>
       </div>
       <template #footer>
@@ -506,12 +506,12 @@
           <input
             id="edit-remark" v-model="editRemarkText"
             placeholder="输入备注..."
-            class="w-full px-3 py-2.5 rounded-lg glow-input text-sm" aria-label="输入备注..." />
+            class="ui-input !min-h-[44px] !text-sm" aria-label="输入备注..." />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">代理（SOCKS5，留空 = 直连）</label>
           <input v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
-            class="w-full px-3 py-2.5 rounded-lg glow-input text-sm font-mono" aria-label="代理地址" />
+            class="ui-input !min-h-[44px] !text-sm font-mono" aria-label="代理地址" />
           <div class="flex items-center gap-2 mt-2">
             <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
               <Loader2 v-if="proxyTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
@@ -534,7 +534,7 @@
       <div class="space-y-3">
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">目标账号（把这些群转移到它）</label>
-          <select v-model="transferTargetId" class="w-full px-3 py-2.5 rounded-lg glow-input text-sm bg-bg-card">
+          <select v-model="transferTargetId" class="ui-input !min-h-[44px] !text-sm">
             <option value="" disabled>选择目标账号…</option>
             <option v-for="a in transferCandidates" :key="a.account_id" :value="a.account_id">
               {{ a.remark || a.phone }}<template v-if="a.status === 'offline'">（离线）</template>
@@ -545,10 +545,10 @@
           <label class="block text-sm text-text-secondary mb-1.5">加群随机间隔（分钟/群）</label>
           <div class="flex items-center gap-2">
             <input v-model.number="transferMin" type="number" min="1" max="60"
-              class="w-20 px-3 py-2 rounded-lg glow-input text-sm" aria-label="最小间隔" />
+              class="ui-input !w-20 !min-h-[36px] !px-3 !py-2 !text-sm" aria-label="最小间隔" />
             <span class="text-text-secondary text-sm">~</span>
             <input v-model.number="transferMax" type="number" min="1" max="120"
-              class="w-20 px-3 py-2 rounded-lg glow-input text-sm" aria-label="最大间隔" />
+              class="ui-input !w-20 !min-h-[36px] !px-3 !py-2 !text-sm" aria-label="最大间隔" />
           </div>
           <p class="text-xs text-text-secondary mt-1.5 leading-relaxed">
             每加一个群在区间内随机等待。默认 2~3 分钟；新注册/低权重号建议 5~8 分钟。
