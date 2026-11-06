@@ -22,6 +22,12 @@ func TestFilterImportLinks(t *testing.T) {
 	}
 }
 
+func TestFilterImportLinksTelegramDeepLinksAndPreviewURLs(t *testing.T) {
+	got := filterImportLinks("tg://resolve?domain=PublicGroup\ntg://join?invite=AbCdEf123\nhttps://t.me/s/ChannelName")
+	want := []string{"https://t.me/PublicGroup", "https://t.me/+AbCdEf123", "https://t.me/ChannelName"}
+	if !reflect.DeepEqual(got.Links, want) { t.Fatalf("links = %#v, want %#v", got.Links, want) }
+}
+
 func TestFilterImportLinksMixedCaseScheme(t *testing.T) {
 	got := filterImportLinks("HTTPS://WWW.T.ME/ValidGroup")
 	if len(got.Links) != 1 || got.Links[0] != "https://t.me/ValidGroup" {
