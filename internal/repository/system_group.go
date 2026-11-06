@@ -294,7 +294,7 @@ func (r *SystemGroupRepository) UpsertJoinedGroup(ctx context.Context, sg *domai
 	if sg == nil || sg.TelegramChatID == 0 {
 		return fmt.Errorf("joined group identity is incomplete")
 	}
-	identity := domain.SystemGroup{Username: sg.Username, TmeLink: sg.TmeLink}
+	identity := domain.SystemGroup{Username: sg.Username, TmeLink: normalizeSystemGroupLink(sg.TmeLink)}
 	dedupKey := identity.DedupKey()
 	var existingID uuid.UUID
 	err := r.db.QueryRow(ctx, `
