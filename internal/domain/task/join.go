@@ -389,9 +389,19 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			Message:    errMsg,
 			ExecutedAt: time.Now(),
 		}
-		if err := e.logRepo.Create(ctx, joinLog); err != nil {
-			log.Printf("[join] 创建日志失败: %v", err)
+		// A Telegram join/request may already have succeeded. Persist its checkpoint
+		// even if pause/cancel has cancelled the worker context, otherwise a restart
+		// could repeat the external side effect.
+		persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := e.logRepo.Create(persistCtx, joinLog); err != nil {
+			log.Printf("[join] 创建检查点日志失败，停止任务以避免重复加群: %v", err)
+			if statusErr := e.repo.UpdateStatusOwned(persistCtx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); statusErr != nil {
+				log.Printf("[join] 检查点写入失败后标记任务失败也失败: %v", statusErr)
+			}
+			persistCancel()
+			return
 		}
+		persistCancel()
 		e.publishLog(task.TenantID, task.TaskID, joinLog)
 
 		// Only a confirmed invalid/expired Telegram identifier changes shared link validity.

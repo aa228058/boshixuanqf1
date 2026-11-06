@@ -808,11 +808,24 @@ func (s *TaskService) Pause(ctx context.Context, tenantID, taskID uuid.UUID) err
 	if !validTransitions[task.Status][domain.TaskStatusPaused] {
 		return fmt.Errorf("cannot pause task with status %s", task.Status)
 	}
-	if err := s.repo.UpdateStatus(ctx, tenantID, taskID, domain.TaskStatusPaused); err != nil {
+	// Compare-and-set the pause and clear the worker lease in one statement.
+	// The initial read above is only for user-facing transition validation; a worker
+	// may finish between that read and this update.
+	paused, err := s.repo.PauseIfActive(ctx, tenantID, taskID)
+	if err != nil {
 		return err
 	}
-	// The DB status change invalidates the worker lease. Cancel its execution context
-	// immediately instead of waiting for the next heartbeat to discover the lost lease.
+	if !paused {
+		fresh, getErr := s.repo.GetByID(ctx, tenantID, taskID)
+		if getErr != nil {
+			return getErr
+		}
+		if fresh.Status == domain.TaskStatusPaused {
+			return nil
+		}
+		return fmt.Errorf("cannot pause task with status %s", fresh.Status)
+	}
+	// The atomic DB update invalidates the worker lease. Cancel execution immediately.
 	if pauser, ok := s.engine.(interface{ PauseTask(uuid.UUID) }); ok {
 		pauser.PauseTask(taskID)
 	}
