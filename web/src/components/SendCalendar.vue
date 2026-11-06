@@ -6,10 +6,10 @@
         <p class="text-xs text-text-muted mt-0.5">每日成功发送量 · 近 {{ months.length }} 个月</p>
       </div>
       <div class="flex items-center gap-1.5">
-        <button class="px-2.5 py-1.5 rounded-lg text-xs hover:bg-ink-01 transition-colors"
+        <button type="button" class="px-2.5 py-1.5 rounded-lg text-xs hover:bg-ink-01 transition-colors"
                 :disabled="offset >= months.length - 1" @click="offset++">←</button>
         <span class="text-sm font-medium text-text-primary min-w-[90px] text-center">{{ currentLabel }}</span>
-        <button class="px-2.5 py-1.5 rounded-lg text-xs hover:bg-ink-01 transition-colors"
+        <button type="button" class="px-2.5 py-1.5 rounded-lg text-xs hover:bg-ink-01 transition-colors"
                 :disabled="offset <= 0" @click="offset--">→</button>
       </div>
     </div>
