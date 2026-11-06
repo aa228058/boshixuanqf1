@@ -63,7 +63,7 @@
             {{ grp.label }}
           </div>
           <div class="stagger">
-          <button
+          <button type="button"
             v-for="(item, ii) in grp.items"
             :style="{ '--i': ii }"
             :key="item.path"
@@ -116,7 +116,7 @@
         <!-- 深浅主题切换: 即时生效无需刷新 -->
         <!-- P1-08: 原此处有第二个主题切换按钮(带文字), 与顶栏图标按钮重复——
              全站只保留顶栏一处入口, 删除此副本 -->
-        <button
+        <button type="button"
           @click="logout"
           class="w-full mt-1.5 flex items-center justify-center gap-2 px-3 py-2.5 rounded-[var(--t-r-md)] text-sm text-text-secondary hover:text-rose hover:bg-rose/10 transition-[transform,opacity,border-color,background-color] duration-200"
         >
@@ -137,7 +137,7 @@
       </span>
       <span v-if="sseStatus === 'connected'">实时连接正常</span>
       <span v-else-if="sseStatus === 'reconnecting'">重连中{{ sseRetryCount > 1 ? `(第${sseRetryCount}次)` : '' }}…</span>
-      <button v-else class="flex items-center gap-1 hover:text-cyan transition-colors"
+      <button type="button" v-else class="flex items-center gap-1 hover:text-cyan transition-colors"
               title="点击立即重连" @click="reconnectNow">
         连接不可用 · 点击重连
       </button>
@@ -168,7 +168,8 @@
         </div>
         <div class="flex items-center gap-2">
           <!-- R126 三主题循环: 正常(靛蓝) → 护眼(陶土) → 深色(玻璃紫) -->
-          <button
+          <button type="button"
+            aria-label="切换主题"
             @click="toggleDarkMode"
             :title="`当前:${themeLabel}模式 · 点击切换`"
             class="flex items-center gap-1.5 px-2.5 py-2 rounded-[var(--t-r-md)] hover:bg-bg-hover transition-colors"
@@ -179,7 +180,9 @@
             <!-- R182.6: 手机上隐藏主题文字(图标已够, 窄屏与版本徽标挤压重叠) -->
             <span class="text-[11px] font-bold hidden sm:inline" style="color: var(--t-text-3);">{{ themeLabel }}</span>
           </button>
-          <button
+          <button type="button"
+            aria-label="查看公告"
+            title="查看公告"
             @click="showAnnouncements = true"
             class="relative p-2.5 rounded-[var(--t-r-md)] hover:bg-bg-hover transition-colors"
           >
@@ -188,7 +191,9 @@
           </button>
           <!-- R108: 顶栏账号切换器已删除 —— 全功能账号池化后(群发多选/加群/采集/链接各自选号),
                全局切换失去存在意义; 账号添加入口保留在账号管理页 -->
-          <button
+          <button type="button"
+            aria-label="查看通知"
+            title="查看通知"
             @click="showNotifications = true"
             class="relative p-2.5 rounded-[var(--t-r-md)] hover:bg-bg-hover transition-colors"
           >
@@ -202,7 +207,9 @@
           </button>
           <!-- R126 右上角租户头像 → 账号菜单(修改资料/修改密码/退出登录) -->
           <div class="relative" ref="avatarMenuRef">
-            <button
+            <button type="button"
+              aria-label="打开账号菜单"
+              :aria-expanded="avatarMenuOpen"
               @click="avatarMenuOpen = !avatarMenuOpen"
               class="w-9 h-9 rounded-full grid place-items-center text-white text-sm font-extrabold active:scale-95 transition-transform"
               :style="{ background: avatarGradient }"
@@ -227,7 +234,7 @@
                            style="color: var(--t-text-1);">
                 <KeyRound class="w-4 h-4" style="color: var(--t-text-3);" /> 修改密码
               </router-link>
-              <button @click="avatarMenuOpen = false; logout()"
+              <button type="button" @click="avatarMenuOpen = false; logout()"
                       class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--t-r-md)] text-caption font-semibold hover:opacity-80 transition-opacity"
                       style="color: var(--t-err);">
                 <LogOut class="w-4 h-4" /> 退出登录
@@ -287,7 +294,7 @@
         </div>
         <input v-model="authCode" placeholder="请输入验证码" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="w-full px-4 py-3 rounded-lg glow-input text-center text-lg font-mono tracking-widest" @keyup.enter="submitVerificationCode" aria-label="请输入验证码" />
         <p v-if="codeError" class="text-sm text-rose">{{ codeError }}</p>
-        <button @click="resendCode" class="text-xs text-cyan hover:text-cyan-bright transition-colors">没收到？重新获取</button>
+        <button type="button" @click="resendCode" class="text-xs text-cyan hover:text-cyan-bright transition-colors">没收到？重新获取</button>
       </div>
       <!-- 步骤3：2FA -->
       <div v-else-if="addStep === '2fa'" class="space-y-4 text-center">
@@ -301,21 +308,21 @@
       <!-- footer 按步骤切换(footer 插槽必须在 Modal 直接子层级, 不能嵌套在条件分支内) -->
       <template #footer>
         <template v-if="addStep === 'phone'">
-          <button class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
-          <button class="modal-btn-primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
+          <button type="button" class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
+          <button type="button" class="modal-btn-primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
             <Loader2 v-if="adding" class="w-4 h-4 animate-spin" />
             {{ adding ? '发送中...' : resendCountdown > 0 ? `已发送(${resendCountdown}s)` : '获取验证码' }}
           </button>
         </template>
         <template v-else-if="addStep === 'code'">
-          <button class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
-          <button class="modal-btn-primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
+          <button type="button" class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
+          <button type="button" class="modal-btn-primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
             {{ submitting ? '提交中...' : '提交验证码' }}
           </button>
         </template>
         <template v-else>
-          <button class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
-          <button class="modal-btn-primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
+          <button type="button" class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
+          <button type="button" class="modal-btn-primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
             {{ submitting ? '验证中...' : '完成登录' }}
           </button>
         </template>
