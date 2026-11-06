@@ -3,7 +3,7 @@
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
-      <button @click="fetchTask" class="ui-btn ui-btn--ghost ui-btn--sm mt-3">重新加载</button>
+      <t-button @click="fetchTask" class="ui-t-button--secondary ui-t-button mt-3">重新加载</t-button>
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
     <div v-if="task" class="flex flex-wrap items-center gap-3">
@@ -46,10 +46,10 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button v-if="task?.status === 'running'" @click="pause" class="ui-btn ui-btn--sm ui-btn--ghost">暂停</button>
-          <button v-else-if="task?.status === 'paused'" @click="resume" class="ui-btn ui-btn--sm ui-btn--secondary">恢复</button>
-          <button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-btn ui-btn--sm ui-btn--danger" aria-label="取消">取消</button>
-          <button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-btn ui-btn--sm ui-btn--primary">重试失败目标 ({{ task?.progress?.failed }})</button>
+          <t-button v-if="task?.status === 'running'" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
+          <t-button v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</t-button>
+          <t-button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
+          <t-button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
@@ -85,9 +85,9 @@
           <h3 class="text-sm font-medium">采集到的成员</h3>
           <span class="text-xs text-text-secondary">({{ members.length }})</span>
         </div>
-        <button @click="fetchMembers" :disabled="membersLoading" class="ui-btn ui-btn--secondary ui-btn--sm disabled:opacity-40">
+        <t-button @click="fetchMembers" :disabled="membersLoading" class="ui-t-button--secondary ui-t-button disabled:opacity-40">
           {{ membersLoading ? '加载中...' : '刷新' }}
-        </button>
+        </t-button>
       </div>
       <div v-if="membersLoading" class="py-6 text-center text-sm text-text-muted">加载中...</div>
       <div v-else-if="membersError" class="py-6 text-center text-sm text-[var(--t-err)]">{{ membersError }}</div>
@@ -121,7 +121,7 @@
           </span>
           <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
           <!-- R128 语义修正: 仅清除前端显示, 不动服务端已保存的记录 -->
-          <button @click="clearLogs" class="ui-btn ui-btn--ghost ui-btn--sm" title="仅清除当前显示">清除显示</button>
+          <t-button @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</t-button>
         </div>
       </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
