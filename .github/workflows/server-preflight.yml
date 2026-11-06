@@ -68,6 +68,26 @@ jobs:
           echo
 
           echo
+          echo "===== SERVER CHECKOUT IDENTITY (READ ONLY) ====="
+          if [ -d /www/tg-sender/.git ]; then
+            git -C /www/tg-sender rev-parse --short HEAD 2>&1
+            git -C /www/tg-sender status --short --branch 2>&1
+            echo "--- tracked deployment build files ---"
+            git -C /www/tg-sender ls-files -- Dockerfile nginx.conf docker-compose.yml deploy/compose.yaml
+            echo "--- expected build/config files present ---"
+            for f in Dockerfile nginx.conf docker-compose.yml deploy/compose.yaml; do
+              if [ -f "/www/tg-sender/$f" ]; then echo "present: $f"; else echo "missing: $f"; fi
+            done
+          else
+            echo "No accessible Git checkout metadata"
+          fi
+          echo "--- compose service structure (keys only; no env values) ---"
+          if [ -f /www/tg-sender/docker-compose.yml ]; then
+            grep -E '^(services:|  [A-Za-z0-9_-]+:|    (build|image|container_name|ports|volumes|depends_on|restart|env_file|healthcheck):|volumes:|networks:)' /www/tg-sender/docker-compose.yml
+          fi
+          echo "--- process names and owners only ---"
+          ps -eo pid,user,comm --sort=comm 2>&1 | grep -Ei 'PID|tg-sender|postgres|nginx|docker' || true
+          echo
           echo "===== LISTENING PORTS ====="
           if command -v ss >/dev/null 2>&1; then ss -lnt 2>&1; else echo "ss not installed"; fi
           echo
