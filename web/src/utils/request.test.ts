@@ -97,6 +97,8 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
     vi.stubGlobal('fetch', spy)
     const p = request('/slow', { timeout: 10 }).catch((e) => e)
     await vi.advanceTimersByTimeAsync(10)
+    // GET 超时会按幂等重试策略继续执行；推进退避定时器，避免 fake timer 下等待永远挂起。
+    await vi.runAllTimersAsync()
     expect(await p).toBeInstanceOf(Error)
     expect(signal?.aborted).toBe(true)
     expect(spy).toHaveBeenCalledTimes(3)
