@@ -1,7 +1,7 @@
 /* ============================================================
-   模态框设计规范 · 标准按钮体系
+   模态框布局与定位规范
    详见 docs/modal-design-system.md
-   用法: <button class="modal-btn-primary">创建任务</button>
+   按钮统一使用 TDesign Button + .ui-t-button
    ============================================================ */
 
 /* ---- 设计令牌映射(规范 §8.4): 弹窗代码只用 --modal-* 变量 ----
@@ -13,105 +13,14 @@
   --modal-text-secondary: var(--t-text-2);
 }
 
-/* ---- 主按钮: 紫渐变, 白字 ---- */
-.modal-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--t-space-2);
-  width: 100%;
-  min-height: var(--t-control-height-lg);
-  padding: 10px var(--t-space-5);
-  border: none;
-  border-radius: var(--t-control-radius);
-  font-size: var(--t-font-md);
-  font-weight: 500;
-  color: var(--t-brand-ink);
-  background: linear-gradient(135deg, var(--t-brand-active) 0%, var(--t-brand) 100%);
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-}
-.modal-btn-primary:hover { opacity: 0.9; }
-.modal-btn-primary:active { transform: scale(0.98); }
-.modal-btn-primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
+/* 按钮样式已统一迁移到 ui-kit.css 的 .ui-t-button 变体。 */
 
-/* ---- 次按钮: 透明底 + 边框 ---- */
-.modal-btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 20px;
-  border: 1px solid var(--t-line-strong);
-  border-radius: var(--t-control-radius);
-  font-size: var(--t-font-md);
-  font-weight: 500;
-  /* 用弹窗自己的设计令牌: 旧写法引用 td 变量, 主题与弹窗背景不匹配时文字同色不可见(有框无字) */
-  color: var(--modal-text-secondary);
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-.modal-btn-ghost:hover {
-  background: var(--t-surface-2);
-  /* 用弹窗令牌: 旧 td 直用在主题不匹配时 hover 文字同色不可见 */
-  color: var(--modal-text-primary);
-}
-
-/* ---- 危险按钮: 红色系 ---- */
-.modal-btn-danger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--t-err);
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-}
-.modal-btn-danger:hover { opacity: 0.9; }
-.modal-btn-danger:active { transform: scale(0.98); }
-
-/* ---- 深色模式微调 ---- */
-html.theme-dark .modal-btn-ghost {
-  border-color: var(--t-line-strong);
-  color: var(--modal-text-secondary);
-}
-html.theme-dark .modal-btn-ghost:hover {
-  background: var(--t-surface-2);
-  color: var(--modal-text-primary);
-}
-
-/* ---- 桌面端: footer 横向排列, 按钮恢复自动宽 ---- */
 @media (min-width: 769px) {
-  .modal-btn-primary,
-  .modal-btn-ghost,
-  .modal-btn-danger {
-    width: auto;
-    min-height: 36px;
-    padding: 7px 18px;
-    font-size: var(--t-font-sm);
-    border-radius: 10px;
-  }
   .modal-footer {
     flex-direction: row !important;
     justify-content: flex-end;
     gap: 10px !important;
   }
-  /* 覆盖上一版移动端的全宽规则, 桌面端按钮不强制全宽 */
   .modal-footer button,
   .modal-footer .t-button {
     width: auto !important;
