@@ -68,7 +68,7 @@
                      class="w-full rounded-xl px-4 py-3 pr-11 text-[16px] outline-none transition-all focus:border-[var(--t-brand)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--t-brand)_15%,transparent)]"
                      style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
                      placeholder="请输入密码" @keyup.enter="handleLogin" />
-              <button type="button" @click="showPassword = !showPassword"
+              <button type="button" class="ui-icon-btn" aria-label="显示或隐藏密码" @click="showPassword = !showPassword"
                       class="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
                       style="color: var(--t-text-3);">
                 <Eye v-if="showPassword" class="w-[18px] h-[18px]" />
@@ -77,7 +77,7 @@
             </div>
           </div>
 
-          <button type="submit" :disabled="loading"
+          <button type="submit" class="ui-btn ui-btn--primary w-full" :disabled="loading"
                   class="mt-1 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
                   :style="{ background: loginFailed ? 'var(--t-err)' : 'var(--t-brand)' }">
             <!-- R140 用户拍板: 删除转圈加载动画, 保留"登录中…"文字反馈 -->
@@ -98,7 +98,7 @@
                  class="w-full rounded-lg px-4 py-2.5 text-[13.5px] outline-none"
                  style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
                  @keyup.enter="doRenew" />
-          <button type="button" :disabled="renewing || !renewCode.trim()"
+          <button type="button" class="ui-btn ui-btn--primary w-full" :disabled="renewing || !renewCode.trim()"
                   class="w-full rounded-lg py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50"
                   style="background: var(--t-warn);"
                   @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</button>
