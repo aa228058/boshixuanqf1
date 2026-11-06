@@ -443,7 +443,14 @@ async function fetchLogs() {
     }
     // The API returns the newest page first; render that page chronologically so
     // SSE-appended entries and the scroll-to-bottom behavior remain consistent.
-    logs.value = data.sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
+    // Merge persisted history with events received while the request was in flight;
+    // reconnect snapshots must not discard newer SSE entries.
+    const merged = new Map<string, TaskLog>()
+    for (const log of logs.value) merged.set(log.log_id, log)
+    for (const log of data) merged.set(log.log_id, log)
+    logs.value = [...merged.values()]
+      .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
+      .slice(-500)
     await nextTick()
     if (logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
@@ -488,6 +495,9 @@ async function connectSSE() {
       connState.value = 'connected'
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
       resetSseWatchdog()
+      // The stream has no durable event replay cursor. Reconcile from DB on every
+      // successful connection so logs emitted during a disconnect are not lost.
+      void fetchLogs()
     }
     eventSource.onmessage = (e) => {
       try {
