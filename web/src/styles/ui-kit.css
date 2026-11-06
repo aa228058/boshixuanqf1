@@ -41,6 +41,62 @@
 .ui-btn:disabled:active { transform: none; }
 .ui-btn--sm { height: var(--t-control-height-sm); padding: 0 var(--t-space-3); font-size: var(--t-font-xs); }
 
+/* ---------- .ui-segmented 分段切换: 统一标签页/模式切换 ---------- */
+.ui-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius-lg);
+  background: var(--t-surface-2);
+}
+.ui-segmented__item {
+  display: inline-flex;
+  min-height: var(--t-control-height-sm);
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--t-radius-md);
+  background: transparent;
+  color: var(--t-text-2);
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, box-shadow var(--t-duration-normal) ease;
+}
+.ui-segmented__item:hover { color: var(--t-text-1); }
+.ui-segmented__item.is-active {
+  background: var(--t-card);
+  color: var(--t-brand);
+  box-shadow: var(--t-shadow-xs);
+  font-weight: var(--t-weight-semibold);
+}
+.ui-segmented__item:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+@media (max-width: 420px) {
+  .ui-segmented { width: 100%; }
+  .ui-segmented__item { flex: 1; padding-inline: 10px; }
+}
+
+/* ---------- TDesign 按钮几何统一: 颜色仍由 theme/variant 决定 ---------- */
+.t-button {
+  min-height: var(--t-control-height-md);
+  border-radius: var(--t-control-radius);
+  font-family: inherit;
+  font-weight: var(--t-weight-medium);
+  box-shadow: none;
+  transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, box-shadow var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
+}
+.t-button--size-small {
+  min-height: var(--t-control-height-sm);
+  padding-inline: 10px;
+  font-size: var(--t-font-xs);
+}
+.t-button:not(.t-is-disabled):active { transform: translateY(1px); }
+.t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+
 /* ---------- .ui-input 输入框: 无边框实底, 聚焦只亮边 ---------- */
 .ui-input {
   width: 100%;
