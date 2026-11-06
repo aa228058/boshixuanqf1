@@ -91,18 +91,24 @@
                    :aria-label="`选择群组 ${row.title || row.username || row.sg_id}`"
                    class="w-4 h-4 accent-[var(--t-brand)] shrink-0" />
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-text-primary truncate">{{ row.title }}</span>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-sm font-medium text-text-primary truncate">{{ row.title || row.username || '未命名群组' }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"
                       :class="row.gtype === 'private' ? 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]' : row.gtype === 'channel' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]'">
-                  {{ row.gtype === 'private' ? '私密群' : row.gtype === 'channel' ? '频道' : '公开群' }}
+                  {{ gtypeLabel(row.gtype) }}
+                </span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"
+                      :class="row.status === 'invalid' ? 'bg-[color:var(--t-danger-dim)] text-[var(--t-danger)]' : row.status === 'valid' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'">
+                  {{ statusLabel(row.status) }}
                 </span>
               </div>
-              <div class="text-[10.5px] text-text-muted truncate mt-0.5">{{ row.tme_link || row.username }}</div>
-              <div class="text-[10.5px] text-text-muted mt-0.5">{{ Number(row.member_count).toLocaleString() }} 成员</div>
-              <div v-if="row.contributor_name" class="text-[10.5px] text-text-muted mt-0.5">贡献者：{{ row.contributor_name }}</div>
+              <div class="text-[10.5px] text-text-muted mt-1">{{ Number(row.member_count || 0).toLocaleString() }} 成员 · 最近收录 {{ fmtTime(row.last_seen_at) }}</div>
+              <div class="flex items-center gap-2 min-w-0 mt-1">
+                <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer" class="text-[10.5px] text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
+                <span v-else class="text-[10.5px] text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
+                <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接" @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
+              </div>
             </div>
-            <span v-if="row.source" class="text-[10px] text-text-muted/70 shrink-0 whitespace-nowrap">{{ sourceLabel(row.source) }}</span>
           </div>
           <div v-if="!aggregatedList.length && !loading" class="text-center text-xs text-text-muted py-8">暂无数据</div>
         </div>
@@ -134,6 +140,24 @@
                   <button type="button" class="ui-icon-btn" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
                 </div>
               </div>
+            </div>
+          </template>
+          <template #status="{ row }">
+            <span class="text-xs whitespace-nowrap"
+              :class="row.status === 'invalid' ? 'text-text-muted line-through' : row.status === 'valid' ? 'text-[var(--t-ok)]' : 'text-[var(--t-warn)]'">
+              {{ statusLabel(row.status) }}
+            </span>
+          </template>
+          <template #member_count="{ row }">
+            <span class="text-xs tabular-nums">{{ Number(row.member_count || 0).toLocaleString() }}</span>
+          </template>
+          <template #link="{ row }">
+            <div class="flex items-center gap-2 min-w-0">
+              <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer"
+                 class="text-xs text-[var(--t-brand)] hover:underline truncate min-w-0">{{ row.tme_link }}</a>
+              <span v-else class="text-xs text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
+              <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接"
+                @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
             </div>
           </template>
           <template #gtype="{ row }">
@@ -474,13 +498,12 @@ async function doSearch() {
 
 const tableCols = [
   { colKey: 'checked', title: '', width: 44 },
-  { colKey: 'title', title: '群组', ellipsis: true },
-  { colKey: 'gtype', title: '类型', width: 80 },
-  { colKey: 'member_count', title: '成员', width: 70 },
-  // R87-M8: 删除"状态"列(已加入标识对租户是误导, 切账号后不跟随)
-  { colKey: 'source', title: '来源', width: 110 },
-  { colKey: 'contributor_name', title: '最早贡献者', width: 120 },
-  { colKey: 'last_seen_at', title: '最近收录', width: 132 },
+  { colKey: 'title', title: '群组资源', minWidth: 220, ellipsis: true },
+  { colKey: 'gtype', title: '类型', width: 88 },
+  { colKey: 'status', title: '状态', width: 96 },
+  { colKey: 'member_count', title: '成员', width: 88 },
+  { colKey: 'last_seen_at', title: '最近收录', width: 140 },
+  { colKey: 'link', title: '链接', minWidth: 220, ellipsis: true },
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))

@@ -37,8 +37,7 @@
             <div class="text-[10.5px]" style="color: var(--t-text-3);">{{ authStore.tenant?.plan_id || '' }} · 到期 {{ (authStore.tenant?.expires_at || '').slice(0, 10) }}</div>
           </div>
         </div>
-        <button type="button" aria-label="退出登录" class="mx-2 py-2 rounded-[var(--t-r-md)] text-caption font-bold transition-opacity hover:opacity-80"
-                style="border: 1px solid var(--t-line); color: var(--t-text-2);" @click="logout">退出登录</button>
+        <button type="button" aria-label="退出登录" class="ui-native-button ui-native-button--danger ui-native-button--sm mx-2" @click="logout">退出登录</button>
       </div>
     </aside>
 
