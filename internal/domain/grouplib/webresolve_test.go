@@ -35,6 +35,15 @@ func TestParseWebMemberCount(t *testing.T) {
 	}
 }
 
+func TestIsInvalidInvitePage(t *testing.T) {
+	if !isInvalidInvitePage("<div>This invite link is invalid or has expired</div>") {
+		t.Fatal("expected expired invite page to be rejected")
+	}
+	if isInvalidInvitePage("<a>Join Group</a><span>120 members</span>") {
+		t.Fatal("valid invite preview must not be rejected")
+	}
+}
+
 func TestDetectTelegramPageTypeRequiresExplicitActionLabel(t *testing.T) {
 	cases := []struct {
 		page string
