@@ -3,7 +3,7 @@
     <!-- 动态背景 -->
     <!-- 断网横幅(交互层: 断网操作不再神秘失败; 用统一的 isOnline 状态) -->
     <div v-if="!isOnline" class="fixed top-0 left-0 right-0 z-[200] bg-amber/95 text-amber-950 text-center text-xs py-1.5 font-medium">
-      网络连接已断开, 操作将在恢复后自动重试
+网络连接已断开，请检查网络后重试；未提交的操作不会自动发送
     </div>
 
     <!-- R87-M7: DynamicBackground 已移除 —— demo 范式=纯色底+单光斑(body::before), 多层网格背景已删 -->
@@ -80,13 +80,13 @@ function updateOnlineStatus() {
 
 // R86: 排障逻辑已随雾罩根因定位移除, 保留注释存档
 
-// 动态切换 theme-color
+// 浏览器地址栏颜色跟随应用当前主题，而不是操作系统主题偏好。
+let themeObserver: MutationObserver | null = null
 function updateThemeColor() {
-  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) {
-    meta.setAttribute('content', isDark ? '#020510' : '#ffffff')
-  }
+  if (!meta) return
+  const background = getComputedStyle(document.documentElement).getPropertyValue('--t-bg').trim()
+  if (background) meta.setAttribute('content', background)
 }
 
 // R136: toast 垂直位置由 ui-kit.css 的"防弹版"CSS 全权锁定(top:110px + flex 居中),
@@ -135,7 +135,8 @@ onMounted(() => {
   window.addEventListener('online', updateOnlineStatus)
   window.addEventListener('offline', updateOnlineStatus)
   updateThemeColor()
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateThemeColor)
+  themeObserver = new MutationObserver(updateThemeColor)
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   bindIslandAnim()
   setTimeout(bindIslandAnim, 600)
   setTimeout(bindIslandAnim, 1600)
@@ -144,7 +145,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('online', updateOnlineStatus)
   window.removeEventListener('offline', updateOnlineStatus)
-  window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', updateThemeColor)
+  themeObserver?.disconnect()
+  themeObserver = null
 })
 </script>
 
