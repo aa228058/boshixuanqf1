@@ -726,14 +726,22 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 			if e.finishNotify == nil {
 				return
 			}
-			st := string(task.Status)
-			if st == "completed" || st == "failed" {
-				// Task.Progress 是值类型非指针; 任务名取 payload["name"], 回退类型名
+			// The claimed task snapshot is still "running"; read the final persisted
+			// state so completion/failure notifications reflect the actual outcome.
+			status := string(task.Status)
+			progress := task.Progress
+			lookupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if finished, err := e.repo.GetByID(lookupCtx, task.TenantID, task.TaskID); err == nil && finished != nil {
+				status = string(finished.Status)
+				progress = finished.Progress
+			}
+			cancel()
+			if status == "completed" || status == "failed" {
 				name, _ := task.Payload["name"].(string)
 				if name == "" {
 					name = string(task.Type)
 				}
-				e.finishNotify(task.TenantID, name, string(task.Type), st, task.Progress.Done, task.Progress.Failed)
+				e.finishNotify(task.TenantID, name, string(task.Type), status, progress.Done, progress.Failed)
 			}
 		}()
 		defer func() {
