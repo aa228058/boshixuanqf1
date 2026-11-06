@@ -74,3 +74,13 @@
 - [ ] 桌面/移动端三主题真实浏览器验收。
 
 CI：本轮最新 run `42163898801` 对应提交在 runner 执行步骤前失败；所有 jobs 的 steps 均为空/未生成，不能据此判断代码测试通过或失败。需要先修复 runner/CI 执行环境，再取得有效测试结果。
+
+## 7. CI 执行环境复核（2026-11-06）
+
+- 最新 main：`daacf1e441aae6ba6fdfa44d858157e458edd71a`。
+- 最新 push run：`42164631209`，对应 HEAD 与 main 一致；运行从创建到结束约 4 秒。
+- 6 个失败 Job（Frontend Typecheck + Unit Tests、frontend、integration、secrets、sql-audit、build）均为 `completed/failure`，返回的 `steps=null`、`logs_url=null`，没有可供诊断的执行日志。
+- `.github/workflows/ci.yml` 中这 6 个 Job 全部配置为 `runs-on: ubuntu-latest`，不是 self-hosted；仓库唯一 self-hosted 配置位于只读的 `.github/workflows/server-preflight.yml`，标签为 `[self-hosted, Linux, X64]`。因此不能把 CI 主工作流故障简单归因为自托管 Runner 标签不匹配。
+- GitHub Code Search 对 `.btn-success`、`.btn-error`、`useAsyncBtn` 均返回 0，但响应标记 `incomplete_results=true`，不能作为全仓无引用的证明。状态类 CSS 暂不删除。
+- 当前证据指向 Job 启动/Actions 执行环境阶段异常，而非某条测试命令失败；具体原因尚不能从现有 API 返回中确认。仓库管理员需在 Settings → Actions 检查 Actions 是否启用、策略/并发限制与 runner 分配；同时检查账户/组织 Actions 分钟额度及 GitHub Actions 服务状态。取得带 steps 和日志的有效 run 后，再判断代码测试结果。
+- 未修改 CI workflow 来掩盖问题；未触发生产部署。
