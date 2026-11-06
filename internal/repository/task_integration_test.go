@@ -80,7 +80,7 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("create tasks table: %v", err)
 	}
-	if _, err := pool.Exec(context.Background(), `TRUNCATE tasks`); err != nil {
+	if _, err := pool.Exec(context.Background(), `DELETE FROM tasks`); err != nil {
 		t.Fatalf("truncate tasks: %v", err)
 	}
 }
