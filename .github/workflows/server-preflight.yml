@@ -55,6 +55,19 @@ jobs:
           echo "--- deployment file names only (no file contents) ---"
           find /opt/tgqf -maxdepth 3 -type f ! -name '.env' -printf '%M %u:%g %p\n' 2>&1
           echo
+          echo "===== /www PROJECT INVENTORY (READ ONLY) ====="
+          if [ -d /www ]; then
+            ls -la /www 2>&1
+            echo "--- compose and env paths/permissions only; never read env contents ---"
+            find /www -maxdepth 5 -type f \\( -name docker-compose.yml -o -name compose.yaml -o -name compose.yml -o -name .env \\) -exec stat -c '%A %a %U:%G %n' {} \\; 2>&1
+            echo "--- git directory locations ---"
+            find /www -maxdepth 4 -type d -name .git -print 2>&1
+            echo "--- backup/data directory locations ---"
+            find /www -maxdepth 4 -type d \\( -name backups -o -name pgdata \\) -print 2>&1
+          else
+            echo "/www does not exist or is not accessible"
+          fi
+          echo
           echo "===== LISTENING PORTS ====="
           if command -v ss >/dev/null 2>&1; then ss -lnt 2>&1; else echo "ss not installed"; fi
           echo
