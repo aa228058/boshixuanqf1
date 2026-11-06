@@ -164,16 +164,9 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		if end > len(lines) {
 			end = len(lines)
 		}
-		// 优先使用当前租户已在线账号做只读 MTProto 解析；不执行加入群组操作。
-		// 没有在线账号时才由 ImportByLinks 使用共享 HTTP 页面解析器。
-		var accountID uuid.UUID
-		_ = e.pool.QueryRow(ctx, `
-			SELECT account_id FROM accounts
-			WHERE tenant_id=$1 AND status='online'
-			  AND (blocked_until IS NULL OR blocked_until<NOW())
-			ORDER BY last_online DESC NULLS LAST
-			LIMIT 1`, tenantID).Scan(&accountID)
-		result, importErr := e.ImportByLinks(ctx, tenantID, accountID, lines[offset:end])
+		// 群组库导入默认走无账号的共享 HTTP 页面解析器，不读取、不占用租户 Telegram 会话。
+		// 公开页面无法提供资料时记录失败原因；不自动切换账号，避免后台导入隐式消耗账号额度。
+		result, importErr := e.ImportByLinks(ctx, tenantID, uuid.Nil, lines[offset:end])
 		var rateLimitErr *TelegramRateLimitError
 		if errors.As(importErr, &rateLimitErr) {
 			// 429 不计为失败；只提交限流前已处理的前缀，offset 停在被限流链接。
