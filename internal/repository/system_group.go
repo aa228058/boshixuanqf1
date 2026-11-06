@@ -37,7 +37,6 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 	}
 	defer tx.Rollback(ctx)
 	var sgID uuid.UUID
-	var err error
 	if sg.TelegramChatID != 0 {
 		lookupErr := tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
 		if lookupErr == nil {
