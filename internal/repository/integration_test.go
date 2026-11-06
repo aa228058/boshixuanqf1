@@ -12,10 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"tg-sender/internal/domain"
 )
 
 // setupTestDB 启动容器化 PG，应用全部迁移，返回连接池。
