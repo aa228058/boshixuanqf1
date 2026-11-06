@@ -19,7 +19,7 @@ var (
 	htmlTitleRe   = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
 	pageExtraRe   = regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*tgme_page_extra[^"']*["'][^>]*>(.*?)</[^>]+>`)
 	htmlTagRe     = regexp.MustCompile(`<[^>]+>`)
-	memberCountRe = regexp.MustCompile(`(?i)([0-9][0-9\s,.\x{00a0}\x{202f}]*)\s*([kmb])?\s*(members?|subscribers?|участник(?:а|ов)?|membres?)`)
+	memberCountRe = regexp.MustCompile(`(?i)([0-9][0-9\s,.\x{00a0}\x{202f}]*)\s*([kmb])?\s*(members?|subscribers?|участник(?:а|ов)?|membres?|成员|订阅者)`)
 )
 
 const telegramMobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
