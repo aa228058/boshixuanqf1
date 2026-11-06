@@ -164,6 +164,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	var mu sync.Mutex                       // protect shared state across goroutines
 	var pendingLogs []*domain.TaskLog       // accumulated logs for throttled SSE push
 	var pendingProgress domain.TaskProgress // accumulated progress for throttled SSE push
+	var checkpointPersistErr error          // success-log persistence failure stops the task fail-closed
 
 	// Periodic flush: every 5 seconds or 50 logs
 	flushTicker := time.NewTicker(5 * time.Second)
@@ -669,14 +670,31 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 
 				progressDelta := domain.TaskProgress{Done: 0, Failed: 0, CurrentTarget: targetID}
 				if status == "success" {
-					progressDelta.Done = 1
-					// R103: 配额功能整体下架(租户决策: 此类限制无意义), 不再记录
+					// A sent message is an external side effect: write its idempotency
+					// checkpoint before continuing, rather than waiting for the 5s batch.
+					persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					persistErr := e.logRepo.Create(persistCtx, tl)
+					persistCancel()
+					if persistErr != nil {
+						checkpointPersistErr = persistErr // workers are joined before this is read
+						status = "failed"
+						tl.Status = "failed"
+						tl.ErrorCode = "checkpoint_persist_failed"
+						tl.Message = "发送结果可能已成功，但检查点写入失败；重试前请先核实目标"
+						progressDelta.Failed = 1
+						cancel() // stop all workers; never continue without durable idempotency state
+					} else {
+						progressDelta.Done = 1
+					}
 				} else {
 					progressDelta.Failed = 1
 				}
 
 				mu.Lock()
-				batchLogs = append(batchLogs, tl)
+				// Successful rows were already persisted above; batch only non-success logs.
+				if status != "success" {
+					batchLogs = append(batchLogs, tl)
+				}
 				done += progressDelta.Done
 				failed += progressDelta.Failed
 				progressAccum.Done += progressDelta.Done
@@ -785,11 +803,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		mu.Unlock()
 		// The worker context may already be cancelled by pause/cancel/timeout.
 		// Persist the final log batch with a short bounded context independent of it.
-		flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := e.logRepo.CreateBatch(flushCtx, logs); err != nil {
+		finalCtx, finalCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer finalCancel()
+		if err := e.logRepo.CreateBatch(finalCtx, logs); err != nil {
 			taskLog.Printf("[task] final flush logs failed: %v", err)
 		}
-		flushCancel()
 	} else {
 		mu.Unlock()
 	}
@@ -807,19 +825,17 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		Failed:          failed,
 		AccountProgress: accProgList,
 	}
-	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, finalProgress); err != nil {
+	if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
 		log.Printf("[broadcast] 更新进度失败: %v", err)
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
-	if failed == total && total > 0 {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusFailed); err != nil {
-			taskLog.Printf("[task] UpdateStatus failed: %v", err)
-		}
-	} else {
-		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.workerID, domain.TaskStatusCompleted); err != nil {
-			taskLog.Printf("[task] UpdateStatus failed: %v", err)
-		}
+	finalStatus := domain.TaskStatusCompleted
+	if (failed == total && total > 0) || checkpointPersistErr != nil {
+		finalStatus = domain.TaskStatusFailed
+	}
+	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.workerID, finalStatus); err != nil {
+		taskLog.Printf("[task] UpdateStatus failed: %v", err)
 	}
 }
 
