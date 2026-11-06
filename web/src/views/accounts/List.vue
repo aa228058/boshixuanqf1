@@ -425,7 +425,7 @@
           <button type="button" @click="editGroup(g)" class="ui-icon-btn" aria-label="编辑">
             <Pencil class="w-3.5 h-3.5 text-text-secondary" />
           </button>
-          <button type="button" @click="deleteGroup(g)" class="ui-icon-btn">
+          <button type="button" @click="deleteGroup(g)" class="ui-icon-btn" aria-label="删除分组">
             <Trash2 class="w-3.5 h-3.5 text-text-secondary hover:text-[var(--t-err)]" />
           </button>
         </div>
