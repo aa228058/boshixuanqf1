@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -136,6 +137,10 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				rerr = fmt.Errorf("解析结果缺少群组名称，暂不入库")
 			}
 			res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
+			var rateLimitErr *TelegramRateLimitError
+			if errors.As(rerr, &rateLimitErr) {
+				return res, rateLimitErr
+			}
 			continue
 		}
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
