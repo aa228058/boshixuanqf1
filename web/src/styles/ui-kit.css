@@ -24,8 +24,8 @@
   gap: var(--t-space-2);
   height: var(--t-control-height-md);
   padding: 0 var(--t-space-5);
-  border-radius: var(--t-radius-pill);
-  font-size: var(--t-fs-small);
+  border-radius: var(--t-control-radius);
+  font-size: var(--t-font-sm);
   font-weight: var(--t-weight-semibold);
   border: none;
   cursor: pointer;
@@ -37,9 +37,16 @@
 .ui-btn--primary:hover { background: var(--t-brand-hover); }
 .ui-btn--secondary { background: var(--t-surface-2); color: var(--t-text-2); }
 .ui-btn--secondary:hover { color: var(--t-text-1); }
-.ui-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.ui-btn:disabled:active { transform: none; }
+.ui-btn--danger { background: var(--t-err); color: #fff; }
+.ui-btn--danger:hover { filter: brightness(0.94); }
+.ui-btn--ghost { background: transparent; color: var(--t-text-2); border: 1px solid var(--t-line); }
+.ui-btn--ghost:hover { background: var(--t-surface-2); color: var(--t-text-1); }
+.ui-btn--text { height: auto; padding: 4px 6px; background: transparent; color: var(--t-brand); }
+.ui-btn:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; box-shadow: var(--t-shadow-focus); }
+.ui-btn:disabled, .ui-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.ui-btn:disabled:active, .ui-btn[aria-disabled="true"]:active { transform: none; }
 .ui-btn--sm { height: var(--t-control-height-sm); padding: 0 var(--t-space-3); font-size: var(--t-font-xs); }
+.ui-btn--lg { height: var(--t-control-height-lg); padding-inline: var(--t-space-6); font-size: var(--t-font-md); }
 
 /* ---------- .ui-segmented 分段切换: 统一标签页/模式切换 ---------- */
 .ui-segmented {
