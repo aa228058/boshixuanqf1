@@ -342,7 +342,6 @@ func TestTaskLifecycleUpdatesRespectCurrentStatus(t *testing.T) {
 	}
 }
 
-
 func TestPauseIfActiveRespectsCurrentTaskState(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)

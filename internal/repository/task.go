@@ -395,22 +395,6 @@ func (r *TaskRepository) UpdateStatusOwned(ctx context.Context, tenantID, taskID
 	return nil
 }
 
-// PauseIfActive atomically pauses a task only while it is still queued, running, or scheduled.
-// This prevents a pause request racing with task completion and keeps the state machine
-// consistent with the service-level transition rules. Clearing the lease makes any worker
-// that was executing the task lose ownership before it can write a terminal status.
-func (r *TaskRepository) PauseIfActive(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
-	res, err := r.db.Exec(ctx, `
-		UPDATE tasks SET status = 'paused', completed_at = NULL, locked_at = NULL, worker_id = NULL
-		WHERE tenant_id = $1 AND task_id = $2
-		  AND status IN ('queued', 'running', 'scheduled')
-	`, tenantID, taskID)
-	if err != nil {
-		return false, fmt.Errorf("pause task: %w", err)
-	}
-	return res.RowsAffected() == 1, nil
-}
-
 // UpdateStatus updates task status.
 func (r *TaskRepository) UpdateStatus(ctx context.Context, tenantID, taskID uuid.UUID, status domain.TaskStatus) error {
 	var completedAt interface{}
