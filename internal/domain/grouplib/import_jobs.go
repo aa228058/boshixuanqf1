@@ -176,10 +176,38 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		result, importErr := e.ImportByLinks(ctx, tenantID, accountID, lines[offset:end])
 		var rateLimitErr *TelegramRateLimitError
 		if errors.As(importErr, &rateLimitErr) {
-			// 429 不计为失败，也不推进 offset；等待 Telegram 指定时间后重试同一批。
-			retryAt := time.Now().Add(rateLimitErr.RetryAfter)
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET last_error=$2, updated_at=$3 WHERE job_id=$1`,
-				jobID, rateLimitErr.Error(), retryAt)
+			// 429 不计为失败；只提交限流前已处理的前缀，offset 停在被限流链接。
+			partialImported, partialFailed, partialSkipped := 0, 0, 0
+			if result != nil {
+				partialImported = len(result.Imported)
+				partialFailed = len(result.Failed)
+				partialSkipped = result.Skipped
+			}
+			if partialFailed > 0 {
+				partialFailed-- // 最后一条失败就是当前 429 链接，必须留待重试。
+			}
+			processedPrefix := partialImported + partialFailed + partialSkipped
+			if processedPrefix > 0 {
+				var detail string
+				if result != nil && partialFailed > 0 {
+					detail = strings.Join(result.Failed[:partialFailed], "\n")
+				}
+				_, _ = e.pool.Exec(ctx, `
+					UPDATE group_library_import_jobs
+					SET processed_count=processed_count+$2,
+					    imported_count=imported_count+$3,
+					    failed_count=failed_count+$4,
+					    skipped_count=skipped_count+$5,
+					    last_error=CASE WHEN $6='' THEN last_error
+					                    WHEN last_error='' THEN $6
+					                    ELSE LEFT(last_error || E'\\n' || $6, 4000) END,
+					    updated_at=$7
+					WHERE job_id=$1`, jobID, processedPrefix, partialImported, partialFailed,
+					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter))
+			} else {
+				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1`,
+					jobID, time.Now().Add(rateLimitErr.RetryAfter))
+			}
 			timer := time.NewTimer(rateLimitErr.RetryAfter)
 			select {
 			case <-ctx.Done():
