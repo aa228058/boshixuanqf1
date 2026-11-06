@@ -32,7 +32,7 @@
       <div v-if="tenant?.expires_at" class="text-xs text-[var(--t-warn)] mb-4">
         到期时间: {{ formatDate(tenant.expires_at) }}
       </div>
-      <t-button theme="primary" @click="showUpgrade = true">
+      <t-button theme="primary" class="ui-btn ui-btn--primary" @click="showUpgrade = true">
         升级套餐
       </t-button>
     </div>
@@ -148,11 +148,11 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <t-button size="small" theme="primary" :disabled="aiSaving" @click="saveAI">
+        <t-button size="small" theme="primary" class="ui-btn ui-btn--primary" :disabled="aiSaving" @click="saveAI">
           <Loader2 v-if="aiSaving" class="w-3.5 h-3.5 animate-spin mr-1" />
           保存
         </t-button>
-        <t-button size="small" variant="outline" :disabled="aiTesting" @click="testAI">
+        <t-button size="small" variant="outline" class="ui-btn ui-btn--ghost" :disabled="aiTesting" @click="testAI">
           <Loader2 v-if="aiTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
           测试连通
         </t-button>
@@ -172,7 +172,7 @@
           placeholder="输入卡密，如 TGS-PRO-XXXX-XXXX"
           class="flex-1 px-4 py-2.5 rounded-lg glow-input text-sm font-mono uppercase"
           @keyup.enter="activate" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
-        <t-button theme="primary" @click="activate">
+        <t-button theme="primary" class="ui-btn ui-btn--primary" @click="activate">
           激活
         </t-button>
       </div>
@@ -186,7 +186,7 @@
           <p class="text-xs text-text-muted mt-1">导出本租户全部自有数据（成员/群组/任务），不含任何账号凭证</p>
         </div>
         <!-- R122: tdesign outline 按钮在深色下是白底白字 —— 改用令牌类 -->
-        <button :disabled="exporting" @click="exportMyData"
+        <button class="ui-btn ui-btn--ghost" :disabled="exporting" @click="exportMyData"
                 class="px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50">
           {{ exporting ? '导出中…' : '导出 JSON' }}
         </button>
@@ -261,7 +261,7 @@
       </div>
       <template #footer>
         <button @click="showUpgrade = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button theme="primary" @click="copyContact">
+        <t-button theme="primary" class="ui-btn ui-btn--primary" @click="copyContact">
           联系客服购买
         </t-button>
       </template>
