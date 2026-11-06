@@ -37,7 +37,7 @@
             <div class="text-[10.5px]" style="color: var(--t-text-3);">{{ authStore.tenant?.plan_id || '' }} · 到期 {{ (authStore.tenant?.expires_at || '').slice(0, 10) }}</div>
           </div>
         </div>
-        <button class="mx-2 py-2 rounded-[var(--t-r-md)] text-caption font-bold transition-opacity hover:opacity-80"
+        <button type="button" aria-label="退出登录" class="mx-2 py-2 rounded-[var(--t-r-md)] text-caption font-bold transition-opacity hover:opacity-80"
                 style="border: 1px solid var(--t-line); color: var(--t-text-2);" @click="logout">退出登录</button>
       </div>
     </aside>
@@ -66,7 +66,7 @@
     <nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 px-2 pt-2"
          style="background: color-mix(in srgb, var(--t-surface-1) 92%, transparent); backdrop-filter: blur(18px); border-top: 1px solid var(--t-line); padding-bottom: calc(8px + env(safe-area-inset-bottom));">
       <div class="grid grid-cols-5 max-w-md mx-auto">
-        <router-link v-for="t in tabs" :key="t.path" :to="t.path"
+        <router-link v-for="t in tabs" :key="t.path" :to="t.path" :aria-label="t.center ? '开始群发' : t.label"
                      class="flex flex-col items-center gap-0.5 py-1 text-[10.5px] font-semibold"
                      :style="isActive(t.path) ? 'color: var(--t-brand);' : 'color: var(--t-text-3);'">
           <span v-if="t.center"
