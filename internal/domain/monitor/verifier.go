@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	securerand "tg-sender/internal/secure"
 	"regexp"
 	"strings"
 	"sync"
@@ -16,6 +15,7 @@ import (
 	"tg-sender/internal/ai"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/safego"
+	securerand "tg-sender/internal/secure"
 )
 
 // 入群验证执行器(对齐 tgegg 帮助中心"进群AI验证"全部六种模式):
