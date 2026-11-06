@@ -270,13 +270,13 @@
           <!-- 单号输入(2026-10-20 清理: 原多行批量加号使用率低已移除, 队列逻辑保留恒为 1) -->
           <div class="flex items-center">
             <span class="inline-flex items-center px-3 h-[44px] rounded-l-lg bg-bg-card border border-r-0 border-border text-text-secondary text-sm">+</span>
-            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="flex-1 px-3 h-[44px] rounded-r-lg glow-input text-sm" inputmode="numeric" />
+            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" />
           </div>
           <p class="text-xs text-text-secondary mt-1">只需输入号码数字（+ 前缀已自带）</p>
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">备注（可选）</label>
-          <input v-model="newRemark" placeholder="如：主号-客服" class="w-full px-3 py-2.5 rounded-lg glow-input text-sm" aria-label="如：主号-客服" />
+          <input v-model="newRemark" placeholder="如：主号-客服" class="ui-input !min-h-[44px] !text-sm" aria-label="如：主号-客服" />
         </div>
       </div>
       <!-- 步骤2：验证码 -->
@@ -292,7 +292,7 @@
             <span v-else class="text-text-muted">排队中</span>
           </div>
         </div>
-        <input v-model="authCode" placeholder="请输入验证码" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="w-full px-4 py-3 rounded-lg glow-input text-center text-lg font-mono tracking-widest" @keyup.enter="submitVerificationCode" aria-label="请输入验证码" />
+        <input v-model="authCode" placeholder="请输入验证码" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="ui-input !min-h-[48px] !px-4 !py-3 !text-center !text-lg font-mono tracking-widest" @keyup.enter="submitVerificationCode" aria-label="请输入验证码" />
         <p v-if="codeError" class="text-sm text-rose">{{ codeError }}</p>
         <button type="button" @click="resendCode" class="text-xs text-cyan hover:text-cyan-bright transition-colors">没收到？重新获取</button>
       </div>
@@ -302,7 +302,7 @@
           <Shield class="w-6 h-6 text-amber" />
         </div>
         <p class="text-text-secondary">该账号开启了两步验证</p>
-        <input v-model="twoFAPassword" type="password" placeholder="请输入两步验证密码" class="w-full px-4 py-3 rounded-lg glow-input text-center" @keyup.enter="submit2FA" aria-label="请输入两步验证密码" />
+        <input v-model="twoFAPassword" type="password" placeholder="请输入两步验证密码" class="ui-input !min-h-[48px] !px-4 !py-3 !text-center" @keyup.enter="submit2FA" aria-label="请输入两步验证密码" />
         <p v-if="twoFAError" class="text-sm text-rose">{{ twoFAError }}</p>
       </div>
       <!-- footer 按步骤切换(footer 插槽必须在 Modal 直接子层级, 不能嵌套在条件分支内) -->
