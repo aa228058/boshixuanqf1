@@ -52,7 +52,6 @@
     flex: 1 1 auto !important;
     min-height: 0 !important;
   }
-  .t-dialog__footer { flex-shrink: 0 !important; }
   .t-dialog { background-color: var(--t-modal-bg) !important; }
 
   /* ===== 遗留自绘弹窗(.legacy-modal): 与抽屉同规格 ===== */
