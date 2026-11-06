@@ -15,7 +15,7 @@
             </div>
             <h4 class="font-medium text-sm">{{ config?.display_name || '联系客服' }}</h4>
           </div>
-          <button @click="expanded = false" class="w-6 h-6 rounded-md hover:bg-milk-01 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
+          <button type="button" @click="expanded = false" class="w-6 h-6 rounded-md hover:bg-milk-01 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -23,7 +23,7 @@
           <div class="flex items-center gap-2 p-2.5 rounded-lg bg-ink-01 border border-border/50">
             <component :is="contactIcon" class="w-4 h-4 text-cyan shrink-0" />
             <span class="text-sm text-text-secondary truncate">{{ config?.contact_value }}</span>
-            <button @click="copyContact" class="px-2 py-1 rounded-md bg-cyan/10 text-cyan hover:bg-cyan/20 text-xs font-medium ml-auto shrink-0 transition-colors">
+            <button type="button" @click="copyContact" class="px-2 py-1 rounded-md bg-cyan/10 text-cyan hover:bg-cyan/20 text-xs font-medium ml-auto shrink-0 transition-colors">
               {{ copied ? '已复制' : '复制' }}
             </button>
           </div>
@@ -45,7 +45,7 @@
     </Transition>
 
     <!-- 悬浮按钮 -->
-    <button
+    <button type="button"
       ref="dragBtn"
       @mousedown="startDrag"
       @touchstart="startDrag"
