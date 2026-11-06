@@ -213,7 +213,7 @@
             <div class="h-full rounded-full" style="background: var(--t-brand);"
               :style="{ width: (importJob.total_count ? Math.min(100, importJob.processed_count / importJob.total_count * 100) : 0) + '%' }"></div>
           </div>
-          <div v-if="importJob.status === 'review'" class="text-text-muted">原始 {{ importJob.raw_count }} 条 · 有效 {{ importJob.valid_count }} 条 · 重复 {{ importJob.duplicate_count }} 条 · 无效 {{ importJob.invalid_count }} 条</div>
+          <div v-if="importJob.status === 'review'" class="text-text-muted">原始 {{ importJob.raw_count }} 条 · 格式有效 {{ importJob.valid_count }} 条 · 重复 {{ importJob.duplicate_count }} 条 · 无效 {{ importJob.invalid_count }} 条</div>
           <div v-else class="text-text-muted">入库 {{ importJob.imported_count }} · 失败 {{ importJob.failed_count }} · 跳过 {{ importJob.skipped_count }}</div>
           <div v-if="importJob.last_error" class="text-[var(--t-err)] break-words">{{ importJob.last_error }}</div>
         </div>
@@ -391,7 +391,7 @@ async function confirmImportJob(jobId: string) {
     importJob.value = job
     const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
     if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
-    toast({ type: 'success', title: '已开始解析', message: `已确认 ${job.valid_count} 条有效链接，进入后台群组解析队列` })
+    toast({ type: 'success', title: '已开始解析', message: `已确认 ${job.valid_count} 条格式有效链接，进入后台群组解析队列` })
     pollImportJob(job.job_id)
   } catch (err: any) {
     toast({ type: 'error', title: '确认失败', message: err?.message || '确认导入任务失败' })
@@ -413,7 +413,7 @@ async function doImport() {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     importJob.value = job
     importJobs.value.unshift(job)
-    toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
+    toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，格式有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
   } catch (err: any) {
     toast({ type: 'error', title: '筛选失败', message: err?.message || '筛选导入内容失败' })
   } finally {
