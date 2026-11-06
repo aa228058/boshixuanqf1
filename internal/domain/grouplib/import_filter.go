@@ -1,13 +1,14 @@
 package grouplib
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
 
 // importCandidateRe 只识别 Telegram 公共用户名和私密邀请链接。
 // 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
-var importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:joinchat/|\+)?[A-Za-z0-9_-]{5,64}|@[A-Za-z][A-Za-z0-9_]{4,31})`)
+var importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:s/|joinchat/|\+)?[A-Za-z0-9_-]{5,64}|tg://(?:resolve\?domain=[A-Za-z][A-Za-z0-9_]{4,31}|join\?invite=[A-Za-z0-9_-]{5,64})|@[A-Za-z][A-Za-z0-9_]{4,31})`)
 
 type importFilterResult struct {
 	Links     []string
@@ -67,6 +68,21 @@ func filterImportLinks(payload string) importFilterResult {
 }
 
 func normalizeImportCandidate(candidate string) (normalized, key string, ok bool) {
+	if strings.HasPrefix(strings.ToLower(candidate), "tg://") {
+		u, err := url.Parse(candidate)
+		if err != nil { return "", "", false }
+		if strings.EqualFold(u.Host, "resolve") {
+			username := u.Query().Get("domain")
+			if len(username) < 5 || len(username) > 32 { return "", "", false }
+			return "https://t.me/" + username, "u:" + strings.ToLower(username), true
+		}
+		if strings.EqualFold(u.Host, "join") {
+			hash := u.Query().Get("invite")
+			if len(hash) < 5 || len(hash) > 64 { return "", "", false }
+			return "https://t.me/+" + hash, "p:" + hash, true
+		}
+		return "", "", false
+	}
 	if strings.HasPrefix(candidate, "@") {
 		username := candidate[1:]
 		if len(username) < 5 || len(username) > 32 {
@@ -94,6 +110,7 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 		return "", "", false
 	}
 	path := parts[1]
+	if strings.HasPrefix(strings.ToLower(path), "s/") { path = path[2:] }
 	lowerPath := strings.ToLower(path)
 	if strings.HasPrefix(path, "+") || strings.HasPrefix(lowerPath, "joinchat/") {
 		hash := path

@@ -179,7 +179,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			if partialFailed > 0 {
 				partialFailed-- // 最后一条失败就是当前 429 链接，必须留待重试。
 			}
-			processedPrefix := partialImported + partialFailed + partialSkipped
+			processedPrefix := result.Processed
 			if processedPrefix > 0 {
 				var detail string
 				if result != nil && partialFailed > 0 {
