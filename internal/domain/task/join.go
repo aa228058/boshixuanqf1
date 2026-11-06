@@ -444,6 +444,11 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			taskLog.Printf("[task] UpdateStatus failed: %v", err)
 		}
 	}
+	// Approval checks may have resolved while this worker was still processing targets.
+	// Finalize once the worker has written its terminal state and no approvals remain.
+	if _, err := e.repo.FinalizeTaskAfterApprovals(ctx, task.TenantID, task.TaskID); err != nil {
+		taskLog.Printf("[task] finalize pending approvals failed: %v", err)
+	}
 }
 
 // syncJoinedGroups resolves joined group info and upserts to groups table.
