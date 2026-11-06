@@ -1936,7 +1936,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   position: relative;
 }
 .acc-row + .acc-row { border-top: 1px solid var(--t-line-light); }
-.acc-row.standby { opacity: .55; }
+.acc-row.standby { background: var(--t-surface-2); }
 .acc-row:active { background: var(--t-surface-2); }
 
 /* 复选框列: 默认收起(width:0), 多选模式滑出 */
