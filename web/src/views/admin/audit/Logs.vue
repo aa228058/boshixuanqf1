@@ -40,7 +40,7 @@
       <div
         v-for="log in logs"
         :key="log.log_id"
-        class="glass rounded-[var(--t-r-md)] p-4 space-y-2 lift"
+        class="ui-card p-4 space-y-2 lift"
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="text-xs px-1.5 py-0.5 rounded" :class="actionClass(log.action)">
@@ -58,6 +58,13 @@
         <div class="text-xs text-text-secondary">IP: {{ log.ip || '-' }}</div>
       </div>
       <EmptyState v-if="!logs.length" icon="ClipboardList" title="暂无审计日志" description="选择日期范围后点击查询" />
+      <div v-if="total > 20" class="flex items-center justify-between gap-3 pt-1">
+        <span class="text-xs text-text-muted">共 {{ total }} 条 · 第 {{ page }} / {{ Math.ceil(total / 20) }} 页</span>
+        <div class="flex items-center gap-2">
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="page = page - 1; fetchLogs()">上一页</t-button>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / 20)" @click="page = page + 1; fetchLogs()">下一页</t-button>
+        </div>
+      </div>
     </div>
   </main>
 </template>
