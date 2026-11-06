@@ -52,16 +52,12 @@ func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc a
 }
 
 func (e *Engine) Start() {
-	// P2-35/36 审计修复: wg.Add 原在 goroutine 内——Stop 若在 goroutine 启动前
-	// 调用, close(stopCh)+Wait 会立即返回(Add 尚未执行, 计数为 0), 而 goroutine
-	// 随后 Add 并继续跑 runOnce, 与下一轮 Start 并发聚合。Add 移到锁外同步执行,
-	// 保证 Wait 一定等得到本 goroutine。
+	// 聚合任务保持低频运行，避免影响主业务数据库。
 	e.wg.Add(1)
 	safego.Go(func() {
 		defer e.wg.Done()
 		t := time.NewTicker(e.interval)
 		defer t.Stop()
-		// 启动即先跑一轮
 		e.runOnce()
 		for {
 			select {
@@ -69,6 +65,23 @@ func (e *Engine) Start() {
 				return
 			case <-t.C:
 				e.runOnce()
+			}
+		}
+	})
+
+	// 用户确认的导入任务使用独立调度周期，不再等待两分钟一次的全量聚合周期。
+	e.wg.Add(1)
+	safego.Go(func() {
+		defer e.wg.Done()
+		e.processImportJobs(context.Background())
+		t := time.NewTicker(2 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-e.stopCh:
+				return
+			case <-t.C:
+				e.processImportJobs(context.Background())
 			}
 		}
 	})
@@ -92,8 +105,6 @@ func (e *Engine) runOnce() {
 	if err := e.aggregateMemberBios(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	// 持久化导入任务分批执行，HTTP 请求不等待解析完成。
-	e.processImportJobs(ctx)
 	// 批量导入的私密链接在此低速补群名(每轮最多 resolveBatchSize 条)
 	e.resolvePendingTitles(ctx)
 	for _, err := range errs {
