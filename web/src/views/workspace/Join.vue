@@ -86,12 +86,12 @@
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
       <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 mb-4" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
-        <button class="flex-1 py-2.5 rounded-[14px] text-sm font-bold transition-all active:scale-[0.98]"
+        <button class="ui-btn ui-btn--segmented flex-1"
           :style="joinMode === 'link'
             ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.2);'
             : 'color: var(--t-text-3);'"
           @click="joinMode = 'link'">链接加群</button>
-        <button class="flex-1 py-2.5 rounded-[14px] text-sm font-bold transition-all active:scale-[0.98]"
+        <button class="ui-btn ui-btn--segmented flex-1"
           :style="joinMode === 'invite'
             ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.2);'
             : 'color: var(--t-text-3);'"
@@ -151,9 +151,9 @@
 
       <!-- 操作按钮 -->
       <div class="flex items-center justify-end gap-3">
-        <button @click="showCreate = false"
+        <button class="ui-btn ui-btn--ghost" @click="showCreate = false"
                 class="px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors">取消</button>
-        <button @click="submit" :disabled="validLinks.length === 0 || submitting"
+        <button class="ui-btn ui-btn--primary" @click="submit" :disabled="validLinks.length === 0 || submitting"
                 class="px-6 py-2 rounded-lg text-sm font-medium glow-btn disabled:opacity-50 flex items-center gap-2">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : `创建加群任务 (${validLinks.length})` }}
