@@ -286,7 +286,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	// Set refresh token in HTTP-only cookie
-	// #nosec G124 -- HttpOnly and Strict are enforced; Secure is enabled for production or HTTPS while preserving local HTTP development.
+	// #nosec G124 -- HttpOnly and Strict are enforced; Secure follows the actual request scheme so HTTP deployments can restore sessions.
 	// Secure 按请求 scheme：HTTP 部署下强 Secure 浏览器拒存 cookie，
 	// F-20 内存 token 模式会每次刷新都被踢回登录页
 	cookie := &http.Cookie{
@@ -294,7 +294,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		Value:    refreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   h.cfg.Env == "production" || c.Scheme() == "https",
+		Secure:   c.Scheme() == "https",
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(h.cfg.JWTRefreshExp.Seconds()),
 	}
@@ -467,13 +467,13 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "token mismatch")
 	}
 
-	// #nosec G124 -- HttpOnly and Strict are enforced; Secure is enabled for production or HTTPS while preserving local HTTP development.
+	// #nosec G124 -- HttpOnly and Strict are enforced; Secure follows the actual request scheme so HTTP deployments can restore sessions.
 	newCookie := &http.Cookie{
 		Name:     "refresh_token",
 		Value:    newRefreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   h.cfg.Env == "production" || c.Scheme() == "https",
+		Secure:   c.Scheme() == "https",
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(h.cfg.JWTRefreshExp.Seconds()),
 	}
@@ -496,7 +496,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 			Value:    "",
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   h.cfg.Env == "production" || c.Scheme() == "https",
+			Secure:   c.Scheme() == "https",
 			SameSite: http.SameSiteStrictMode,
 			MaxAge:   -1,
 		})
