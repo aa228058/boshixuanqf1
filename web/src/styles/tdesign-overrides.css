@@ -102,32 +102,15 @@
   /* 内容区留白统一 */
   .t-dialog__body { padding: var(--t-space-2) var(--t-space-4) !important; }
 
-  /* ===== vue-final-modal 弹窗: 移动端贴底 + 按钮全宽 =====
+  /* ===== vue-final-modal 专属遮罩、按钮与过渡；定位尺寸统一由 modal-system.css 管理 =====
      必须写在这里(全局)而非组件 scoped: slot 里的按钮不带 Modal.vue 的
      scope 属性, scoped 样式匹配不到; 过渡类名也是全局的 */
-  .modal-wrapper {
-    position: fixed !important;
-    inset: 0 !important;
-    display: flex !important;
-    align-items: flex-end !important;
-    justify-content: center !important;
-    padding: 0 !important;
-  }
   .modal-overlay {
     position: absolute !important;
     inset: 0 !important;
     background: var(--t-overlay) !important;
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-  }
-  .modal-content {
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: 92vh !important;
-    max-height: 92dvh !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
   }
   .modal-footer button,
   .modal-footer .t-button {
@@ -151,17 +134,6 @@
     min-height: 44px !important;
     border-radius: 12px !important;
     font-size: 15px !important;
-  }
-}
-
-/* ===== 桌面端: 弹窗居中卡片 ===== */
-@media (min-width: 769px) {
-  .modal-wrapper {
-    align-items: center !important;
-    padding: var(--t-space-6) !important;
-  }
-  .modal-content {
-    max-width: 520px !important;
   }
 }
 
