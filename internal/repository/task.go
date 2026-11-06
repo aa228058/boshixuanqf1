@@ -685,13 +685,13 @@ func (r *TaskRepository) StopLoop(ctx context.Context, tenantID, taskID uuid.UUI
 	res, err := r.db.Exec(ctx, `
 		UPDATE tasks SET is_loop = FALSE, status = 'paused'
 		WHERE tenant_id = $1 AND task_id = $2 AND is_loop = TRUE
-		  AND status IN ('pending', 'queued', 'scheduled', 'paused')
+		  AND status IN ('pending', 'queued', 'scheduled', 'paused', 'completed')
 	`, tenantID, taskID)
 	if err != nil {
 		return err
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("loop task is no longer pending or queued")
+		return fmt.Errorf("loop task is no longer stoppable")
 	}
 	return nil
 }
