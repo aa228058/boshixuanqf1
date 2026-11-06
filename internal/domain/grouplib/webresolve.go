@@ -136,6 +136,9 @@ func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, str
 		return "", 0, "unknown", fmt.Errorf("Telegram 网页内容超过限制")
 	}
 	page := string(body)
+	if isInvalidInvitePage(page) {
+		return "", 0, "unknown", fmt.Errorf("邀请链接已过期或无效")
+	}
 	title := extractTelegramMeta(page, "og:title")
 	if title == "" || isGenericTitle(title) {
 		if match := htmlTitleRe.FindStringSubmatch(page); len(match) > 1 {
@@ -216,6 +219,24 @@ func parseWebMemberCount(value string) int {
 		return int(^uint(0) >> 1)
 	}
 	return int(n + 0.5)
+}
+
+func isInvalidInvitePage(page string) bool {
+	text := strings.ToLower(cleanTelegramText(page))
+	markers := []string{
+		"invite link is invalid",
+		"invite link has expired",
+		"this invite link is invalid",
+		"invitation link has expired",
+		"邀请链接已过期",
+		"邀请链接无效",
+	}
+	for _, marker := range markers {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func detectTelegramPageType(page string) string {
