@@ -287,10 +287,3 @@ html.theme-stripe .elev-bar {
 /* 定时任务群组选择器层级高于弹窗 */
 /* 已删除: 该覆盖会把群组选择器弹窗的 position:fixed 改成 relative, 导致弹窗定位错误不可见 */
 
-/* ---------- R87 设计令牌: TDesign 品牌色映射为 demo 青绿 ---------- */
-html.theme-stripe {
-  --td-brand-color: var(--t-brand)!important;
-  --td-brand-color-hover: var(--t-brand-hover)!important;
-  --td-brand-color-active: var(--t-brand-active)!important;
-  --td-brand-color-focus: var(--t-brand-dim)!important;
-}
