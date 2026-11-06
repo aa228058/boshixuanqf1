@@ -43,10 +43,10 @@
           </span>
         </template>
         <template #actions="{ row }">
-          <button @click="copyCode(row.code as string)" class="ui-btn ui-btn--text ui-btn--sm">复制</button>
-          <button @click="viewCode(row as any)" class="ui-btn ui-btn--text ui-btn--sm">查看</button>
-          <button v-if="row.status === 'unused'" @click="revokeCode(row as any)" class="ui-btn ui-btn--ghost ui-btn--sm">作废</button>
-          <button @click="delCode(row as any)" class="ui-btn ui-btn--danger ui-btn--sm">删除</button>
+          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(row.code as string)">复制</t-button>
+          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(row as any)">查看</t-button>
+          <t-button v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)">作废</t-button>
+          <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)">删除</t-button>
         </template>
       </t-table>
     </div>
@@ -74,9 +74,9 @@
         <div class="flex items-center justify-between text-xs text-text-secondary">
           <span>{{ new Date(c.created_at).toLocaleDateString('zh-CN') }}</span>
           <div>
-            <button @click="viewCode(c)" class="ui-btn ui-btn--text ui-btn--sm">查看</button>
-            <button v-if="c.status === 'unused'" @click="revokeCode(c)" class="ui-btn ui-btn--ghost ui-btn--sm">作废</button>
-            <button @click="delCode(c)" class="ui-btn ui-btn--danger ui-btn--sm">删除</button>
+            <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</t-button>
+            <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)">作废</t-button>
+            <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)">删除</t-button>
           </div>
         </div>
       </div>
@@ -106,7 +106,7 @@
         </div>
       </div>
       <template #footer>
-        <button type="button" @click="showGenerate = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showGenerate = false">取消</t-button>
         <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doGenerate">生成</t-button>
       </template>
     </Modal>
@@ -123,7 +123,7 @@
         <div v-if="viewingCode.notes" class="flex justify-between gap-4"><span class="text-text-secondary shrink-0">备注</span><span class="text-right">{{ viewingCode.notes }}</span></div>
       </div>
       <template #footer>
-        <button type="button" @click="showView = false" class="ui-btn ui-btn--ghost ui-btn--sm">关闭</button>
+        <t-button type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showView = false">关闭</t-button>
       </template>
     </Modal>
   </main>
@@ -133,8 +133,8 @@
     <Transition name="batch-bar">
       <div v-if="selectedIds.length" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
-        <button @click="batchRevoke" class="ui-btn ui-btn--ghost ui-btn--sm whitespace-nowrap">批量作废</button>
-        <button @click="batchDelete" class="ui-btn ui-btn--danger ui-btn--sm whitespace-nowrap">批量删除</button>
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke">批量作废</t-button>
+        <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete">批量删除</t-button>
         <button type="button" @click="selectedIds = []" class="ui-icon-btn" aria-label="清空已选卡密" title="清空已选卡密">×</button>
       </div>
     </Transition>
