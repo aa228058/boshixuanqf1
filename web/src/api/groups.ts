@@ -58,6 +58,10 @@ export function importLibraryGroups(text: string, fileName = ''): Promise<GroupL
   return api.post('/group-library/import', { text, file_name: fileName })
 }
 
+export function listGroupLibraryImportJobs(): Promise<{ list: GroupLibraryImportJob[] }> {
+  return api.get('/group-library/import-jobs')
+}
+
 export function getGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
   return api.get('/group-library/import-jobs/' + encodeURIComponent(jobId))
 }
