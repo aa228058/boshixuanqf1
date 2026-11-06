@@ -25,8 +25,7 @@
         </div>
         <div class="flex items-center justify-between pt-1">
           <span class="text-[11px] text-text-muted">最后更新：{{ form.updated_at?.slice(0, 16).replace('T', ' ') || '—' }}</span>
-          <button class="ui-btn ui-btn--primary" @click="save" :disabled="saving"
-                  class="px-5 py-2.5 rounded-lg bg-[var(--t-brand)] text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5">
+          <button class="ui-btn ui-btn--primary px-5 py-2.5 rounded-lg bg-[var(--t-brand)] text-bg-primary text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5" @click="save" :disabled="saving">
             <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />{{ saving ? '保存中…' : '保存配置' }}
           </button>
         </div>
