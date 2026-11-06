@@ -318,6 +318,13 @@ func (r *SystemGroupRepository) UpsertJoinedGroup(ctx context.Context, sg *domai
 	} else {
 		return err
 	}
+	if _, err := r.db.Exec(ctx, `
+		UPDATE system_group_links
+		SET validity_status='valid', last_verified_at=NOW()
+		WHERE sg_id IN (SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1)
+	`, sg.TelegramChatID); err != nil {
+		return err
+	}
 	if freeSpeechStatus != "" && freeSpeechStatus != "unknown" {
 		return r.UpdateFreeSpeechStatusByChatID(ctx, sg.TelegramChatID, freeSpeechStatus)
 	}
