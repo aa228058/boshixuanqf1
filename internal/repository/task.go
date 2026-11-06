@@ -199,7 +199,7 @@ func (r *TaskRepository) ClaimTimeoutTasks(ctx context.Context, workerID string,
 			SELECT t.task_id FROM tasks t
 			JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
 			WHERE t.status = 'running'
-			  AND t.locked_at < NOW() - ($3 * INTERVAL '1 minute')
+			  AND (t.locked_at IS NULL OR t.locked_at < NOW() - ($3 * INTERVAL '1 minute'))
 			  AND tenant.status = 'active'
 			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())
 			ORDER BY t.priority DESC, t.created_at ASC

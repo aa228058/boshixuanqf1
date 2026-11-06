@@ -225,6 +225,31 @@ func TestClaimTimeoutTasks_ReclaimsExpiredLock(t *testing.T) {
 	}
 }
 
+func TestClaimTimeoutTasks_ReclaimsRunningTaskWithoutLease(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenant := uuid.New()
+
+	id := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	_, err := pool.Exec(context.Background(),
+		`UPDATE tasks SET status='running', worker_id=NULL, locked_at=NULL WHERE task_id=$1`, id)
+	if err != nil {
+		t.Fatalf("simulate running task without lease: %v", err)
+	}
+
+	claimed, err := repo.ClaimTimeoutTasks(context.Background(), "recovery-worker", 5, 5)
+	if err != nil {
+		t.Fatalf("ClaimTimeoutTasks: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].TaskID != id {
+		t.Fatalf("reclaimed %d tasks, want task with missing lease", len(claimed))
+	}
+	if claimed[0].WorkerID == nil || *claimed[0].WorkerID != "recovery-worker" {
+		t.Errorf("new worker = %v, want recovery-worker", claimed[0].WorkerID)
+	}
+}
+
 func TestClaimTasks_SkipsInactiveAndExpiredTenants(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)
