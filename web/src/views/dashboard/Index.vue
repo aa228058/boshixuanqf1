@@ -9,10 +9,10 @@
         <div class="text-[10.5px] font-extrabold tracking-[0.13em] uppercase" style="color: rgba(255,255,255,0.75);">{{ greeting }} · 运营概览</div>
         <h2 class="mt-1.5 text-display sm:text-display font-black leading-tight tracking-tight">{{ greeting }}，今天也顺利</h2>
         <p class="mt-1.5 text-caption max-w-[420px]" style="color: rgba(255,255,255,0.85);">账号、任务与监控都在正常运转。点下方按钮创建今天的群发任务。</p>
-        <router-link :to="`/workspace/${accId}/broadcast`"
+        <router-link  :to="broadcastPath"
                      class="inline-flex items-center gap-1.5 mt-4 px-4 py-2.5 rounded-[var(--t-r-md)] text-small font-extrabold active:scale-[0.97] transition-transform"
                      style="background: #fff; color: var(--t-brand); box-shadow: 0 6px 18px rgba(0,0,0,0.15);">
-          ＋ 创建群发任务 →
+          {{ accountStore.currentAccount ? '＋ 创建群发任务 →' : '＋ 先添加 Telegram 账号 →' }}
         </router-link>
       </div>
     </section>
@@ -156,7 +156,10 @@ const greeting = (() => {
   if (h < 18) return '下午好'
   return '晚上好'
 })()
-const accId = computed(() => accountStore.currentAccount?.account_id || 'none')
+const broadcastPath = computed(() => {
+  const accountId = accountStore.currentAccount?.account_id
+  return accountId ? `/workspace/${accountId}/broadcast` : '/accounts'
+})
 
 // R126: 快速开始已撤除(功能入口统一在"更多"页) —— 原 quickActions 死代码一并清除
 
