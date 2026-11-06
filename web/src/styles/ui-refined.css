@@ -69,9 +69,8 @@
 
 /* ========== 8. 滚动条(全端统一细条) ========== */
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--t-text-1) 22%, transparent) transparent; }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-text, #1a1d29) 18%, transparent); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-text, #1a1d29) 32%, transparent); }
+/* WebKit scrollbar visuals are owned by ui-polish.css.
+   Firefox scrollbar-width/color remain defined by the universal rule above. */
 
 /* ========== 9. R109 已删除 vue-sonner 死样式补丁 ==========
    原 ToastContainer 时代的遗产: 强制右上角定位(与 App.vue top-center 打架)、
