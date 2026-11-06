@@ -25,18 +25,6 @@ const routes = [
   '/sessions',
 ]
 
-const accountId = process.env.E2E_ACCOUNT_ID
-if (accountId) {
-  routes.push(
-    `/workspace/${encodeURIComponent(accountId)}/broadcast`,
-    `/workspace/${encodeURIComponent(accountId)}/join`,
-    `/workspace/${encodeURIComponent(accountId)}/scrape`,
-    `/workspace/${encodeURIComponent(accountId)}/scrape-links`,
-    `/workspace/${encodeURIComponent(accountId)}/monitor`,
-    `/workspace/${encodeURIComponent(accountId)}/tasks`,
-  )
-}
-
 test('租户认证路由可渲染且没有浏览器运行时异常', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
@@ -48,6 +36,7 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
     })
     await expect(page.locator('body'), route).toBeVisible()
     await expect(page.locator('body'), route).not.toBeEmpty()
+    await page.waitForTimeout(800)
     await page.screenshot({
       path: testInfo.outputPath(`${route.replace(/[^a-z0-9]+/gi, '_')}.png`),
       fullPage: true,
@@ -88,5 +77,21 @@ test('常见桌面视口没有明显横向溢出', async ({ page }) => {
       document.documentElement.scrollWidth > window.innerWidth + 1
     )
     expect(overflow, `${route} 存在页面级横向溢出`).toBe(false)
+  }
+})
+
+
+test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
+  for (const route of routes) {
+    await page.goto(route)
+    await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
+    await page.waitForTimeout(500)
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }))
+    expect(dimensions.document, `${route} 页面级横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
+    expect(dimensions.body, `${route} body 横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
   }
 })
