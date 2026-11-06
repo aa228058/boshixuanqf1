@@ -182,7 +182,7 @@ func (h *AdminHandler) ListTenants(c echo.Context) error {
 	if pageSize < 1 {
 		pageSize = 20
 	}
-	tenants, total, err := h.adminService.ListTenants(c.Request().Context(), page, pageSize, status, planID, c.QueryParam("search"))
+	tenants, total, err := h.adminService.ListTenants(c.Request().Context(), page, pageSize, status, planID, strings.TrimSpace(c.QueryParam("search")))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
