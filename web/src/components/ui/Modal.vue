@@ -54,7 +54,7 @@ let modalCounter = 0
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { VueFinalModal } from 'vue-final-modal'
 
 const props = defineProps<{
@@ -127,6 +127,9 @@ watch(() => props.modelValue, v => {
   if (v) attachKbGuard()
   else detachKbGuard()
 }, { immediate: true })
+
+// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时必须释放 visualViewport 监听并复位全局键盘偏移。
+onUnmounted(detachKbGuard)
 // 层级序号只负责排序，不做递减：弹窗可长期挂载、反复开关或被条件卸载。
 </script>
 
