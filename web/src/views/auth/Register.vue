@@ -42,7 +42,9 @@
                 placeholder="请输入密码"
                 class="w-full bg-bg-card rounded-[var(--t-r-md)] px-4 py-3.5 pr-12 text-text-primary placeholder:text-text-muted border border-transparent focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/10 transition-[transform,opacity,border-color,background-color] duration-200"
                 required aria-label="请输入密码" />
-              <button\n                type="button"\n                class="ui-icon-btn absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+              <button
+                type="button"
+                class="ui-icon-btn absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
                 @click="showPassword = !showPassword"
               >
                 <Eye v-if="showPassword" class="w-5 h-5" stroke-width="1.5" />
