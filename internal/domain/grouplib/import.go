@@ -26,10 +26,8 @@ type ImportResult struct {
 
 // ImportByLinks 批量导入: 逐条解析链接→调 TG 补全群名/成员数/类型→归并入群库。
 //
-// 解析能力边界(向调用方诚实交代):
-//   - 公开群/频道(@username, t.me/username): 能拿到群名、成员数、类型, 完整入库;
-//   - 私密邀请链接(t.me/+hash, t.me/joinchat/hash): 未加入前 TG 不暴露群名,
-//     只能先按链接占位入库(status=active), 等加群任务成功后由 syncJoinedGroups 自动补名。
+// 解析规则：只有成功取得群组身份信息后才允许写入正式群组库。
+// 私密邀请链接如果 Telegram 不提供预览信息，保留为失败/待补充，不创建占位群组。
 func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUID, lines []string) (*ImportResult, error) {
 	// 归一化+去重: 每个 entry = {kind, username|hash, tmeLink}
 	type entry struct {
@@ -112,32 +110,41 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			sg.Username = en.username
 			sg.GType = "unknown"
 		}
-		if !bulkMode {
+		var title string
+		var count int
+		var gtype string
+		var chatID int64
+		var rerr error
+		if client != nil && !bulkMode {
 			if en.private {
-				// 私密邀请: messages.checkChatInvite 无需入群即可拿到群名/成员数
-				title, count, gtype, chatID, rerr := resolveInviteInfo(ctx, client, en.hash)
-				if rerr != nil {
-					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
-					continue
-				}
-				sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
+				title, count, gtype, chatID, rerr = resolveInviteInfo(ctx, client, en.hash)
 			} else {
-				title, count, gtype, chatID, rerr := resolveGroupInfo(ctx, client, en.username)
-				if rerr != nil {
-					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
-					continue
-				}
-				sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
+				title, count, gtype, chatID, rerr = resolveGroupInfo(ctx, client, en.username)
+			}
+		} else {
+			// 无账号或大批量分片时走复用连接池的 HTTP 解析器。
+			// HTTP 页面没有暴露有效标题时，不允许创建正式群组记录。
+			if en.private {
+				title, count, rerr = resolveInviteInfoViaWeb(ctx, en.hash)
+				gtype = "private"
+			} else {
+				title, count, rerr = resolvePublicGroupInfoViaWeb(ctx, en.username)
+				gtype = "public"
 			}
 		}
+		if rerr != nil || strings.TrimSpace(title) == "" {
+			if rerr == nil {
+				rerr = fmt.Errorf("解析结果缺少群组名称，暂不入库")
+			}
+			res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
+			continue
+		}
+		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 		if err := e.repo.Upsert(ctx, &sg); err != nil {
 			res.Failed = append(res.Failed, fmt.Sprintf("%s: 入库失败 %v", en.link, err))
 			continue
 		}
 		res.Imported = append(res.Imported, sg)
-		if bulkMode {
-			continue
-		}
 		// TG 对解析类请求有限流: 条目间间隔 1s, 避免连打触发 flood
 		select {
 		case <-ctx.Done():
