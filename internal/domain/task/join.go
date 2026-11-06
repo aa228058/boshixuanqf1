@@ -469,6 +469,8 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 		var username string
 		var gtype string
 		var accessHash int64
+		var memberCount int
+		freeSpeechStatus := "unknown"
 
 		if strings.Contains(link, "+") || strings.Contains(link, "joinchat") {
 			// Private link: try to resolve by hash after joining
@@ -532,20 +534,29 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			continue
 		}
 
-		// Try to get real title from Telegram (best-effort)
+		// Read shared group metadata from Telegram after the account has joined.
+		// DefaultBannedRights describes the group-wide default, not this account's mute state.
 		if gtype == "channel" && accessHash != 0 {
 			fullReq := &tg.ChannelsGetFullChannelRequest{
 				Channel: &tg.InputChannel{ChannelID: chatID, AccessHash: accessHash},
 			}
 			if fullResult, err := client.Invoke(ctx, fullReq); err == nil {
 				if full, ok := fullResult.(*tg.MessagesChatFull); ok {
-					if _, ok := full.FullChat.(*tg.ChannelFull); ok {
-						// Title is in the Channel object, not ChannelFull
-						for _, chat := range full.Chats {
-							if ch, ok := chat.(*tg.Channel); ok && ch.ID == chatID {
-								title = ch.Title
-								break
+					for _, item := range full.Chats {
+						if ch, ok := item.(*tg.Channel); ok && int64(ch.ID) == chatID {
+							title = ch.Title
+							memberCount = int(ch.ParticipantsCount)
+							if ch.Megagroup {
+								gtype = "supergroup"
+								if ch.DefaultBannedRights == nil || !ch.DefaultBannedRights.SendMessages {
+									freeSpeechStatus = "allowed"
+								} else {
+									freeSpeechStatus = "restricted"
+								}
+							} else {
+								gtype = "channel"
 							}
+							break
 						}
 					}
 				}
@@ -554,12 +565,16 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			fullReq := &tg.MessagesGetFullChatRequest{ChatID: chatID}
 			if fullResult, err := client.Invoke(ctx, fullReq); err == nil {
 				if full, ok := fullResult.(*tg.MessagesChatFull); ok {
-					if _, ok := full.FullChat.(*tg.ChatFull); ok {
-						for _, chat := range full.Chats {
-							if ch, ok := chat.(*tg.Chat); ok && ch.ID == chatID {
-								title = ch.Title
-								break
+					for _, item := range full.Chats {
+						if ch, ok := item.(*tg.Chat); ok && ch.ID == chatID {
+							title = ch.Title
+							memberCount = int(ch.ParticipantsCount)
+							if ch.DefaultBannedRights == nil || !ch.DefaultBannedRights.SendMessages {
+								freeSpeechStatus = "allowed"
+							} else {
+								freeSpeechStatus = "restricted"
 							}
+							break
 						}
 					}
 				}
@@ -568,6 +583,23 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 		// Fallback to link if title still empty
 		if title == "" {
 			title = link
+		}
+
+		// Any successful tenant-account membership enriches the system-wide shared group library.
+		// Account-specific mute state is intentionally not read or persisted here.
+		if e.systemGroupRepo != nil {
+			shared := &domain.SystemGroup{
+				Source: "joined", Title: title, Username: username, TmeLink: link,
+				GType: gtype, MemberCount: memberCount, TelegramChatID: chatID,
+				Status: "joined", ContributorTenantID: task.TenantID,
+			}
+			if err := e.systemGroupRepo.Upsert(ctx, shared); err != nil {
+				log.Printf("[join] 共享群组库补齐失败 chat=%d: %v", chatID, err)
+			} else if freeSpeechStatus != "unknown" {
+				if err := e.systemGroupRepo.UpdateFreeSpeechStatusByChatID(ctx, chatID, freeSpeechStatus); err != nil {
+					log.Printf("[join] 更新群组自由发言状态失败 chat=%d: %v", chatID, err)
+				}
+			}
 		}
 
 		// Upsert group record with access_hash
