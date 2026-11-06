@@ -153,25 +153,21 @@ html.theme-dark textarea::placeholder {
 }
 /* R87-M10: TDesign 全部输入控件容器统一(此前只罩了 t-input, 白边漏网:
    t-select/t-date-picker/t-input-number/tag-input/cascader 各有独立 wrap 类名) */
-html.theme-dark .t-input__wrap,
 html.theme-dark .t-select__wrap,
 html.theme-dark .t-select-input__wrap,
 html.theme-dark .t-date-picker__wrap,
 html.theme-dark .t-input-number,
 html.theme-dark .t-tag-input,
-html.theme-dark .t-cascader__wrap,
-html.theme-dark .t-textarea__wrap {
+html.theme-dark .t-cascader__wrap {
   background: var(--t-surface-1) !important;
   border-color: var(--t-line) !important;
   box-shadow: none !important;
   color: var(--t-text-1) !important;
 }
-html.theme-dark .t-input__wrap.t-is-focused,
 html.theme-dark .t-select__wrap.t-is-focused,
 html.theme-dark .t-date-picker__wrap.t-is-focused,
 html.theme-dark .t-input-number.t-is-focused,
 html.theme-dark .t-cascader__wrap.t-is-focused,
-html.theme-dark .t-input__wrap:focus-within,
 html.theme-dark .t-select__wrap:focus-within,
 html.theme-dark .t-date-picker__wrap:focus-within,
 html.theme-dark .t-input-number:focus-within {
@@ -208,17 +204,7 @@ html.theme-dark .t-button--variant-base:hover {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-/* 输入框无框化(最高优先级): 色块底 + 聚焦亮品牌边 */
-.t-input__wrap, .t-textarea__wrap {
-  background: var(--t-surface-1) !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-.t-input__wrap.t-is-focused, .t-textarea__wrap.t-is-focused,
-.t-input__wrap:focus-within, .t-textarea__wrap:focus-within {
-  border-color: var(--t-brand) !important;
-  box-shadow: 0 0 0 3px var(--t-brand-dim) !important;
-}
+/* TDesign input/textarea wrapper base and focus states are owned by tailwind.css. */
 /* 移动端弹窗底部安全区(全面屏手势防误触) */
 @media (max-width: 640px) {
   .vfm__content, .t-dialog__footer, .t-dialog__body {
