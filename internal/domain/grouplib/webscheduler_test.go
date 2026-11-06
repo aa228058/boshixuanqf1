@@ -2,7 +2,6 @@ package grouplib
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -14,9 +13,8 @@ import (
 func TestTelegramWebScheduler429OpensSharedCircuit(t *testing.T) {
 	s := newTelegramWebScheduler(2, 0, 0)
 	s.recordHTTPResult(http.StatusTooManyRequests, time.Now(), "30")
-
 	var rateErr *TelegramRateLimitError
-	if err := s.circuitError(time.Now()); !errors.As(err, &rateErr) {
+	if err := s.circuitError(time.Now()); !errorsAsRateLimit(err, &rateErr) {
 		t.Fatalf("expected shared circuit to open, got %v", err)
 	}
 	if rateErr.RetryAfter < 29*time.Second {
@@ -39,7 +37,7 @@ func TestTelegramWebSchedulerOpensAfterTransientFailures(t *testing.T) {
 	}
 }
 
-func TestTelegramWebSchedulerDoesNotTripOnNotFound(t *testing.T) {
+func TestTelegramWebSchedulerDoesNotTripOnNotFoundAndResetsOnResponse(t *testing.T) {
 	s := newTelegramWebScheduler(2, 0, 0)
 	now := time.Now()
 	for i := 0; i < telegramWebFailureLimit-1; i++ {
@@ -57,9 +55,7 @@ func TestTelegramWebSchedulerEnforcesGlobalConcurrency(t *testing.T) {
 		current := active.Add(1)
 		for {
 			old := peak.Load()
-			if current <= old || peak.CompareAndSwap(old, current) {
-				break
-			}
+			if current <= old || peak.CompareAndSwap(old, current) { break }
 		}
 		time.Sleep(30 * time.Millisecond)
 		active.Add(-1)
@@ -75,15 +71,9 @@ func TestTelegramWebSchedulerEnforcesGlobalConcurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			if err != nil { t.Error(err); return }
 			resp, err := s.do(context.Background(), client, req)
-			if err != nil {
-				t.Error(err)
-				return
-			}
+			if err != nil { t.Error(err); return }
 			resp.Body.Close()
 		}()
 	}
@@ -91,4 +81,13 @@ func TestTelegramWebSchedulerEnforcesGlobalConcurrency(t *testing.T) {
 	if got := peak.Load(); got > 2 {
 		t.Fatalf("peak concurrency=%d, want <=2", got)
 	}
+}
+
+func errorsAsRateLimit(err error, target **TelegramRateLimitError) bool {
+	if err == nil { return false }
+	if value, ok := err.(*TelegramRateLimitError); ok {
+		*target = value
+		return true
+	}
+	return false
 }

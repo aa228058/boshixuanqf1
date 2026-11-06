@@ -19,33 +19,29 @@ const (
 )
 
 // telegramWebScheduler coordinates every public-page lookup in this process.
-// Tenants and import jobs deliberately share one request budget.
+// It is deliberately global: tenants and import jobs share one rate budget.
 type telegramWebScheduler struct {
-	slots       chan struct{}
-	mu          sync.Mutex
-	nextStart   time.Time
-	openUntil   time.Time
-	failures    int
-	halfOpen    bool
+	slots chan struct{}
+	mu sync.Mutex
+	nextStart time.Time
+	openUntil time.Time
+	failures int
+	halfOpen bool
 	minInterval time.Duration
-	maxJitter   time.Duration
+	maxJitter time.Duration
 }
 
 func newTelegramWebScheduler(concurrency int, minInterval, maxJitter time.Duration) *telegramWebScheduler {
-	if concurrency < 1 {
-		concurrency = 1
-	}
+	if concurrency < 1 { concurrency = 1 }
 	return &telegramWebScheduler{
-		slots:       make(chan struct{}, concurrency),
+		slots: make(chan struct{}, concurrency),
 		minInterval: minInterval,
-		maxJitter:   maxJitter,
+		maxJitter: maxJitter,
 	}
 }
 
 var sharedTelegramWebScheduler = newTelegramWebScheduler(
-	telegramWebMaxConcurrent,
-	telegramWebMinInterval,
-	telegramWebMaxJitter,
+	telegramWebMaxConcurrent, telegramWebMinInterval, telegramWebMaxJitter,
 )
 
 func (s *telegramWebScheduler) do(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
@@ -83,7 +79,6 @@ func (s *telegramWebScheduler) waitForPermit(ctx context.Context) error {
 		}
 		s.halfOpen = true
 	}
-
 	startAt := now
 	if s.nextStart.After(startAt) {
 		startAt = s.nextStart
@@ -101,9 +96,7 @@ func (s *telegramWebScheduler) waitForPermit(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			s.mu.Lock()
-			if s.halfOpen && !time.Now().Before(s.openUntil) {
-				s.halfOpen = false
-			}
+			if s.halfOpen && !time.Now().Before(s.openUntil) { s.halfOpen = false }
 			s.mu.Unlock()
 			return ctx.Err()
 		case <-timer.C:
@@ -126,13 +119,8 @@ func (s *telegramWebScheduler) recordHTTPResult(status int, now time.Time, retry
 		s.recordTransientFailure(now, 0)
 		return
 	}
-
-	// A late 2xx from an already in-flight request must not cancel a newer 429.
+	// Any non-429, non-5xx HTTP response proves the endpoint is reachable.
 	s.mu.Lock()
-	if now.Before(s.openUntil) {
-		s.mu.Unlock()
-		return
-	}
 	s.failures = 0
 	s.openUntil = time.Time{}
 	s.halfOpen = false
@@ -145,9 +133,7 @@ func (s *telegramWebScheduler) recordTransientFailure(now time.Time, retryAfter 
 	s.failures++
 	if s.halfOpen || s.failures >= telegramWebFailureLimit {
 		delay := telegramWebCooldown
-		if retryAfter > delay {
-			delay = retryAfter
-		}
+		if retryAfter > delay { delay = retryAfter }
 		s.openUntil = now.Add(delay)
 		s.halfOpen = false
 	}
@@ -163,8 +149,6 @@ func (s *telegramWebScheduler) circuitError(now time.Time) error {
 }
 
 func telegramWebDo(req *http.Request) (*http.Response, error) {
-	if req == nil {
-		return nil, fmt.Errorf("Telegram 请求不能为空")
-	}
+	if req == nil { return nil, fmt.Errorf("Telegram 请求不能为空") }
 	return sharedTelegramWebScheduler.do(req.Context(), telegramWebClient, req)
 }

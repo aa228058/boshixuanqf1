@@ -3,6 +3,7 @@ package grouplib
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -84,11 +85,14 @@ func TestApplyTelegramWebHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyTelegramWebHeaders(req)
-	if req.Header.Get("User-Agent") != telegramMobileUA {
+	if req.Header.Get("User-Agent") != telegramWebUserAgent {
 		t.Fatal("expected the configured stable User-Agent")
 	}
 	if req.Header.Get("Accept-Language") == "" || req.Header.Get("Accept") == "" {
 		t.Fatal("expected Accept and Accept-Language headers")
+	}
+	if strings.Contains(req.Header.Get("User-Agent"), "iPhone") || strings.Contains(req.Header.Get("User-Agent"), "Safari") {
+		t.Fatal("User-Agent must identify this application, not impersonate a device or browser")
 	}
 	if req.Header.Get("Referer") != "" {
 		t.Fatal("Referer should not be fabricated")
