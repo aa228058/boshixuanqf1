@@ -85,7 +85,7 @@
           <h3 class="text-sm font-medium">采集到的成员</h3>
           <span class="text-xs text-text-secondary">({{ members.length }})</span>
         </div>
-        <button @click="fetchMembers" :disabled="membersLoading" class="text-xs px-3 py-1 rounded-lg border border-border hover:border-[color:var(--t-brand)] transition-colors disabled:opacity-40">
+        <button @click="fetchMembers" :disabled="membersLoading" class="ui-btn ui-btn--secondary ui-btn--sm disabled:opacity-40">
           {{ membersLoading ? '加载中...' : '刷新' }}
         </button>
       </div>
@@ -121,7 +121,7 @@
           </span>
           <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
           <!-- R128 语义修正: 仅清除前端显示, 不动服务端已保存的记录 -->
-          <button @click="clearLogs" class="text-xs px-2.5 py-1 rounded-lg border border-border text-text-muted hover:text-[var(--t-err)] hover:border-[color:var(--t-err)]/40 transition-colors" title="仅清除当前显示">清除显示</button>
+          <button @click="clearLogs" class="ui-btn ui-btn--ghost ui-btn--sm" title="仅清除当前显示">清除显示</button>
         </div>
       </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
