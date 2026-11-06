@@ -384,7 +384,7 @@
       </div>
       <template #footer>
         <div class="flex gap-3">
-          <button @click="closeAddModal" class="px-4 py-2 rounded-lg text-sm text-text-secondary" aria-label="关闭">取消</button>
+          <button @click="closeAddModal" class="ui-btn ui-btn--ghost" aria-label="关闭">取消</button>
           <t-button theme="primary"
             v-if="addStep === 'phone' && addMode === 'phone'"
             :disabled="!newPhone || adding"
@@ -428,10 +428,10 @@
           <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'text-text-muted'}`" />
           <span class="flex-1 text-sm">{{ g.name }}</span>
           <span class="text-xs text-text-secondary">{{ (g.account_ids || []).length }} 个账号</span>
-          <button @click="editGroup(g)" class="p-2 rounded-lg hover:bg-bg-hover min-w-[36px] min-h-[36px] flex items-center justify-center" aria-label="编辑">
+          <button @click="editGroup(g)" class="ui-icon-btn" aria-label="编辑">
             <Pencil class="w-3.5 h-3.5 text-text-secondary" />
           </button>
-          <button @click="deleteGroup(g)" class="p-2 rounded-lg hover:bg-[var(--t-err)]/10 min-w-[36px] min-h-[36px] flex items-center justify-center">
+          <button @click="deleteGroup(g)" class="ui-icon-btn">
             <Trash2 class="w-3.5 h-3.5 text-text-secondary hover:text-[var(--t-err)]" />
           </button>
         </div>
@@ -466,7 +466,7 @@
       </div>
       <template #footer>
         <div class="flex gap-3">
-          <button @click="showEditGroup = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary" aria-label="编辑">取消</button>
+          <button @click="showEditGroup = false" class="ui-btn ui-btn--ghost" aria-label="编辑">取消</button>
           <t-button theme="primary" @click="saveGroup">保存</t-button>
         </div>
       </template>
@@ -497,7 +497,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showAuth = false" :disabled="oldAuthStarting || oldAuthSubmitting" class="px-4 py-2 rounded-lg text-sm text-text-secondary disabled:opacity-50">取消</button>
+        <button @click="showAuth = false" :disabled="oldAuthStarting || oldAuthSubmitting" class="ui-btn ui-btn--ghost">取消</button>
         <t-button theme="primary" :disabled="oldAuthStarting || oldAuthSubmitting || (!need2FA && !oldAuthCode.trim()) || (need2FA && !oldTwoFAPassword)" @click="need2FA ? submitOld2FA() : submitOldCode()">
           {{ oldAuthStarting ? '正在启动…' : oldAuthSubmitting ? '正在验证…' : '确认' }}
         </t-button>
@@ -530,7 +530,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showEditRemark = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
+        <button @click="showEditRemark = false" class="ui-btn ui-btn--ghost">取消</button>
         <t-button theme="primary" @click="saveRemark">保存</t-button>
       </template>
     </Modal>
@@ -577,7 +577,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showTransfer = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">关闭</button>
+        <button @click="showTransfer = false" class="ui-btn ui-btn--ghost">关闭</button>
         <t-button theme="primary" :disabled="transferRunning || !transferTargetId" @click="doTransfer">
           <Loader2 v-if="transferRunning" class="w-3.5 h-3.5 animate-spin mr-1" />
           {{ transferRunning ? '采集中(私群逐个导链接)…' : (transferResult ? '再次转移' : '开始转移') }}
@@ -635,7 +635,7 @@
           <span v-if="avatarUploading" class="text-xs text-[var(--t-brand)] shrink-0">上传中…</span>
         </div>
         <div class="flex justify-end gap-2 pt-2">
-          <button @click="showBatchProfile = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-ink-01">取消</button>
+          <button @click="showBatchProfile = false" class="ui-btn ui-btn--ghost">取消</button>
           <button @click="runBatchProfile" :disabled="batchingProfile"
                   class="px-4 py-2 rounded-lg text-sm glow-btn disabled:opacity-50">
             {{ batchingProfile ? '执行中…' : '开始批量修改' }}
