@@ -11,6 +11,7 @@ import (
 
 type ImportJob struct {
 	JobID          uuid.UUID  `json:"job_id"`
+	FileName       string     `json:"file_name"`
 	Status         string     `json:"status"`
 	TotalCount     int        `json:"total_count"`
 	ProcessedCount int        `json:"processed_count"`
@@ -31,10 +32,10 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 	err := e.pool.QueryRow(ctx, `
 		INSERT INTO group_library_import_jobs (tenant_id, file_name, payload, total_count)
 		VALUES ($1, $2, $3, $4)
-		RETURNING job_id, status, total_count, processed_count, imported_count,
+		RETURNING job_id, file_name, status, total_count, processed_count, imported_count,
 		          failed_count, skipped_count, created_at, finished_at`,
 		tenantID, fileName, payload, len(lines)).Scan(
-		&job.JobID, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
 		return nil, err
@@ -44,13 +45,13 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 
 func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit int) ([]ImportJob, error) {
 	if limit < 1 || limit > 100 { limit = 20 }
-	rows, err := e.pool.Query(ctx, `SELECT job_id,status,total_count,processed_count,imported_count,failed_count,skipped_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2`, tenantID, limit)
+	rows, err := e.pool.Query(ctx, `SELECT job_id,file_name,status,total_count,processed_count,imported_count,failed_count,skipped_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2`, tenantID, limit)
 	if err != nil { return nil, err }
 	defer rows.Close()
 	jobs := make([]ImportJob, 0)
 	for rows.Next() {
 		var job ImportJob
-		if err := rows.Scan(&job.JobID,&job.Status,&job.TotalCount,&job.ProcessedCount,&job.ImportedCount,&job.FailedCount,&job.SkippedCount,&job.LastError,&job.CreatedAt,&job.FinishedAt); err != nil { return nil, err }
+		if err := rows.Scan(&job.JobID,&job.FileName,&job.Status,&job.TotalCount,&job.ProcessedCount,&job.ImportedCount,&job.FailedCount,&job.SkippedCount,&job.LastError,&job.CreatedAt,&job.FinishedAt); err != nil { return nil, err }
 		jobs = append(jobs, job)
 	}
 	return jobs, rows.Err()
@@ -59,11 +60,11 @@ func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit i
 func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*ImportJob, error) {
 	var job ImportJob
 	err := e.pool.QueryRow(ctx, `
-		SELECT job_id, status, total_count, processed_count, imported_count,
+		SELECT job_id, file_name, status, total_count, processed_count, imported_count,
 		       failed_count, skipped_count, last_error, created_at, finished_at
 		FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2`,
 		tenantID, jobID).Scan(
-		&job.JobID, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount,
 		&job.LastError, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
