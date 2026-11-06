@@ -7,7 +7,7 @@
           勾选控制每档套餐能用的功能；右侧数值改规模与限额（0 = 不限）。保存后立即生效。
         </p>
       </div>
-      <t-button size="small" theme="primary" :disabled="saving" class="whitespace-nowrap shrink-0" @click="saveAll">
+      <t-button size="small" theme="primary" :disabled="saving" class="whitespace-nowrap shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveAll">
         <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin mr-1 shrink-0" />
         保存全部
       </t-button>
