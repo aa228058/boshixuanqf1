@@ -308,23 +308,23 @@
       <!-- footer 按步骤切换(footer 插槽必须在 Modal 直接子层级, 不能嵌套在条件分支内) -->
       <template #footer>
         <template v-if="addStep === 'phone'">
-          <button type="button" class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
-          <button type="button" class="modal-btn-primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
+          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
+          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
             <Loader2 v-if="adding" class="w-4 h-4 animate-spin" />
             {{ adding ? '发送中...' : resendCountdown > 0 ? `已发送(${resendCountdown}s)` : '获取验证码' }}
-          </button>
+          </t-button>
         </template>
         <template v-else-if="addStep === 'code'">
-          <button type="button" class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
-          <button type="button" class="modal-btn-primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
+          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
+          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
             {{ submitting ? '提交中...' : '提交验证码' }}
-          </button>
+          </t-button>
         </template>
         <template v-else>
-          <button type="button" class="modal-btn-ghost" @click="showAddAccount = false">取消</button>
-          <button type="button" class="modal-btn-primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
+          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
+          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
             {{ submitting ? '验证中...' : '完成登录' }}
-          </button>
+          </t-button>
         </template>
       </template>
     </Modal>
