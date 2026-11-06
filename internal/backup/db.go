@@ -281,7 +281,6 @@ func pruneOldDBBackups(dir string, keep int) {
 				log.Printf("[db-backup] 清理旧备份失败: %v", err)
 			}
 		} else {
-			// #nosec G706 -- old is a directory entry selected by the strict db_*.sql.gz filename pattern and quoted.
 			log.Printf("[db-backup] 清理旧备份完成")
 		}
 		if err := root.Remove(old + ".err"); err != nil && !os.IsNotExist(err) {
