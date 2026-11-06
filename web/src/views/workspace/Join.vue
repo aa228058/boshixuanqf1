@@ -151,8 +151,8 @@
 
       <!-- 操作按钮 -->
       <div class="flex items-center justify-end gap-3">
-        <t-button type="button" class="ui-t-button ui-t-button--secondary px-4 py-2 rounded-lg text-sm text-text-secondary hover:bg-bg-card transition-colors" @click="showCreate = false">取消</t-button>
-        <t-button type="button" class="ui-t-button ui-t-button--primary px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
+        <t-button type="button" class="ui-t-button ui-t-button--secondary" @click="showCreate = false">取消</t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : `创建加群任务 (${validLinks.length})` }}
         </t-button>
