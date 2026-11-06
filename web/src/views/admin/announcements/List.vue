@@ -1,7 +1,7 @@
 <template>
   <main class="space-y-4">
     <div class="flex items-center justify-between">
-      <t-button theme="primary" size="sm" class="shrink-0" @click="showCreate = true"> 发布公告
+      <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 发布公告
       </t-button>
     </div>
 
@@ -96,7 +96,7 @@
       </div>
       <template #footer>
         <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button theme="primary" @click="saveAnnouncement">
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="saveAnnouncement">
           {{ editing ? '保存' : '发布' }}
         </t-button>
       </template>
