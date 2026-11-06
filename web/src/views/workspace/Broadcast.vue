@@ -11,7 +11,7 @@
 
     <!-- 页面 tab: 任务列表 / 发送日历(发送日历合并自原独立页) -->
     <div class="flex items-center gap-1 border-b border-border mb-4">
-      <button v-for="t in pageTabs" :key="t.key"
+      <button type="button" v-for="t in pageTabs" :key="t.key"
               @click="activeTab = t.key"
               class="px-4 py-2 text-sm font-medium transition-colors relative"
               :class="activeTab === t.key ? 'text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'">
@@ -164,7 +164,7 @@
       <label class="block text-sm font-medium mb-2">消息内容</label>
         <!-- 变量插入(交互示例10标签输入的轻量版): 点变量插入到光标处 -->
         <div class="flex flex-wrap gap-1.5 mb-2">
-          <button v-for="v in msgVars" :key="v" @click="insertVar(v)"
+          <button type="button" v-for="v in msgVars" :key="v" @click="insertVar(v)"
                   class="px-2 py-0.5 rounded-md bg-bg-primary border border-border text-text-secondary text-xs font-mono hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">{{ v }}</button>
           <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] self-center ml-auto">草稿已自动保存</span>
         </div>
