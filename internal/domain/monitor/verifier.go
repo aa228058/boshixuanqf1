@@ -243,28 +243,6 @@ func (e *Engine) executeRound(ctx context.Context, client *telegram.Client, st *
 			// 版本中【没有】CorrectOption/CorrectOptions 字段——TG 协议对客户端隐藏
 			// quiz 正确答案(隐私设计), 官方答案兜底在此库版本不可行。
 			// 回退到纯启发式: 算式/关键词答案 + 全部选项兜底点击由后续逻辑处理。
-			var correct []int32
-			voted := 0
-			for _, opt := range correct {
-				idx := int(opt)
-				if idx < 0 || idx >= len(cand.poll.Answers) {
-					continue
-				}
-				// #nosec G602 -- idx is checked against the slice length immediately above.
-				pa, ok := cand.poll.Answers[idx].(*tg.PollAnswer)
-				if !ok {
-					continue
-				}
-				if err := e.votePoll(ctx, client, cand, pa.Option); err != nil {
-					st.addStep("poll_fail", truncate(err.Error(), 100))
-				} else {
-					voted++
-				}
-			}
-			if voted > 0 {
-				st.addStep("poll", fmt.Sprintf("已投 %d 个正确选项(quiz 官方答案)", voted))
-				return nil
-			}
 			st.addStep("poll_skip", "Poll 无算式可解, 放弃(TG 协议不向客户端公开 quiz 答案)")
 		}
 	}
