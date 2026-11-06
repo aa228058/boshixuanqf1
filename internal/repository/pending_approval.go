@@ -24,7 +24,7 @@ func (r *PendingApprovalRepository) Create(ctx context.Context, pa *domain.Pendi
 	res, err := r.pool.Exec(ctx, `
 		INSERT INTO pending_approvals (task_id, tenant_id, account_id, chat_id, access_hash, target_link, status, max_checks)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (task_id) DO NOTHING
+		ON CONFLICT (task_id, account_id, target_link) DO NOTHING
 	`, pa.TaskID, pa.TenantID, pa.AccountID, pa.ChatID, pa.AccessHash, pa.TargetLink, pa.Status, pa.MaxChecks)
 	// P2-86: RowsAffected==0 说明唯一键冲突被 ON CONFLICT 跳过(幂等, 正常)或插入
 	// 异常静默。err==nil 但 0 行时返回哨兵错误, 让调用方感知"这条审批没进去"。
@@ -104,14 +104,14 @@ func (r *PendingApprovalRepository) GetByAccountAndLink(ctx context.Context, acc
 }
 
 // ResolvePending performs a compare-and-set so timeout and approval cannot win simultaneously.
-func (r *PendingApprovalRepository) ResolvePending(ctx context.Context, tenantID, taskID uuid.UUID, status string) (bool, error) {
+func (r *PendingApprovalRepository) ResolvePending(ctx context.Context, tenantID uuid.UUID, approvalID int, status string) (bool, error) {
 	if status != "approved" && status != "timeout" {
 		return false, fmt.Errorf("invalid pending approval resolution status %q", status)
 	}
 	res, err := r.pool.Exec(ctx, `
 		UPDATE pending_approvals SET status = $1, checked_at = NOW()
-		WHERE tenant_id = $2 AND task_id = $3 AND status = 'pending'
-	`, status, tenantID, taskID)
+		WHERE tenant_id = $2 AND id = $3 AND status = 'pending'
+	`, status, tenantID, approvalID)
 	if err != nil {
 		return false, fmt.Errorf("resolve pending approval: %w", err)
 	}
@@ -132,11 +132,11 @@ func (r *PendingApprovalRepository) CancelPendingForTask(ctx context.Context, te
 	return err
 }
 
-func (r *PendingApprovalRepository) IncrementCheck(ctx context.Context, tenantID, taskID uuid.UUID) error {
+func (r *PendingApprovalRepository) IncrementCheck(ctx context.Context, tenantID uuid.UUID, approvalID int) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE pending_approvals
 		SET check_count = check_count + 1, checked_at = NOW()
-		WHERE tenant_id = $1 AND task_id = $2 AND status = 'pending'
-	`, tenantID, taskID)
+		WHERE tenant_id = $1 AND id = $2 AND status = 'pending'
+	`, tenantID, approvalID)
 	return err
 }
