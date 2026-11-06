@@ -18,19 +18,15 @@ func NewPendingApprovalRepository(pool *pgxpool.Pool) *PendingApprovalRepository
 }
 
 func (r *PendingApprovalRepository) Create(ctx context.Context, pa *domain.PendingApproval) error {
-	// P2-86 审计修复: 原来 ON CONFLICT DO NOTHING 后不看 RowsAffected——首次插入
-	// 失败(如字段超长/约束冲突)与"已存在跳过"无法区分, 失败被静默吞掉。
-	// 检查 RowsAffected: 0 且非冲突场景应视为失败信号(至少记日志由调用方感知)。
-	res, err := r.pool.Exec(ctx, `
+	// ON CONFLICT DO NOTHING is intentionally idempotent: a concurrent worker may
+	// have inserted the same task/account/target approval after the caller's lookup.
+	// PostgreSQL reports actual insert/constraint failures through err; zero affected
+	// rows therefore means the unique approval already exists and is not an error.
+	_, err := r.pool.Exec(ctx, `
 		INSERT INTO pending_approvals (task_id, tenant_id, account_id, chat_id, access_hash, target_link, status, max_checks)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (task_id, account_id, target_link) DO NOTHING
 	`, pa.TaskID, pa.TenantID, pa.AccountID, pa.ChatID, pa.AccessHash, pa.TargetLink, pa.Status, pa.MaxChecks)
-	// P2-86: RowsAffected==0 说明唯一键冲突被 ON CONFLICT 跳过(幂等, 正常)或插入
-	// 异常静默。err==nil 但 0 行时返回哨兵错误, 让调用方感知"这条审批没进去"。
-	if err == nil && res.RowsAffected() == 0 {
-		return fmt.Errorf("pending approval insert: 0 rows (conflict or silent failure)")
-	}
 	return err
 }
 
