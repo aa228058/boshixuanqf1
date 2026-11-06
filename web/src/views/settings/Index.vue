@@ -2,8 +2,7 @@
   <main class="max-w-2xl mx-auto space-y-6">
     <!-- Phase 4: 设置页拆 5 Tab(手册信息架构)——URL ?tab= 同步, 可直接跳转/刷新定位 -->
     <div class="flex gap-1 p-1 rounded-[var(--t-r-md)] bg-bg-card border border-border/50 mb-2 overflow-x-auto">
-      <button v-for="t in tabs" :key="t.key" class="ui-segmented__item"
-              class="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
+      <button v-for="t in tabs" :key="t.key" class="ui-segmented__item px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
               :class="activeTab === t.key ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'"
               @click="switchTab(t.key)">{{ t.label }}</button>
     </div>
@@ -65,8 +64,7 @@
         <h3 class="text-sm font-medium text-text-secondary mt-6">发件邮箱（用你自己的邮箱发出通知）</h3>
         <p class="text-xs text-text-muted mt-1">选择一个邮箱服务商，按下方教程开启 SMTP 并填授权码</p>
         <div class="flex flex-wrap gap-1.5 mt-3">
-          <button v-for="p in smtpProviders" :key="p.key" type="button" class="ui-btn ui-btn--segmented ui-btn--sm" @click="pickProvider(p.key)"
-                  class="px-3 py-1.5 rounded-full border text-xs transition-colors"
+          <button v-for="p in smtpProviders" :key="p.key" type="button" class="ui-btn ui-btn--segmented ui-btn--sm px-3 py-1.5 rounded-full border text-xs transition-colors" @click="pickProvider(p.key)"
                   :class="smtpProvider === p.key ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[var(--t-brand)]/10' : 'border-border text-text-secondary hover:border-[color:var(--t-brand)]/30'">
             {{ p.label }}
           </button>
@@ -186,8 +184,7 @@
           <p class="text-xs text-text-muted mt-1">导出本租户全部自有数据（成员/群组/任务），不含任何账号凭证</p>
         </div>
         <!-- R122: tdesign outline 按钮在深色下是白底白字 —— 改用令牌类 -->
-        <button class="ui-btn ui-btn--ghost" :disabled="exporting" @click="exportMyData"
-                class="px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50">
+        <button class="ui-btn ui-btn--ghost px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50" :disabled="exporting" @click="exportMyData">
           {{ exporting ? '导出中…' : '导出 JSON' }}
         </button>
       </div>
