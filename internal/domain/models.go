@@ -23,7 +23,7 @@ type SystemGroup struct {
 	TmeLink                    string            `json:"tme_link,omitempty"`
 	GType                      string            `json:"gtype"`
 	MemberCount                int               `json:"member_count"`
-	FreeSpeechStatus            string            `json:"free_speech_status"`
+	FreeSpeechStatus           string            `json:"free_speech_status"`
 	Status                     string            `json:"status"`
 	ResolutionStatus           string            `json:"resolution_status,omitempty"`
 	FirstContributorTenantName string            `json:"contributor_name,omitempty"`
