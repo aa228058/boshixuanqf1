@@ -12,7 +12,9 @@ const pending = new Set<string>()
 const refreshing = new Set<string>() // R172: 正在自动重拉头像的账号, 防重复触发
 
 export function useAccountAvatar() {
-  const avatarOf = (accountId: string): string | null => {
+  // List.vue passes the full account object; other callers may pass the ID directly.
+  const avatarOf = (account: string | { account_id?: string } | null | undefined): string | null => {
+    const accountId = typeof account === 'string' ? account : account?.account_id || ''
     if (!accountId) return null
     const hit = cache[accountId]
     if (hit && Date.now() - hit.ts < TTL) return hit.url
