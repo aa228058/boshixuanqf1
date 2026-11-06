@@ -2,22 +2,23 @@
   <main class="max-w-3xl mx-auto space-y-4">
     <Breadcrumb :items="[{ path: `/workspace/${accountStore.currentAccount?.account_id || ''}`, label: '工作台' }, { path: '', label: '链接采集' }]" />
     <div class="flex items-center gap-3">
-      <button @click="$router.back()" class="ui-icon-btn" aria-label="返回">
+      <button type="button" @click="$router.back()" class="ui-icon-btn" aria-label="返回" title="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
       <h2 class="text-lg font-semibold text-gradient">群链接采集</h2>
     </div>
 
     <!-- R127 令牌化: seg 容器深浅主题自适应 -->
-    <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 max-w-xs" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
+    <div class="ui-segmented w-full max-w-xs" role="tablist" aria-label="链接采集页面">
       <button
         v-for="t in [{ key: 'create', label: '链接监听' }, { key: 'results', label: '采集结果' }]"
         :key="t.key"
         @click="switchTab(t.key as 'create' | 'results')"
-        class="flex-1 py-2 rounded-[12px] text-caption font-bold transition-all"
-        :style="activeTab === t.key
-          ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.18);'
-          : 'color: var(--t-text-3);'"
+        class="ui-segmented__item"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === t.key"
+        :class="{ 'is-active': activeTab === t.key }"
       >
         {{ t.label }}
       </button>
@@ -32,6 +33,7 @@
           <p class="text-xs text-text-muted mt-1 leading-relaxed">开启后, 当前账号自动采集<b>所有群组</b>消息中的邀请链接(公开+私密), 无需再选群</p>
         </div>
         <button
+          type="button"
           @click="toggleListening"
           class="relative w-12 h-7 rounded-full transition-colors shrink-0"
           :class="listening ? 'bg-cyan' : 'bg-bg-hover'"
@@ -60,17 +62,19 @@
 
       <!-- 总开关模式: 全部采集链接 -->
       <div class="glass rounded-[var(--t-r-md)] overflow-hidden mb-3">
-        <button @click="toggleAllLinks" class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-bg-hover/50 transition-colors">
+        <div class="flex items-center justify-between gap-3 p-4 flex-wrap">
+          <button type="button" @click="toggleAllLinks" class="flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:text-cyan transition-colors">
           <div class="flex items-center gap-3 min-w-0">
             <ChevronRight class="w-4 h-4 shrink-0 transition-transform" :class="{ 'rotate-90': allLinksOpen }" />
             <span class="text-sm font-medium">当前账号全部采集链接</span>
             <span v-if="allLinks.length" class="text-xs text-text-muted">{{ allLinks.length }} 条</span>
           </div>
-          <span class="flex items-center gap-2 shrink-0">
-            <span class="text-xs px-3 py-1 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors" @click.stop="exportAllLinks('txt')">导出TXT</span>
-            <span class="text-xs px-3 py-1 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan-glow/20 transition-colors" @click.stop="exportAllLinks('csv')">导出CSV</span>
-          </span>
-        </button>
+          </button>
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="exportAllLinks('txt')">导出 TXT</button>
+            <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="exportAllLinks('csv')">导出 CSV</button>
+          </div>
+        </div>
         <div v-if="allLinksOpen" class="border-t border-border">
           <div v-if="allLinksLoading" class="flex justify-center py-6 text-sm text-text-muted">加载中...</div>
           <div v-else-if="!allLinks.length" class="p-6 text-center text-text-muted text-sm">暂无链接, 先在"链接监听"Tab 开启监听, 收到含链接的群消息后会自动入库</div>
@@ -96,7 +100,7 @@
                   <a v-if="isHttpUrl(link.full_url)" :href="link.full_url" target="_blank" rel="noopener" class="text-cyan text-sm truncate min-w-0 flex-1" :title="link.full_url">{{ link.full_url }}</a>
                   <span v-else class="text-cyan text-sm truncate min-w-0 flex-1" :title="link.full_url">{{ link.full_url }}</span>
                   <span class="shrink-0 text-xs px-1.5 py-0.5 rounded bg-bg-hover text-text-muted">{{ link.link_type === 'private' ? '私密' : '公开' }}</span>
-                  <button @click="copyLink(link.full_url)" class="ui-btn ui-btn--ghost ui-btn--sm shrink-0">复制</button>
+                  <button type="button" @click="copyLink(link.full_url)" class="ui-btn ui-btn--ghost ui-btn--sm shrink-0">复制</button>
                 </div>
               </div>
               </pull-down-refresh>
@@ -112,11 +116,13 @@
           class="glass rounded-[var(--t-r-md)] overflow-hidden"
         >
           <!-- 任务行 -->
-          <button
-            @click="toggleTask(task)"
-            class="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-bg-hover/50 transition-colors"
-          >
-            <div class="flex items-center gap-3 min-w-0">
+          <div class="flex items-center justify-between gap-3 p-4 flex-wrap">
+            <button
+              type="button"
+              @click="toggleTask(task)"
+              class="flex min-w-0 flex-1 items-center gap-3 text-left hover:text-cyan transition-colors"
+              :aria-expanded="expandedTaskId === task.task_id"
+            >
               <ChevronRight class="w-4 h-4 shrink-0 transition-transform" :class="{ 'rotate-90': expandedTaskId === task.task_id }" />
               <span class="text-sm font-medium truncate">任务 #{{ task.task_id.slice(0, 8) }}</span>
               <span
@@ -128,21 +134,13 @@
                   'bg-bg-hover text-text-muted': !['completed', 'running', 'failed'].includes(task.status),
                 }"
               >{{ statusLabel(task.status) }}</span>
+              <span class="text-xs text-text-muted hidden sm:inline">{{ new Date(task.created_at).toLocaleString() }}</span>
+            </button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="exportTaskLinks(task, 'txt')">导出 TXT</button>
+              <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="exportTaskLinks(task, 'csv')">导出 CSV</button>
             </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <span class="text-xs text-text-muted">{{ new Date(task.created_at).toLocaleString() }}</span>
-              <span class="flex items-center gap-2">
-                <span
-                  class="text-xs px-3 py-1 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
-                  @click.stop="exportTaskLinks(task, 'txt')"
-                >导出TXT</span>
-                <span
-                  class="text-xs px-3 py-1 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan-glow/20 transition-colors"
-                  @click.stop="exportTaskLinks(task, 'csv')"
-                >导出CSV</span>
-              </span>
-            </div>
-          </button>
+          </div>
 
           <!-- 展开: 链接列表 -->
           <div v-if="expandedTaskId === task.task_id" class="border-t border-border">
