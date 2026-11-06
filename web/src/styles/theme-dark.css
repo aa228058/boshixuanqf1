@@ -41,7 +41,7 @@ html.theme-dark {
   --td-text-color-secondary: var(--t-text-2)!important;
   --td-text-color-placeholder: var(--t-text-3)!important;
   --td-border-level-1-color: color-mix(in srgb, var(--t-text-1) 10%, transparent) !important;
-  --td-component-border: color-mix(in srgb, var(--t-text-1) 10%, transparent) !important;
+  --td-component-border: color-mix(in srgb, var(--t-text-1) 14%, transparent) !important;
   color-scheme: dark !important;
 }
 
@@ -139,10 +139,7 @@ html.theme-dark .t-date-picker.t-is-focused {
   border-color: var(--t-brand) !important;
   box-shadow: 0 0 0 3px var(--t-brand-dim) !important;
 }
-/* R87-M10: 组件边框色(此前缺失, t-input-number/选择器等白边元凶) */
-html.theme-dark {
-  --td-component-border: color-mix(in srgb, var(--t-text-1) 14%, transparent) !important;
-}
+/* Dark component border is defined with the other dark TDesign tokens above. */
 /* R87-M10: 裸 input/textarea 深色统一(群发/设置弹窗里的原生输入框白边修复) */
 html.theme-dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
 html.theme-dark textarea {
