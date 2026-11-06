@@ -37,7 +37,7 @@
           <input
             v-model="search"
             placeholder="搜索私聊联系人..."
-            class="flex-1 px-3 py-2 rounded-lg glow-input text-sm"
+            class="ui-input !w-auto flex-1 !min-h-[36px] !px-3 !py-2 !text-sm"
           />
           <button type="button"
             v-if="filteredDialogs.length > 0"
