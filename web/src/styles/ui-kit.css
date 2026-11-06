@@ -353,3 +353,25 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
 .t-button.ui-t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
 .t-button.ui-t-button.t-is-disabled { opacity: .45; }
+
+/* Account action menu: consistent compact rows across desktop popover/mobile sheet. */
+.ui-menu-item {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: 0 var(--t-space-3);
+  border: 0;
+  border-radius: var(--t-radius-sm);
+  background: transparent;
+  color: var(--t-text-2);
+  font-size: var(--t-font-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease;
+}
+.ui-menu-item:hover { background: var(--t-surface-2); color: var(--t-text-1); }
+.ui-menu-item:focus-visible { outline: 2px solid var(--t-brand); outline-offset: -2px; }
+.ui-menu-item--danger { color: var(--t-err); }
+.ui-menu-item--danger:hover { color: var(--t-err); background: var(--t-err-dim); }
+.ui-icon-btn--xs { width: 20px; height: 20px; border-radius: 6px; background: var(--t-card); border-color: var(--t-line); }
