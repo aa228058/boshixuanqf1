@@ -35,6 +35,8 @@ version: v4.0-tg-sender
 
 ## 3. UI 体系：先理解现状，再修根因
 
+架构职责边界、迁移阶段和验收标准另见 [references/architecture-governance.md](references/architecture-governance.md)。架构收敛任务必须遵循该规范；目标态不代表历史代码已完成迁移。
+
 项目历史上存在多层 CSS 和多种按钮入口，例如 TDesign `.t-button`、项目 `.ui-btn`、图标按钮、弹窗专用按钮类，以及多个全局 CSS 层。它们是需要梳理的现状，不是继续新增平行体系的理由。
 
 修改 UI 前必须：
