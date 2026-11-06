@@ -215,6 +215,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				return
 			case <-timer.C:
 			}
+			// 冷却结束后立即释放任务给本轮调度器继续处理。
+			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=NOW() WHERE job_id=$1 AND status='processing'`, jobID)
 			continue
 		}
 		imported, failed, skipped := 0, 0, 0
