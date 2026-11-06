@@ -63,7 +63,7 @@
         <EmptyState title="暂无任务" description="创建群发/加群/采集任务后会显示在这里" />
       </div>
       <!-- 电脑端: TDesign 表格骨架 -->
-      <div v-if="tasks.length" class="hidden md:block mt-2">
+      <div v-if="tasks.length" class="hidden md:block mt-2 w-full max-w-full overflow-x-auto">
         <t-table row-key="task_id" :data="tasks" :columns="tableCols" hover style="min-width: 860px"
                  @row-click="(ctx: any) => $router.push(`/workspace/${route.params.accountId}/tasks/${ctx.row.task_id}`)">
           <template #status="{ row }">
