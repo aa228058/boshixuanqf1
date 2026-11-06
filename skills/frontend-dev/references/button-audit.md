@@ -81,7 +81,7 @@
 
 1. `ui-kit.css` 定义 `.ui-btn` 和 TDesign 按钮样式，但 `tdesign-skin.css` 又对所有 `.t-button` 使用 `!important`，形成两层视觉规则。
 2. `.t-button.ui-t-button` 已有实际调用（例如 `views/groups/Discover.vue`），是当前项目 TDesign 按钮统一视觉入口；此前审计把“是否有调用”列为待确认项，现已纠正。
-3. `modal-system.css` 独立定义弹窗按钮几何和颜色，和 `.ui-btn` / `.ui-t-button` 的语义、尺寸体系重复。公共确认弹窗已迁移到 `.ui-t-button`，其他业务弹窗仍保留兼容类，后续按调用点逐页迁移。
+3. `modal-system.css` 独立定义弹窗按钮几何和颜色，和 `.ui-btn` / `.ui-t-button` 的语义、尺寸体系重复。公共确认弹窗、Layout 账号登录弹窗和 Broadcast 预览弹窗已迁移到 `.ui-t-button`；其他业务弹窗仍保留兼容类，后续按调用点逐页迁移。
 4. `ui-polish.css` 对通用 `button` 和 `.glow-btn` 加交互效果，`App.vue` 再对所有 button 加 transition/active，可能影响本应由组件自身控制的按钮。
 5. `ui-refined.css` 中 `.glow-btn` 是历史视觉入口；当前至少在 `workspace/Join.vue`、`workspace/Scrape.vue` 被引用，不能直接删除。
 6. `.ui-icon-btn` 应继续作为图标按钮语义单独治理，不应强行套普通文字按钮的 padding/宽度。
@@ -91,7 +91,7 @@
 - **基础控件主入口：** TDesign Button。需要保持 TDesign 的 loading、disabled、事件、表单行为。
 - **项目统一视觉入口：** TDesign Button + `.ui-t-button`，通过 `ui-t-button--primary/secondary/danger/text` 与 `ui-t-button--sm` 表达语义；禁止新建平行 Button 视觉类。
 - **原生 button：** 仅用于菜单触发、特殊交互、原生表单语义或基础库不适配的场景；不再用全局 button 规则赋予完整视觉皮肤。
-- **弹窗按钮：** 公共 `ConfirmDialog.vue` / `ConfirmHost.vue` 已迁移到 TDesign Button + `.ui-t-button`；保留 Modal footer 布局规则。`Layout.vue` 和其他业务弹窗暂时兼容，不能一次性删 `.modal-btn-*`。
+- **弹窗按钮：** 公共 `ConfirmDialog.vue` / `ConfirmHost.vue`、`Layout.vue` 的账号登录弹窗、`workspace/Broadcast.vue` 的预览弹窗已迁移到 TDesign Button + `.ui-t-button`；保留 Modal footer 布局规则。旧 `.modal-btn-*` CSS 定义暂时保留，待全仓库确认调用归零后再删除。
 - **图标按钮：** 保留独立尺寸/命中区域/aria-label 规范，继续使用 `.ui-icon-btn`，并核查所有调用。
 - **旧类：** `.ui-btn`、`.modal-btn-*`、`.glow-btn` 暂时兼容；每迁移一个页面就检查调用数，归零后才能删除定义。
 
@@ -106,4 +106,4 @@
 - [ ] 执行 typecheck、test、design-token check、build
 - [ ] 桌面/移动端三主题真实浏览器视觉验收
 
-**本轮收敛：公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。尚未完成全仓库旧类迁移、全量动态调用统计、自动化测试与桌面/移动端视觉验收；不得宣称所有按钮已完全统一。**
+**本轮收敛：公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。尚未完成 `.ui-btn` / `.glow-btn` 等全仓库旧类迁移、全量动态调用统计、自动化测试与桌面/移动端视觉验收；不得宣称所有按钮已完全统一。**
