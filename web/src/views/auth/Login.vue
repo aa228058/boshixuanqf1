@@ -56,8 +56,7 @@
             <label class="text-[12px] font-bold" style="color: var(--t-text-3);">用户名</label>
             <!-- R140: 与密码框统一纯 CSS focus(品牌紫描边+柔光), 删除 JS 内联焦点方案 -->
             <input v-model="form.username" autocomplete="username" required
-                   class="w-full rounded-xl px-4 py-3 text-[16px] outline-none transition-all focus:border-[var(--t-brand)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--t-brand)_15%,transparent)]"
-                   style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+                   class="ui-input !min-h-[48px] !rounded-xl !px-4 !py-3 !text-base"
                    placeholder="请输入用户名" />
           </div>
           <div class="grid gap-1.5">
@@ -65,8 +64,7 @@
             <div class="relative">
               <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
                      autocomplete="current-password" required
-                     class="w-full rounded-xl px-4 py-3 pr-11 text-[16px] outline-none transition-all focus:border-[var(--t-brand)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--t-brand)_15%,transparent)]"
-                     style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+                     class="ui-input !min-h-[48px] !rounded-xl !px-4 !py-3 !pr-11 !text-base"
                      placeholder="请输入密码" @keyup.enter="handleLogin" />
               <button type="button" class="ui-icon-btn absolute right-3 top-1/2 -translate-y-1/2 transition-colors" aria-label="显示或隐藏密码" @click="showPassword = !showPassword"
                       style="color: var(--t-text-3);">
@@ -93,8 +91,7 @@
              style="background: color-mix(in srgb, var(--t-warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--t-warn) 30%, transparent);">
           <div class="text-[13px] text-center" style="color: var(--t-warn);">订阅已到期，输入卡密立即续费</div>
           <input v-model="renewCode" type="text" placeholder="输入续费卡密"
-                 class="w-full rounded-lg px-4 py-2.5 text-[13.5px] outline-none"
-                 style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+                 class="ui-input !min-h-[40px] !rounded-lg !px-4 !py-2.5 !text-sm"
                  @keyup.enter="doRenew" />
           <t-button type="button" class="ui-t-button--primary ui-t-button w-full rounded-lg py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
                   style="background: var(--t-warn);"
