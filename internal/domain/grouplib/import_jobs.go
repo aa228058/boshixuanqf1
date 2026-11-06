@@ -42,6 +42,20 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 	return &job, nil
 }
 
+func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit int) ([]ImportJob, error) {
+	if limit < 1 || limit > 100 { limit = 20 }
+	rows, err := e.pool.Query(ctx, `SELECT job_id,status,total_count,processed_count,imported_count,failed_count,skipped_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2`, tenantID, limit)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	jobs := make([]ImportJob, 0)
+	for rows.Next() {
+		var job ImportJob
+		if err := rows.Scan(&job.JobID,&job.Status,&job.TotalCount,&job.ProcessedCount,&job.ImportedCount,&job.FailedCount,&job.SkippedCount,&job.LastError,&job.CreatedAt,&job.FinishedAt); err != nil { return nil, err }
+		jobs = append(jobs, job)
+	}
+	return jobs, rows.Err()
+}
+
 func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*ImportJob, error) {
 	var job ImportJob
 	err := e.pool.QueryRow(ctx, `
