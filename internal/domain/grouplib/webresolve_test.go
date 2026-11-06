@@ -35,6 +35,24 @@ func TestParseWebMemberCount(t *testing.T) {
 	}
 }
 
+func TestDetectTelegramPageTypeRequiresExplicitActionLabel(t *testing.T) {
+	cases := []struct {
+		page string
+		want string
+	}{
+		{page: "<a>Join Group</a>", want: "group"},
+		{page: "<a>View in Telegram</a>", want: "group"},
+		{page: "<a>Join Channel</a>", want: "channel"},
+		{page: "<a>Preview channel</a>", want: "channel"},
+		{page: "<title>Telegram: Some Place</title>", want: "unknown"},
+	}
+	for _, tc := range cases {
+		if got := detectTelegramPageType(tc.page); got != tc.want {
+			t.Errorf("detectTelegramPageType(%q)=%q, want %q", tc.page, got, tc.want)
+		}
+	}
+}
+
 func TestInviteHashFromLink(t *testing.T) {
 	cases := map[string]string{
 		"https://t.me/+AbCdEf?single": "AbCdEf",
