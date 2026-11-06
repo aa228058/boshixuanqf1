@@ -76,11 +76,11 @@
             </div>
           </div>
 
-          <button type="submit" class="ui-btn ui-btn--primary mt-1 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white active:scale-[0.98] transition-transform disabled:opacity-60" :disabled="loading"
+          <t-button type="submit" class="ui-t-button--primary ui-t-button mt-1 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white active:scale-[0.98] transition-transform disabled:opacity-60" :disabled="loading"
                   :style="{ background: loginFailed ? 'var(--t-err)' : 'var(--t-brand)' }">
             <!-- R140 用户拍板: 删除转圈加载动画, 保留"登录中…"文字反馈 -->
             {{ loading ? '登录中…' : '登录并进入工作台 →' }}
-          </button>
+          </t-button>
         </form>
 
         <div v-if="error" class="mt-4 p-3.5 rounded-xl text-[13px] text-center"
@@ -96,9 +96,9 @@
                  class="w-full rounded-lg px-4 py-2.5 text-[13.5px] outline-none"
                  style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
                  @keyup.enter="doRenew" />
-          <button type="button" class="ui-btn ui-btn--primary w-full rounded-lg py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
+          <t-button type="button" class="ui-t-button--primary ui-t-button w-full rounded-lg py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
                   style="background: var(--t-warn);"
-                  @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</button>
+                  @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</t-button>
           <div v-if="renewMsg" class="text-xs text-center" :style="{ color: renewOk ? 'var(--t-ok)' : 'var(--t-err)' }">{{ renewMsg }}</div>
         </div>
 
