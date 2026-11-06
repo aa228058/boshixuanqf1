@@ -44,6 +44,36 @@
       </div>
     </div>
 
+    <!-- 群组链接导入任务：任务属于任务中心，不属于正式群组库 -->
+    <section v-if="importJobs.length" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-text-primary">群组导入与解析</h2>
+        <span class="text-xs text-text-muted">{{ importJobs.length }} 条任务</span>
+      </div>
+      <article v-for="job in importJobs" :key="job.job_id" class="ui-card p-4 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
+            <div class="text-xs text-text-muted mt-1">群组链接导入 · {{ formatDate(job.created_at) }}</div>
+          </div>
+          <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
+            {{ importStatusLabel(job.status) }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between text-xs text-text-secondary">
+          <span>已处理 {{ job.processed_count || 0 }} / {{ job.total_count || 0 }}</span>
+          <span>入库 {{ job.imported_count || 0 }} · 失败 {{ job.failed_count || 0 }} · 跳过 {{ job.skipped_count || 0 }}</span>
+        </div>
+        <div class="h-1.5 rounded-full overflow-hidden bg-bg-secondary">
+          <div class="h-full rounded-full bg-[var(--t-brand)] transition-all" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }"></div>
+        </div>
+        <div v-if="job.status === 'review'" class="flex justify-end">
+          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
+        </div>
+        <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
+      </article>
+    </section>
+
     <!-- 任务列表 -->
     <div class="space-y-3">
       <div v-if="loading" class="space-y-3 py-2">
@@ -222,6 +252,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { taskApi } from '@/api/task'
+import { listGroupLibraryImportJobs, getGroupLibraryImportJob, confirmImportLibraryGroups } from '@/api/groups'
 import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
@@ -253,6 +284,7 @@ const typeTabs = [
 ]
 
 const tasks = ref<any[]>([])
+const importJobs = ref<any[]>([])
 const loading = ref(false)
 const loadError = ref('')
 // E-02: 分页/筛选状态与 URL 双向同步——刷新/分享/前进后退均不丢状态
@@ -299,6 +331,31 @@ async function clearFinished() {
     fetchTasks()
   } catch (e: any) {
     toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
+  }
+}
+
+async function fetchImportJobs() {
+  try {
+    const res: any = await listGroupLibraryImportJobs()
+    importJobs.value = res.list || []
+  } catch { /* keep the last known task list during transient network errors */ }
+}
+
+function importStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    review: '待确认', pending: '排队中', processing: '解析中',
+    completed: '已完成', failed: '失败',
+  }
+  return labels[status] || status || '未知'
+}
+
+async function confirmGroupImport(jobId: string) {
+  try {
+    await confirmImportLibraryGroups(jobId)
+    toast({ type: 'success', title: '已开始解析', message: '群组导入任务已进入任务中心队列' })
+    await fetchImportJobs()
+  } catch (e: any) {
+    toast({ type: 'error', title: '确认失败', message: e?.message || '无法确认导入任务' })
   }
 }
 
@@ -501,7 +558,10 @@ const accNameById = (id: string) => {
   return a ? (a.first_name || a.remark || a.phone || id.slice(0, 6)) : id.slice(0, 6)
 }
 
-useAutoRefresh(fetchTasks, 15000)
+useAutoRefresh(() => { void fetchTasks(); void fetchImportJobs() }, 15000)
+void fetchImportJobs()
+const importJobsTimer = window.setInterval(fetchImportJobs, 5000)
+onUnmounted(() => window.clearInterval(importJobsTimer))
 useTaskEvents((evt: any) => {
   if (evt.type === 'task_wait') {
     waitInfo.value = { ...waitInfo.value, [String(evt.task_id)]: { account_id: String(evt.account_id || ''), remaining: Number(evt.remaining || 0), next_index: Number(evt.next_index || 0), total: Number(evt.total || 0), _t: Date.now() } }
