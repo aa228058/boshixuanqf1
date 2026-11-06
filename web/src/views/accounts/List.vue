@@ -37,23 +37,19 @@
         <span class="text-xs font-semibold whitespace-nowrap" style="color: var(--t-text-1);">已选 <b class="tabular-nums" style="color: var(--t-brand);">{{ selectedIds.size }}</b> 项</span>
         <span class="w-px h-4 shrink-0" style="background: var(--t-line-strong);" />
         <button @click="batchSetPool('standby')" :disabled="batchingPool"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
-                style="background: color-mix(in srgb, var(--t-text-1) 6%, transparent); color: var(--t-text-2);">
+                class="ui-btn ui-btn--secondary ui-btn--sm whitespace-nowrap">
           转备用
         </button>
         <button @click="batchSetPool('active')" :disabled="batchingPool"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
-                style="background: var(--t-brand-dim); color: var(--t-brand);">
+                class="ui-btn ui-btn--primary ui-btn--sm whitespace-nowrap">
           启用
         </button>
         <button @click="showClone = true"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
-                style="background: color-mix(in srgb, var(--t-text-1) 6%, transparent); color: var(--t-text-2);">
+                class="ui-btn ui-btn--secondary ui-btn--sm whitespace-nowrap">
           克隆资料
         </button>
         <button @click="exitSelecting" title="退出多选"
-                class="w-7 h-7 shrink-0 rounded-lg grid place-items-center transition-colors text-sm"
-                style="color: var(--t-text-3);">
+                class="ui-icon-btn shrink-0">
           ✕
         </button>
       </div>
