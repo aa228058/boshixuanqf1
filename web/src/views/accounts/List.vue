@@ -3,11 +3,11 @@
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
     <div class="grid gap-2 mb-3.5">
       <div class="flex gap-2">
-        <t-button theme="primary" class="flex-1" @click="openAddModal">添加账号</t-button>
+        <t-button theme="primary" class="flex-1 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
-        <t-button theme="default" class="flex-1" @click="showGroupModal = true">分组管理</t-button>
+        <t-button theme="default" class="flex-1 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
         <!-- 多选模式入口(桌面端; 移动端可长按列表行进入) -->
-        <button class="px-3.5 rounded-[var(--t-r-sm)] text-[var(--t-fs-small)] font-bold whitespace-nowrap"
+        <button class="ui-btn ui-btn--secondary ui-btn--sm whitespace-nowrap"
                 style="background: var(--t-surface-2); color: var(--t-text-2); border: 1px solid var(--t-line);"
                 @click="enterSelecting">多选</button>
       </div>
@@ -65,7 +65,7 @@
         title="暂无账号"
         description="点击下方按钮添加你的第一个 Telegram 账号吧"
       >
-        <t-button theme="primary" class="mt-4" @click="openAddModal">
+        <t-button theme="primary" class="mt-4 ui-t-button ui-t-button--primary" @click="openAddModal">
           添加账号
         </t-button>
       </EmptyState>
@@ -138,7 +138,7 @@
               <button v-if="acc?.pool_status !== 'standby'"
                       @click.stop="refreshAvatar(acc)"
                       :disabled="avatarRefreshingId === acc?.account_id"
-                      class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-bg-card border border-border text-text-secondary hover:text-[var(--t-brand)] hover:border-[color:var(--t-brand)] flex items-center justify-center transition-all shadow opacity-0 group-hover/avatar:opacity-100"
+                      class="ui-icon-btn ui-icon-btn--xs absolute -bottom-0.5 -right-0.5 opacity-0 group-hover/avatar:opacity-100"
                       title="刷新头像" aria-label="刷新头像">
                 <RefreshCw class="w-3 h-3" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" />
               </button>
@@ -199,14 +199,14 @@
         <!-- R108 操作区: 状态专属按钮(断开/验证码/受限) + ghost 主操作 + 更多菜单, 与信息区同行 -->
         <div class="flex items-center gap-1 shrink-0 self-center">
           <button v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
-                  class="w-7 h-7 rounded-lg grid place-items-center text-[var(--t-err)] hover:bg-[var(--t-err)]/10 hover:text-[var(--t-err)] transition-colors disabled:opacity-50"
+                  class="ui-icon-btn ui-icon-btn--danger"
                   title="断开" aria-label="断开">
             <Loader2 v-if="disconnecting === acc?.account_id" class="w-3.5 h-3.5 animate-spin" />
             <Unplug v-else class="w-3.5 h-3.5" />
           </button>
           <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
           <button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" @click.stop="showAuthModal(acc)"
-                  class="h-7 px-2 rounded-lg text-[10.5px] font-medium text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] border border-[color:var(--t-warn)] hover:bg-[var(--t-warn)]/20 transition-colors flex items-center gap-1 whitespace-nowrap">
+                  class="ui-btn ui-btn--warning ui-btn--sm whitespace-nowrap">
             <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
           </button>
           <span v-else-if="acc?.status === 'restricted'"
@@ -214,17 +214,17 @@
                 :title="cooldownText(acc) ? `受限中 · ${cooldownText(acc)}后恢复` : '受限中'">
             <ShieldAlert class="w-3.5 h-3.5" />受限
           </span>
-          <button @click.stop="togglePool(acc)" class="hidden sm:inline-flex ghost-act px-2.5 h-7 rounded-lg text-xs items-center gap-1 transition-colors">
+          <button @click.stop="togglePool(acc)" class="ui-btn ui-btn--secondary ui-btn--sm hidden sm:inline-flex whitespace-nowrap">
             <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" /> {{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
           </button>
           <!-- R128 窄屏适配: 资料/检测桌面直出, 移动端收进 ⋯ 菜单(原窄屏被信息区挤出屏幕) -->
           <button @click="openProfile(acc)"
-                  class="hidden sm:inline-flex ghost-act px-3 py-1.5 rounded-lg text-xs items-center gap-1 transition-colors">
+                  class="ui-btn ui-btn--secondary ui-btn--sm hidden sm:inline-flex whitespace-nowrap">
             <UserRoundPen class="w-3.5 h-3.5" /> 资料
           </button>
           <!-- R119: 能力检测(8 项矩阵, 全套餐可用) -->
           <button @click="openProbe(acc)"
-                  class="hidden sm:inline-flex ghost-act px-3 py-1.5 rounded-lg text-xs items-center gap-1 transition-colors">
+                  class="ui-btn ui-btn--secondary ui-btn--sm hidden sm:inline-flex whitespace-nowrap">
             <ShieldCheck class="w-3.5 h-3.5" /> 检测
           </button>
           <div class="relative ml-auto">
@@ -242,44 +242,44 @@
                  @click.stop>
               <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
               <button @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left disabled:opacity-50">
+                      class="ui-menu-item w-full disabled:opacity-50">
                 <RefreshCw class="w-3.5 h-3.5" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" /> 刷新头像
               </button>
               <button v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
                       @click="openMenuId = ''; reconnectAccount(acc)" :disabled="reconnectingId === acc?.account_id"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left disabled:opacity-50">
+                      class="ui-menu-item w-full disabled:opacity-50">
                 <RefreshCw class="w-3.5 h-3.5" :class="reconnectingId === acc?.account_id ? 'animate-spin' : ''" /> 重新连接
               </button>
               <button @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left disabled:opacity-50">
+                      class="ui-menu-item w-full disabled:opacity-50">
                 <LogOut class="w-3.5 h-3.5" /> 退群
               </button>
               <!-- R181 群转移: 把该号已加入的群导出邀请链接, 交给目标号批量加入 -->
               <button @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left disabled:opacity-50">
+                      class="ui-menu-item w-full disabled:opacity-50">
                 <ArrowRightLeft class="w-3.5 h-3.5" /> 转移群
               </button>
               <button @click="openMenuId = ''; editRemark(acc)"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left">
+                      class="ui-menu-item w-full">
                 <Pencil class="w-3.5 h-3.5" /> 备注·代理
               </button>
               <div class="border-t border-border my-1"></div>
               <!-- R108 修复: 转备用/资料/检测在移动端收进面板(桌面另有 ghost 按钮直出) -->
               <button @click="openMenuId = ''; togglePool(acc)"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left sm:hidden">
+                      class="ui-menu-item w-full sm:hidden">
                 <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" />{{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
               </button>
               <button @click="openMenuId = ''; openProfile(acc)"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left sm:hidden">
+                      class="ui-menu-item w-full sm:hidden">
                 <UserRoundPen class="w-3.5 h-3.5" />查看资料
               </button>
               <!-- R119: 能力检测(移动端面板, sm:hidden 桌面不重复显示) -->
               <button @click="openMenuId = ''; openProbe(acc)"
-                      class="w-full sm:hidden flex items-center gap-2 px-3 h-9 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors text-left">
+                      class="ui-menu-item w-full sm:hidden">
                 <ShieldCheck class="w-3.5 h-3.5" />检测
               </button>
               <button @click="openMenuId = ''; confirmDelete(acc)"
-                      class="w-full flex items-center gap-2 px-3 h-9 text-xs text-[var(--t-err)]/80 hover:bg-[var(--t-err)]/10 hover:text-[var(--t-err)] transition-colors text-left">
+                      class="ui-menu-item ui-menu-item--danger w-full">
                 <Trash2 class="w-3.5 h-3.5" /> 删除
               </button>
             </div>
@@ -295,8 +295,8 @@
       <div v-if="addStep === 'phone'" class="space-y-4">
         <!-- 添加方式切换: 手机号登录 | 协议号导入(把原 sessions 页导入功能整合进添加弹窗) -->
         <div class="flex rounded-lg bg-bg-card p-1 gap-1">
-          <button type="button" class="flex-1 py-2 rounded-md text-sm transition-colors" :class="addMode === 'phone' ? 'bg-bg-hover text-text-primary' : 'text-text-secondary'" @click="addMode = 'phone'">手机号登录</button>
-          <button type="button" class="flex-1 py-2 rounded-md text-sm transition-colors" :class="addMode === 'protocol' ? 'bg-bg-hover text-text-primary' : 'text-text-secondary'" @click="addMode = 'protocol'">导入协议号</button>
+          <button type="button" class="ui-segmented__item flex-1" :class="{ 'is-active': addMode === 'phone' }" @click="addMode = 'phone'">手机号登录</button>
+          <button type="button" class="ui-segmented__item flex-1" :class="{ 'is-active': addMode === 'protocol' }" @click="addMode = 'protocol'">导入协议号</button>
         </div>
 
         <template v-if="addMode === 'phone'">
@@ -380,7 +380,7 @@
       <template #footer>
         <div class="flex gap-3">
           <button @click="closeAddModal" class="ui-btn ui-btn--ghost" aria-label="关闭">取消</button>
-          <t-button theme="primary"
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary"
             v-if="addStep === 'phone' && addMode === 'phone'"
             :disabled="!newPhone || adding"
             @click="getVerificationCode"
@@ -388,7 +388,7 @@
             <Loader2 v-if="adding" class="w-4 h-4 animate-spin" />
             {{ adding ? '发送中...' : '获取验证码' }}
           </t-button>
-          <t-button theme="primary"
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary"
             v-if="addStep === 'phone' && addMode === 'protocol'"
             :disabled="importing || (!importText.trim() && importFileList.length === 0)"
             @click="doProtocolImport"
@@ -396,7 +396,7 @@
             <Loader2 v-if="importing" class="w-4 h-4 animate-spin" />
             {{ importing ? '导入中...' : '导入协议号' }}
           </t-button>
-          <t-button theme="primary"
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary"
             v-else-if="addStep === 'code'"
             
             :disabled="!authCode || submitting"
@@ -404,7 +404,7 @@
           >
             {{ submitting ? '提交中...' : '提交验证码' }}
           </t-button>
-          <t-button theme="primary"
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary"
             v-else-if="addStep === '2fa'"
             
             :disabled="!twoFAPassword || submitting"
@@ -442,7 +442,7 @@
             id="group-color" v-model="newGroupColor"
             type="color"
             class="w-10 h-9 rounded cursor-pointer" aria-label="选择颜色" />
-          <t-button theme="primary" @click="createGroup">添加</t-button>
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="createGroup">添加</t-button>
         </div>
       </div>
     </Modal>
@@ -462,7 +462,7 @@
       <template #footer>
         <div class="flex gap-3">
           <button @click="showEditGroup = false" class="ui-btn ui-btn--ghost" aria-label="编辑">取消</button>
-          <t-button theme="primary" @click="saveGroup">保存</t-button>
+          <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="saveGroup">保存</t-button>
         </div>
       </template>
     </Modal>
@@ -493,7 +493,7 @@
       </div>
       <template #footer>
         <button @click="showAuth = false" :disabled="oldAuthStarting || oldAuthSubmitting" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button theme="primary" :disabled="oldAuthStarting || oldAuthSubmitting || (!need2FA && !oldAuthCode.trim()) || (need2FA && !oldTwoFAPassword)" @click="need2FA ? submitOld2FA() : submitOldCode()">
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="oldAuthStarting || oldAuthSubmitting || (!need2FA && !oldAuthCode.trim()) || (need2FA && !oldTwoFAPassword)" @click="need2FA ? submitOld2FA() : submitOldCode()">
           {{ oldAuthStarting ? '正在启动…' : oldAuthSubmitting ? '正在验证…' : '确认' }}
         </t-button>
       </template>
@@ -514,7 +514,7 @@
           <input v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
             class="w-full px-3 py-2.5 rounded-lg glow-input text-sm font-mono" aria-label="代理地址" />
           <div class="flex items-center gap-2 mt-2">
-            <t-button size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
               <Loader2 v-if="proxyTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
               测试连通
             </t-button>
@@ -526,7 +526,7 @@
       </div>
       <template #footer>
         <button @click="showEditRemark = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button theme="primary" @click="saveRemark">保存</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="saveRemark">保存</t-button>
       </template>
     </Modal>
 
@@ -573,7 +573,7 @@
       </div>
       <template #footer>
         <button @click="showTransfer = false" class="ui-btn ui-btn--ghost">关闭</button>
-        <t-button theme="primary" :disabled="transferRunning || !transferTargetId" @click="doTransfer">
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="transferRunning || !transferTargetId" @click="doTransfer">
           <Loader2 v-if="transferRunning" class="w-3.5 h-3.5 animate-spin mr-1" />
           {{ transferRunning ? '采集中(私群逐个导链接)…' : (transferResult ? '再次转移' : '开始转移') }}
         </t-button>
@@ -632,7 +632,7 @@
         <div class="flex justify-end gap-2 pt-2">
           <button @click="showBatchProfile = false" class="ui-btn ui-btn--ghost">取消</button>
           <button @click="runBatchProfile" :disabled="batchingProfile"
-                  class="px-4 py-2 rounded-lg text-sm glow-btn disabled:opacity-50">
+                  class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50">
             {{ batchingProfile ? '执行中…' : '开始批量修改' }}
           </button>
         </div>
@@ -652,7 +652,7 @@
         <div class="flex items-center justify-between text-xs text-text-muted">
           <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
           <button @click="runClone" :disabled="cloning"
-                  class="px-4 py-2 rounded-lg text-sm glow-btn disabled:opacity-50">
+                  class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50">
             {{ cloning ? '克隆中…' : '开始克隆' }}
           </button>
         </div>
@@ -695,7 +695,7 @@
         <div class="flex items-center justify-between pt-1">
           <span class="text-[11px] text-text-muted">同一账号 24 小时内限测 2 次</span>
           <button @click="runProbe" :disabled="probeRunning"
-                  class="px-4 py-2 rounded-lg text-sm glow-btn disabled:opacity-50 flex items-center gap-1.5">
+                  class="ui-btn ui-btn--primary ui-btn--sm disabled:opacity-50">
             <Loader2 v-if="probeRunning" class="w-3.5 h-3.5 animate-spin" />
             {{ probeRunning ? '检测中…(约 30 秒)' : '开始检测' }}
           </button>
