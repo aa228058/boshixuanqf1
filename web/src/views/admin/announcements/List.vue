@@ -29,10 +29,10 @@
             </div>
           </div>
           <div class="flex items-center gap-1 ml-4">
-            <button @click="editAnnouncement(a)" class="p-1.5 rounded hover:bg-bg-hover" aria-label="编辑">
+            <button @click="editAnnouncement(a)" class="ui-icon-btn" aria-label="编辑">
               <Pencil class="w-4 h-4 text-text-muted" />
             </button>
-            <button @click="deleteAnnouncement(a)" class="p-1.5 rounded hover:bg-[var(--t-err)]/10">
+            <button @click="deleteAnnouncement(a)" class="ui-icon-btn">
               <Trash2 class="w-4 h-4 text-text-muted hover:text-[var(--t-err)]" />
             </button>
           </div>
@@ -95,7 +95,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showCreate = false" class="px-4 py-2 rounded-lg text-sm text-text-secondary">取消</button>
+        <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
         <t-button theme="primary" @click="saveAnnouncement">
           {{ editing ? '保存' : '发布' }}
         </t-button>
