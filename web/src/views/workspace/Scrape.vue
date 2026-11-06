@@ -6,12 +6,12 @@
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
       </div>
       <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <button v-if="tasks.length" type="button" class="ui-btn ui-btn--text ui-btn--sm px-3 py-2 rounded-lg text-sm text-[var(--t-err)]/70 border border-[color:var(--t-err)]/20 hover:bg-[color:var(--t-err-dim)] hover:text-[var(--t-err)] transition-colors flex items-center gap-2" @click="clearLogs">
+        <t-button v-if="tasks.length" type="button" class="ui-t-button--text ui-t-button px-3 py-2 rounded-lg text-sm text-[var(--t-err)]/70 border border-[color:var(--t-err)]/20 hover:bg-[color:var(--t-err-dim)] hover:text-[var(--t-err)] transition-colors flex items-center gap-2" @click="clearLogs" variant="text">
           <Trash2 class="w-4 h-4" />
           清空记录
-        </button>
-        <button type="button" class="ui-btn ui-btn--primary px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2" @click="showCreate = true"> 开始采集
-        </button>
+        </t-button>
+        <t-button type="button" class="ui-t-button--primary ui-t-button px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2" @click="showCreate = true"> 开始采集
+        </t-button>
       </div>
     </div>
 
@@ -84,11 +84,11 @@
         </label>
       </div>
       <div class="flex items-center justify-end gap-3 pt-2">
-        <button @click="showCreate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <button type="button" class="ui-btn ui-btn--primary px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
+        <t-button @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
+        <t-button type="button" class="ui-t-button--primary ui-t-button px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : '开始采集' }}
-        </button>
+        </t-button>
       </div>
     </Modal>
 
@@ -117,8 +117,8 @@
                 <span v-else-if="task.status === 'completed'">点击展开查看结果</span>
                 <!-- R112: 导出前置 —— 完成后无需展开即可导出名单 -->
                 <template v-if="task.status === 'completed'">
-                  <button @click.stop="exportCSV(task.task_id)" class="ui-btn ui-btn--secondary ui-btn--sm">导出 CSV</button>
-                  <button @click.stop="exportExcel(task.task_id)" class="ui-btn ui-btn--primary ui-btn--sm">Excel</button>
+                  <t-button @click.stop="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</t-button>
+                  <t-button @click.stop="exportExcel(task.task_id)" class="ui-t-button--primary ui-t-button">Excel</t-button>
                 </template>
                 <span v-else>{{ task.result_count || task.config?.member_count || 0 }} 成员</span>
               </div>
@@ -161,8 +161,8 @@
               </div>
             </div>
             <div class="flex justify-end gap-2 mt-3">
-              <button @click="exportCSV(task.task_id)" class="ui-btn ui-btn--ghost ui-btn--sm">导出 CSV</button>
-              <button @click="exportExcel(task.task_id)" class="ui-btn ui-btn--ghost ui-btn--sm">导出 Excel</button>
+              <t-button @click="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</t-button>
+              <t-button @click="exportExcel(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 Excel</t-button>
             </div>
           </template>
         </div>
