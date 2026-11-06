@@ -106,4 +106,4 @@
 - [ ] 执行 typecheck、test、design-token check、build
 - [ ] 桌面/移动端三主题真实浏览器视觉验收
 
-**本轮收敛：公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。尚未完成 `.ui-btn` / `.glow-btn` 等全仓库旧类迁移、全量动态调用统计、自动化测试与桌面/移动端视觉验收；不得宣称所有按钮已完全统一。**
+**本轮收敛：公共确认弹窗已统一使用 TDesign Button + `.ui-t-button`；`tdesign-skin.css` 已对 `.ui-t-button` 让出全局 `!important` 皮肤覆盖，新增 danger 语义变体。旧业务调用保持兼容。`workspace/Join.vue` 和 `workspace/Scrape.vue` 已修复重复 class 属性，并移除这两页创建/采集按钮上冗余的 `.glow-btn`。`.ui-btn` 仍是现有大量业务页的按钮样式入口，暂不整体删除或强行换成 TDesign；尚未完成全仓库旧类调用统计、自动化测试与桌面/移动端视觉验收。**
