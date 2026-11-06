@@ -36,7 +36,7 @@
     </div>
 
     <div class="flex justify-end mt-2">
-      <button @click="$router.push(`/workspace/${accountId}/tasks/${task.task_id}`)"
+      <button type="button" @click="$router.push(`/workspace/${accountId}/tasks/${task.task_id}`)"
               class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:border-cyan/40 hover:text-cyan transition-colors">
         查看详情
       </button>
@@ -50,7 +50,7 @@
       <XCircle v-else class="w-3.5 h-3.5 text-rose" />
       <span>上次{{ typeLabel }}已{{ lastDone.status === 'completed' ? '完成' : '结束' }} · {{ lastDoneProg.done }} / {{ lastDoneProg.total }}</span>
     </div>
-    <button @click="$router.push(`/workspace/${accountId}/tasks/${lastDone.task_id}`)"
+    <button type="button" @click="$router.push(`/workspace/${accountId}/tasks/${lastDone.task_id}`)"
             class="text-xs text-text-muted hover:text-cyan transition-colors shrink-0">
       查看详情
     </button>
