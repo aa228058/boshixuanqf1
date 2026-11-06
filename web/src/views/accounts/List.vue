@@ -205,7 +205,7 @@
           </button>
           <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
           <t-button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" theme="warning" size="sm" @click.stop="showAuthModal(acc)"
-                  class="ui-t-button ui-t-button--warning ui-t-button--sm whitespace-nowrap">
+                  class="ui-t-button ui-t-button--sm whitespace-nowrap">
             <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
           </t-button>
           <span v-else-if="acc?.status === 'restricted'"
