@@ -1,0 +1,50 @@
+name: Browser UI audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Target URL (defaults to the local production build)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  browser-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            web/e2e/package-lock.json
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Install Playwright
+        working-directory: web/e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run browser audit
+        working-directory: web/e2e
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: npm test
+      - name: Upload browser report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tg-sender-playwright-report
+          path: |
+            web/e2e/playwright-report/
+            web/e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
