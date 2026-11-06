@@ -9,7 +9,7 @@
         { label: '未使用', value: 'unused' },
         { label: '已使用', value: 'used' }
       ]" class="w-24 shrink-0" />
-      <t-button theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="exportCodes">
+      <t-button theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="exportCodes">
         导出
       </t-button>
       <t-button v-if="selectedIds.length" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copySelected">
@@ -106,8 +106,8 @@
         </div>
       </div>
       <template #footer>
-        <button @click="showGenerate = false" class="ui-btn ui-btn--ghost">取消</button>
-        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doGenerate">生成</t-button>
+        <button type="button" @click="showGenerate = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doGenerate">生成</t-button>
       </template>
     </Modal>
 
@@ -123,7 +123,7 @@
         <div v-if="viewingCode.notes" class="flex justify-between gap-4"><span class="text-text-secondary shrink-0">备注</span><span class="text-right">{{ viewingCode.notes }}</span></div>
       </div>
       <template #footer>
-        <button @click="showView = false" class="ui-btn ui-btn--ghost">关闭</button>
+        <button type="button" @click="showView = false" class="ui-btn ui-btn--ghost ui-btn--sm">关闭</button>
       </template>
     </Modal>
   </main>
@@ -135,7 +135,7 @@
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
         <button @click="batchRevoke" class="ui-btn ui-btn--ghost ui-btn--sm whitespace-nowrap">批量作废</button>
         <button @click="batchDelete" class="ui-btn ui-btn--danger ui-btn--sm whitespace-nowrap">批量删除</button>
-        <button @click="selectedIds = []" class="ui-icon-btn">×</button>
+        <button type="button" @click="selectedIds = []" class="ui-icon-btn" aria-label="清空已选卡密" title="清空已选卡密">×</button>
       </div>
     </Transition>
   </Teleport>
