@@ -197,7 +197,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			} else {
 				// Direct join success: extract group info from Updates
 				if updates, ok := result.(*tg.Updates); ok && e.groupRepo != nil {
-					e.extractAndSaveGroupFromUpdates(ctx, task, updates)
+					e.extractAndSaveGroupFromUpdates(ctx, task, updates, link)
 				} else if !ok {
 					taskLog.Printf("[join] ImportChatInvite result is not *tg.Updates, type: %T", result)
 				}
@@ -599,6 +599,17 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 		}
 
 		// Upsert group record with access_hash
+		sharedLink := sourceLink
+		if username != "" {
+			sharedLink = "https://t.me/" + username
+		}
+		if e.systemGroupRepo != nil {
+			shared := &domain.SystemGroup{Source: "joined", Title: title, Username: username, TmeLink: sharedLink, GType: gtype, MemberCount: memberCount, TelegramChatID: chatID, Status: "active", ContributorTenantID: task.TenantID}
+			if err := e.systemGroupRepo.UpsertJoinedGroup(ctx, shared, freeSpeechStatus); err != nil {
+				log.Printf("[join] 邀请加入后补齐共享群库失败 chat=%d: %v", chatID, err)
+			}
+		}
+
 		now := time.Now()
 		g := &domain.Group{
 			GroupID:    uuid.New(),
@@ -631,27 +642,43 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 	}
 }
 
+// defaultFreeSpeechStatus reads only the group-wide default banned rights.
+func defaultFreeSpeechStatus(rights *tg.ChatBannedRights) string {
+	if rights == nil || !rights.SendMessages {
+		return "allowed"
+	}
+	return "restricted"
+}
+
 // extractAndSaveGroupFromUpdates extracts group info from Updates (ImportChatInvite result)
 // and saves/updates the groups table. Handles both *tg.Chat and *tg.Channel.
-func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, updates *tg.Updates) {
+func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, updates *tg.Updates, sourceLink string) {
 	for _, chat := range updates.Chats {
 		var chatID int64
 		var title string
 		var gtype string
 		var accessHash int64
+		var memberCount int
+		var username string
+		freeSpeechStatus := "unknown"
 
 		switch c := chat.(type) {
 		case *tg.Chat:
 			chatID = c.ID
 			title = c.Title
+			memberCount = int(c.ParticipantsCount)
 			gtype = "group"
+			freeSpeechStatus = defaultFreeSpeechStatus(c.DefaultBannedRights)
 		case *tg.Channel:
 			// Convert internal channel ID to external format (-100{channel_id})
 			chatID = -(1000000000000 + c.ID)
 			title = c.Title
+			username = c.Username
+			memberCount = int(c.ParticipantsCount)
 			accessHash = c.AccessHash
 			if c.Megagroup {
 				gtype = "supergroup"
+				freeSpeechStatus = defaultFreeSpeechStatus(c.DefaultBannedRights)
 			} else {
 				gtype = "channel"
 			}
