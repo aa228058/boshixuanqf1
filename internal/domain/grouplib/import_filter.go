@@ -7,13 +7,13 @@ import (
 
 // importCandidateRe 只识别 Telegram 公共用户名和私密邀请链接。
 // 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
-var importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\\.)?(?:t\\.me|telegram\\.me|telegram\\.dog)/(?:joinchat/|\\+)?[A-Za-z0-9_-]{5,64}|@[A-Za-z][A-Za-z0-9_]{4,31})`)
+var importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:joinchat/|\+)?[A-Za-z0-9_-]{5,64}|@[A-Za-z][A-Za-z0-9_]{4,31})`)
 
 type importFilterResult struct {
-	Links      []string
-	RawCount   int
-	Duplicate  int
-	Invalid    int
+	Links     []string
+	RawCount  int
+	Duplicate int
+	Invalid   int
 }
 
 // filterImportLinks 是纯格式筛选，不访问 Telegram、不创建群库记录。
