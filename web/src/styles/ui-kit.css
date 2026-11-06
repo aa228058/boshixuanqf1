@@ -89,13 +89,36 @@
   box-shadow: none;
   transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, box-shadow var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
 }
-.t-button--size-small {
+.t-button.t-size-s, .t-button--size-small {
   min-height: var(--t-control-height-sm);
   padding-inline: 10px;
   font-size: var(--t-font-xs);
 }
 .t-button:not(.t-is-disabled):active { transform: translateY(1px); }
 .t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+
+/* ---------- .ui-icon-btn 图标操作按钮: 表格复制/更多/关闭 ---------- */
+.ui-icon-btn {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--t-control-radius);
+  background: transparent;
+  color: var(--t-text-3);
+  cursor: pointer;
+  transition: color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease;
+}
+.ui-icon-btn:hover {
+  color: var(--t-brand);
+  background: var(--t-brand-dim);
+  border-color: var(--t-line);
+}
+.ui-icon-btn:active { transform: scale(0.96); }
+.ui-icon-btn:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
 
 /* ---------- .ui-input 输入框: 无边框实底, 聚焦只亮边 ---------- */
 .ui-input {
