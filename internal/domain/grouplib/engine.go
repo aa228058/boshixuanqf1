@@ -7,6 +7,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"log"
 	"regexp"
 	"strings"
@@ -119,6 +120,7 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	defer rows.Close()
 	var maxT time.Time
 	n := 0
+	upsertFailed := false
 	for rows.Next() {
 		var tenantID uuid.UUID
 		var url, linkType, title, status string
@@ -145,6 +147,7 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 		}
 		sg := &domain.SystemGroup{Source: "scraped", Title: firstNonEmpty(title, url), Username: username, TmeLink: url, GType: gt, MemberCount: mc, Status: st, TelegramChatID: chatID, ContributorTenantID: tenantID}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
+			upsertFailed = true
 			log.Printf("[grouplib] scraped upsert %s: %v", url, err)
 			continue
 		}
@@ -152,6 +155,9 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	}
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	if upsertFailed {
+		return errors.New("scraped links aggregation incomplete; watermark not advanced")
 	}
 	if !maxT.IsZero() {
 		e.mu.Lock()
@@ -186,6 +192,7 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	defer rows.Close()
 	var maxT time.Time
 	n := 0
+	upsertFailed := false
 	for rows.Next() {
 		var title, username, gtype string
 		var mc int
@@ -208,6 +215,7 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 			TmeLink: "https://t.me/" + username, GType: gt, MemberCount: mc, Status: "joined",
 		}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
+			upsertFailed = true
 			log.Printf("[grouplib] joined upsert %s: %v", username, err)
 			continue
 		}
@@ -215,6 +223,9 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	}
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	if upsertFailed {
+		return errors.New("joined groups aggregation incomplete; watermark not advanced")
 	}
 	if !maxT.IsZero() {
 		e.mu.Lock()
@@ -252,7 +263,11 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 		if ct.After(maxT) {
 			maxT = ct
 		}
-		n += e.upsertBioLinks(ctx, bio)
+		processed, bioErr := e.upsertBioLinks(ctx, bio)
+		n += processed
+		if bioErr != nil {
+			return bioErr
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return err
@@ -268,7 +283,8 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) upsertBioLinks(ctx context.Context, bio string) int {
+
+func (e *Engine) upsertBioLinks(ctx context.Context, bio string) (int, error) {
 	n := 0
 	seen := map[string]bool{}
 	for _, m := range tmeRe.FindAllStringSubmatch(bio, -1) {
@@ -294,7 +310,7 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string) int {
 		}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			log.Printf("[grouplib] bio upsert %s: %v", key, err)
-			continue
+			return n, err
 		}
 		n++
 	}
@@ -329,11 +345,11 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string) int {
 		seen[key] = true
 		sg := &domain.SystemGroup{Source: "bio", Username: key, TmeLink: "https://t.me/" + key, GType: "public", Title: "@" + key}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
-			continue
+			return n, err
 		}
 		n++
 	}
-	return n
+	return n, nil
 }
 
 // extractTmeUsername 从任意 url/文本里提取 t.me 用户名(私密链接返回空, 走 l: 链接键归并)
