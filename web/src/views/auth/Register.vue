@@ -19,7 +19,7 @@
               v-model="form.username"
               type="text"
               placeholder="请输入用户名"
-              class="w-full bg-bg-card rounded-[var(--t-r-md)] px-4 py-3.5 text-text-primary placeholder:text-text-muted border border-transparent focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/10 transition-[transform,opacity,border-color,background-color] duration-200"
+              class="ui-input !min-h-[48px] !px-4 !py-3.5"
               required aria-label="请输入用户名" />
           </div>
 
@@ -29,7 +29,7 @@
               v-model="form.name"
               type="text"
               placeholder="请输入昵称"
-              class="w-full bg-bg-card rounded-[var(--t-r-md)] px-4 py-3.5 text-text-primary placeholder:text-text-muted border border-transparent focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/10 transition-[transform,opacity,border-color,background-color] duration-200"
+              class="ui-input !min-h-[48px] !px-4 !py-3.5"
               required aria-label="请输入昵称" />
           </div>
 
@@ -40,7 +40,7 @@
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="请输入密码"
-                class="w-full bg-bg-card rounded-[var(--t-r-md)] px-4 py-3.5 pr-12 text-text-primary placeholder:text-text-muted border border-transparent focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/10 transition-[transform,opacity,border-color,background-color] duration-200"
+                class="ui-input !min-h-[48px] !px-4 !py-3.5 !pr-12"
                 required aria-label="请输入密码" />
               <button
                 type="button"
@@ -60,7 +60,7 @@
                 v-model="form.confirmPassword"
                 :type="showConfirmPassword ? 'text' : 'password'"
                 placeholder="请再次输入密码"
-                class="w-full bg-bg-card rounded-[var(--t-r-md)] px-4 py-3.5 pr-12 text-text-primary placeholder:text-text-muted border border-transparent focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/10 transition-[transform,opacity,border-color,background-color] duration-200"
+                class="ui-input !min-h-[48px] !px-4 !py-3.5 !pr-12"
                 required aria-label="请再次输入密码" />
               <button
                 type="button"
@@ -83,7 +83,7 @@
               v-model="form.code"
               type="text"
               placeholder="请输入卡密"
-              class="w-full bg-bg-card rounded-[var(--t-r-md)] px-4 py-3.5 text-text-primary placeholder:text-text-muted border border-transparent focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/10 transition-[transform,opacity,border-color,background-color] duration-200"
+              class="ui-input !min-h-[48px] !px-4 !py-3.5"
               required aria-label="请输入卡密" />
             <p class="mt-1.5 text-xs text-text-secondary">没有卡密？请联系管理员获取</p>
           </div>
