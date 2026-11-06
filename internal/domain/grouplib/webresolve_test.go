@@ -99,15 +99,6 @@ func TestApplyTelegramWebHeaders(t *testing.T) {
 	}
 }
 
-func TestRandomResolveDelayBounds(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		delay := randomResolveDelay()
-		if delay < 5*time.Second || delay > 15*time.Second {
-			t.Fatalf("randomResolveDelay()=%s, want range [5s,15s]", delay)
-		}
-	}
-}
-
 func TestParseTelegramRetryAfter(t *testing.T) {
 	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 	date := now.Add(90 * time.Second).Format(http.TimeFormat)

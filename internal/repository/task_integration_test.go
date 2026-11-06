@@ -341,3 +341,58 @@ func TestTaskLifecycleUpdatesRespectCurrentStatus(t *testing.T) {
 		t.Fatalf("stopped loop state = status:%s loop:%t; want paused/false", status, isLoop)
 	}
 }
+
+
+func TestPauseIfActiveRespectsCurrentTaskState(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	ctx := context.Background()
+	tenant := uuid.New()
+
+	queuedID := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	paused, err := repo.PauseIfActive(ctx, tenant, queuedID)
+	if err != nil || !paused {
+		t.Fatalf("PauseIfActive(queued) = %t, %v; want true, nil", paused, err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM tasks WHERE task_id = $1`, queuedID).Scan(&status); err != nil {
+		t.Fatalf("read queued task: %v", err)
+	}
+	if status != "paused" {
+		t.Fatalf("queued task status = %q, want paused", status)
+	}
+	if paused, err := repo.PauseIfActive(ctx, tenant, queuedID); err != nil || paused {
+		t.Fatalf("PauseIfActive(paused) = %t, %v; want false, nil", paused, err)
+	}
+
+	runningID := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	if _, err := pool.Exec(ctx, `UPDATE tasks SET status='running', worker_id='worker-a', locked_at=NOW() WHERE task_id=$1`, runningID); err != nil {
+		t.Fatalf("mark task running: %v", err)
+	}
+	paused, err = repo.PauseIfActive(ctx, tenant, runningID)
+	if err != nil || !paused {
+		t.Fatalf("PauseIfActive(running) = %t, %v; want true, nil", paused, err)
+	}
+	var workerID *string
+	if err := pool.QueryRow(ctx, `SELECT status, worker_id FROM tasks WHERE task_id = $1`, runningID).Scan(&status, &workerID); err != nil {
+		t.Fatalf("read paused running task: %v", err)
+	}
+	if status != "paused" || workerID != nil {
+		t.Fatalf("running task after pause = status:%s worker:%v; want paused/nil", status, workerID)
+	}
+
+	completedID := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	if _, err := pool.Exec(ctx, `UPDATE tasks SET status='completed' WHERE task_id=$1`, completedID); err != nil {
+		t.Fatalf("mark task completed: %v", err)
+	}
+	if paused, err := repo.PauseIfActive(ctx, tenant, completedID); err != nil || paused {
+		t.Fatalf("PauseIfActive(completed) = %t, %v; want false, nil", paused, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT status FROM tasks WHERE task_id = $1`, completedID).Scan(&status); err != nil {
+		t.Fatalf("read completed task: %v", err)
+	}
+	if status != "completed" {
+		t.Fatalf("completed task status = %q, want completed", status)
+	}
+}
