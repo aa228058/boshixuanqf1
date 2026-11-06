@@ -86,8 +86,14 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 		return "", "", false
 	}
 	path := parts[1]
-	if strings.HasPrefix(path, "+") || strings.HasPrefix(path, "joinchat/") {
-		hash := strings.TrimPrefix(strings.TrimPrefix(path, "joinchat/"), "+")
+	lowerPath := strings.ToLower(path)
+	if strings.HasPrefix(path, "+") || strings.HasPrefix(lowerPath, "joinchat/") {
+		hash := path
+		if strings.HasPrefix(lowerPath, "joinchat/") {
+			hash = path[len("joinchat/"):]
+		} else {
+			hash = strings.TrimPrefix(hash, "+")
+		}
 		if len(hash) < 5 || len(hash) > 64 {
 			return "", "", false
 		}
