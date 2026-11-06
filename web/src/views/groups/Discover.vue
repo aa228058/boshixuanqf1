@@ -8,8 +8,8 @@
           所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-text-secondary">共 {{ total }} 条 · 已跨页选中 {{ selected.size }} 条</span>
+      <div class="flex flex-wrap items-center justify-end gap-2 min-w-0">
+        <span class="w-full sm:w-auto text-right text-xs text-text-secondary">共 {{ total }} 条 · 已跨页选中 {{ selected.size }} 条</span>
         <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">{{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}</t-button>
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" v-if="selected.size > 0" size="small" variant="text" @click="selected.clear()" title="清空所有勾选(含其他页)">
           清空
