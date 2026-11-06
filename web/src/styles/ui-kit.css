@@ -297,13 +297,9 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   align-items: center;
   justify-content: center;
   gap: var(--t-space-2);
-  min-height: var(--t-control-height-md);
   padding-inline: var(--t-space-4);
-  border-radius: var(--t-control-radius);
-  font-family: inherit;
   font-size: var(--t-font-sm);
   font-weight: var(--t-weight-semibold);
-  box-shadow: none;
   transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
 }
 .t-button.ui-t-button--sm { min-height: var(--t-control-height-sm); padding-inline: var(--t-space-3); font-size: var(--t-font-xs); }
