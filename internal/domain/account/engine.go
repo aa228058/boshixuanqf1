@@ -48,8 +48,8 @@ type Engine struct {
 	// 孤儿锁表: 池内 entry 被断开/清理摘除后, 持有者仍握着 pc.mu。
 	// 按 client 指针登记, ReleaseClient 兜底认领解锁 —— 否则锁永久泄漏
 	// (表现: 该账号之后所有 GetClient 永远阻塞, 只能重启进程)。
-	orphanMu sync.Mutex
-	orphans  map[*telegram.Client]*pooledClient
+	orphanMu       sync.Mutex
+	orphans        map[*telegram.Client]*pooledClient
 	managedOrphans map[*telegram.Client]*managedClient
 
 	// 传输方式缓存: dc → 上次成功的传输(tcp/http/mtproxy)。

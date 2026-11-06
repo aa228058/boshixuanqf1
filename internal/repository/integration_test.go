@@ -203,7 +203,6 @@ func TestUpdateStatusGuardMatrix(t *testing.T) {
 	}
 }
 
-
 func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()

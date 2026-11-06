@@ -120,9 +120,9 @@ func (e *Engine) migrateDCWithSource(ctx context.Context, tenantID, accountID uu
 		SessionID: sessionName,
 		DC:        int(targetDC),
 		// #nosec G115 -- TGAPIID is range-validated by Config.Validate before account migration.
-		APIID:     int32(e.cfg.TGAPIID),
-		AuthKey:   newKey,
-		UserID:    userID,
+		APIID:   int32(e.cfg.TGAPIID),
+		AuthKey: newKey,
+		UserID:  userID,
 	}); err != nil {
 		return fmt.Errorf("写入新会话失败（旧会话未动，可重试）: %w", err)
 	}

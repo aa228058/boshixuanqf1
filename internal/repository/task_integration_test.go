@@ -225,7 +225,6 @@ func TestClaimTimeoutTasks_ReclaimsExpiredLock(t *testing.T) {
 	}
 }
 
-
 func TestClaimTasks_SkipsInactiveAndExpiredTenants(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)
@@ -272,7 +271,6 @@ func taskIDs(tasks []*domain.Task) []uuid.UUID {
 	}
 	return ids
 }
-
 
 func TestTaskLifecycleUpdatesRespectCurrentStatus(t *testing.T) {
 	pool := connectTestDB(t)

@@ -1029,7 +1029,11 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, ext+" 解压失败: "+err.Error())
 			}
-			defer func() { if err := os.RemoveAll(outDir); err != nil { log.Printf("[account-import] remove extracted directory %q failed: %v", outDir, err) } }()
+			defer func() {
+				if err := os.RemoveAll(outDir); err != nil {
+					log.Printf("[account-import] remove extracted directory %q failed: %v", outDir, err)
+				}
+			}()
 			archiveRoot, err := os.OpenRoot(outDir)
 			if err != nil {
 				return fmt.Errorf("打开解压目录失败: %w", err)
