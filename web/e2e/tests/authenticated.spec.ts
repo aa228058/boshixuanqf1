@@ -70,13 +70,19 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
   })
 })
 
-test('常见桌面视口没有明显横向溢出', async ({ page }) => {
-  for (const route of ['/dashboard', '/accounts', '/settings']) {
+test('桌面端全部租户页面没有页面级横向溢出', async ({ page }) => {
+  for (const route of routes) {
     await page.goto(route)
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth > window.innerWidth + 1
-    )
-    expect(overflow, `${route} 存在页面级横向溢出`).toBe(false)
+    await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
+    await page.waitForTimeout(500)
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+      main: document.querySelector('main')?.scrollWidth ?? 0,
+    }))
+    expect(dimensions.document, `${route} 桌面页面级横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
+    expect(dimensions.body, `${route} 桌面 body 横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
   }
 })
 
