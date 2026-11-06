@@ -38,6 +38,14 @@ func filterImportLinks(payload string) importFilterResult {
 				continue
 			}
 		}
+		// 正则可能匹配到超长用户名的合法前缀；若后面仍是用户名字符，必须整段拒绝。
+		if loc[1] < len(token) {
+			next := token[loc[1]]
+			if (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+				(next >= '0' && next <= '9') || next == '_' || next == '-' {
+				continue
+			}
+		}
 		candidate := token[loc[0]:loc[1]]
 		normalized, key, ok := normalizeImportCandidate(candidate)
 		if !ok {
