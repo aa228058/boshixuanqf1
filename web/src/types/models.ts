@@ -12,7 +12,8 @@ export interface SystemGroup {
   tme_link?: string
   gtype: string // public | private | channel | unknown
   member_count: number
-  status: string // active | joined | invalid
+  free_speech_status: string // allowed | restricted | unknown
+  status: string // active | invalid
   ref_count: number
   last_seen_at: string
 }
