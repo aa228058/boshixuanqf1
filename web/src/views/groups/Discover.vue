@@ -48,9 +48,9 @@
       </section>
       <!-- 筛选条 -->
       <div class="glass rounded-[var(--t-r-md)] p-3 flex flex-wrap items-center gap-2 lift">
-        <div class="relative">
+        <div class="relative w-full sm:w-56">
           <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input v-model="filters.keyword" class="pl-9 pr-3 py-2 rounded-lg glow-input text-sm w-full sm:w-56 bg-bg-card" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
+          <input v-model="filters.keyword" class="ui-input !pl-9 !pr-3 !py-1.5 !min-h-[36px] !text-sm !w-full" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
         </div>
         <select v-model="filters.gtype" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部类型</option>
@@ -88,6 +88,7 @@
           <div v-for="row in aggregatedList" :key="row.sg_id"
                class="glass rounded-[var(--t-r-md)] p-3 flex items-center gap-3">
             <input type="checkbox" :checked="selected.has(row.sg_id)" @change="toggle(row.sg_id)"
+                   :aria-label="`选择群组 ${row.title || row.username || row.sg_id}`"
                    class="w-4 h-4 accent-[var(--t-brand)] shrink-0" />
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
@@ -166,7 +167,7 @@
         </t-table>
 
         <!-- 分页 -->
-        <div class="flex items-center justify-between px-4 py-3 border-t border-border">
+        <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-border">
           <span class="text-xs text-text-secondary">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
           <div class="flex gap-2">
             <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</t-button>
@@ -194,7 +195,7 @@
           @change="onImportFile" />
         <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
-        <textarea v-model="importText" rows="8" class="w-full px-3 py-2 rounded-lg glow-input text-sm resize-y"
+        <textarea v-model="importText" rows="8" class="ui-input text-sm"
           placeholder="t.me/群用户名&#10;@群用户名&#10;https://t.me/+邀请hash"></textarea>
         <p class="text-[11px] leading-relaxed" style="color: var(--t-text-3);">
           提交后由后台分批处理；只会完善公共群组库，不会让任何账号加入群组。
@@ -241,14 +242,14 @@
           </label>
           <div v-if="joinBatchEnabled" class="col-span-2 flex items-center gap-2 text-xs text-text-secondary">
             每个账号分配
-            <input type="number" v-model.number="joinPerAccount" min="1" max="100" class="w-20 px-2 py-1.5 rounded-lg glow-input text-center" />
+            <input type="number" v-model.number="joinPerAccount" min="1" max="100" class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" />
             个群（共 {{ selected.size }} 个群 / {{ joinAccounts.length || 0 }} 个账号）
           </div>
           <label class="col-span-2 text-xs text-text-secondary">
             加群间隔（分钟，区间内随机；撞 TG 限流会按官方要求自动冷却等待）
           </label>
-          <input type="number" v-model.number="joinIntervalMin" min="0" step="1" placeholder="最小间隔" class="px-2 py-1.5 rounded-lg glow-input text-sm" />
-          <input type="number" v-model.number="joinIntervalMax" min="0" step="1" placeholder="最大间隔" class="px-2 py-1.5 rounded-lg glow-input text-sm" />
+          <input type="number" v-model.number="joinIntervalMin" min="0" step="1" placeholder="最小间隔" aria-label="加群最小间隔（分钟）" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-sm" />
+          <input type="number" v-model.number="joinIntervalMax" min="0" step="1" placeholder="最大间隔" aria-label="加群最大间隔（分钟）" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-sm" />
         </div>
         <div class="flex justify-end gap-2 pt-2">
           <t-button class="ui-t-button ui-t-button--secondary" variant="outline" @click="joinModalVisible = false">取消</t-button>
