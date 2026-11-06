@@ -609,7 +609,7 @@ type TenantRepository interface {
 	GetByUsername(ctx context.Context, username string) (*Tenant, error)
 	Create(ctx context.Context, t *Tenant, apiKeyPlaintext string) error
 	Update(ctx context.Context, tenantID uuid.UUID, updates map[string]any) error
-	List(ctx context.Context, page, pageSize int, status, planID string) ([]*Tenant, int, error)
+	List(ctx context.Context, page, pageSize int, status, planID, search string) ([]*Tenant, int, error)
 }
 
 // ActivationCodeRepository defines activation code data access interface.
