@@ -113,7 +113,7 @@
         </div>
       </div>
       <template #footer>
-        <button type="button" @click="showCreate = false" class="ui-btn ui-btn--ghost ui-btn--sm">取消</button>
+        <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
         <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doCreate">创建</t-button>
       </template>
     </Modal>
