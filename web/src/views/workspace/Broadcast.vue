@@ -107,7 +107,7 @@
             <!-- R118: 显示群名而不只是数量 —— 前3个群名 + 剩余折叠 -->
             <template v-else>
               <span class="text-sm">已选 {{ selectedTargets.length }} 个目标</span>
-              <button type="button" class="ml-auto text-[11px] text-[var(--t-brand)] hover:underline shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</button>
+              <button type="button" class="ui-btn ui-btn--text ui-btn--sm ml-auto shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</button>
             </template>
           </div>
           <!-- 群名 chips: 全部列出, 小字, 可滚动 -->
@@ -145,7 +145,7 @@
       </div>
 
       <div class="mt-2">
-        <button type="button" @click="showImport = !showImport" class="text-xs text-[var(--t-brand)] hover:underline">批量导入目标（粘贴列表/上传文件）</button>
+        <button type="button" @click="showImport = !showImport" class="ui-btn ui-btn--text ui-btn--sm">批量导入目标（粘贴列表/上传文件）</button>
         <div v-if="showImport" class="mt-2 space-y-2">
           <textarea v-model="importText" rows="4" class="w-full bg-bg-card border border-border rounded-lg px-3 py-2 text-sm"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
@@ -173,7 +173,7 @@
                     placeholder="输入要发送的消息... 变量: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}； 随机语法: {你好|Hi|Hello}" />
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
-          <button @click="showPreview = true" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">预览变量效果</button>
+          <button @click="showPreview = true" class="ui-btn ui-btn--text ui-btn--sm">预览变量效果</button>
         </div>
       </div>
 
@@ -206,7 +206,7 @@
             </label>
             <span v-if="mediaPath" class="text-xs text-[var(--t-brand)]">已上传: {{ mediaPath }}</span>
             <span v-if="uploadingMedia" class="text-xs text-text-muted">上传中…</span>
-            <button v-if="mediaPath || mediaUrl" @click="clearMedia" class="text-xs text-[var(--t-err)] hover:underline">清除</button>
+            <button v-if="mediaPath || mediaUrl" @click="clearMedia" class="ui-btn ui-btn--text ui-btn--sm">清除</button>
           </div>
         </div>
       </div>
@@ -236,10 +236,10 @@
       <div>
         <label class="block text-sm font-medium mb-2">发送模式</label>
         <div class="flex rounded-lg bg-ink-01 p-1 gap-1 w-fit">
-          <button type="button" class="px-4 py-1.5 rounded-md text-sm transition-colors"
+          <button type="button" class="ui-btn ui-btn--segmented ui-btn--sm"
                   :class="!isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary'"
                   @click="isLoop = false">只发一次</button>
-          <button type="button" class="px-4 py-1.5 rounded-md text-sm transition-colors relative"
+          <button type="button" class="ui-btn ui-btn--segmented ui-btn--sm relative"
                   :class="[isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary', !loopFeature && 'opacity-60']"
                   @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', title: '套餐未开通循环群发', message: '请联系管理员升级' })">
             循环群发
@@ -256,8 +256,8 @@
 
       <!-- 操作按钮 -->
       <div class="flex items-center justify-end gap-3">
-        <t-button variant="outline" theme="default" @click="showCreate = false">取消</t-button>
-        <t-button theme="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">创建任务</t-button>
+        <t-button class="ui-t-button ui-t-button--secondary" variant="outline" theme="default" @click="showCreate = false">取消</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">创建任务</t-button>
       </div>
     </div>
     </Modal>
