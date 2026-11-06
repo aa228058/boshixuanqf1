@@ -3,7 +3,6 @@ package monitor
 import (
 	"context"
 	"log"
-	securerand "tg-sender/internal/secure"
 	"reflect"
 	"regexp"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/safego"
+	securerand "tg-sender/internal/secure"
 )
 
 // 抽奖助手: 群内抽奖机器人发布"参与关键词: X"类消息时, 自动用本账号在群内
