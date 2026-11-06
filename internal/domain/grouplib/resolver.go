@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
-
 )
 
 const resolveBatchSize = 30
