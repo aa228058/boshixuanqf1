@@ -670,7 +670,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 
 				progressDelta := domain.TaskProgress{Done: 0, Failed: 0, CurrentTarget: targetID}
 				var persistErr error
-				if status == "success""
+				if status == "success" {
 					// A sent message is an external side effect: write its idempotency
 					// checkpoint before continuing, rather than waiting for the 5s batch.
 					persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
