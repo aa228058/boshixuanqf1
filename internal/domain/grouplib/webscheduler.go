@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -162,9 +163,40 @@ func (s *telegramWebScheduler) circuitError(now time.Time) error {
 	return nil
 }
 
+func (s *telegramWebScheduler) doWithRetry(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		resp, err := s.do(ctx, client, req.Clone(ctx))
+		if err != nil {
+			var rateLimitErr *TelegramRateLimitError
+			if errors.As(err, &rateLimitErr) || ctx.Err() != nil {
+				return nil, err
+			}
+			lastErr = err
+		} else {
+			if resp.StatusCode < http.StatusInternalServerError || attempt == 1 {
+				return resp, nil
+			}
+			_ = resp.Body.Close()
+			lastErr = fmt.Errorf("Telegram 网页临时错误 %d", resp.StatusCode)
+		}
+
+		if attempt == 0 {
+			timer := time.NewTimer(250 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+	return nil, lastErr
+}
+
 func telegramWebDo(req *http.Request) (*http.Response, error) {
 	if req == nil {
 		return nil, fmt.Errorf("Telegram 请求不能为空")
 	}
-	return sharedTelegramWebScheduler.do(req.Context(), telegramWebClient, req)
+	return sharedTelegramWebScheduler.doWithRetry(req.Context(), telegramWebClient, req)
 }

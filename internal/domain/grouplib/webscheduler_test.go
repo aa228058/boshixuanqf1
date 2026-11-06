@@ -92,3 +92,53 @@ func TestTelegramWebSchedulerEnforcesGlobalConcurrency(t *testing.T) {
 		t.Fatalf("peak concurrency=%d, want <=2", got)
 	}
 }
+
+func TestTelegramWebSchedulerRetriesTransientServerErrorOnce(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	s := newTelegramWebScheduler(1, 0, 0)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := s.doWithRetry(context.Background(), server.Client(), req)
+	if err != nil {
+		t.Fatalf("doWithRetry returned error: %v", err)
+	}
+	resp.Body.Close()
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("request count=%d, want 2", got)
+	}
+}
+
+func TestTelegramWebSchedulerDoesNotRetry429(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	s := newTelegramWebScheduler(1, 0, 0)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := s.doWithRetry(context.Background(), server.Client(), req)
+	if err != nil {
+		t.Fatalf("429 should be returned for Retry-After handling, got %v", err)
+	}
+	resp.Body.Close()
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("request count=%d, want 1", got)
+	}
+}
