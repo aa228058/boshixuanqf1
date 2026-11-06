@@ -159,8 +159,7 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 	return tx.Commit(ctx)
 }
 
-// MarkInvalidByDedupKey R87-M10: 加入失败等场景把群标记为失效("已失效"筛选的数据源)。
-// 已加入的群不降级。
+// MarkInvalidByDedupKey marks a shared link invalid only after its Telegram identifier is confirmed invalid.
 func (r *SystemGroupRepository) MarkInvalidByDedupKey(ctx context.Context, key string) error {
 	_, err := r.db.Exec(ctx,
 		`UPDATE system_groups SET status='invalid' WHERE dedup_key=$1`, key)
