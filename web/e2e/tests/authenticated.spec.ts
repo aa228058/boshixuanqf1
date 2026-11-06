@@ -1,5 +1,17 @@
 import { expect, test } from '@playwright/test'
 
+const tenantUsername = process.env.E2E_TENANT_USERNAME
+const tenantPassword = process.env.E2E_TENANT_PASSWORD
+
+test.beforeEach(async ({ page }) => {
+  if (!tenantUsername || !tenantPassword) return // 使用项目配置加载的 .auth/user.json
+  await page.goto('/login')
+  await page.locator('input[autocomplete="username"]').fill(tenantUsername)
+  await page.locator('input[autocomplete="current-password"]').fill(tenantPassword)
+  await page.getByRole('button', { name: /登录并进入工作台/ }).click()
+  await page.waitForURL(url => url.pathname === '/dashboard', { timeout: 20_000 })
+})
+
 const routes = [
   '/dashboard',
   '/more',
