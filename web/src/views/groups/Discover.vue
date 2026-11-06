@@ -25,13 +25,9 @@
     </div>
 
     <!-- R128 统一示例2 seg 语言(与进群邀请/链接采集同款) -->
-    <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 w-fit" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
-      <button class="px-4 py-2.5 rounded-[14px] text-sm font-bold transition-all"
-        :style="tab === 'library' ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.18);' : 'color: var(--t-text-3);'"
-        @click="tab = 'library'">雷达群库</button>
-      <button class="px-4 py-2.5 rounded-[14px] text-sm font-bold transition-all"
-        :style="tab === 'diy' ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.18);' : 'color: var(--t-text-3);'"
-        @click="tab = 'diy'">定向采集</button>
+    <div class="ui-segmented" role="tablist" aria-label="群组来源">
+      <button type="button" role="tab" :aria-selected="tab === 'library'" class="ui-segmented__item" :class="{ 'is-active': tab === 'library' }" @click="tab = 'library'">雷达群库</button>
+      <button type="button" role="tab" :aria-selected="tab === 'diy'" class="ui-segmented__item" :class="{ 'is-active': tab === 'diy' }" @click="tab = 'diy'">定向采集</button>
     </div>
 
     <!-- 系统群库 -->
