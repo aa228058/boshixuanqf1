@@ -263,8 +263,8 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	default:
 		return "", 0, "", 0, fmt.Errorf("目标不是群组/频道")
 	}
-	if title == "" {
-		title = "@" + username
+	if strings.TrimSpace(title) == "" {
+		return "", 0, "", 0, fmt.Errorf("Telegram 未返回有效群组名称")
 	}
 	return title, count, gtype, chatID, nil
 }
