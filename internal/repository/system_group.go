@@ -152,7 +152,7 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 		return tx.Commit(ctx)
 	}
 
-	_, err = tx.Exec(ctx, "UPDATE system_groups SET dedup_key=$2, telegram_chat_id=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=GREATEST(member_count,$5), gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, fmt.Sprintf("c:%d", chatID), chatID, title, memberCount, gtype)
+	_, err = tx.Exec(ctx, "UPDATE system_groups SET dedup_key=$2, telegram_chat_id=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=CASE WHEN $5>0 THEN $5 ELSE member_count END, gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, fmt.Sprintf("c:%d", chatID), chatID, title, memberCount, gtype)
 	if err != nil {
 		return err
 	}
