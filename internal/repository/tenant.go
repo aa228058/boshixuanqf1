@@ -106,7 +106,7 @@ func (r *TenantRepository) UpdateAPIKeyHash(ctx context.Context, tenantID uuid.U
 }
 
 // List returns paginated tenants with filters.
-func (r *TenantRepository) List(ctx context.Context, page, pageSize int, status, planID string) ([]*domain.Tenant, int, error) {
+func (r *TenantRepository) List(ctx context.Context, page, pageSize int, status, planID, search string) ([]*domain.Tenant, int, error) {
 	where := "WHERE deleted_at IS NULL"
 	args := []any{}
 	idx := 1
@@ -118,6 +118,11 @@ func (r *TenantRepository) List(ctx context.Context, page, pageSize int, status,
 	if planID != "" {
 		where += fmt.Sprintf(" AND plan_id = $%d", idx)
 		args = append(args, planID)
+		idx++
+	}
+	if search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR username ILIKE $%d)", idx, idx)
+		args = append(args, "%"+search+"%")
 		idx++
 	}
 
