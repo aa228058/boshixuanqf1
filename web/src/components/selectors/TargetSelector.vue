@@ -9,7 +9,7 @@
       </div>
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 overflow-x-auto pb-0.5">
-          <button
+          <button type="button"
             v-for="tab in tabs"
             :key="tab.value"
             @click="switchTab(tab.value)"
@@ -19,7 +19,7 @@
             {{ tab.label }}
           </button>
         </div>
-        <button
+        <button type="button"
           v-if="activeTab !== 'manual'"
           @click="onRefresh"
           :disabled="loading"
@@ -39,7 +39,7 @@
             placeholder="搜索私聊联系人..."
             class="flex-1 px-3 py-2 rounded-lg glow-input text-sm"
           />
-          <button
+          <button type="button"
             v-if="filteredDialogs.length > 0"
             @click="selectAllDialogs"
             class="px-2.5 py-2 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors shrink-0"
@@ -89,7 +89,7 @@
             aria-label="搜索"
             class="flex-1"
           />
-          <button
+          <button type="button"
             v-if="filteredGroups.length > 0"
             @click="selectAllGroups"
             class="px-2.5 py-2 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors shrink-0"
@@ -174,7 +174,7 @@
             :title="t"
           >
             <span class="truncate">{{ getTargetTitle(t) }}</span>
-            <button @click="removeTarget(t)" class="hover:text-rose" aria-label="删除">
+            <button type="button" @click="removeTarget(t)" class="hover:text-rose" aria-label="删除">
               <X class="w-3 h-3" />
             </button>
           </span>
@@ -184,7 +184,7 @@
     <template #footer>
       <div class="flex gap-3">
         <!-- R109 修复: 原样式在深色下被弹窗底色衬成白块(无背景色+继承样式), 显式令牌化 -->
-        <button @click="visible = false"
+        <button type="button" @click="visible = false"
                 class="px-4 py-2 rounded-lg text-sm bg-bg-hover text-text-secondary hover:text-text-primary transition-colors">
           取消
         </button>
