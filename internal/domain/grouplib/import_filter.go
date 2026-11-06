@@ -68,8 +68,15 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 	}
 
 	value := candidate
-	value = strings.TrimPrefix(strings.TrimPrefix(value, "https://"), "http://")
-	value = strings.TrimPrefix(value, "www.")
+	lowerValue := strings.ToLower(value)
+	if strings.HasPrefix(lowerValue, "https://") {
+		value = value[len("https://"):]
+	} else if strings.HasPrefix(lowerValue, "http://") {
+		value = value[len("http://"):]
+	}
+	if strings.HasPrefix(strings.ToLower(value), "www.") {
+		value = value[len("www."):]
+	}
 	parts := strings.SplitN(value, "/", 2)
 	if len(parts) != 2 {
 		return "", "", false
