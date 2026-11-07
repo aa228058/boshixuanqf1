@@ -131,7 +131,7 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
   await expect(addButton).toBeVisible()
   await addButton.click()
 
-  const visibleModals = page.locator('.modal-content:visible')
+  const visibleModals = page.locator('.modal-card:visible')
   await expect(visibleModals).toHaveCount(1)
   const modal = visibleModals.first()
   await expect(modal).toBeVisible()
