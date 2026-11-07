@@ -383,7 +383,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 						                    WHEN last_error='' THEN $7
 						                    ELSE LEFT(last_error || E'\\n' || $7, 4000) END,
 						    updated_at=NOW()
-						WHERE job_id=$1 AND status='processing' AND lease_token=$2
+						WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2
 						  AND processed_count=$8`,
 						jobID, leaseToken, processedPrefix, partialImported, partialFailed,
 						partialSkipped, detail, offset)
