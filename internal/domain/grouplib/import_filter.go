@@ -52,6 +52,12 @@ func filterImportLinks(payload string) importFilterResult {
 		if !ok {
 			continue
 		}
+		// Bot usernames are syntactically valid Telegram handles but are not
+		// group/channel targets. Filter them before creating the resumable job
+		// payload so worker offsets always refer to one import candidate per line.
+		if strings.HasPrefix(key, "u:") && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(key, "u:")), "bot") {
+			continue
+		}
 		candidates++
 		if _, exists := seen[key]; exists {
 			result.Duplicate++
