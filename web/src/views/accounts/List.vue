@@ -609,22 +609,22 @@
     <Modal v-model="showBatchProfile" title="批量修改资料" width="480px">
       <div class="space-y-3">
         <p class="text-xs text-text-muted">对选中的 {{ selectedIds.size }} 个账号逐个应用(留空的字段不变)。改资料有 2-4 秒间隔防风控, 大批量请耐心等待。</p>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <t-input v-model="batchProfile.first_name" placeholder="名字(留空不变)" />
           <t-input v-model="batchProfile.last_name" placeholder="姓氏(留空不变)" />
         </div>
         <t-textarea v-model="batchProfile.about" placeholder="个人简介(留空不变)" :rows="2" />
-        <div class="flex items-center gap-2">
-          <t-input v-model="batchProfile.username" placeholder="用户名(留空不变)" class="flex-1" />
-          <label class="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer shrink-0">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+          <t-input v-model="batchProfile.username" placeholder="用户名(留空不变)" class="w-full sm:flex-1 min-w-0" />
+          <label class="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]">
             <input type="checkbox" v-model="batchProfile.random_username" class="accent-[var(--t-brand)] w-4 h-4" />
             随机生成
           </label>
         </div>
         <t-input v-model="batchProfile.remark" placeholder="备注(留空不变)" />
         <!-- R119: 头像上传 —— 仅勾选单个账号时可用, 选图即传 -->
-        <div class="flex items-center gap-3">
-          <label class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed cursor-pointer transition-colors"
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <label class="w-full sm:flex-1 flex items-center gap-2 px-3 py-3 min-h-[44px] rounded-lg border border-dashed cursor-pointer transition-colors"
                  :class="selectedIds.size === 1 ? 'border-border hover:border-[color:var(--t-brand)] text-text-secondary' : 'border-border/50 text-text-muted cursor-not-allowed'">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="text-xs truncate">{{ avatarFileName || (selectedIds.size === 1 ? '选择头像图片(JPG/PNG, 选图即上传)' : '头像上传需先勾选 1 个账号') }}</span>
@@ -632,8 +632,8 @@
           </label>
           <span v-if="avatarUploading" class="text-xs text-[var(--t-brand)] shrink-0">上传中…</span>
         </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showBatchProfile = false">取消</t-button>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary w-full sm:w-auto min-h-[44px]" @click="showBatchProfile = false">取消</t-button>
           <t-button theme="primary" size="sm" @click="runBatchProfile" :disabled="batchingProfile"
                   class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
             {{ batchingProfile ? '执行中…' : '开始批量修改' }}
@@ -652,7 +652,7 @@
           class="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:border-[color:var(--t-brand)] focus:outline-none"
           @keyup.enter="runClone"
         />
-        <div class="flex items-center justify-between text-xs text-text-muted">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-text-muted">
           <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
           <t-button theme="primary" size="sm" @click="runClone" :disabled="cloning"
                   class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
