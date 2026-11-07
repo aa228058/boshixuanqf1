@@ -266,7 +266,7 @@ func (b *Broker) Handler(topic string) echo.HandlerFunc {
 				writeEvent(event)
 			case <-heartbeat.C:
 				// A named heartbeat event keeps both intermediaries and the client watchdog alive.
-				fmt.Fprint(c.Response(), "event: heartbeat\\ndata: {}\\n\\n")
+				fmt.Fprint(c.Response(), "event: heartbeat\ndata: {}\n\n")
 				flusher.Flush()
 			case <-c.Request().Context().Done():
 				return nil

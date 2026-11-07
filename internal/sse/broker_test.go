@@ -112,6 +112,49 @@ func TestBroadcastGlobal_ReachesGlobalTopicNotTenantTopics(t *testing.T) {
 	assertNoEvent(t, chOther, 50*time.Millisecond)
 }
 
+func TestHandlerEmitsNamedHeartbeatEvent(t *testing.T) {
+	b := NewBroker(&config.Config{SSEChannelBuffer: 16, SSEHeartbeat: 10 * time.Millisecond})
+	defer b.Close()
+
+	tenantID := uuid.New()
+	e := echo.New()
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set(middleware.TenantContextKey, tenantID.String())
+			return next(c)
+		}
+	})
+	e.GET("/events", b.Handler("events"))
+	server := httptest.NewServer(e)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/events")
+	if err != nil {
+		t.Fatalf("open SSE stream: %v", err)
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	foundHeartbeat := false
+	deadline := time.After(time.Second)
+	for !foundHeartbeat {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for named heartbeat event")
+		default:
+			if !scanner.Scan() {
+				if err := scanner.Err(); err != nil {
+					t.Fatalf("read SSE stream: %v", err)
+				}
+				t.Fatal("SSE stream ended before heartbeat")
+			}
+			if scanner.Text() == "event: heartbeat" {
+				foundHeartbeat = true
+			}
+		}
+	}
+}
+
 func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 	b := newTestBroker()
 	defer b.Close()
