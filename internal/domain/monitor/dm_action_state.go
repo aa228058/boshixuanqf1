@@ -67,7 +67,11 @@ func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {
 
 func (e *Engine) finishDMAction(ctx context.Context, key dmActionKey, status dmActionStatus, lastErrors ...string) {
 	lastError := ""
-	if len(lastErrors) > 0 {\n\t\tlastError = lastErrors[0]\n\t}\n\tif e.dmActionStore != nil {\n\t\t// Sending may finish after the monitor context is cancelled. Persist the
+	if len(lastErrors) > 0 {
+		lastError = lastErrors[0]
+	}
+	if e.dmActionStore != nil {
+		// Sending may finish after the monitor context is cancelled. Persist the
 		// observed result with a short independent deadline so shutdown cannot
 		// silently leave a known outcome recorded as in_progress.
 		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
