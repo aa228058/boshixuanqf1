@@ -1,6 +1,7 @@
 package grouplib
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -184,5 +185,14 @@ func TestTelegramRedirectRequiresSecureTelegramOrigin(t *testing.T) {
 		if err := telegramWebClient.CheckRedirect(req, nil); err != nil {
 			t.Errorf("redirect to %q should be allowed: %v", target, err)
 		}
+	}
+}
+
+func TestTelegramResolversRejectMalformedInputBeforeNetwork(t *testing.T) {
+	if _, _, _, err := resolvePublicGroupInfoViaWeb(context.Background(), "bad-name"); err == nil {
+		t.Fatal("expected malformed public username to be rejected")
+	}
+	if _, _, _, err := resolveInviteInfoViaWeb(context.Background(), "bad/hash"); err == nil {
+		t.Fatal("expected malformed invite hash to be rejected")
 	}
 }
