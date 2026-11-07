@@ -66,7 +66,7 @@ type Engine struct {
 	mu          sync.RWMutex
 	rateLimiter *RateLimiter
 	msgPushMu   sync.Mutex
-	lastMsgPush map[int64]time.Time
+	lastMsgPush map[string]time.Time
 	done        chan struct{}
 	// Rule cache: tenantID -> []MonitorRule + lastUpdate
 	ruleCache   map[uuid.UUID][]domain.MonitorRule
@@ -125,7 +125,7 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		accEngine:   accEngine,
 		ruleRepo:    ruleRepo,
 		sseBroker:   sseBroker,
-		lastMsgPush: make(map[int64]time.Time),
+		lastMsgPush: make(map[string]time.Time),
 		rateLimiter: NewRateLimiter(),
 		ruleCache:   make(map[uuid.UUID][]domain.MonitorRule),
 		ruleCacheTS: make(map[uuid.UUID]time.Time),
@@ -398,16 +398,17 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 
 			// 节流: 同群 1 秒内最多推 1 条, 避免高频消息刷爆前端
 			now := time.Now()
+			pushKey := fmt.Sprintf("%s:%s:%d", tenantID, accountID, msg.ChatID)
 			e.msgPushMu.Lock()
-			if now.Sub(e.lastMsgPush[msg.ChatID]) < time.Second {
+			if now.Sub(e.lastMsgPush[pushKey]) < time.Second {
 				e.msgPushMu.Unlock()
 				return
 			}
-			e.lastMsgPush[msg.ChatID] = now
+			e.lastMsgPush[pushKey] = now
 			// 防内存泄漏：map 只增不减，监控账号漫游大量群组后无界增长。
 			// 超过阈值时重建并丢弃过期条目（保留最近 5 分钟），摊销清理成本。
 			if len(e.lastMsgPush) > 10000 {
-				fresh := make(map[int64]time.Time, len(e.lastMsgPush))
+				fresh := make(map[string]time.Time, len(e.lastMsgPush))
 				for k, v := range e.lastMsgPush {
 					if now.Sub(v) < 5*time.Minute {
 						fresh[k] = v
