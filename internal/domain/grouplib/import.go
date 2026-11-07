@@ -109,14 +109,30 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		return &ImportResult{Skipped: skipped}, fmt.Errorf("没有解析到任何有效链接(支持 t.me/xxx、@xxx、t.me/+邀请hash)")
 	}
 
+	// 小批量直接导入保留一次取连接的路径；后台大批量任务按需短借账号，
+	// 避免纯网页解析期间长时间占住 Telegram 客户端锁。
 	var client *telegram.Client
-	if accountID != uuid.Nil {
+	if accountID != uuid.Nil && !preferWeb && len(entries) <= 200 {
 		var err error
 		client, err = e.acc.GetClient(ctx, tenantID, accountID)
 		if err != nil {
 			return nil, fmt.Errorf("取账号连接失败: %w", err)
 		}
 		defer e.acc.ReleaseClient(tenantID, accountID, client)
+	}
+	resolveWithMTProto := func(resolve func(*telegram.Client) (string, int, string, int64, error)) (string, int, string, int64, error) {
+		if client != nil {
+			return resolve(client)
+		}
+		if accountID == uuid.Nil {
+			return "", 0, "", 0, fmt.Errorf("未选择 Telegram 解析账号")
+		}
+		mtClient, err := e.acc.GetClient(ctx, tenantID, accountID)
+		if err != nil {
+			return "", 0, "", 0, fmt.Errorf("取账号连接失败: %w", err)
+		}
+		defer e.acc.ReleaseClient(tenantID, accountID, mtClient)
+		return resolve(mtClient)
 	}
 
 	res := &ImportResult{Skipped: skipped}
@@ -143,7 +159,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		pendingGroups = pendingGroups[:0]
 	}
 	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
-	bulkMode := preferWeb || len(entries) > 200 || client == nil
+	bulkMode := preferWeb || len(entries) > 200 || accountID == uuid.Nil
 	for _, en := range entries {
 		if err := ctx.Err(); err != nil {
 			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -169,9 +185,9 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		}
 		// MTProto results carry a real Chat ID; keep them separate from web previews.
 		switch {
-		case client != nil && bulkMode && !en.private:
+		case accountID != uuid.Nil && bulkMode && !en.private:
 			cacheKey += ":hybrid:" + accountID.String()
-		case client != nil:
+		case accountID != uuid.Nil:
 			cacheKey += ":mtproto:" + accountID.String()
 		default:
 			cacheKey += ":web"
@@ -183,7 +199,9 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 					return "", 0, "", 0, err
 				}
-				title, count, gtype, chatID, mtErr := resolveInviteInfo(ctx, client, en.hash)
+				title, count, gtype, chatID, mtErr := resolveWithMTProto(func(mtClient *telegram.Client) (string, int, string, int64, error) {
+					return resolveInviteInfo(ctx, mtClient, en.hash)
+				})
 				if mtErr == nil {
 					return title, count, gtype, chatID, nil
 				}
@@ -198,15 +216,17 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				}
 				return "", 0, "", 0, fmt.Errorf("MTProto: %v; 网页预览: %w", mtErr, webErr)
 			}
-			if client != nil && !bulkMode {
+			if accountID != uuid.Nil && !bulkMode {
 				if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 					return "", 0, "", 0, err
 				}
-				return resolveGroupInfo(ctx, client, en.username)
+				return resolveWithMTProto(func(mtClient *telegram.Client) (string, int, string, int64, error) {
+					return resolveGroupInfo(ctx, mtClient, en.username)
+				})
 			}
 			// 大批量公开链接优先走共享网页调度器，避免把一个账号压成逐条串行瓶颈。
 			title, count, gtype, webErr := resolveWebEntryWithRetry(ctx, en.private, en.username, en.hash)
-			if webErr == nil || client == nil {
+			if webErr == nil || accountID == uuid.Nil {
 				return title, count, gtype, 0, webErr
 			}
 			var rateLimitErr *TelegramRateLimitError
@@ -217,7 +237,9 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 				return "", 0, "", 0, err
 			}
-			return resolveGroupInfo(ctx, client, en.username)
+			return resolveWithMTProto(func(mtClient *telegram.Client) (string, int, string, int64, error) {
+				return resolveGroupInfo(ctx, mtClient, en.username)
+			})
 		})
 		if ctx.Err() != nil {
 			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
