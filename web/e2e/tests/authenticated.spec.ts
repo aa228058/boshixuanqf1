@@ -25,6 +25,16 @@ const routes = [
   '/sessions',
 ]
 
+// 路由矩阵使用 Vue Router 的 history 导航，不对每个页面执行整页 reload。
+// 整页 reload 会重复调用 /auth/refresh，触发生产环境真实的 10 次/分钟认证限流。
+async function navigateTenantRoute(page: import('@playwright/test').Page, route: string) {
+  await page.evaluate((path) => {
+    window.history.pushState({}, '', path)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, route)
+  await expect(page).toHaveURL(url => url.pathname === route, { timeout: 15_000 })
+}
+
 async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
   let accountId = process.env.E2E_ACCOUNT_ID
   if (!accountId) {
@@ -97,7 +107,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
   await expect(page.getByText('产品交流与资源分享').first()).toBeVisible()
-  await expect(page.getByText('跨境电商运营讨论')).toBeVisible()
+  await expect(page.getByText('跨境电商运营讨论').first()).toBeVisible()
   await expect(page.getByText('运营素材与案例库')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
