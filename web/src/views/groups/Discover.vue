@@ -50,6 +50,7 @@
         <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
         <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
         <t-button v-if="['completed', 'failed'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
+        <t-button v-if="['completed', 'failed'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
       </div>
     </section>
 
@@ -247,7 +248,7 @@
         </p>
         <div v-if="importJob" class="text-xs rounded-lg p-3 space-y-2" style="background: color-mix(in srgb, var(--t-text-1) 6%, transparent);">
           <div class="flex justify-between gap-2">
-            <span class="font-medium">{{ importJob.status === 'review' ? '筛选完成，等待确认' : importJob.status === 'completed' ? '解析完成' : importJob.status === 'failed' ? '解析失败' : '后台解析中' }}</span>
+            <span class="font-medium">{{ importJob.status === 'review' ? '筛选完成，等待确认' : importJob.status === 'completed' ? '解析完成' : importJob.status === 'failed' ? '解析失败' : importJob.status === 'cancelled' ? '已取消' : importJob.status === 'cancelling' ? '正在取消' : '后台解析中' }}</span>
             <span>{{ importJob.processed_count }} / {{ importJob.total_count }}</span>
           </div>
           <div class="h-2 rounded-full overflow-hidden" style="background: var(--t-line-light);">
