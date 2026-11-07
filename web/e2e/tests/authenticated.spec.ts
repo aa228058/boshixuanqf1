@@ -12,12 +12,88 @@ test.beforeEach(async ({ page }, testInfo) => {
     if (route.request().method() !== 'GET') return route.continue()
     await route.fulfill({
       status: 200, contentType: 'application/json',
-      body: JSON.stringify({ code: 0, data: [{
-        account_id: 'e2e00000-0000-4000-8000-000000000002', phone: '+8613800000001',
-        first_name: '演示运营号', last_name: '', username: 'demo_operator',
-        status: 'online', source: 'phone', remark: 'Playwright 视觉验收专用',
-        created_at: '2026-11-01T08:00:00.000Z',
-      }] }),
+      body: JSON.stringify({ code: 0, data: [
+        {
+          account_id: 'e2e00000-0000-4000-8000-000000000002', phone: '+8613800000001',
+          first_name: '演示运营号', last_name: '', username: 'demo_operator',
+          status: 'online', source: 'phone', remark: '主运营账号 · Playwright 视觉验收',
+          created_at: '2026-11-01T08:00:00.000Z',
+        },
+        {
+          account_id: 'e2e00000-0000-4000-8000-000000000003', phone: '+8613800000002',
+          first_name: '内容采集号', last_name: '', username: 'demo_collector',
+          status: 'offline', source: 'session', remark: '内容采集与资料整理',
+          created_at: '2026-11-02T08:00:00.000Z',
+        },
+        {
+          account_id: 'e2e00000-0000-4000-8000-000000000004', phone: '+8613800000003',
+          first_name: '社群维护号', last_name: '', username: 'demo_community',
+          status: 'online', source: 'session', remark: '社群维护 · 日常运营',
+          created_at: '2026-11-03T08:00:00.000Z',
+        },
+        {
+          account_id: 'e2e00000-0000-4000-8000-000000000005', phone: '+8613800000004',
+          first_name: '备用账号', last_name: '', username: 'demo_backup',
+          status: 'error', source: 'phone', remark: '连接异常 · 待检查',
+          created_at: '2026-11-04T08:00:00.000Z',
+        },
+      ] }),
+    })
+  })
+  // 任务列表使用多状态、跨账号的只读演示数据，确保桌面表格与移动卡片都不是空状态。
+  await page.route(/\/api\/v1\/tasks(?:\?.*)?$/, async route => {
+    if (route.request().method() !== 'GET') return route.continue()
+    const tasks = [
+      {
+        task_id: 'e2e00000-0000-4000-8000-000000000001', type: 'broadcast', status: 'running',
+        name: '本周产品更新通知', created_at: '2026-11-07T09:58:00.000Z',
+        account_ids: ['e2e00000-0000-4000-8000-000000000002'],
+        progress: { total: 30, done: 16, failed: 2 },
+        config: { message: '本周产品更新与运营活动通知', target_count: 30 },
+      },
+      {
+        task_id: 'e2e00000-0000-4000-8000-000000000006', type: 'scrape_members', status: 'queued',
+        name: '潜在客户名单采集', created_at: '2026-11-07T09:42:00.000Z',
+        account_ids: ['e2e00000-0000-4000-8000-000000000003'],
+        progress: { total: 1200, done: 0, failed: 0 },
+        config: { target_count: 1200 },
+      },
+      {
+        task_id: 'e2e00000-0000-4000-8000-000000000007', type: 'join_groups', status: 'completed',
+        name: '行业社群加入', created_at: '2026-11-07T08:35:00.000Z',
+        account_ids: ['e2e00000-0000-4000-8000-000000000004'],
+        progress: { total: 18, done: 17, failed: 1 },
+        config: { target_count: 18 },
+      },
+      {
+        task_id: 'e2e00000-0000-4000-8000-000000000008', type: 'broadcast', status: 'failed',
+        name: '活动预热消息', created_at: '2026-11-07T07:50:00.000Z',
+        account_ids: ['e2e00000-0000-4000-8000-000000000005'],
+        progress: { total: 50, done: 12, failed: 8 },
+        config: { message: '限时活动预热与报名提醒', target_count: 50 },
+      },
+      {
+        task_id: 'e2e00000-0000-4000-8000-000000000009', type: 'monitor_scrape', status: 'running',
+        name: '关键词监控采集', created_at: '2026-11-07T07:15:00.000Z',
+        account_ids: ['e2e00000-0000-4000-8000-000000000003'],
+        progress: { total: 80, done: 31, failed: 3 },
+        config: { target_count: 80 },
+      },
+      {
+        task_id: 'e2e00000-0000-4000-8000-000000000010', type: 'broadcast', status: 'cancelled',
+        name: '上新提醒补发', created_at: '2026-11-07T06:20:00.000Z',
+        account_ids: ['e2e00000-0000-4000-8000-000000000004'],
+        progress: { total: 25, done: 9, failed: 0 },
+        config: { message: '新品上架提醒', target_count: 25 },
+      },
+    ]
+    const url = new URL(route.request().url())
+    const status = url.searchParams.get('status') || ''
+    const type = url.searchParams.get('type') || ''
+    const rows = tasks.filter(task => (!status || task.status === status) && (!type || task.type === type))
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: { list: rows, total: rows.length } }),
     })
   })
   await page.route(/\/api\/v1\/tasks\/e2e00000-0000-4000-8000-000000000001(?:\/.*)?(?:\?.*)?$/, async route => {
@@ -84,6 +160,19 @@ async function navigateTenantRoute(page: import('@playwright/test').Page, route:
   }, route)
   await expect(page).toHaveURL(url => url.pathname === new URL(finalPath, url.origin).pathname, { timeout: 15_000 })
 }
+
+test('任务列表展示多状态演示数据并可按类型筛选', async ({ page }, testInfo) => {
+  await navigateTenantRoute(page, '/workspace/e2e00000-0000-4000-8000-000000000002/tasks')
+  await expect(page.getByRole('heading', { name: '任务列表' })).toBeVisible()
+  await expect(page.getByText('本周产品更新通知')).toBeVisible()
+  await expect(page.getByText('潜在客户名单采集')).toBeVisible()
+  await expect(page.getByText('活动预热消息')).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('tasks-list-populated.png'), fullPage: true })
+  await page.getByRole('group', { name: '按任务类型筛选' }).getByRole('button', { name: '群发' }).click()
+  await expect(page.getByText('本周产品更新通知')).toBeVisible()
+  await expect(page.getByText('潜在客户名单采集')).toHaveCount(0)
+  await page.screenshot({ path: testInfo.outputPath('tasks-list-filtered.png'), fullPage: true })
+})
 
 test('旧协议号管理地址跳转到统一账号管理页', async ({ page }) => {
   await navigateTenantRoute(page, '/sessions')
