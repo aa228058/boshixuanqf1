@@ -49,7 +49,7 @@
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
         <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
-        <t-button v-if="['completed', 'failed'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
+        <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
         <t-button v-if="['completed', 'failed'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
       </div>
     </section>
