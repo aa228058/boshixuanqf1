@@ -307,6 +307,19 @@ const filteredLogs = computed(() => {
 // {account_id, target_id, remaining, next_index, total}
 const waitState = ref<{ account_id: string; target_id: string; remaining: number; next_index: number; total: number } | null>(null)
 
+function taskLogKey(log: TaskLog): string {
+  if (log.log_id) return `id:${log.log_id}`
+  return [
+    log.executed_at || '',
+    log.action || '',
+    log.status || '',
+    log.target_id || '',
+    log.tg_message_id ?? '',
+    log.error_code || '',
+    log.message || '',
+  ].join('|')
+}
+
 // SSE 实时: 本任务的日志/进度/状态亚秒级推送, 打开详情页即可盯着日志滚动
 useTaskEvents((evt: any) => {
   if (evt.task_id !== taskId) return
@@ -322,7 +335,7 @@ useTaskEvents((evt: any) => {
   }
   if (evt.type === 'task_log' && evt.log) {
     const l = evt.log
-    if (!logs.value.some((x: any) => x.log_id === l.log_id)) {
+    if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(l))) {
       logs.value = [...logs.value, l]
       requestAnimationFrame(() => {
         if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
@@ -446,8 +459,8 @@ async function fetchLogs() {
     // Merge persisted history with events received while the request was in flight;
     // reconnect snapshots must not discard newer SSE entries.
     const merged = new Map<string, TaskLog>()
-    for (const log of logs.value) merged.set(log.log_id, log)
-    for (const log of data) merged.set(log.log_id, log)
+    for (const log of logs.value) merged.set(taskLogKey(log), log)
+    for (const log of data) merged.set(taskLogKey(log), log)
     logs.value = [...merged.values()]
       .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
       .slice(-500)
@@ -506,7 +519,7 @@ async function connectSSE() {
         if (!data || !task.value) return
 
         if (data.type === 'task_log' && data.log) {
-          if (!logs.value.some((x: any) => x.log_id === data.log.log_id)) {
+          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) {
             logs.value.push(data.log)
           }
           if (logs.value.length > 500) logs.value = logs.value.slice(-500)
