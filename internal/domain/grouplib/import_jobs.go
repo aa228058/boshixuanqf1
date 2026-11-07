@@ -360,9 +360,10 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		if offset >= len(lines) {
 			_, _ = e.pool.Exec(leaseCtx, `
 				UPDATE group_library_import_jobs
-				SET status='completed', finished_at=NOW(), payload='', lease_token=NULL,
+				SET status=CASE WHEN status='cancelling' THEN 'cancelled' ELSE 'completed' END,
+				    finished_at=NOW(), payload='', lease_token=NULL,
 				    lease_expires_at=NULL, updated_at=NOW()
-				WHERE job_id=$1 AND status='processing' AND lease_token=$2 AND processed_count=$3`,
+				WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2 AND processed_count=$3`,
 				jobID, leaseToken, offset)
 			stopLease()
 			<-heartbeatDone
@@ -515,12 +516,13 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				SET processed_count=$3, imported_count=imported_count+$4,
 				    failed_count=failed_count+$5, skipped_count=skipped_count+$6,
 				    last_error=CASE WHEN $7='' THEN last_error ELSE $7 END,
-				    status=$8, finished_at=$9,
-				    payload=CASE WHEN $8='completed' THEN '' ELSE payload END,
-				    lease_token=CASE WHEN $8='completed' THEN NULL ELSE lease_token END,
-				    lease_expires_at=CASE WHEN $8='completed' THEN NULL ELSE lease_expires_at END,
+				    status=CASE WHEN status='cancelling' THEN 'cancelled' ELSE $8 END,
+				    finished_at=CASE WHEN status='cancelling' THEN NOW() ELSE $9 END,
+				    payload=CASE WHEN status='cancelling' OR $8='completed' THEN '' ELSE payload END,
+				    lease_token=CASE WHEN status='cancelling' OR $8='completed' THEN NULL ELSE lease_token END,
+				    lease_expires_at=CASE WHEN status='cancelling' OR $8='completed' THEN NULL ELSE lease_expires_at END,
 				    updated_at=NOW()
-				WHERE job_id=$1 AND status='processing' AND lease_token=$2
+				WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2
 				  AND processed_count=$10`,
 				jobID, leaseToken, end, imported, failed, skipped, lastError,
 				nextStatus, finished, offset)
