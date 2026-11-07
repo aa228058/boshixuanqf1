@@ -49,6 +49,7 @@
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
         <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
+        <t-button v-if="['completed', 'failed'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
       </div>
     </section>
 
@@ -310,7 +311,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -463,6 +464,16 @@ async function pollImportJob(jobId: string) {
   }
 }
 
+async function retryFailedImportJob(jobId: string) {
+  try {
+    const job = await retryFailedGroupLibraryImportJob(jobId)
+    importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
+    toast({ type: 'success', title: '失败链接已重新排队', message: '本次只重试 ' + job.total_count + ' 条失败链接' })
+    void pollImportJob(job.job_id)
+  } catch (err: any) {
+    toast({ type: 'error', title: '重试失败', message: err?.message || '无法创建失败链接重试任务' })
+  }
+}
 async function cancelImportJob(jobId: string) {
   try {
     const job = await cancelGroupLibraryImportJob(jobId)
