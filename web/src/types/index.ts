@@ -146,7 +146,11 @@ export interface Task {
   name?: string
   payload?: Record<string, any>
   type: string
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+  status: 'pending' | 'scheduled' | 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+  scheduled_at?: string | null
+  next_run_at?: string | null
+  is_loop?: boolean
+  loop_interval_minutes?: number
   config: Record<string, any>
   progress: {
     total: number
