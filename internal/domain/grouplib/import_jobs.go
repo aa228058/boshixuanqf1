@@ -135,7 +135,6 @@ func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*
 	return &job, nil
 }
 
-const importJobLeaseDuration = 2 * time.Minute
 const importJobHeartbeatInterval = 30 * time.Second
 
 // processImportJobs 使用数据库租约领取任务。租约令牌同时作为 fencing token，
@@ -177,7 +176,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				case <-leaseCtx.Done():
 					return
 				case <-ticker.C:
-					renewCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					renewCtx, cancel := context.WithTimeout(leaseCtx, 5*time.Second)
 					tag, renewErr := e.pool.Exec(renewCtx, `
 						UPDATE group_library_import_jobs
 						SET lease_expires_at=NOW() + INTERVAL '2 minutes', updated_at=NOW()
@@ -260,12 +259,25 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					offset += processedPrefix
 				}
 				timer := time.NewTimer(rateLimitErr.RetryAfter)
+				shutdownDuringRateLimit := false
 				select {
 				case <-leaseCtx.Done():
 					timer.Stop()
-					break
+					shutdownDuringRateLimit = true
 				case <-timer.C:
 					continue
+				}
+				if shutdownDuringRateLimit && leaseValid() {
+					persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+					_, persistErr := e.pool.Exec(persistCtx, `
+						UPDATE group_library_import_jobs
+						SET status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+						WHERE job_id=$1 AND status='processing' AND lease_token=$2 AND processed_count=$3`,
+						jobID, leaseToken, offset)
+					persistCancel()
+					if persistErr != nil {
+						log.Printf("[grouplib] 429 停机时释放导入租约失败 job=%s: %v", jobID, persistErr)
+					}
 				}
 				break
 			}
