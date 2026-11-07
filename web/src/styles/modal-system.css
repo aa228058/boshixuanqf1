@@ -46,7 +46,7 @@
   max-height: min(88dvh, 900px) !important;
   margin: auto !important;
 }
-.modal-card { width: 100%; min-width: 0; }
+.modal-card { width: 100%; min-width: 0; min-height: 0; max-height: inherit; }
 @media (min-width: 769px) {
   .modal-wrapper {
     align-items: center !important;
@@ -64,8 +64,18 @@
   .modal-content {
     width: 100% !important;
     max-width: 100% !important;
-    max-height: 88dvh !important;
+    min-height: 0 !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
     margin: 0 !important;
+    overflow: hidden !important;
+  }
+  /* 移动端长表单必须在视口内收敛；滚动发生在 .modal-body，而不是把整张抽屉推到屏幕外。 */
+  .modal-card {
+    min-height: 0 !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
   }
 }
 

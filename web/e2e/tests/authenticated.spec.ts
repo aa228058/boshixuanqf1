@@ -51,6 +51,8 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
 }
 
 test('租户认证路由可渲染且没有浏览器运行时异常', async ({ page }, testInfo) => {
+  // 移动端逐页截图比桌面慢；给完整路由矩阵留出合理时间，避免误报超时。
+  test.setTimeout(120_000)
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
 
