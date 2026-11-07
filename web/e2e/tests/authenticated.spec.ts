@@ -116,11 +116,14 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
-  const visibleGroupTitle = (title: string) =>
-    page.locator('span:visible').filter({ hasText: title }).first()
-  await expect(visibleGroupTitle('产品交流与资源分享')).toBeVisible()
-  await expect(visibleGroupTitle('跨境电商运营讨论')).toBeVisible()
-  await expect(visibleGroupTitle('运营素材与案例库')).toBeVisible()
+  // 桌面端群名位于表格单元格中（并非 span）；移动端则位于响应式卡片。
+  // 用可见的语义容器断言，避免依赖组件内部标签结构。
+  const visibleGroupEntry = (title: string) => testInfo.project.name.includes('mobile')
+    ? page.locator('.md\\:hidden .ui-card:visible').filter({ hasText: title }).first()
+    : page.getByRole('row').filter({ hasText: title }).first()
+  await expect(visibleGroupEntry('产品交流与资源分享')).toBeVisible()
+  await expect(visibleGroupEntry('跨境电商运营讨论')).toBeVisible()
+  await expect(visibleGroupEntry('运营素材与案例库')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
