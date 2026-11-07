@@ -137,6 +137,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		var gtype string
 		var chatID int64
 		var rerr error
+		usedMTProto := false
 		cacheKey := "u:" + strings.ToLower(en.username)
 		if en.private {
 			cacheKey = "p:" + en.hash // Telegram invite hashes are case-sensitive.
@@ -151,6 +152,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			// 私密邀请链接优先使用 MTProto：checkChatInvite 可读取 Telegram 提供的预览，
 			// 不要求账号加入群组。未选择账号时才退回网页预览。
 			if client != nil && en.private {
+				usedMTProto = true
 				title, count, gtype, chatID, mtErr := resolveInviteInfo(ctx, client, en.hash)
 				if mtErr == nil {
 					return title, count, gtype, chatID, nil
@@ -167,6 +169,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				return "", 0, "", 0, fmt.Errorf("MTProto: %v; 网页预览: %w", mtErr, webErr)
 			}
 			if client != nil && !bulkMode {
+				usedMTProto = true
 				return resolveGroupInfo(ctx, client, en.username)
 			}
 			// 大批量公开链接优先走共享网页调度器，避免把一个账号压成逐条串行瓶颈。
@@ -179,6 +182,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				return "", 0, "", 0, webErr
 			}
 			// 网页预览不可用/信息不完整时，用用户明确选择的在线账号补充 MTProto 解析。
+			usedMTProto = true
 			return resolveGroupInfo(ctx, client, en.username)
 		})
 		if ctx.Err() != nil {
@@ -208,7 +212,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		pendingGroups = append(pendingGroups, &sg)
 		res.Processed++
 		// MTProto 请求保守限速；HTTP 解析由连接池与 Worker 调度统一控制。
-		if client != nil && (!bulkMode || en.private || rerr != nil) {
+		if client != nil && usedMTProto {
 			select {
 			case <-ctx.Done():
 				writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
