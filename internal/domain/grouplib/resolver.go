@@ -17,12 +17,11 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	type row struct {
 		sgID     uuid.UUID
 		link     string
-		dedupKey string
 		username string
 		gtype    string
 		title    string
 	}
-	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,dedup_key,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown','public','group','supergroup','channel') AND (resolution_status='pending' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
+	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown','public','group','supergroup','channel') AND (resolution_status='pending' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
 	if err != nil {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
@@ -30,7 +29,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	var pending []row
 	for rows.Next() {
 		var item row
-		if err := rows.Scan(&item.sgID, &item.link, &item.dedupKey, &item.username, &item.gtype, &item.title); err == nil {
+		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err == nil {
 			pending = append(pending, item)
 		}
 	}
@@ -43,8 +42,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		isInviteLink := inviteHashFromLink(p.link) != ""
 		// Defensive cleanup for bot links inserted by older import/aggregation paths.
 		if !isInviteLink && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
-			_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
-			_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
+			_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
 			continue
 		}
 
@@ -80,8 +78,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
-			_ = e.repo.MarkInvalidByDedupKey(ctx, p.dedupKey)
-			_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "invalid")
+			_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
 		} else if title != "" || count > 0 {
 			if pageType == "" || pageType == "unknown" {
 				pageType = p.gtype
@@ -89,7 +86,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, pageType, 0); err != nil {
 				log.Printf("[grouplib] 回写群组资料失败 %s: %v", p.sgID, err)
 			} else {
-				_ = e.repo.UpdateLinkValidity(ctx, p.sgID, 0, "valid")
+				_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "valid")
 			}
 		}
 	}

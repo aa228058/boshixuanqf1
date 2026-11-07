@@ -404,29 +404,12 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		persistCancel()
 		e.publishLog(task.TenantID, task.TaskID, joinLog)
 
-		// Only a confirmed invalid/expired Telegram identifier changes shared link validity.
-		// Account limits, bans, privacy and permission failures do not invalidate the group link.
+		// Only a confirmed invalid/expired Telegram URL changes that URL's validity.
+		// Other aliases for the same group remain independently usable.
 		if status == "failed" && e.systemGroupRepo != nil &&
 			(errCode == "invite_expired" || errCode == "invite_invalid" || errCode == "username_invalid") {
-			key := ""
-			if hash := extractInviteHash(link); hash != "" {
-				key = "l:t.me/+" + hash
-			} else {
-				username := strings.TrimSpace(link)
-				username = strings.TrimPrefix(username, "@")
-				username = strings.TrimPrefix(username, "https://t.me/")
-				username = strings.TrimPrefix(username, "http://t.me/")
-				username = strings.TrimPrefix(username, "t.me/")
-				username = strings.SplitN(username, "?", 2)[0]
-				username = strings.Trim(username, "/")
-				if username != "" {
-					key = "u:" + strings.ToLower(username)
-				}
-			}
-			if key != "" {
-				if merr := e.systemGroupRepo.MarkInvalidByDedupKey(ctx, key); merr != nil {
-					log.Printf("[join] 标记群链接失效失败 %s: %v", key, merr)
-				}
+			if merr := e.systemGroupRepo.UpdateLinkValidityByLink(ctx, link, "invalid"); merr != nil {
+				log.Printf("[join] 标记群链接失效失败 %s: %v", link, merr)
 			}
 		}
 

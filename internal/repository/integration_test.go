@@ -307,3 +307,37 @@ func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 		t.Fatalf("approval statuses = %q/%q/%q, want approved/timeout/cancelled", approvedStatus, timeoutStatus, cancelledStatus)
 	}
 }
+
+
+func TestUpdateLinkValidityByLinkPreservesAlternateLinks(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	groupWithAliases := uuid.New()
+	groupWithOneLink := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO system_groups (sg_id, dedup_key, source, gtype, status) VALUES ($1, 'u:alpha_group', 'import', 'unknown', 'active'), ($2, 'u:single_group', 'import', 'unknown', 'active')", groupWithAliases, groupWithOneLink); err != nil {
+		t.Fatalf("seed shared groups: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "INSERT INTO system_group_links (sg_id, original_link, normalized_link, link_type, validity_status, source) VALUES ($1, 'https://t.me/alpha_group', 't.me/alpha_group', 'public', 'pending', 'import'), ($1, 'https://t.me/+InviteHashABC', 't.me/+InviteHashABC', 'private_invite', 'pending', 'import'), ($2, 'https://t.me/single_group', 't.me/single_group', 'public', 'pending', 'import')", groupWithAliases, groupWithOneLink); err != nil {
+		t.Fatalf("seed shared links: %v", err)
+	}
+	repo := NewSystemGroupRepository(pool)
+	if err := repo.UpdateLinkValidityByLink(ctx, "https://t.me/alpha_group/", "invalid"); err != nil {
+		t.Fatalf("invalidate public alias: %v", err)
+	}
+	var publicStatus, inviteStatus, groupStatus string
+	if err := pool.QueryRow(ctx, "SELECT (SELECT validity_status FROM system_group_links WHERE normalized_link='t.me/alpha_group'), (SELECT validity_status FROM system_group_links WHERE normalized_link='t.me/+InviteHashABC'), (SELECT status FROM system_groups WHERE sg_id=$1)", groupWithAliases).Scan(&publicStatus, &inviteStatus, &groupStatus); err != nil {
+		t.Fatalf("read alias states: %v", err)
+	}
+	if publicStatus != "invalid" || inviteStatus != "pending" || groupStatus != "active" {
+		t.Fatalf("after invalidating one alias: public=%s invite=%s group=%s; want invalid/pending/active", publicStatus, inviteStatus, groupStatus)
+	}
+	if err := repo.UpdateLinkValidityByLink(ctx, "t.me/single_group", "invalid"); err != nil {
+		t.Fatalf("invalidate only alias: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT status FROM system_groups WHERE sg_id=$1", groupWithOneLink).Scan(&groupStatus); err != nil {
+		t.Fatalf("read single-link group state: %v", err)
+	}
+	if groupStatus != "invalid" {
+		t.Fatalf("single-link group status = %q, want invalid", groupStatus)
+	}
+}
