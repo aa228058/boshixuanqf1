@@ -4,11 +4,14 @@ on:
   pull_request:
     paths:
       - 'web/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'migrations/**'
       - '.github/workflows/e2e-browser.yml'
   workflow_dispatch:
     inputs:
       base_url:
-        description: 'Target URL (defaults to the local production build)'
+        description: 'Optional external target URL (skips isolated backend provisioning)'
         required: false
         type: string
 
@@ -18,11 +21,120 @@ permissions:
 jobs:
   browser-audit:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: tg_sender_e2e
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: e2e-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tg_sender_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.6'
+          cache: true
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Build backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: e2e-postgres-password
+          DB_NAME: tg_sender_e2e
+          DB_SSLMODE: disable
+          JWT_SECRET: 'e2e-only-random-secret-7d8c9a1b2e4f6a8c0d3e5f7b9a1c4d6e'
+          TG_API_ID: '12345'
+          TG_API_HASH: '0123456789abcdef0123456789abcdef'
+          ENV: development
+        run: go build -o /tmp/tg-sender-e2e ./cmd/server
+      - name: Start isolated API and wait for migrations
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: e2e-postgres-password
+          DB_NAME: tg_sender_e2e
+          DB_SSLMODE: disable
+          SERVER_HOST: 127.0.0.1
+          SERVER_PORT: 8080
+          JWT_SECRET: 'e2e-only-random-secret-7d8c9a1b2e4f6a8c0d3e5f7b9a1c4d6e'
+          TG_API_ID: '12345'
+          TG_API_HASH: '0123456789abcdef0123456789abcdef'
+          ENV: development
+          LOG_LEVEL: warn
+        run: |
+          mkdir -p /tmp/tg-sender-e2e
+          /tmp/tg-sender-e2e > /tmp/tg-sender-e2e/server.log 2>&1 &
+          echo $! > /tmp/tg-sender-e2e/server.pid
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail http://127.0.0.1:8080/health >/dev/null; then
+              echo "API ready; migrations and startup seeding completed."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/tg-sender-e2e/server.pid)" 2>/dev/null; then
+              cat /tmp/tg-sender-e2e/server.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/tg-sender-e2e/server.log
+          echo "API did not become healthy in time."
+          exit 1
+      - name: Create isolated enterprise tenant
+        if: ${{ !inputs.base_url }}
+        env:
+          PGPASSWORD: e2e-postgres-password
+        run: |
+          set -euo pipefail
+          CODE="$(openssl rand -hex 16)"
+          USERNAME="e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          PASSWORD="$(openssl rand -hex 20)"
+          psql -h 127.0.0.1 -U postgres -d tg_sender_e2e -v ON_ERROR_STOP=1 \
+            -v activation_code="$CODE" <<'SQL'
+          INSERT INTO activation_codes (code, plan_id, status, timing_type, notes)
+          VALUES (:'activation_code', 'enterprise', 'unused', 'on_use', 'Ephemeral GitHub Actions E2E tenant');
+          SQL
+          curl --fail-with-body --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -n --arg username "$USERNAME" --arg password "$PASSWORD" --arg code "$CODE" '{username:$username,password:$password,name:"Playwright Enterprise",code:$code}')" \
+            http://127.0.0.1:8080/api/v1/auth/register
+          echo "E2E_TENANT_USERNAME=$USERNAME" >> "$GITHUB_ENV"
+          echo "E2E_TENANT_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          LOGIN="$(curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' \
+            -d "$(jq -n --arg username "$USERNAME" --arg password "$PASSWORD" '{username:$username,password:$password}')" \
+            http://127.0.0.1:8080/api/v1/auth/login)"
+          echo "$LOGIN" | jq -e '(.data.plan_id // .plan_id) == "enterprise"' >/dev/null
+          echo "$LOGIN" | jq -e '(.data.max_accounts // .max_accounts) == 100' >/dev/null
+          echo "$LOGIN" | jq -e '(.data.max_concurrent_tasks // .max_concurrent_tasks) == 40' >/dev/null
+          echo "Enterprise plan, 100 account quota, and 40 concurrency quota verified."
+      - name: Configure same-origin frontend and API proxy
+        if: ${{ !inputs.base_url }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          sudo tee /etc/nginx/sites-available/default >/dev/null <<'NGINX'
+          server {
+            listen 4173;
+            server_name _;
+            root $GITHUB_WORKSPACE/web/dist;
+            index index.html;
+            location /api/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; }
+            location /admin/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; }
+            location / { try_files $uri $uri/ /index.html; }
+          }
+          NGINX
+          sudo nginx -t
+          sudo systemctl restart nginx
       - name: Install frontend dependencies and run checks
         working-directory: web
         run: |
@@ -38,10 +150,7 @@ jobs:
       - name: Run browser audit
         working-directory: web/e2e
         env:
-          BASE_URL: ${{ github.event.inputs.base_url || 'http://127.0.0.1:4173' }}
-          E2E_TENANT_USERNAME: ${{ secrets.E2E_TENANT_USERNAME }}
-          E2E_TENANT_PASSWORD: ${{ secrets.E2E_TENANT_PASSWORD }}
-          E2E_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:4173' }}
         run: npm test
       - name: Upload browser report
         if: always()
@@ -51,5 +160,6 @@ jobs:
           path: |
             web/e2e/playwright-report/
             web/e2e/test-results/
+            /tmp/tg-sender-e2e/server.log
           if-no-files-found: ignore
           retention-days: 14
