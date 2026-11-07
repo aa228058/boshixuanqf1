@@ -31,64 +31,26 @@ type ImportResult struct {
 // 解析规则：只有成功取得群组身份信息后才允许写入正式群组库。
 // 私密邀请链接如果 Telegram 不提供预览信息，保留为失败/待补充，不创建占位群组。
 func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUID, lines []string) (*ImportResult, error) {
-	// 归一化+去重: 每个 entry = {kind, username|hash, tmeLink}
+	// Direct callers and queued jobs must share the exact same strict parser.
+	// This prevents bypassing token-boundary, bot, and URL validation checks.
 	type entry struct {
 		private  bool
-		username string // 公开群用户名(不含@)
-		hash     string // 私密邀请 hash
-		link     string // 归一化后的 tme_link
+		username string
+		hash     string
+		link     string
 	}
-	seen := map[string]bool{}
-	var entries []entry
-	skipped := 0
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		found := false
-		for _, m := range importLinkRe.FindAllStringSubmatch(line, -1) {
-			kind, name := strings.ToLower(m[1]), m[2]
-			name = strings.TrimPrefix(name, "@")
-			if name == "" {
-				continue
-			}
-			// Telegram bot usernames conventionally end in "bot" (case-insensitive).
-			// They are not groups/channels and must never enter the shared group library.
-			if kind != "+" && kind != "joinchat/" && !strings.HasPrefix(name, "+") && strings.HasSuffix(strings.ToLower(name), "bot") {
-				skipped++
-				found = true
-				continue
-			}
-			if kind == "+" || kind == "joinchat/" || strings.HasPrefix(name, "+") {
-				hash := strings.TrimPrefix(name, "+")
-				if !telegramInviteHashRe.MatchString(hash) {
-					continue
-				}
-				link := "t.me/+" + hash
-				if seen[link] {
-					continue
-				}
-				seen[link] = true
-				entries = append(entries, entry{private: true, hash: hash, link: link})
-				found = true
-			} else {
-				if !telegramUsernameRe.MatchString(name) {
-					continue
-				}
-				link := "u:" + strings.ToLower(name)
-				if seen[link] {
-					continue
-				}
-				seen[link] = true
-				entries = append(entries, entry{username: name, link: "https://t.me/" + name})
-				found = true
-			}
-		}
-		if !found {
-			skipped++
+	filtered := filterImportLinks(strings.Join(lines, "\n"))
+	entries := make([]entry, 0, len(filtered.Links))
+	for _, link := range filtered.Links {
+		target := strings.TrimPrefix(link, "https://t.me/")
+		if strings.HasPrefix(target, "+") {
+			hash := strings.TrimPrefix(target, "+")
+			entries = append(entries, entry{private: true, hash: hash, link: "t.me/+" + hash})
+		} else {
+			entries = append(entries, entry{username: target, link: link})
 		}
 	}
+	skipped := filtered.Duplicate + filtered.Invalid
 	if len(entries) == 0 {
 		return &ImportResult{Skipped: skipped}, fmt.Errorf("没有解析到任何有效链接(支持 t.me/xxx、@xxx、t.me/+邀请hash)")
 	}
