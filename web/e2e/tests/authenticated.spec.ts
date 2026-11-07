@@ -12,6 +12,16 @@ test.beforeEach(async ({ page }, testInfo) => {
     await expect(page).toHaveURL(url => url.pathname === '/dashboard')
     return
   }
+  // 认证路由矩阵使用稳定的只读 API 夹具：refresh 返回的是测试专用 token，不能把它发送给真实后端。
+  // 未被下方页面专属夹具覆盖的 GET 请求统一返回空列表，避免无关业务接口产生 401 干扰运行时检查。
+  // 页面专属 route 在此之后注册，Playwright 会优先匹配后注册的精确夹具。
+  await page.route('**/api/v1/**', async route => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: [] }),
+    })
+  })
   // 所有认证页面共用一组只读演示账号；不依赖租户真实账号数据，也不触发 Telegram 操作。
   await page.route(/\/api\/v1\/accounts(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
