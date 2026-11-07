@@ -88,7 +88,7 @@ async function navigateTenantRoute(page: import('@playwright/test').Page, route:
 test('旧协议号管理地址跳转到统一账号管理页', async ({ page }) => {
   await navigateTenantRoute(page, '/sessions')
   await expect(page).toHaveURL(url => url.pathname === '/accounts')
-  await expect(page.getByRole('heading', { name: /账号管理/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '添加账号' }).first()).toBeVisible()
 })
 
 async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
