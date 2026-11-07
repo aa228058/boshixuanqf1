@@ -174,7 +174,10 @@ func (s *telegramWebScheduler) doWithRetry(ctx context.Context, client *http.Cli
 			}
 			lastErr = err
 		} else {
-			if resp.StatusCode < http.StatusInternalServerError || attempt == 1 {
+			retryableStatus := resp.StatusCode == http.StatusRequestTimeout ||
+				resp.StatusCode == http.StatusTooEarly ||
+				resp.StatusCode >= http.StatusInternalServerError
+			if !retryableStatus || attempt == 1 {
 				return resp, nil
 			}
 			_ = resp.Body.Close()
