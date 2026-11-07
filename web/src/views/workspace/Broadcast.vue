@@ -56,6 +56,9 @@
                 {{ statusLabel(t.status) }}
               </span>
               <span class="text-xs text-text-muted truncate">目标 {{ (t.target_ids || []).length || progOf(t).total || '-' }} 个</span>
+              <span v-if="t.scheduled_at && t.status === 'scheduled'" class="text-xs text-[var(--t-warn)] shrink-0">
+                计划启动：{{ formatTime(t.scheduled_at) }}
+              </span>
             </div>
             <span class="text-xs text-text-muted shrink-0">{{ formatTime(t.created_at) }}</span>
           </div>
@@ -83,9 +86,9 @@
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
             <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="retryFailed(t.task_id)">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="t.status === 'running'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="pauseTask(t.task_id)">暂停</t-button>
+            <t-button v-if="['running','scheduled','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="pauseTask(t.task_id)">暂停</t-button>
             <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click.stop="resumeTask(t.task_id)">继续</t-button>
-            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
+            <t-button v-if="['running','scheduled','queued','pending','paused'].includes(t.status)" theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
             <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)">查看详情</t-button>
           </div>
         </div>
@@ -534,7 +537,7 @@ async function fetchTasks() {
   if (!currentAccount.value) { tasks.value = []; return }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'broadcast', account_id: currentAccount.value.account_id, page: 1, page_size: 20, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'broadcast', account_id: currentAccount.value.account_id, page: 1, page_size: 20, hide_loops: 1 })
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
@@ -556,13 +559,13 @@ useTaskEvents((evt: any) => {
 watch(currentAccount, fetchTasks)
 
 const statusLabelMap: Record<string, string> = {
-  pending: '等待调度', queued: '排队中', running: '运行中',
+  pending: '等待调度', scheduled: '定时待启动', queued: '排队中', running: '运行中',
   completed: '已完成', failed: '失败', cancelled: '已取消', paused: '已暂停',
 }
 function statusLabel(s: string) { return statusLabelMap[s] || s }
 function statusClass(s: string): string {
   return ({
-    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
+    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', scheduled: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
     running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', paused: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
     failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]', cancelled: 'bg-text-muted/10 text-text-muted',
   } as any)[s] || 'bg-bg-hover text-text-muted'
