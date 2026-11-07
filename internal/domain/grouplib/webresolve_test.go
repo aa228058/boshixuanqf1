@@ -139,4 +139,50 @@ func TestTelegramHTTPStatusErrorRateLimit(t *testing.T) {
 	if rateLimitErr.Endpoint != "test" {
 		t.Fatalf("Endpoint=%q, want test", rateLimitErr.Endpoint)
 	}
+
+func TestTelegramResolverRejectsMalformedTargets(t *testing.T) {
+	for _, username := range []string{"", "abcd", "bad/name", "bad?name", "bad.name", "bad-name"} {
+		if telegramUsernameRe.MatchString(username) {
+			t.Errorf("username %q should be rejected", username)
+		}
+	}
+	for _, hash := range []string{"", "abcd", "bad/hash", "bad?hash", "bad.hash", strings.Repeat("a", 65)} {
+		if telegramInviteHashRe.MatchString(hash) {
+			t.Errorf("invite hash %q should be rejected", hash)
+		}
+	}
+	if !telegramUsernameRe.MatchString("Valid_Group123") {
+		t.Fatal("valid Telegram username was rejected")
+	}
+	if !telegramInviteHashRe.MatchString("AbCd_123-xy") {
+		t.Fatal("valid invite hash was rejected")
+	}
+}
+
+func TestTelegramRedirectRequiresSecureTelegramOrigin(t *testing.T) {
+	for _, target := range []string{
+		"http://t.me/groupname",
+		"https://evil.example/groupname",
+		"https://t.me:8443/groupname",
+		"https://user@t.me/groupname",
+	} {
+		req, err := http.NewRequest(http.MethodGet, target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := telegramWebClient.CheckRedirect(req, nil); err == nil {
+			t.Errorf("redirect to %q should be rejected", target)
+		}
+	}
+	for _, target := range []string{"https://t.me/groupname", "https://www.t.me/groupname", "https://t.me:443/groupname"} {
+		req, err := http.NewRequest(http.MethodGet, target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := telegramWebClient.CheckRedirect(req, nil); err != nil {
+			t.Errorf("redirect to %q should be allowed: %v", target, err)
+		}
+	}
+}
+
 }
