@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strconv"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -113,7 +114,7 @@ type Engine struct {
 	// dm 动作"同一用户同一规则只触发一次"去重表(规则重载/引擎重启后重新计数,
 	// 与 lastMsgPush 同款内存级语义; 通话另有 10 分钟冷却双保险)。
 	dmFiredMu sync.Mutex
-	dmFired   map[string]struct{}
+	dmFired   map[string]time.Time
 }
 
 // monitorSession tracks one account's monitoring goroutine.
@@ -141,7 +142,7 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		done:        make(chan struct{}),
 		reloadChs:   make(map[string]chan struct{}),
 		lastCall:    make(map[string]time.Time),
-		dmFired:     make(map[string]struct{}),
+		dmFired:     make(map[string]time.Time),
 	}
 	// P1-35 审计修复(2026-10-22): 原实现每秒 ticker 调 rateLimiter.Reset()——把
 	// "每分钟 100 条"的限速计数每秒清零, 实际宽松 60 倍。RateLimiter 内部自带每分钟
@@ -747,10 +748,27 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		e.dmFiredMu.Unlock()
 		return
 	}
-	e.dmFired[key] = struct{}{}
-	// 防内存泄漏: 超限重建(10 万条 ≈ 百万级群监控下的上限, 正常规模远达不到)
+	e.dmFired[key] = time.Now()
+	// 仅淘汰最旧的 10% 条目，避免超限后整体清空导致已触达用户再次触发。
 	if len(e.dmFired) > 100000 {
-		e.dmFired = make(map[string]struct{}, 1024)
+		type firedEntry struct {
+			key string
+			at  time.Time
+		}
+		entries := make([]firedEntry, 0, len(e.dmFired))
+		for firedKey, firedAt := range e.dmFired {
+			entries = append(entries, firedEntry{key: firedKey, at: firedAt})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].at.Before(entries[j].at)
+		})
+		evictCount := len(entries) / 10
+		if evictCount < 1 {
+			evictCount = 1
+		}
+		for _, entry := range entries[:evictCount] {
+			delete(e.dmFired, entry.key)
+		}
 	}
 	e.dmFiredMu.Unlock()
 	// ① 私聊文本
