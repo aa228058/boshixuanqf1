@@ -1,10 +1,10 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-3xl mx-auto">
-    <div class="flex items-center justify-between gap-3 mb-4">
-      <div class="min-w-0">
-        <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">进群邀请</h1>
+  <div class="ui-page-shell w-full max-w-3xl mx-auto p-4 sm:p-6">
+    <div class="ui-page-header mb-4">
+      <div class="ui-page-heading min-w-0">
+        <h1 class="ui-page-title truncate">进群邀请</h1>
         <!-- R109: 移除"当前账号"标签(执行账号在创建弹窗里下拉选择) -->
-        <p class="text-sm text-text-muted mt-1">执行账号在创建任务时选择</p>
+        <p class="ui-page-description mt-1">执行账号在创建任务时选择</p>
       </div>
       <t-button @click="showCreate = true" class="ui-t-button ui-t-button--primary flex items-center gap-2 shrink-0"> 新建加群任务
       </t-button>
