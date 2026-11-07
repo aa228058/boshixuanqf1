@@ -1,15 +1,18 @@
 <template>
   <div class="ui-page-shell w-full max-w-4xl mx-auto p-4 sm:p-6">
-    <header class="ui-page-heading">
-      <h1 class="ui-page-title truncate">消息监控</h1>
-      <p class="ui-page-description mt-1 mb-2">
-      <!-- R109: 账号下拉(源群组选择/规则展示跟随), 不依赖顶栏切换器 -->
-      <span>账号:
-        <select v-model="monAccId" class="input-box h-8 px-2 text-xs rounded-lg ml-1 align-middle">
-          <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
-        </select>
-      </span>
-      </p>
+    <header class="ui-page-header">
+      <div class="ui-page-heading">
+        <h1 class="ui-page-title truncate">消息监控</h1>
+        <p class="ui-page-description">启用规则后，自动监控所选账号收到的消息。</p>
+      </div>
+      <div class="ui-page-actions">
+        <label class="ui-form-field">
+          <span class="ui-form-label">监控账号</span>
+          <select v-model="monAccId" class="ui-input min-w-44">
+            <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
+          </select>
+        </label>
+      </div>
     </header>
 
     <div class="ui-data-surface p-4 sm:p-6 space-y-4">
