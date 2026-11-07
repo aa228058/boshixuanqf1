@@ -6,7 +6,12 @@ const tenantPassword = process.env.E2E_TENANT_PASSWORD
 test.beforeEach(async ({ page }, testInfo) => {
   // 该用例只检查移动端视口；在 beforeEach 阶段跳过，避免桌面项目先触发登录流程。
   if (testInfo.title === '移动端账号卡片操作区不超出可视宽度' && !testInfo.project.name.includes('mobile')) test.skip()
-  if (!tenantUsername || !tenantPassword) return // 使用项目配置加载的 .auth/user.json
+  if (!tenantUsername || !tenantPassword) {
+    // 已有 .auth/user.json 时复用预先建立的会话，不再重复访问登录接口。
+    await page.goto('/dashboard')
+    await expect(page).toHaveURL(url => url.pathname === '/dashboard')
+    return
+  }
   // 所有认证页面共用一组只读演示账号；不依赖租户真实账号数据，也不触发 Telegram 操作。
   await page.route(/\/api\/v1\/accounts(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
@@ -122,11 +127,9 @@ test.beforeEach(async ({ page }, testInfo) => {
     })
   })
   await page.addInitScript(() => localStorage.setItem('tg_current_account', 'e2e00000-0000-4000-8000-000000000002'))
-  await page.goto('/login')
-  await page.locator('input[autocomplete="username"]').fill(tenantUsername)
-  await page.locator('input[autocomplete="current-password"]').fill(tenantPassword)
-  await page.getByRole('button', { name: /登录并进入工作台/ }).click()
-  await page.waitForURL(url => url.pathname === '/dashboard', { timeout: 20_000 })
+  // 登录由 tenant-auth-setup 项目执行一次；每个测试复用 storageState，避免触发登录限流。
+  await page.goto('/dashboard')
+  await expect(page).toHaveURL(url => url.pathname === '/dashboard', { timeout: 20_000 })
 })
 
 const routes = [
