@@ -174,7 +174,7 @@ test('任务列表展示多状态演示数据并可按类型筛选', async ({ pa
   await page.screenshot({ path: testInfo.outputPath('tasks-list-populated.png'), fullPage: true })
   await page.getByRole('group', { name: '按任务类型筛选' }).getByRole('button', { name: '群发' }).click()
   await expect(page.getByText('群发消息').first()).toBeVisible()
-  await expect(page.getByText('成员采集')).toHaveCount(0)
+  await expect(taskSurface.getByText('成员采集', { exact: true })).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('tasks-list-filtered.png'), fullPage: true })
 })
 
