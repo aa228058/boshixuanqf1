@@ -200,7 +200,7 @@
         </div>
 
         <!-- R108 操作区: 状态专属按钮(断开/验证码/受限) + ghost 主操作 + 更多菜单, 与信息区同行 -->
-        <div class="flex items-center gap-1 shrink-0 self-center">
+        <div class="acc-actions flex items-center gap-1 shrink-0 self-center">
           <button type="button" v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
                   class="ui-icon-btn ui-icon-btn--danger"
                   title="断开" aria-label="断开">
@@ -2016,6 +2016,17 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   border-radius: var(--t-r-md);
   box-shadow: var(--t-shadow-pop);
 }
+/* 移动端账号卡片：操作区独占第二行，避免与手机号/状态信息争抢横向空间。 */
+@media (max-width: 639px) {
+  .acc-row { flex-wrap: wrap; }
+  .acc-actions {
+    flex: 0 0 100%;
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: var(--t-space-1);
+  }
+}
+
 @media (min-width: 640px) {
   .acc-menu {
     left: auto;
