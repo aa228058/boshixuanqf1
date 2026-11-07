@@ -54,6 +54,7 @@ func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domai
 }
 
 func upsertSystemGroupTx(ctx context.Context, tx pgx.Tx, sg *domain.SystemGroup) error {
+	var err error
 	normalizedLink := normalizeSystemGroupLink(sg.TmeLink)
 	if normalizedLink == "" && sg.Username != "" {
 		normalizedLink = normalizeSystemGroupLink("https://t.me/" + strings.TrimPrefix(sg.Username, "@"))
