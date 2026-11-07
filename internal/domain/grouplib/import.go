@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,23 @@ import (
 
 // importLinkRe 保留为兼容性测试用的候选识别规则；生产导入统一走 filterImportLinks。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
+var telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\\d+)`)
+
+func telegramMTProtoRateLimit(err error) error {
+	if err == nil {
+		return nil
+	}
+	match := telegramFloodWaitRe.FindStringSubmatch(err.Error())
+	if len(match) != 2 {
+		return nil
+	}
+	seconds, parseErr := strconv.Atoi(match[1])
+	if parseErr != nil || seconds < 1 {
+		seconds = 1
+	}
+	return &TelegramRateLimitError{RetryAfter: time.Duration(seconds) * time.Second, Endpoint: "Telegram MTProto"}
+}
+
 var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(s/|joinchat/|\+)?|@)([+a-zA-Z0-9_\-]{5,64})`)
 
 // ImportResult 批量导入结果汇总。
@@ -124,7 +142,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			cacheKey = "p:" + en.hash // Telegram invite hashes are case-sensitive.
 		}
 		// MTProto results carry a real Chat ID; keep them separate from web previews.
-		if client != nil && !bulkMode {
+		if client != nil && (!bulkMode || en.private) {
 			cacheKey += ":mtproto"
 		} else {
 			cacheKey += ":web"
@@ -163,12 +181,13 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			if rerr == nil {
 				rerr = fmt.Errorf("解析结果缺少群组名称，暂不入库")
 			}
-			res.Failed = append(res.Failed, fmt.Sprintf("[%s] %s: %v", classifyImportFailure(rerr), en.link, rerr))
+			// FloodWait/429 表示当前链接尚未完成，不写入失败清单；冷却后由 Worker 从此处继续。
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(rerr, &rateLimitErr) {
 				flushPending(ctx)
 				return res, rateLimitErr
 			}
+			res.Failed = append(res.Failed, fmt.Sprintf("[%s] %s: %v", classifyImportFailure(rerr), en.link, rerr))
 			res.Processed++
 			continue
 		}
