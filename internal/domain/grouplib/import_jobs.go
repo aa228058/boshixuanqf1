@@ -135,156 +135,236 @@ func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*
 	return &job, nil
 }
 
+const importJobLeaseDuration = 2 * time.Minute
+const importJobHeartbeatInterval = 30 * time.Second
+
+// processImportJobs 使用数据库租约领取任务。租约令牌同时作为 fencing token，
+// 所有进度/统计写入都必须匹配当前令牌和预期 offset，防止过期 Worker 覆盖新 Worker。
 func (e *Engine) processImportJobs(ctx context.Context) {
-	for batch := 0; batch < 10; batch++ {
-		var jobID, tenantID uuid.UUID
+	for jobBatch := 0; jobBatch < 10; jobBatch++ {
+		var jobID, tenantID, leaseToken uuid.UUID
 		var payload string
 		var offset, total int
 		err := e.pool.QueryRow(ctx, `
 			UPDATE group_library_import_jobs
-			SET status='processing', started_at=COALESCE(started_at, NOW()), updated_at=NOW()
+			SET status='processing', lease_token=gen_random_uuid(),
+			    lease_expires_at=NOW() + INTERVAL '2 minutes',
+			    started_at=COALESCE(started_at, NOW()), updated_at=NOW()
 			WHERE job_id = (
 				SELECT job_id FROM group_library_import_jobs
 				WHERE status='pending'
-				   OR (status='processing' AND updated_at < NOW() - INTERVAL '2 minutes')
+				   OR (status='processing' AND
+				       (lease_expires_at IS NULL OR lease_expires_at < NOW()))
 				ORDER BY created_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED
 			)
-			RETURNING job_id, tenant_id, payload, processed_count, total_count`).Scan(
-			&jobID, &tenantID, &payload, &offset, &total)
+			RETURNING job_id, tenant_id, payload, processed_count, total_count, lease_token`).Scan(
+			&jobID, &tenantID, &payload, &offset, &total, &leaseToken)
 		if err != nil {
 			return
 		}
+
+		leaseCtx, stopLease := context.WithCancel(ctx)
+		leaseLost := make(chan struct{})
+		heartbeatDone := make(chan struct{})
+		go func() {
+			defer close(heartbeatDone)
+			ticker := time.NewTicker(importJobHeartbeatInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-leaseCtx.Done():
+					return
+				case <-ticker.C:
+					renewCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					tag, renewErr := e.pool.Exec(renewCtx, `
+						UPDATE group_library_import_jobs
+						SET lease_expires_at=NOW() + INTERVAL '2 minutes', updated_at=NOW()
+						WHERE job_id=$1 AND status='processing' AND lease_token=$2`,
+						jobID, leaseToken)
+					cancel()
+					if renewErr != nil || tag.RowsAffected() != 1 {
+						close(leaseLost)
+						stopLease()
+						return
+					}
+				}
+			}
+		}()
+
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW() WHERE job_id=$1`, jobID)
-			continue
-		}
-		end := offset + 30
-		if end > len(lines) {
-			end = len(lines)
-		}
-		// 群组库导入默认走无账号的共享 HTTP 页面解析器，不读取、不占用租户 Telegram 会话。
-		// 公开页面无法提供资料时记录失败原因；不自动切换账号，避免后台导入隐式消耗账号额度。
-		result, importErr := e.ImportByLinks(ctx, tenantID, uuid.Nil, lines[offset:end])
-		var rateLimitErr *TelegramRateLimitError
-		if errors.As(importErr, &rateLimitErr) {
-			// 429 不计为失败；只提交限流前已处理的前缀，offset 停在被限流链接。
-			partialImported, partialFailed, partialSkipped := 0, 0, 0
-			if result != nil {
-				partialImported = len(result.Imported)
-				partialFailed = len(result.Failed)
-				partialSkipped = result.Skipped
-			}
-			if partialFailed > 0 {
-				partialFailed-- // 最后一条失败就是当前 429 链接，必须留待重试。
-			}
-			processedPrefix := 0
-			if result != nil {
-				processedPrefix = result.Processed
-			}
-			if processedPrefix > 0 {
-				var detail string
-				if result != nil && partialFailed > 0 {
-					detail = strings.Join(result.Failed[:partialFailed], "\n")
-				}
-				_, _ = e.pool.Exec(ctx, `
-					UPDATE group_library_import_jobs
-					SET processed_count=processed_count+$2,
-					    imported_count=imported_count+$3,
-					    failed_count=failed_count+$4,
-					    skipped_count=skipped_count+$5,
-					    last_error=CASE WHEN $6='' THEN last_error
-					                    WHEN last_error='' THEN $6
-					                    ELSE LEFT(last_error || E'\\n' || $6, 4000) END,
-					    updated_at=$7
-					WHERE job_id=$1`, jobID, processedPrefix, partialImported, partialFailed,
-					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter))
-			} else {
-				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1`,
-					jobID, time.Now().Add(rateLimitErr.RetryAfter))
-			}
-			timer := time.NewTimer(rateLimitErr.RetryAfter)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-			// 冷却结束后立即释放任务给本轮调度器继续处理。
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=NOW() WHERE job_id=$1 AND status='processing'`, jobID)
-			continue
-		}
-		if ctx.Err() != nil {
-			// A graceful shutdown must not turn the unprocessed suffix into failures.
-			// Persist the completed prefix with a short independent context so the job
-			// can resume from the exact next input row after the process restarts.
-			processed, imported, failed, skipped := 0, 0, 0, 0
-			detail := ""
-			if result != nil {
-				processed = result.Processed
-				imported = len(result.Imported)
-				failed = len(result.Failed)
-				skipped = result.Skipped
-				if failed > 0 {
-					detail = strings.Join(result.Failed, "\n")
-				}
-			}
-			persistCtx, persistCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, persistErr := e.pool.Exec(persistCtx, `
+			_, _ = e.pool.Exec(leaseCtx, `
 				UPDATE group_library_import_jobs
-				SET processed_count=$2,
-				    imported_count=imported_count+$3,
-				    failed_count=failed_count+$4,
-				    skipped_count=skipped_count+$5,
-				    last_error=CASE WHEN $6='' THEN last_error ELSE LEFT($6, 4000) END,
-				    status='pending', updated_at=NOW()
-				WHERE job_id=$1 AND status='processing'
-			`, jobID, offset+processed, imported, failed, skipped, detail)
-			persistCancel()
-			if persistErr != nil {
-				log.Printf("[grouplib] 保存中断导入进度失败 job=%s: %v", jobID, persistErr)
-			}
-			return
+				SET status='completed', finished_at=NOW(), payload='', lease_token=NULL,
+				    lease_expires_at=NULL, updated_at=NOW()
+				WHERE job_id=$1 AND status='processing' AND lease_token=$2 AND processed_count=$3`,
+				jobID, leaseToken, offset)
+			stopLease()
+			<-heartbeatDone
+			continue
 		}
-		imported, failed, skipped := 0, 0, 0
-		lastError := ""
-		if result != nil {
-			imported, failed, skipped = len(result.Imported), len(result.Failed), result.Skipped
-			if len(result.Failed) > 0 {
-				// 将逐条失败原因持久化，任务中心可以直接展示，避免只看到失败数量。
-				lastError = strings.Join(result.Failed, "\n")
+
+		leaseValid := func() bool {
+			select {
+			case <-leaseLost:
+				return false
+			default:
+				return true
+			}
+		}
+		for chunk := 0; chunk < 10 && offset < len(lines); chunk++ {
+			if leaseCtx.Err() != nil {
+				break
+			}
+			end := offset + 30
+			if end > len(lines) {
+				end = len(lines)
+			}
+			// 不读取租户 Telegram 会话；群组库导入只使用共享 HTTP 解析器。
+			result, importErr := e.ImportByLinks(leaseCtx, tenantID, uuid.Nil, lines[offset:end])
+
+			var rateLimitErr *TelegramRateLimitError
+			if errors.As(importErr, &rateLimitErr) {
+				partialImported, partialFailed, partialSkipped, processedPrefix := 0, 0, 0, 0
+				detail := ""
+				if result != nil {
+					partialImported = len(result.Imported)
+					partialFailed = len(result.Failed)
+					partialSkipped = result.Skipped
+					processedPrefix = result.Processed
+					if partialFailed > 0 {
+						partialFailed-- // 当前触发 429 的链接不算完成
+						detail = strings.Join(result.Failed[:partialFailed], "\n")
+					}
+				}
+				if processedPrefix > 0 {
+					tag, saveErr := e.pool.Exec(leaseCtx, `
+						UPDATE group_library_import_jobs
+						SET processed_count=processed_count+$3,
+						    imported_count=imported_count+$4,
+						    failed_count=failed_count+$5,
+						    skipped_count=skipped_count+$6,
+						    last_error=CASE WHEN $7='' THEN last_error
+						                    WHEN last_error='' THEN $7
+						                    ELSE LEFT(last_error || E'\\n' || $7, 4000) END,
+						    updated_at=NOW()
+						WHERE job_id=$1 AND status='processing' AND lease_token=$2
+						  AND processed_count=$8`,
+						jobID, leaseToken, processedPrefix, partialImported, partialFailed,
+						partialSkipped, detail, offset)
+					if saveErr != nil || tag.RowsAffected() != 1 {
+						break
+					}
+					offset += processedPrefix
+				}
+				timer := time.NewTimer(rateLimitErr.RetryAfter)
+				select {
+				case <-leaseCtx.Done():
+					timer.Stop()
+					break
+				case <-timer.C:
+					continue
+				}
+				break
+			}
+
+			if leaseCtx.Err() != nil {
+				if !leaseValid() {
+					break
+				}
+				// 优雅停机：用独立短上下文保存已完成前缀；CAS 防止重复累计。
+				processed, imported, failed, skipped := 0, 0, 0, 0
+				detail := ""
+				if result != nil {
+					processed, imported, failed, skipped = result.Processed, len(result.Imported), len(result.Failed), result.Skipped
+					if failed > 0 {
+						detail = strings.Join(result.Failed, "\n")
+					}
+				}
+				persistCtx, persistCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				_, persistErr := e.pool.Exec(persistCtx, `
+					UPDATE group_library_import_jobs
+					SET processed_count=processed_count+$3,
+					    imported_count=imported_count+$4,
+					    failed_count=failed_count+$5,
+					    skipped_count=skipped_count+$6,
+					    last_error=CASE WHEN $7='' THEN last_error ELSE LEFT($7, 4000) END,
+					    status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+					WHERE job_id=$1 AND status='processing' AND lease_token=$2
+					  AND processed_count=$8`,
+					jobID, leaseToken, processed, imported, failed, skipped, detail, offset)
+				persistCancel()
+				if persistErr != nil {
+					log.Printf("[grouplib] 保存中断导入进度失败 job=%s: %v", jobID, persistErr)
+				}
+				stopLease()
+				<-heartbeatDone
+				return
+			}
+
+			if !leaseValid() {
+				break
+			}
+			imported, failed, skipped := 0, 0, 0
+			lastError := ""
+			if result != nil {
+				imported, failed, skipped = len(result.Imported), len(result.Failed), result.Skipped
+				if len(result.Failed) > 0 {
+					lastError = strings.Join(result.Failed, "\n")
+					if len(lastError) > 4000 {
+						lastError = lastError[:4000] + "…（错误明细已截断）"
+					}
+				}
+			} else if importErr != nil {
+				failed = end - offset
+			}
+			if importErr != nil {
+				lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
 				if len(lastError) > 4000 {
 					lastError = lastError[:4000] + "…（错误明细已截断）"
 				}
 			}
-		} else if importErr != nil {
-			// 整批调用失败时，不能把这一批记成零失败的成功任务。
-			failed = end - offset
-		}
-		if importErr != nil {
-			lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
-			if len(lastError) > 4000 {
-				lastError = lastError[:4000] + "…（错误明细已截断）"
+			nextStatus := "processing"
+			var finished any
+			if end >= len(lines) {
+				nextStatus = "completed"
+				finished = time.Now()
+			}
+			tag, updateErr := e.pool.Exec(leaseCtx, `
+				UPDATE group_library_import_jobs
+				SET processed_count=$3, imported_count=imported_count+$4,
+				    failed_count=failed_count+$5, skipped_count=skipped_count+$6,
+				    last_error=CASE WHEN $7='' THEN last_error ELSE $7 END,
+				    status=$8, finished_at=$9,
+				    payload=CASE WHEN $8='completed' THEN '' ELSE payload END,
+				    lease_token=CASE WHEN $8='completed' THEN NULL ELSE lease_token END,
+				    lease_expires_at=CASE WHEN $8='completed' THEN NULL ELSE lease_expires_at END,
+				    updated_at=NOW()
+				WHERE job_id=$1 AND status='processing' AND lease_token=$2
+				  AND processed_count=$10`,
+				jobID, leaseToken, end, imported, failed, skipped, lastError,
+				nextStatus, finished, offset)
+			if updateErr != nil || tag.RowsAffected() != 1 {
+				break
+			}
+			offset = end
+			if nextStatus == "completed" {
+				break
 			}
 		}
-		nextStatus := "processing"
-		var finished any
-		if end >= len(lines) {
-			nextStatus = "completed"
-			finished = time.Now()
+
+		// 每次调度最多处理 300 条；未完成任务立即释放回 pending，不必等待租约过期。
+		if leaseValid() && leaseCtx.Err() == nil {
+			_, _ = e.pool.Exec(leaseCtx, `
+				UPDATE group_library_import_jobs
+				SET status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+				WHERE job_id=$1 AND status='processing' AND lease_token=$2`,
+				jobID, leaseToken)
 		}
-		_, updateErr := e.pool.Exec(ctx, `
-			UPDATE group_library_import_jobs
-			SET processed_count=$2, imported_count=imported_count+$3,
-			    failed_count=failed_count+$4, skipped_count=skipped_count+$5,
-			    last_error=CASE WHEN $6='' THEN last_error ELSE $6 END,
-			    status=$7, finished_at=$8, payload=CASE WHEN $7='completed' THEN '' ELSE payload END, updated_at=NOW()
-			WHERE job_id=$1`, jobID, end, imported, failed, skipped, lastError, nextStatus, finished)
-		if updateErr != nil {
-			return
-		}
+		stopLease()
+		<-heartbeatDone
 	}
 }
 
