@@ -542,8 +542,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			if len(lastError) > 4000 {
 				lastError = lastError[:4000] + "…（错误明细已截断）"
 			}
-			if importErr != nil {
-				lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
+			if importErr != nil {				lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
 				if len(lastError) > 4000 {
 					lastError = lastError[:4000] + "…（错误明细已截断）"
 				}
@@ -563,3 +562,51 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				    finished_at=CASE WHEN status='cancelling' THEN NOW() ELSE $9 END,
 				    payload=CASE WHEN status='cancelling' OR $8='completed' THEN '' ELSE payload END,
 				    lease_token=CASE WHEN status='cancelling' OR $8='completed' THEN NULL ELSE lease_token END,
+				    lease_expires_at=CASE WHEN status='cancelling' OR $8='completed' THEN NULL ELSE lease_expires_at END,
+				    updated_at=NOW()
+				WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2
+				  AND processed_count=$10`,
+				jobID, leaseToken, end, imported, failed, skipped, lastError,
+				nextStatus, finished, offset)
+			if updateErr != nil || tag.RowsAffected() != 1 {
+				break
+			}
+			offset = end
+			if nextStatus == "completed" {
+				break
+			}
+		}
+
+		if leaseCtx.Err() != nil && leaseValid() {
+			persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			_, _ = e.pool.Exec(persistCtx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE job_id=$1 AND status='cancelling' AND lease_token=$2`, jobID, leaseToken)
+			persistCancel()
+		}
+		// 每次调度最多处理 300 条；未完成任务立即释放回 pending，不必等待租约过期。
+		if leaseValid() && leaseCtx.Err() == nil {
+			_, _ = e.pool.Exec(leaseCtx, `
+				UPDATE group_library_import_jobs
+				SET status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+				WHERE job_id=$1 AND status='processing' AND lease_token=$2`,
+				jobID, leaseToken)
+		}
+		stopLease()
+		<-heartbeatDone
+		<-cancelWatchDone
+		// Yield after one 300-link slice; the next scheduler tick resumes this job.
+		if offset < len(lines) {
+			return
+		}
+	}
+}
+
+func splitImportLines(payload string) []string {
+	return strings.FieldsFunc(payload, func(r rune) bool {
+		switch r {
+		case 10, 13, 32, 9, ',', '；', ';':
+			return true
+		default:
+			return false
+		}
+	})
+}
