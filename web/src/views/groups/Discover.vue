@@ -37,7 +37,7 @@
       <div v-for="job in importJobs" :key="job.job_id" class="flex flex-wrap items-center gap-3 border-t border-border/60 pt-2 first:border-0 first:pt-0">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 text-xs">
-            <span class="font-medium">{{ job.status === 'review' ? '等待确认' : job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : '解析中' }}</span>
+            <span class="font-medium">{{ job.status === 'review' ? '等待确认' : job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : job.status === 'cancelled' ? '已取消' : job.status === 'cancelling' ? '正在取消' : '解析中' }}</span>
             <span class="text-text-muted">{{ job.processed_count || 0 }} / {{ job.total_count || 0 }}</span>
           </div>
           <div class="h-1.5 rounded-full bg-bg-hover overflow-hidden mt-1.5">
@@ -48,6 +48,7 @@
         </div>
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
+        <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
       </div>
     </section>
 
@@ -309,7 +310,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -419,7 +420,7 @@ async function loadImportJobs() {
     const res = await listGroupLibraryImportJobs()
     importJobs.value = (res.list || []).slice(0, 8)
     for (const job of importJobs.value) {
-      if (['pending', 'queued', 'running', 'processing'].includes(job.status)) void pollImportJob(job.job_id)
+      if (['pending', 'queued', 'running', 'processing', 'cancelling'].includes(job.status)) void pollImportJob(job.job_id)
     }
   } catch {
     // 列表恢复失败不影响群库浏览；下次手动刷新可重试。
@@ -448,10 +449,10 @@ async function pollImportJob(jobId: string) {
     const jobIndex = importJobs.value.findIndex((item: any) => item.job_id === job.job_id)
     if (jobIndex >= 0) importJobs.value[jobIndex] = job
     else importJobs.value.unshift(job)
-    if (job.status === 'completed' || job.status === 'failed') {
+    if (['completed', 'failed', 'cancelled'].includes(job.status)) {
       terminal = true
       load()
-      toast({ type: job.status === 'completed' ? 'success' : 'warning', title: job.status === 'completed' ? '导入完成' : '导入失败',
+      toast({ type: job.status === 'completed' ? 'success' : 'warning', title: job.status === 'completed' ? '导入完成' : job.status === 'cancelled' ? '导入已取消' : '导入失败',
         message: `导入结束：入库 ${job.imported_count}，失败 ${job.failed_count}，跳过 ${job.skipped_count}` })
     }
   } catch {
@@ -462,6 +463,18 @@ async function pollImportJob(jobId: string) {
   }
 }
 
+async function cancelImportJob(jobId: string) {
+  try {
+    const job = await cancelGroupLibraryImportJob(jobId)
+    const index = importJobs.value.findIndex((item: any) => item.job_id === jobId)
+    if (index >= 0) importJobs.value[index] = job
+    if (importJob.value?.job_id === jobId) importJob.value = job
+    if (job.status === 'cancelling') void pollImportJob(jobId)
+    toast({ type: 'success', title: '已提交取消请求', message: job.status === 'cancelling' ? '正在停止当前解析，已完成的数据会保留' : '导入任务已取消' })
+  } catch (err: any) {
+    toast({ type: 'error', title: '取消失败', message: err?.message || '无法取消该导入任务' })
+  }
+}
 async function confirmImportJob(jobId: string) {
   try {
     const job = await confirmImportLibraryGroups(jobId)
