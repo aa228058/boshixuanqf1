@@ -293,7 +293,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					tag, renewErr := e.pool.Exec(renewCtx, `
 						UPDATE group_library_import_jobs
 						SET lease_expires_at=NOW() + INTERVAL '2 minutes', updated_at=NOW()
-						WHERE job_id=$1 AND status='processing' AND lease_token=$2`,
+						WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2`,
 						jobID, leaseToken)
 					cancel()
 					if renewErr != nil || tag.RowsAffected() != 1 {
@@ -318,7 +318,6 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					checkCtx, cancel := context.WithTimeout(leaseCtx, 3*time.Second)
 					err := e.pool.QueryRow(checkCtx, `SELECT status, COALESCE(lease_token::text,'') FROM group_library_import_jobs WHERE job_id=$1`, jobID).Scan(&status, &token)
 					if err == nil && status == "cancelling" && token == leaseToken.String() {
-						_, _ = e.pool.Exec(checkCtx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE job_id=$1 AND status='cancelling' AND lease_token=$2`, jobID, leaseToken)
 						cancel()
 						stopLease()
 						return
@@ -430,8 +429,10 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					    failed_count=failed_count+$5,
 					    skipped_count=skipped_count+$6,
 					    last_error=CASE WHEN $7='' THEN last_error ELSE LEFT($7, 4000) END,
-					    status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
-					WHERE job_id=$1 AND status='processing' AND lease_token=$2
+					    status=CASE WHEN status='cancelling' THEN 'cancelled' ELSE 'pending' END,
+					    finished_at=CASE WHEN status='cancelling' THEN NOW() ELSE finished_at END,
+					    lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
+					WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2
 					  AND processed_count=$8`,
 					jobID, leaseToken, processed, imported, failed, skipped, detail, offset)
 				persistCancel()
@@ -492,6 +493,11 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			}
 		}
 
+		if leaseCtx.Err() != nil && leaseValid() {
+			persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			_, _ = e.pool.Exec(persistCtx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE job_id=$1 AND status='cancelling' AND lease_token=$2`, jobID, leaseToken)
+			persistCancel()
+		}
 		// 每次调度最多处理 300 条；未完成任务立即释放回 pending，不必等待租约过期。
 		if leaseValid() && leaseCtx.Err() == nil {
 			_, _ = e.pool.Exec(leaseCtx, `
