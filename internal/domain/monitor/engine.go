@@ -796,19 +796,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				e.finishDMAction(key, dmActionFailedDefinite)
 				log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
 			} else {
-				imported, ierr := c.Raw().ContactsImportContacts(dmCtx, &tg.ContactsImportContactsRequest{
-					Contacts: []*tg.InputPhoneContact{{
-						ClientID: time.Now().UnixNano(), Phone: cleanPhone,
-						FirstName: firstName, LastName: lastName,
-					}},
-				})
-				if ierr != nil {
-					log.Printf("[monitor] 导入联系人失败: %v", ierr)
-				} else if len(imported.Users) > 0 {
-					if u, ok := imported.Users[0].(*tg.User); ok {
-						log.Printf("[monitor] 确认联系人(复用): %s (TG ID: %d)", firstName, u.ID)
-					}
-				}
+				// Sending an inputMediaContact does not require importing this
+				// phone number into the sender's own address book. Avoid the
+				// unrelated contacts.importContacts side effect here.
 				ridBytes := make([]byte, 8)
 				if _, rerr := crand.Read(ridBytes); rerr != nil {
 					e.finishDMAction(key, dmActionFailedDefinite)
