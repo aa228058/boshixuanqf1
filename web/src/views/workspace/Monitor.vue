@@ -220,7 +220,7 @@
       @refresh="fetchGroups"
     />
   </div>
-  <LiveTaskFeed v-if="monAccId" :account-id="monAccId" task-type="broadcast" class="mt-6" />
+  <LiveTaskFeed v-if="monAccId" :account-id="monAccId" task-type="monitor_scrape" class="mt-6" />
 
 </template>
 
