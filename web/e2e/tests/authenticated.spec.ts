@@ -192,8 +192,21 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
     await expect(page.locator('body'), route).toBeVisible()
     await expect(page.locator('body'), route).not.toBeEmpty()
     await page.waitForTimeout(800)
+    const screenshotName = route.replace(/[^a-z0-9]+/gi, '_')
+    // 固定底栏在 fullPage 截图中会停留在视口原位置，不能单凭长截图判断是否遮挡。
+    // 每页额外保存首屏与滚动到底部的真实视口截图，便于检查底栏、浮动按钮和末尾内容。
+    await page.screenshot({ path: testInfo.outputPath(`${screenshotName}-viewport.png`) })
+    if (route.endsWith('/tasks/e2e-demo-task')) {
+      await expect(page.getByText('实时日志')).toBeVisible()
+      await expect(page.getByText(/本周产品更新与运营活动通知/)).toBeVisible()
+      await expect(page.getByText(/FloodWait/)).toBeVisible()
+    }
+    await page.locator('#main-content').evaluate((element: HTMLElement) => { element.scrollTop = element.scrollHeight })
+    await page.waitForTimeout(250)
+    await page.screenshot({ path: testInfo.outputPath(`${screenshotName}-bottom.png`) })
+    await page.locator('#main-content').evaluate((element: HTMLElement) => { element.scrollTop = 0 })
     await page.screenshot({
-      path: testInfo.outputPath(`${route.replace(/[^a-z0-9]+/gi, '_')}.png`),
+      path: testInfo.outputPath(`${screenshotName}.png`),
       fullPage: true,
     })
   }
