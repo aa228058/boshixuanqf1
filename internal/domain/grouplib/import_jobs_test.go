@@ -1,10 +1,11 @@
 package grouplib
 
 import (
-	"tg-sender/internal/domain"
 	"errors"
 	"testing"
 	"time"
+
+	"tg-sender/internal/domain"
 )
 
 func TestImportFailureLink(t *testing.T) {
@@ -58,12 +59,11 @@ func TestTelegramMTProtoRateLimit(t *testing.T) {
 	}
 }
 
-
 func TestSummarizeImportBatchRateLimitPreservesCompletedPrefix(t *testing.T) {
 	result := &ImportResult{
 		Processed: 3,
-		Imported: []domain.SystemGroup{{Title: "one"}},
-		Failed: []string{
+		Imported:  []domain.SystemGroup{{Title: "one"}},
+		Failed:    []string{
 			"[not_found] https://t.me/missinggroup: not found",
 			"[rate_limited] https://t.me/currentgroup: FLOOD_WAIT_37",
 		},
@@ -83,7 +83,7 @@ func TestSummarizeImportBatchNormalProgress(t *testing.T) {
 		Processed: 5,
 		Imported: []domain.SystemGroup{{Title: "one"}, {Title: "two"}},
 		Failed: []string{"[not_found] https://t.me/missinggroup: not found"},
-		Skipped: 2,
+		Skipped:   2,
 	}
 	got := summarizeImportBatch(result, false)
 	if got.processed != 5 || got.imported != 2 || got.failed != 1 || got.skipped != 2 {
