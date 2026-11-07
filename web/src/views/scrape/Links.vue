@@ -1,5 +1,5 @@
 <template>
-  <main class="max-w-3xl mx-auto space-y-4">
+  <main class="ui-page-shell w-full max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
     <Breadcrumb :items="[{ path: `/workspace/${accountStore.currentAccount?.account_id || ''}`, label: '工作台' }, { path: '', label: '链接采集' }]" />
     <div class="flex items-center gap-3">
       <button type="button" @click="$router.back()" class="ui-icon-btn" aria-label="返回" title="返回">
