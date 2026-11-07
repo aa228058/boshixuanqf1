@@ -303,6 +303,7 @@ func (c *Container) initEngines() error {
 	taskEngine.StartResourceMonitor(engineCtx)
 
 	c.MonitorEngine = monitor.NewEngine(c.Cfg, c.AccountEngine, c.MonitorRuleRepo, c.SSEBroker)
+	c.MonitorEngine.SetDMActionStore(repository.NewDMActionRepository(c.DB.Pool))
 
 	// Auto-sync joined groups for all online accounts on startup
 	safego.Go(func() {
