@@ -32,8 +32,7 @@
         <div class="space-y-2">
           <EmptyState v-if="rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
           <div v-for="rule in rules" :key="rule.rule_id"
-               class="p-4 rounded-[18px] flex items-center justify-between"
-               style="background: var(--t-surface-1); border: 1px solid var(--t-line);">
+               class="ui-task-card p-4 flex items-center justify-between">
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-sm font-extrabold">{{ rule.name }}</span>
