@@ -318,12 +318,25 @@ function applyContact() {
   ruleForm.value.dm_contact_last_name = ct.last_name || ''
 }
 
+let rulesRequestId = 0
+
 async function fetchRules() {
+  const requestId = ++rulesRequestId
+  const accountId = monAccId.value
+  if (!accountId) {
+    rules.value = []
+    return
+  }
   try {
     const res = await monitorApi.listRules()
-    rules.value = res.list || []
+    // API 返回当前租户的全部规则；页面按所选账号展示该账号规则及“全部账号”规则。
+    // 同时用请求序号丢弃切换账号后迟到的旧响应，避免 A 账号规则覆盖 B 账号列表。
+    if (requestId !== rulesRequestId || accountId !== monAccId.value) return
+    rules.value = (res.list || []).filter((rule: any) => !rule.account_id || rule.account_id === accountId)
   } catch (e: any) {
-    toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+    if (requestId === rulesRequestId) {
+      toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+    }
   }
 }
 
@@ -331,10 +344,11 @@ async function fetchRules() {
 async function toggleRule(id: string, val: boolean) {
   try {
     await monitorApi.toggleRule(id, { is_active: val })
-    fetchRules()
-  } catch {
-    toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
-    fetchRules() // 回滚本地乐观变更
+    await fetchRules()
+    toast({ type: 'success', title: val ? '规则已启用' : '规则已停用' })
+  } catch (e: any) {
+    toast({ type: 'error', title: '操作失败', message: e?.message || '规则状态更新失败，请重试' })
+    await fetchRules()
   }
 }
 
