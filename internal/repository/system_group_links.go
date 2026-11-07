@@ -127,8 +127,12 @@ func (r *SystemGroupRepository) UpdateLinkValidityByLink(ctx context.Context, li
 	if err == pgx.ErrNoRows {
 		return tx.Commit(ctx)
 	}
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(ctx, "UPDATE system_groups SET status=CASE WHEN EXISTS (SELECT 1 FROM system_group_links WHERE sg_id=$1 AND validity_status <> 'invalid') THEN 'active' ELSE 'invalid' END WHERE sg_id=$1", sgID)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
