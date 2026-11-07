@@ -78,22 +78,30 @@ func (e *Engine) ConfirmImportJob(ctx context.Context, tenantID, jobID uuid.UUID
 }
 
 func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
-	lines := splitImportLines(payload)
-	if len(lines) == 0 {
-		return nil, fmt.Errorf("没有找到可导入的链接")
+	// Keep the legacy one-step API on the same normalized payload path as the
+	// preview/confirm flow. Worker offsets are candidate-line offsets, so raw
+	// invalid, duplicate, and bot lines must never be stored in the job payload.
+	filtered := filterImportLinks(payload)
+	if len(filtered.Links) == 0 {
+		return nil, fmt.Errorf("没有筛选出有效的 Telegram 群组链接")
 	}
+	skipped := filtered.Duplicate + filtered.Invalid
 	var job ImportJob
 	err := e.pool.QueryRow(ctx, `
-		INSERT INTO group_library_import_jobs (tenant_id, file_name, payload, total_count)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO group_library_import_jobs
+			(tenant_id, file_name, payload, total_count, skipped_count, raw_count, duplicate_count, invalid_count)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING job_id, file_name, status, total_count, processed_count, imported_count,
-		          failed_count, skipped_count, created_at, finished_at`,
-		tenantID, fileName, payload, len(lines)).Scan(
+		          failed_count, skipped_count, raw_count, duplicate_count, invalid_count, created_at, finished_at`,
+		tenantID, fileName, strings.Join(filtered.Links, "\\n"), len(filtered.Links), skipped,
+		filtered.RawCount, filtered.Duplicate, filtered.Invalid).Scan(
 		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
-		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.CreatedAt, &job.FinishedAt)
+		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
+		&job.DuplicateCount, &job.InvalidCount, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
 		return nil, err
 	}
+	job.ValidCount = job.TotalCount
 	return &job, nil
 }
 
