@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"tg-sender/internal/domain"
 )
 
@@ -218,5 +219,20 @@ func TestClassifyImportFailure(t *testing.T) {
 				t.Fatalf("classifyImportFailure=%q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestIsTransientImportDatabaseError(t *testing.T) {
+	if !isTransientImportDatabaseError(&pgconn.PgError{Code: "40001"}) {
+		t.Fatal("serialization failures should be retried")
+	}
+	if !isTransientImportDatabaseError(&pgconn.PgError{Code: "08006"}) {
+		t.Fatal("connection failures should be retried")
+	}
+	if !isTransientImportDatabaseError(&pgconn.PgError{Code: "57P01"}) {
+		t.Fatal("database shutdown should be retried")
+	}
+	if isTransientImportDatabaseError(&pgconn.PgError{Code: "23505"}) {
+		t.Fatal("unique constraint violations should not be retried")
 	}
 }
