@@ -124,6 +124,9 @@
           <t-button @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</t-button>
         </div>
       </div>
+      <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
+        <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
+      </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
         <div
           v-for="(log, i) in displayLogs"
@@ -254,6 +257,10 @@ async function fetchMembers() {
 }
 
 const logs = ref<TaskLog[]>([])
+const logsPage = ref(1)
+const hasMoreLogs = ref(false)
+const loadingMoreLogs = ref(false)
+const LOG_PAGE_SIZE = 50
 
 // R87-M10: 100% 后状态收敛兜底 —— SSE 事件丢失时, 进度满后 3s 自动补拉任务状态,
 // 避免"发完了还显示执行中"必须手动刷新
@@ -352,10 +359,22 @@ useTaskEvents((evt: any) => {
   }
 })
 
+async function loadMoreLogs() {
+  if (loadingMoreLogs.value || !hasMoreLogs.value) return
+  loadingMoreLogs.value = true
+  try {
+    await fetchLogs(logsPage.value + 1)
+  } finally {
+    loadingMoreLogs.value = false
+  }
+}
+
 async function clearLogs() {
   try {
     await taskApi.deleteTaskLogs((task.value as any).task_id)
     logs.value = []
+    logsPage.value = 1
+    hasMoreLogs.value = false
     toast({ type: 'success', title: '日志已清空' })
   } catch { toast({ type: 'error', title: '清空失败' }) }
 }
@@ -444,9 +463,9 @@ async function fetchTask() {
   }
 }
 
-async function fetchLogs() {
+async function fetchLogs(page = 1) {
   try {
-    const res = await taskApi.getLogs(taskId)
+    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE)
     // 兼容: 直接数组 / {list: [...]} / {data: [...]}
     let data: TaskLog[] = []
     if (Array.isArray(res)) {
@@ -463,7 +482,13 @@ async function fetchLogs() {
     for (const log of data) merged.set(taskLogKey(log), log)
     logs.value = [...merged.values()]
       .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
-      .slice(-500)
+    if (page === 1) {
+      logsPage.value = 1
+      hasMoreLogs.value = data.length === LOG_PAGE_SIZE
+    } else {
+      logsPage.value = Math.max(logsPage.value, page)
+      hasMoreLogs.value = data.length === LOG_PAGE_SIZE
+    }
     await nextTick()
     if (logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
