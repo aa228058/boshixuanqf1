@@ -64,6 +64,9 @@ type Engine struct {
 	ruleRepo    RuleRepository
 	sseBroker   *sse.Broker
 	mu          sync.RWMutex
+	// lifecycleMu serializes StartMonitoring/StopMonitoring so concurrent
+	// requests cannot register multiple handlers for the same account.
+	lifecycleMu sync.Mutex
 	rateLimiter *RateLimiter
 	msgPushMu   sync.Mutex
 	lastMsgPush map[string]time.Time
@@ -154,6 +157,8 @@ func (e *Engine) IsMonitoring(tenantID, accountID uuid.UUID) bool {
 }
 
 func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.UUID, rules []domain.MonitorRule) error {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	// 先停掉同账号的旧会话, 并等待其 goroutine 完全退出——否则旧 goroutine
 	// 的清理逻辑可能在新 goroutine 注册 OnMessage 之后执行, 造成双注册/竞态。
 	e.mu.Lock()
@@ -216,6 +221,8 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 
 // StopMonitoring stops monitoring for a specific account.
 func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	e.mu.Lock()
 	var done chan struct{}
 	if tenantSessions, ok := e.sessions[tenantID]; ok {
@@ -548,17 +555,19 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 		defer ticker.Stop()
 		// 保活: OnMessage 回调不会刷新客户端 lastUsed, 若不加保活,
 		// 池清理器(默认5分钟)会把监听依附的连接当空闲连接回收。
-		keepAlive := func() {
+		keepAlive := func() bool {
 			// R159: 账号已被删除 → 停止本监控会话(否则僵尸会话会继续向池要连接,
 			// 对不存在的会话反复重连, 刷 401 AUTH_KEY_UNREGISTERED)
 			if e.accountExists != nil && !e.accountExists(tenantID, accountID) {
 				log.Printf("[monitor] 账号 %s 已删除, 停止监控会话", accountID)
-				e.StopMonitoring(tenantID, accountID)
-				return
+				// Do not synchronously call StopMonitoring from this loop: it waits
+				// for done, which is closed only after this loop returns.
+				safego.Go(func() { e.StopMonitoring(tenantID, accountID) })
+				return false
 			}
 			cl, _, err := e.accEngine.GetClientByAccount(ctx, tenantID, accountID)
 			if err != nil {
-				return
+				return true
 			}
 			e.accEngine.ReleaseClient(tenantID, accountID, cl)
 			// 底层连接被回收后重建了新实例: 把 OnMessage 重挂到新连接上。
@@ -582,11 +591,14 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 					}
 				}
 			}
+			return true
 		}
 		for {
 			select {
 			case <-ticker.C:
-				keepAlive()
+				if !keepAlive() {
+					return
+				}
 				if e.ruleRepo != nil {
 					newRules, err := e.ruleRepo.ListByTenant(ctx, tenantID)
 					if err == nil {
