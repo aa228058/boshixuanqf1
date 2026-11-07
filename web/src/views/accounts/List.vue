@@ -517,7 +517,7 @@
           <input v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
             class="ui-input !min-h-[44px] !text-sm font-mono" aria-label="代理地址" />
           <div class="flex flex-wrap items-start gap-2 mt-2">
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm min-h-[44px]" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm !min-h-[44px]" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
               <Loader2 v-if="proxyTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
               测试连通
             </t-button>
