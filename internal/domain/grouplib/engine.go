@@ -45,6 +45,9 @@ type Engine struct {
 	slW time.Time // scraped_links 水位
 	gW  time.Time // groups 水位
 	mW  time.Time // members 水位
+
+	resolveCache  map[string]cachedImportResolution
+	resolveFlights map[string]*importResolveCall
 }
 
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
