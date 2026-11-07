@@ -24,19 +24,19 @@ test.beforeEach(async ({ page }, testInfo) => {
   })
   // 任务实时事件在组件挂载时会先 POST 换取 SSE ticket。视觉审查使用测试专用 token，
   // 因此必须同时隔离换票与事件流，避免把假 token 发给真实后端造成 401。
-  await page.route(/\\/api\\/v1\\/events\\/ticket(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/events\/ticket(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'POST') return route.continue()
     return route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ ticket: 'e2e-ui-event-ticket' }),
     })
   })
-  await page.route(/\\/api\\/v1\\/events(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/events(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     return route.fulfill({
       status: 200, contentType: 'text/event-stream',
       headers: { 'cache-control': 'no-cache', connection: 'keep-alive' },
-      body: 'retry: 60000\\n: e2e connected\\n\\n',
+      body: 'retry: 60000\n: e2e connected\n\n',
     })
   })
   // 所有认证页面共用一组只读演示账号；不依赖租户真实账号数据，也不触发 Telegram 操作。
