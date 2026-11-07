@@ -759,12 +759,12 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 	if rule.DMContent != "" {
 		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "text")
-		if e.claimDMAction(key) {
+		if e.claimDMAction(ctx, key) {
 			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			_, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{})
 			cancel()
 			if err != nil {
-				e.finishDMAction(key, dmActionOutcomeUnknown)
+				e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
 				log.Printf("[monitor] 私聊文本发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
 			} else {
 				e.finishDMAction(key, dmActionSucceeded)
