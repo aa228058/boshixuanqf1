@@ -33,12 +33,27 @@ type SystemGroupFilter struct {
 // Upsert merges a shared group identity, refreshes available metadata, and attaches the submitted link.
 func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGroup) error {
 	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 	defer tx.Rollback(ctx)
-	// The import worker may replay a completed batch after a crash. Count a
-	// reference only when this normalized URL is newly attached to the group.
+	if err := upsertSystemGroupTx(ctx, tx, sg); err != nil { return err }
+	return tx.Commit(ctx)
+}
+
+// UpsertBatch merges a bounded import chunk in one transaction, reducing transaction setup/commit overhead.
+// A failed batch is rolled back as a unit; callers may fall back to individual Upsert for per-link errors.
+func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domain.SystemGroup) error {
+	if len(groups) == 0 { return nil }
+	tx, err := r.db.Begin(ctx)
+	if err != nil { return err }
+	defer tx.Rollback(ctx)
+	for _, sg := range groups {
+		if sg == nil { return fmt.Errorf("nil system group in batch") }
+		if err := upsertSystemGroupTx(ctx, tx, sg); err != nil { return err }
+	}
+	return tx.Commit(ctx)
+}
+
+func upsertSystemGroupTx(ctx context.Context, tx pgx.Tx, sg *domain.SystemGroup) error {
 	normalizedLink := normalizeSystemGroupLink(sg.TmeLink)
 	if normalizedLink == "" && sg.Username != "" {
 		normalizedLink = normalizeSystemGroupLink("https://t.me/" + strings.TrimPrefix(sg.Username, "@"))
@@ -99,7 +114,8 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			}
 		}
 	}
-	return tx.Commit(ctx)
+
+	return nil
 }
 
 func normalizeSystemGroupLink(value string) string {
