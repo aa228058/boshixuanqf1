@@ -65,14 +65,14 @@ func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {
 	return true
 }
 
-func (e *Engine) finishDMAction(ctx context.Context, key dmActionKey, status dmActionStatus) {
-	if e.dmActionStore != nil {
-		// Sending may finish after the monitor context is cancelled. Persist the
+func (e *Engine) finishDMAction(ctx context.Context, key dmActionKey, status dmActionStatus, lastErrors ...string) {
+	lastError := ""
+	if len(lastErrors) > 0 {\n\t\tlastError = lastErrors[0]\n\t}\n\tif e.dmActionStore != nil {\n\t\t// Sending may finish after the monitor context is cancelled. Persist the
 		// observed result with a short independent deadline so shutdown cannot
 		// silently leave a known outcome recorded as in_progress.
 		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := e.dmActionStore.Finish(finishCtx, key.tenantID, key.accountID, key.ruleID, key.targetID, key.sourceChatID, key.sourceMessageID, key.action, dmActionStatusName(status), ""); err != nil {
+		if err := e.dmActionStore.Finish(finishCtx, key.tenantID, key.accountID, key.ruleID, key.targetID, key.sourceChatID, key.sourceMessageID, key.action, dmActionStatusName(status), lastError); err != nil {
 			log.Printf("[monitor] DM action finish persistence failed: %v", err)
 		}
 		return
