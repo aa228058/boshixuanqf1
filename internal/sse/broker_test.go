@@ -134,23 +134,25 @@ func TestHandlerEmitsNamedHeartbeatEvent(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	scanner := bufio.NewScanner(resp.Body)
-	foundHeartbeat := false
-	deadline := time.After(time.Second)
-	for !foundHeartbeat {
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+	for {
 		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for named heartbeat event")
-		default:
-			if !scanner.Scan() {
-				if err := scanner.Err(); err != nil {
-					t.Fatalf("read SSE stream: %v", err)
-				}
+		case line, ok := <-lines:
+			if !ok {
 				t.Fatal("SSE stream ended before heartbeat")
 			}
-			if scanner.Text() == "event: heartbeat" {
-				foundHeartbeat = true
+			if line == "event: heartbeat" {
+				return
 			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for named heartbeat event")
 		}
 	}
 }
