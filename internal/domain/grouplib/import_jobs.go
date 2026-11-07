@@ -31,6 +31,11 @@ type ImportJob struct {
 
 // CreateImportPreview 先做纯格式筛选并保存为待确认任务；此阶段不会访问 Telegram 或写入群库。
 func (e *Engine) CreateImportPreview(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
+	return e.CreateImportPreviewWithAccount(ctx, tenantID, uuid.Nil, fileName, payload)
+}
+
+// CreateImportPreviewWithAccount stores an optional tenant-owned account for MTProto-assisted resolution.
+func (e *Engine) CreateImportPreviewWithAccount(ctx context.Context, tenantID, accountID uuid.UUID, fileName, payload string) (*ImportJob, error) {
 	filtered := filterImportLinks(payload)
 	if len(filtered.Links) == 0 {
 		return nil, fmt.Errorf("没有筛选出有效的 Telegram 群组链接")
@@ -41,11 +46,11 @@ func (e *Engine) CreateImportPreview(ctx context.Context, tenantID uuid.UUID, fi
 	var job ImportJob
 	err := e.pool.QueryRow(ctx, `
 		INSERT INTO group_library_import_jobs
-			(tenant_id, file_name, payload, status, total_count, skipped_count, raw_count, duplicate_count, invalid_count, last_error)
-		VALUES ($1, $2, $3, 'review', $4, $5, $6, $7, $8, $9)
+			(tenant_id, account_id, file_name, payload, status, total_count, skipped_count, raw_count, duplicate_count, invalid_count, last_error)
+		VALUES ($1, NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid), $3, $4, 'review', $5, $6, $7, $8, $9, $10)
 		RETURNING job_id, file_name, status, total_count, processed_count, imported_count,
 		          failed_count, skipped_count, raw_count, duplicate_count, invalid_count, last_error, created_at, finished_at`,
-		tenantID, fileName, strings.Join(filtered.Links, "\n"), len(filtered.Links), skipped,
+		tenantID, accountID, fileName, strings.Join(filtered.Links, "\n"), len(filtered.Links), skipped,
 		filtered.RawCount, filtered.Duplicate, filtered.Invalid, summary).Scan(
 		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
@@ -118,10 +123,10 @@ func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.
 			SELECT string_agg(original_link, E'\n' ORDER BY created_at) AS payload, COUNT(*)::int AS total
 			FROM group_library_import_job_failures WHERE job_id=$2 AND retry_job_id IS NULL
 		), source AS (
-			SELECT tenant_id, file_name FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2
+			SELECT tenant_id, account_id, file_name FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2
 		)
-		INSERT INTO group_library_import_jobs (tenant_id,file_name,payload,status,total_count,raw_count)
-		SELECT source.tenant_id, source.file_name, failed.payload, 'pending', failed.total, failed.total
+		INSERT INTO group_library_import_jobs (tenant_id,account_id,file_name,payload,status,total_count,raw_count)
+		SELECT source.tenant_id, source.account_id, source.file_name, failed.payload, 'pending', failed.total, failed.total
 		FROM source CROSS JOIN failed WHERE failed.total > 0
 		RETURNING job_id,file_name,status,total_count,processed_count,imported_count,failed_count,
 		          skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at
@@ -283,7 +288,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 	// A worker may die after a cancellation request. Finalize abandoned cancelling leases after expiry.
 	_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE status='cancelling' AND (lease_expires_at IS NULL OR lease_expires_at < NOW())`)
 	for jobBatch := 0; jobBatch < 10; jobBatch++ {
-		var jobID, tenantID, leaseToken uuid.UUID
+		var jobID, tenantID, accountID, leaseToken uuid.UUID
 		var payload string
 		var offset, total int
 		err := e.pool.QueryRow(ctx, `
@@ -300,8 +305,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED
 			)
-			RETURNING job_id, tenant_id, payload, processed_count, total_count, lease_token`).Scan(
-			&jobID, &tenantID, &payload, &offset, &total, &leaseToken)
+			RETURNING job_id, tenant_id, COALESCE(account_id, '00000000-0000-0000-0000-000000000000'::uuid), payload, processed_count, total_count, lease_token`).Scan(
+			&jobID, &tenantID, &accountID, &payload, &offset, &total, &leaseToken)
 		if err != nil {
 			return
 		}
@@ -392,8 +397,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			if end > len(lines) {
 				end = len(lines)
 			}
-			// 不读取租户 Telegram 会话；群组库导入只使用共享 HTTP 解析器。
-			result, importErr := e.ImportByLinks(leaseCtx, tenantID, uuid.Nil, lines[offset:end])
+			// 公开链接优先共享网页解析；选择账号时，私密邀请及网页失败项由 MTProto 补充解析。
+			result, importErr := e.importByLinks(leaseCtx, tenantID, accountID, lines[offset:end], true)
 
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(importErr, &rateLimitErr) {
