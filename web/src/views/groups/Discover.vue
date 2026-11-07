@@ -29,6 +29,27 @@
       </div>
     </section>
 
+    <section v-if="importJobs.length" class="ui-card p-3 space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-sm font-semibold">最近的导入任务</div>
+        <button type="button" class="text-xs text-text-muted hover:text-[var(--t-brand)]" @click="loadImportJobs">刷新</button>
+      </div>
+      <div v-for="job in importJobs" :key="job.job_id" class="flex flex-wrap items-center gap-3 border-t border-border/60 pt-2 first:border-0 first:pt-0">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 text-xs">
+            <span class="font-medium">{{ job.status === 'review' ? '等待确认' : job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : '解析中' }}</span>
+            <span class="text-text-muted">{{ job.processed_count || 0 }} / {{ job.total_count || 0 }}</span>
+          </div>
+          <div class="h-1.5 rounded-full bg-bg-hover overflow-hidden mt-1.5">
+            <div class="h-full rounded-full bg-[var(--t-brand)]" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }" />
+          </div>
+          <div class="text-[11px] text-text-muted mt-1">入库 {{ job.imported_count || 0 }} · 失败 {{ job.failed_count || 0 }} · 跳过 {{ job.skipped_count || 0 }}</div>
+        </div>
+        <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
+        <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
+      </div>
+    </section>
+
     <!-- R128 统一示例2 seg 语言(与进群邀请/链接采集同款) -->
     <div class="ui-segmented" role="tablist" aria-label="群组来源">
       <button type="button" role="tab" :aria-selected="tab === 'library'" class="ui-segmented__item" :class="{ 'is-active': tab === 'library' }" @click="tab = 'library'">雷达群库</button>
@@ -287,7 +308,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -351,6 +372,7 @@ const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
 const importJob = ref<any>(null)
+const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
 const activeImportPolls = new Set<string>()
 const importPollTimers = new Map<string, number>()
@@ -391,6 +413,23 @@ async function onImportFile(event: Event) {
   }
 }
 
+async function loadImportJobs() {
+  try {
+    const res = await listGroupLibraryImportJobs()
+    importJobs.value = (res.list || []).slice(0, 8)
+    for (const job of importJobs.value) {
+      if (['queued', 'running', 'processing'].includes(job.status)) void pollImportJob(job.job_id)
+    }
+  } catch {
+    // 列表恢复失败不影响群库浏览；下次手动刷新可重试。
+  }
+}
+
+function resumeImportReview(job: any) {
+  importJob.value = job
+  importModalVisible.value = true
+}
+
 async function pollImportJob(jobId: string) {
   if (importPageUnmounted || activeImportPolls.has(jobId)) return
   const scheduled = importPollTimers.get(jobId)
@@ -405,6 +444,9 @@ async function pollImportJob(jobId: string) {
     if (importPageUnmounted) return
     // 后台历史任务的轮询不能覆盖当前弹窗正在处理的另一笔导入。
     if (importJob.value?.job_id === job.job_id) importJob.value = job
+    const jobIndex = importJobs.value.findIndex((item: any) => item.job_id === job.job_id)
+    if (jobIndex >= 0) importJobs.value[jobIndex] = job
+    else importJobs.value.unshift(job)
     if (job.status === 'completed' || job.status === 'failed') {
       terminal = true
       load()
@@ -573,6 +615,7 @@ function goDiy() {
 
 onMounted(() => {
   load()
+  loadImportJobs()
   if (!accountStore.accounts?.length) accountStore.fetchAccounts(true)
 })
 </script>
