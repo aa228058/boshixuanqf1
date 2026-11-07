@@ -108,7 +108,6 @@ func (r *SystemGroupRepository) UpdateLinkValidity(ctx context.Context, sgID uui
 	return err
 }
 
-
 // UpdateLinkValidityByLink changes only the submitted Telegram URL, not every alias attached to the same group.
 func (r *SystemGroupRepository) UpdateLinkValidityByLink(ctx context.Context, link, status string) error {
 	if status != "valid" && status != "invalid" && status != "pending" {
@@ -119,11 +118,15 @@ func (r *SystemGroupRepository) UpdateLinkValidityByLink(ctx context.Context, li
 		return fmt.Errorf("invalid Telegram group link")
 	}
 	tx, err := r.db.Begin(ctx)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer tx.Rollback(ctx)
 	var sgID uuid.UUID
 	err = tx.QueryRow(ctx, "UPDATE system_group_links SET validity_status=$2, last_verified_at=NOW() WHERE normalized_link=$1 RETURNING sg_id", normalized, status).Scan(&sgID)
-	if err == pgx.ErrNoRows { return tx.Commit(ctx) }
+	if err == pgx.ErrNoRows {
+		return tx.Commit(ctx)
+	}
 	if err != nil { return err }
 	_, err = tx.Exec(ctx, "UPDATE system_groups SET status=CASE WHEN EXISTS (SELECT 1 FROM system_group_links WHERE sg_id=$1 AND validity_status <> 'invalid') THEN 'active' ELSE 'invalid' END WHERE sg_id=$1", sgID)
 	if err != nil { return err }

@@ -308,7 +308,6 @@ func TestPendingApprovalResolutionIsAtomicAndCancellationWins(t *testing.T) {
 	}
 }
 
-
 func TestUpdateLinkValidityByLinkPreservesAlternateLinks(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()

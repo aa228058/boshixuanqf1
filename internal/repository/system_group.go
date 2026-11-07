@@ -335,7 +335,9 @@ func (r *SystemGroupRepository) UpsertJoinedGroup(ctx context.Context, sg *domai
 		joinedLink = "https://t.me/" + strings.TrimPrefix(sg.Username, "@")
 	}
 	if joinedLink != "" {
-		if err := r.UpdateLinkValidityByLink(ctx, joinedLink, "valid"); err != nil { return err }
+		if err := r.UpdateLinkValidityByLink(ctx, joinedLink, "valid"); err != nil {
+			return err
+		}
 	}
 	if freeSpeechStatus != "" && freeSpeechStatus != "unknown" {
 		return r.UpdateFreeSpeechStatusByChatID(ctx, sg.TelegramChatID, freeSpeechStatus)
