@@ -1,16 +1,18 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-4xl mx-auto">
-    <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">消息监控</h1>
-    <p class="text-sm text-text-muted mt-1 mb-6">
+  <div class="ui-page-shell w-full max-w-4xl mx-auto p-4 sm:p-6">
+    <header class="ui-page-heading">
+      <h1 class="ui-page-title truncate">消息监控</h1>
+      <p class="ui-page-description mt-1 mb-2">
       <!-- R109: 账号下拉(源群组选择/规则展示跟随), 不依赖顶栏切换器 -->
       <span>账号:
         <select v-model="monAccId" class="input-box h-8 px-2 text-xs rounded-lg ml-1 align-middle">
           <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
         </select>
       </span>
-    </p>
+      </p>
+    </header>
 
-    <div class="glass rounded-[var(--t-r-md)] p-4 sm:p-6 space-y-4">
+    <div class="ui-data-surface p-4 sm:p-6 space-y-4">
       <!-- 监控状态(自动模式: 规则即开关) -->
       <div class="p-4 rounded-lg border border-border bg-bg-card">
         <div class="flex items-center gap-3">
