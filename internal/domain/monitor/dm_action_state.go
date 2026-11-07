@@ -32,6 +32,11 @@ const (
 	dmActionOutcomeUnknown
 )
 
+// SetDMActionStore configures the durable action ledger.
+func (e *Engine) SetDMActionStore(store DMActionStore) {
+	e.dmActionStore = store
+}
+
 // claimDMAction fails closed when the durable ledger is unavailable.
 func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {
 	if e.dmActionStore != nil {
