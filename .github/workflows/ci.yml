@@ -141,7 +141,129 @@ jobs:
         env:
           GOMAXPROCS: 2
         run: |
-          go test ./internal/domain/grouplib -run '^$' -bench '^BenchmarkFilterImportLinks$' -benchmem -benchtime=1x -count=1 | tee import-filter-bench.txt
+          go test ./internal/domain/grouplib -run '^      - name: Upload import benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: group-import-parser-benchmark
+          path: import-filter-bench.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Enforce gosec result
+        if: always() && steps.gosec.outcome == 'failure'
+        run: |
+          echo "gosec reported security findings; review the Run gosec step before merging."
+          exit 1
+
+  frontend-check:
+    name: Frontend Typecheck + Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Design token guard
+        run: npm run check:design-tokens
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+ -bench '^BenchmarkFilterImportLinks      - name: Upload import benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: group-import-parser-benchmark
+          path: import-filter-bench.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Enforce gosec result
+        if: always() && steps.gosec.outcome == 'failure'
+        run: |
+          echo "gosec reported security findings; review the Run gosec step before merging."
+          exit 1
+
+  frontend-check:
+    name: Frontend Typecheck + Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Design token guard
+        run: npm run check:design-tokens
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+ -benchmem -benchtime=1x -count=1 | tee import-filter-bench.txt
+      - name: Benchmark PostgreSQL failure batch persistence (10k/30k/50k)
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: tg_sender_test
+          DB_SSLMODE: disable
+        run: |
+          set -o pipefail
+          go test -tags=importbench ./internal/domain/grouplib -run '^TestPersistImportFailuresLoad      - name: Upload import benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: group-import-parser-benchmark
+          path: import-filter-bench.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Enforce gosec result
+        if: always() && steps.gosec.outcome == 'failure'
+        run: |
+          echo "gosec reported security findings; review the Run gosec step before merging."
+          exit 1
+
+  frontend-check:
+    name: Frontend Typecheck + Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Design token guard
+        run: npm run check:design-tokens
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+ -v -count=1 2>&1 | tee -a import-filter-bench.txt
       - name: Upload import benchmark report
         if: always()
         uses: actions/upload-artifact@v4
