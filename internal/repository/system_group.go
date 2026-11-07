@@ -33,22 +33,32 @@ type SystemGroupFilter struct {
 // Upsert merges a shared group identity, refreshes available metadata, and attaches the submitted link.
 func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGroup) error {
 	tx, err := r.db.Begin(ctx)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer tx.Rollback(ctx)
-	if err := upsertSystemGroupTx(ctx, tx, sg); err != nil { return err }
+	if err := upsertSystemGroupTx(ctx, tx, sg); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
 // UpsertBatch merges a bounded import chunk in one transaction, reducing transaction setup/commit overhead.
 // A failed batch is rolled back as a unit; callers may fall back to individual Upsert for per-link errors.
 func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domain.SystemGroup) error {
-	if len(groups) == 0 { return nil }
+	if len(groups) == 0 {
+		return nil
+	}
 	tx, err := r.db.Begin(ctx)
 	if err != nil { return err }
 	defer tx.Rollback(ctx)
 	for _, sg := range groups {
-		if sg == nil { return fmt.Errorf("nil system group in batch") }
-		if err := upsertSystemGroupTx(ctx, tx, sg); err != nil { return err }
+		if sg == nil {
+			return fmt.Errorf("nil system group in batch")
+		}
+		if err := upsertSystemGroupTx(ctx, tx, sg); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }
