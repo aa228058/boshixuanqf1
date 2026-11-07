@@ -33,16 +33,23 @@ export default defineConfig({
       testMatch: /public\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
+    ...(hasTenantCredentials ? [{
+      name: 'tenant-auth-setup',
+      testMatch: /auth\\.setup\\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    }] : []),
     ...(hasAuthState || hasTenantCredentials ? [
       {
         name: 'authenticated-desktop',
-        testMatch: /authenticated\.spec\.ts/,
-        use: { ...devices['Desktop Chrome'], ...(hasAuthState ? { storageState: authState } : {}) },
+        testMatch: /authenticated\\.spec\\.ts/,
+        dependencies: hasTenantCredentials ? ['tenant-auth-setup'] : [],
+        use: { ...devices['Desktop Chrome'], storageState: authState },
       },
       {
         name: 'authenticated-mobile',
-        testMatch: /authenticated\.spec\.ts/,
-        use: { ...devices['iPhone 13'], browserName: 'chromium', ...(hasAuthState ? { storageState: authState } : {}) },
+        testMatch: /authenticated\\.spec\\.ts/,
+        dependencies: hasTenantCredentials ? ['tenant-auth-setup'] : [],
+        use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: authState },
       },
     ] : []),
     ...(hasAdminCredentials ? [
