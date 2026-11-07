@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,32 +22,22 @@ import (
 
 // importLinkRe 保留为兼容性测试用的候选识别规则；生产导入统一走 filterImportLinks。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
-var (
-	telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\d+)`)
-	mtprotoImportScheduleMu sync.Mutex
-	mtprotoImportNextStart = make(map[uuid.UUID]time.Time)
-)
+var telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\d+)`)
 
-const mtprotoImportMinInterval = time.Second
-
-// waitForMTProtoImportPermit applies one shared per-account request cadence across concurrent import jobs.
-func waitForMTProtoImportPermit(ctx context.Context, accountID uuid.UUID) error {
-	now := time.Now()
-	mtprotoImportScheduleMu.Lock()
-	startAt := now
-	if next := mtprotoImportNextStart[accountID]; next.After(startAt) {
-		startAt = next
+// waitForMTProtoImportPermit reserves a per-account request slot in PostgreSQL,
+// so separate application replicas cannot concurrently exceed the import cadence.
+func (e *Engine) waitForMTProtoImportPermit(ctx context.Context, accountID uuid.UUID) error {
+	var startAt time.Time
+	err := e.pool.QueryRow(ctx, `
+		INSERT INTO group_library_mtproto_rate_limits (account_id, next_allowed_at)
+		VALUES ($1, NOW() + INTERVAL '1 second')
+		ON CONFLICT (account_id) DO UPDATE
+		SET next_allowed_at = GREATEST(group_library_mtproto_rate_limits.next_allowed_at, NOW()) + INTERVAL '1 second'
+		RETURNING next_allowed_at - INTERVAL '1 second'
+	`, accountID).Scan(&startAt)
+	if err != nil {
+		return fmt.Errorf("MTProto 限流调度失败: %w", err)
 	}
-	mtprotoImportNextStart[accountID] = startAt.Add(mtprotoImportMinInterval)
-	if len(mtprotoImportNextStart) > 2048 {
-		for id, next := range mtprotoImportNextStart {
-			if !next.After(now) {
-				delete(mtprotoImportNextStart, id)
-			}
-		}
-	}
-	mtprotoImportScheduleMu.Unlock()
-
 	if wait := time.Until(startAt); wait > 0 {
 		timer := time.NewTimer(wait)
 		defer timer.Stop()
@@ -191,7 +180,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			// 私密邀请链接优先使用 MTProto：checkChatInvite 可读取 Telegram 提供的预览，
 			// 不要求账号加入群组。未选择账号时才退回网页预览。
 			if client != nil && en.private {
-				if err := waitForMTProtoImportPermit(ctx, accountID); err != nil {
+				if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 					return "", 0, "", 0, err
 				}
 				title, count, gtype, chatID, mtErr := resolveInviteInfo(ctx, client, en.hash)
