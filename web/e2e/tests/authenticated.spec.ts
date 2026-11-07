@@ -96,7 +96,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
-  await expect(page.getByText('产品交流与资源分享')).toBeVisible()
+  await expect(page.getByText('产品交流与资源分享', { exact: true })).toBeVisible()
   await expect(page.getByText('跨境电商运营讨论')).toBeVisible()
   await expect(page.getByText('运营素材与案例库')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
