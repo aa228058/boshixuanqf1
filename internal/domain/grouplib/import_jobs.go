@@ -500,6 +500,14 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			lastError := progress.detail
 			if result == nil && importErr != nil {
 				failed = end - offset
+				syntheticFailures := make([]string, 0, failed)
+				for _, link := range lines[offset:end] {
+					syntheticFailures = append(syntheticFailures, fmt.Sprintf("[transient] %s: %v", link, importErr))
+				}
+				if err := e.persistImportFailures(leaseCtx, jobID, syntheticFailures); err != nil {
+					log.Printf("[grouplib] 保存批次级失败链接失败 job=%s: %v", jobID, err)
+					break
+				}
 			}
 			if len(lastError) > 4000 {
 				lastError = lastError[:4000] + "…（错误明细已截断）"
