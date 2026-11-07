@@ -133,7 +133,8 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
     await groupCard.locator('input[type="checkbox"]').check()
   } else {
     const groupRow = page.getByRole('row').filter({ hasText: '产品交流与资源分享' })
-    await groupRow.getByRole('checkbox').check()
+    // TDesign 将原生 checkbox 设为不可直接点击的 input，并由可见的视觉层接收指针事件。
+    await groupRow.locator('.t-checkbox__input').click()
   }
   await expect(joinButton).toBeEnabled()
   await expect(joinButton).toContainText('1')
