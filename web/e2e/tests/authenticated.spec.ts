@@ -36,7 +36,9 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
     accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || '')
   }
 
-  if (!accountId) return routes
+  // The app itself routes to the explicit "none" workspace when no account is selected.
+  // Auditing that fallback still exercises the tenant workspace shell and empty states.
+  if (!accountId) accountId = 'none'
   return [
     ...routes,
     `/workspace/${accountId}/broadcast`,
@@ -93,7 +95,7 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
   })
 })
 
-test('桌面端全部租户页面没有页面级横向溢出', async ({ page }) => {
+test('租户页面没有页面级横向溢出', async ({ page }) => {
   for (const route of await tenantRoutes(page)) {
     await page.goto(route)
     await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
