@@ -117,6 +117,8 @@ jobs:
           if [ -n "$UNFORMATTED" ]; then
             echo "These files are not gofmt-formatted:"
             echo "$UNFORMATTED"
+            echo "gofmt diff:"
+            gofmt -d $UNFORMATTED
             exit 1
           fi
 
