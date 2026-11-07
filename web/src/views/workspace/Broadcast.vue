@@ -48,7 +48,7 @@
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
       <div v-else class="space-y-3 mb-4">
         <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
-        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
+        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['ui-task-card p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="px-2 py-0.5 rounded text-xs shrink-0 inline-flex items-center gap-1.5" :class="statusClass(t.status)">
@@ -151,7 +151,7 @@
           <textarea v-model="importText" rows="4" class="w-full bg-bg-card border border-border rounded-lg px-3 py-2 text-sm"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
           <div class="flex gap-2">
-            <t-button theme="primary" size="sm" variant="outline" @click="applyImportText">解析添加</t-button>
+            <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="applyImportText">解析添加</t-button>
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               选择文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
             </label>
