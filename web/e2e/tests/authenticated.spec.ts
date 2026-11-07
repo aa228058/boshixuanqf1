@@ -295,7 +295,8 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   // 未选择任何群组时，页面按需隐藏批量加入按钮；选择后才显示可操作按钮。
   const joinButton = page.getByRole('button', { name: /加入所选/ })
-  await expect(joinButton).toHaveCount(0)
+  await expect(joinButton).toBeVisible()
+  await expect(joinButton).toBeDisabled()
   if (testInfo.project.name.includes('mobile')) {
     const groupCard = page.locator('.md\\:hidden .ui-card').filter({ hasText: '产品交流与资源分享' })
     await groupCard.locator('input[type="checkbox"]').check()
@@ -315,6 +316,10 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
   test.setTimeout(120_000)
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
+  // 将认证失败对应的请求地址带入断言，避免只看到被翻译后的“未授权”而无法定位接口。
+  page.on('response', response => {
+    if (response.status() === 401) runtimeErrors.push(`HTTP 401 ${response.url()}`)
+  })
 
   for (const route of await tenantRoutes(page)) {
     await navigateTenantRoute(page, route)
