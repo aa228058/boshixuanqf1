@@ -1,6 +1,6 @@
 <template>
   <div class="ui-page-shell w-full max-w-4xl mx-auto p-4 sm:p-6">
-    <div class="ui-page-header mb-4">
+    <div class="ui-page-header">
       <div class="ui-page-heading">
         <h1 class="ui-page-title truncate">成员采集</h1>
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
