@@ -5,7 +5,7 @@
       <button type="button" @click="$router.back()" class="ui-icon-btn" aria-label="返回" title="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
-      <h2 class="text-lg font-semibold text-gradient">群链接采集</h2>
+      <h1 class="ui-page-title">群链接采集</h1>
     </div>
 
     <!-- R127 令牌化: seg 容器深浅主题自适应 -->
