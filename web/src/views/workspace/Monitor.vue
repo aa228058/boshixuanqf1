@@ -20,11 +20,11 @@
       <div class="p-4 rounded-lg border border-border bg-bg-card">
         <div class="flex items-center gap-3">
           <div class="w-3 h-3 rounded-full shrink-0" :class="monitorStatus?.session_active ? 'bg-[var(--t-ok)] animate-pulse' : 'bg-text-muted'" />
-          <span class="text-sm font-medium whitespace-nowrap">{{ monitorStatusLoading ? '正在检查监听状态…' : monitorStatus?.session_active ? '监听会话已启动' : '监听会话未启动' }}</span>
+          <span class="text-sm font-medium whitespace-nowrap">{{ monitorStatusLoading ? '正在检查监听状态…' : monitorStatusError ? '监听状态暂不可用' : monitorStatus?.session_active ? '监听会话已启动' : '监听会话未启动' }}</span>
           <span v-if="monitorStatus?.active_rules" class="text-xs text-text-muted">· {{ monitorStatus.active_rules }} 条启用规则</span>
         </div>
         <p class="text-xs text-text-muted mt-1.5 pl-6">
-          {{ monitorStatus?.session_active ? '当前账号的监听会话已注册；这不代表 Telegram 消息流一定正常。' : monitorStatus?.active_rules ? '规则已启用，但当前账号尚无监听会话，请检查账号连接状态。' : '当前账号没有启用中的规则。' }}
+          {{ monitorStatusError || (monitorStatus?.session_active ? '当前账号的监听会话已注册；这不代表 Telegram 消息流一定正常。' : monitorStatus?.active_rules ? '规则已启用，但当前账号尚无监听会话，请检查账号连接状态。' : '当前账号没有启用中的规则。') }}
         </p>
       </div>
 
@@ -274,11 +274,12 @@ const rules = ref<any[]>([])
 const monitorStatus = ref<{ account_id: string; active_rules: number; session_active: boolean } | null>(null)
 const monitorStatusLoading = ref(false)
 let monitorStatusTimer: ReturnType<typeof setInterval> | null = null
-const anyRuleActive = computed(() => rules.value.some(r => r.is_active))
+const monitorStatusError = ref('')
 
 async function fetchMonitorStatus() {
   const accountId = monAccId.value
-  if (!accountId) { monitorStatus.value = null; return }
+  if (!accountId) { monitorStatus.value = null; monitorStatusError.value = ''; return }
+  monitorStatusError.value = ''
   monitorStatusLoading.value = !monitorStatus.value
   try {
     const status = await monitorApi.getStatus(accountId)
@@ -286,7 +287,7 @@ async function fetchMonitorStatus() {
   } catch (e: any) {
     if (accountId === monAccId.value) {
       monitorStatus.value = null
-      toast({ type: 'error', title: '获取监听状态失败', message: e?.message || '请稍后重试' })
+      monitorStatusError.value = e?.message || '请稍后重试'
     }
   } finally {
     monitorStatusLoading.value = false
