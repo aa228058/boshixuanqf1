@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -112,6 +113,10 @@ func (r *SystemGroupRepository) UpdateLinkValidity(ctx context.Context, sgID uui
 func (r *SystemGroupRepository) UpdateLinkValidityByLink(ctx context.Context, link, status string) error {
 	if status != "valid" && status != "invalid" && status != "pending" {
 		return nil
+	}
+	link = strings.TrimSpace(link)
+	if strings.HasPrefix(link, "@") {
+		link = "https://t.me/" + strings.TrimPrefix(link, "@")
 	}
 	normalized := normalizeSystemGroupLink(link)
 	if normalized == "" {

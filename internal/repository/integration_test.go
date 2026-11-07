@@ -330,7 +330,7 @@ func TestUpdateLinkValidityByLinkPreservesAlternateLinks(t *testing.T) {
 	if publicStatus != "invalid" || inviteStatus != "pending" || groupStatus != "active" {
 		t.Fatalf("after invalidating one alias: public=%s invite=%s group=%s; want invalid/pending/active", publicStatus, inviteStatus, groupStatus)
 	}
-	if err := repo.UpdateLinkValidityByLink(ctx, "t.me/single_group", "invalid"); err != nil {
+	if err := repo.UpdateLinkValidityByLink(ctx, "@single_group", "invalid"); err != nil {
 		t.Fatalf("invalidate only alias: %v", err)
 	}
 	if err := pool.QueryRow(ctx, "SELECT status FROM system_groups WHERE sg_id=$1", groupWithOneLink).Scan(&groupStatus); err != nil {
