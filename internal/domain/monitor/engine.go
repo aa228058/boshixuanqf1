@@ -741,7 +741,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		return
 	}
 	// 同一用户同一 dm 规则只触发一次(避免同一人反复命中关键词被连发私聊/连拨)
-	key := rule.RuleID.String() + ":" + strconv.FormatInt(targetUser, 10)
+	key := tenantID.String() + ":" + accountID.String() + ":" + rule.RuleID.String() + ":" + strconv.FormatInt(targetUser, 10)
 	e.dmFiredMu.Lock()
 	if _, ok := e.dmFired[key]; ok {
 		e.dmFiredMu.Unlock()
