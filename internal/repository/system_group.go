@@ -139,7 +139,7 @@ func normalizeSystemGroupLink(value string) string {
 // UpdateResolvedInfo 后台解析器回写: 私密邀请链接经 checkChatInvite 补全群名/成员数/类型。
 func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uuid.UUID, title string, memberCount int, gtype string, chatID int64) error {
 	if chatID == 0 {
-		_, err := r.db.Exec(ctx, "UPDATE system_groups SET title=CASE WHEN $2<>'' THEN $2 ELSE title END, member_count=CASE WHEN $3>0 THEN $3 ELSE member_count END, gtype=$4, resolution_status='identity_pending', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, title, memberCount, gtype)
+		_, err := r.db.Exec(ctx, "UPDATE system_groups SET title=CASE WHEN $2<>'' AND (COALESCE(title,'')='' OR title=tme_link) THEN $2 ELSE title END, member_count=CASE WHEN $3>0 THEN $3 ELSE member_count END, gtype=CASE WHEN $4<>'' AND $4<>'unknown' THEN $4 ELSE gtype END, resolution_status='identity_pending', member_count_updated_at=CASE WHEN $3>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, title, memberCount, gtype)
 		return err
 	}
 	tx, err := r.db.Begin(ctx)
@@ -151,7 +151,7 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 	var canonicalID uuid.UUID
 	lookupErr := tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE sg_id<>$1 AND (telegram_chat_id=$2 OR dedup_key=$3) ORDER BY created_at LIMIT 1 FOR UPDATE", sgID, chatID, fmt.Sprintf("c:%d", chatID)).Scan(&canonicalID)
 	if lookupErr == nil {
-		_, err = tx.Exec(ctx, "UPDATE system_groups SET telegram_chat_id=$2, dedup_key=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=CASE WHEN $5>0 THEN $5 ELSE member_count END, gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", canonicalID, chatID, fmt.Sprintf("c:%d", chatID), title, memberCount, gtype)
+		_, err = tx.Exec(ctx, "UPDATE system_groups SET telegram_chat_id=$2, dedup_key=$3, title=CASE WHEN $4<>'' AND (COALESCE(title,'')='' OR title=tme_link) THEN $4 ELSE title END, member_count=CASE WHEN $5>0 THEN $5 ELSE member_count END, gtype=CASE WHEN $6<>'' AND $6<>'unknown' THEN $6 ELSE gtype END, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", canonicalID, chatID, fmt.Sprintf("c:%d", chatID), title, memberCount, gtype)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 		return fmt.Errorf("lookup canonical system group by Telegram chat ID: %w", lookupErr)
 	}
 
-	_, err = tx.Exec(ctx, "UPDATE system_groups SET dedup_key=$2, telegram_chat_id=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=CASE WHEN $5>0 THEN $5 ELSE member_count END, gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, fmt.Sprintf("c:%d", chatID), chatID, title, memberCount, gtype)
+	_, err = tx.Exec(ctx, "UPDATE system_groups SET dedup_key=$2, telegram_chat_id=$3, title=CASE WHEN $4<>'' AND (COALESCE(title,'')='' OR title=tme_link) THEN $4 ELSE title END, member_count=CASE WHEN $5>0 THEN $5 ELSE member_count END, gtype=CASE WHEN $6<>'' AND $6<>'unknown' THEN $6 ELSE gtype END, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, fmt.Sprintf("c:%d", chatID), chatID, title, memberCount, gtype)
 	if err != nil {
 		return err
 	}
