@@ -70,6 +70,9 @@ type Engine struct {
 	rateLimiter *RateLimiter
 	msgPushMu   sync.Mutex
 	lastMsgPush map[string]time.Time
+	messageDedupMu sync.Mutex
+	seenMessages map[messageDedupKey]time.Time
+	messageDedupOps uint64
 	done        chan struct{}
 	// Rule cache: tenantID -> []MonitorRule + lastUpdate
 	ruleCache   map[uuid.UUID][]domain.MonitorRule
@@ -129,6 +132,7 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		ruleRepo:    ruleRepo,
 		sseBroker:   sseBroker,
 		lastMsgPush: make(map[string]time.Time),
+		seenMessages: make(map[messageDedupKey]time.Time),
 		rateLimiter: NewRateLimiter(),
 		ruleCache:   make(map[uuid.UUID][]domain.MonitorRule),
 		ruleCacheTS: make(map[uuid.UUID]time.Time),
@@ -394,6 +398,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 				return
 			}
 			if msg.ChatID == 0 || msg.ID == 0 {
+				return
+			}
+			// Deduplicate the same Telegram update across overlapping handlers/reconnects.
+			if !e.markMessageSeen(tenantID, accountID, msg.ChatID, msg.ID) {
 				return
 			}
 			// 入群验证: 命中验证消息时自动处理(详见 verifier.go / verifier_tap.go)
