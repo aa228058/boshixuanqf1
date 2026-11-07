@@ -310,32 +310,52 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize))
 // R109: 任务列表全租户化 —— 移除 account_id 过滤(原绑全局切换器, 已删除;
 // 页头文案已是"全部账号的任务汇总")
 async function clearFinished() {
-  const ids: string[] = []
-  for (const status of ['completed', 'failed', 'cancelled']) {
-    try {
-      const res: any = await taskApi.list({
-        status,
-        page: 1,
-        page_size: 500,
-        hide_loops: 1,
-        range: 'all',
-      } as any)
-      const list = Array.isArray(res) ? res : (res?.data ?? res?.list ?? [])
-      for (const t of list) if (t?.task_id) ids.push(t.task_id)
-    } catch { /* 单状态拉取失败不阻塞整体 */ }
+  const ids = new Set<string>()
+  const pageSizeForCleanup = 500
+  try {
+    for (const status of ['completed', 'failed', 'cancelled']) {
+      let cleanupPage = 1
+      while (true) {
+        const res: any = await taskApi.list({
+          status,
+          page: cleanupPage,
+          page_size: pageSizeForCleanup,
+          hide_loops: 1,
+          range: 'all',
+        } as any)
+        const list = Array.isArray(res) ? res : (res?.data ?? res?.list ?? [])
+        for (const task of list) if (task?.task_id) ids.add(task.task_id)
+        if (!Array.isArray(list) || list.length < pageSizeForCleanup) break
+        cleanupPage += 1
+      }
+    }
+  } catch (e: any) {
+    toast({
+      type: 'error',
+      title: '任务列表未完整加载，已取消清理',
+      message: e?.message || '请检查网络后重试',
+    })
+    return
   }
-  if (!ids.length) {
+
+  const taskIds = [...ids]
+  if (!taskIds.length) {
     toast({ type: 'info', title: '没有已结束的任务' })
     return
   }
-  const ok = await ask(`确定清空 ${ids.length} 条已结束任务？此操作不可恢复`,
+  const ok = await ask(`确定清空 ${taskIds.length} 条已结束任务？此操作不可恢复`,
     { title: '清空任务', danger: true, confirmText: '清空' })
   if (!ok) return
   try {
-    await taskApi.batchDelete(ids)
-    toast({ type: 'success', title: `已清空 ${ids.length} 条任务` })
+    const result: any = await taskApi.batchDelete(taskIds)
+    const deleted = Number(result?.deleted ?? taskIds.length)
+    if (deleted < taskIds.length) {
+      toast({ type: 'warning', title: `已删除 ${deleted}/${taskIds.length} 条任务`, message: '部分任务可能已被其他操作删除或状态发生变化，请刷新核对' })
+    } else {
+      toast({ type: 'success', title: `已清空 ${deleted} 条任务` })
+    }
     page.value = 1
-    fetchTasks()
+    await fetchTasks()
   } catch (e: any) {
     toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
   }
