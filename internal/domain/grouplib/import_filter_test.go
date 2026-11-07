@@ -1,8 +1,13 @@
 package grouplib
 
 import (
+	"context"
+	"errors"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"tg-sender/internal/domain"
 )
@@ -150,5 +155,68 @@ func TestFilterImportLinksRejectsTruncatedPathAndQuery(t *testing.T) {
 	}
 	if got.Invalid != 3 {
 		t.Fatalf("invalid = %d, want 3", got.Invalid)
+	}
+}
+
+func TestResolveCachedImportTargetDeduplicatesConcurrentRequests(t *testing.T) {
+	engine := &Engine{}
+	var calls int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	resolve := func() (string, int, string, int64, error) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			close(started)
+		}
+		<-release
+		return "Cached Group", 42, "supergroup", 123, nil
+	}
+	var wg sync.WaitGroup
+	results := make([]string, 2)
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			title, _, _, _, err := engine.resolveCachedImportTarget(context.Background(), "u:cachedgroup", resolve)
+			if err != nil {
+				t.Errorf("resolveCachedImportTarget: %v", err)
+				return
+			}
+			results[i] = title
+		}(i)
+	}
+	<-started
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("resolver calls=%d, want 1", got)
+	}
+	for _, title := range results {
+		if title != "Cached Group" {
+			t.Fatalf("cached title=%q, want Cached Group", title)
+		}
+	}
+}
+
+func TestClassifyImportFailure(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"expired", errors.New("邀请已过期"), "expired"},
+		{"invalid", errors.New("邀请无效"), "invalid"},
+		{"rate limit", &TelegramRateLimitError{RetryAfter: time.Minute}, "rate_limited"},
+		{"not found", &TelegramHTTPStatusError{StatusCode: 404}, "not_found"},
+		{"forbidden", &TelegramHTTPStatusError{StatusCode: 403}, "forbidden"},
+		{"transient", &TelegramHTTPStatusError{StatusCode: 502}, "transient"},
+		{"unknown", errors.New("unexpected resolver response"), "unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := classifyImportFailure(tc.err); got != tc.want {
+				t.Fatalf("classifyImportFailure=%q, want %q", got, tc.want)
+			}
+		})
 	}
 }
