@@ -157,7 +157,9 @@ func importFailureLink(detail string) string {
 func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, failures []string) error {
 	for _, detail := range failures {
 		link := importFailureLink(detail)
-		if link == "" { continue }
+		if link == "" {
+			continue
+		}
 		if _, err := e.pool.Exec(ctx, `INSERT INTO group_library_import_job_failures (job_id,original_link,error_text) VALUES ($1,$2,$3) ON CONFLICT (job_id,original_link) DO UPDATE SET error_text=EXCLUDED.error_text, updated_at=NOW()`, jobID, link, detail); err != nil {
 			return err
 		}
@@ -334,7 +336,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			defer ticker.Stop()
 			for {
 				select {
-				case <-leaseCtx.Done(): return
+				case <-leaseCtx.Done():
+					return
 				case <-ticker.C:
 					var status, token string
 					checkCtx, cancel := context.WithTimeout(leaseCtx, 3*time.Second)
