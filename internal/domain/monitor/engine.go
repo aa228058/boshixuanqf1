@@ -400,11 +400,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			now := time.Now()
 			pushKey := fmt.Sprintf("%s:%s:%d", tenantID, accountID, msg.ChatID)
 			e.msgPushMu.Lock()
-			if now.Sub(e.lastMsgPush[pushKey]) < time.Second {
-				e.msgPushMu.Unlock()
-				return
+			shouldPush := now.Sub(e.lastMsgPush[pushKey]) >= time.Second
+			if shouldPush {
+				e.lastMsgPush[pushKey] = now
 			}
-			e.lastMsgPush[pushKey] = now
 			// 防内存泄漏：map 只增不减，监控账号漫游大量群组后无界增长。
 			// 超过阈值时重建并丢弃过期条目（保留最近 5 分钟），摊销清理成本。
 			if len(e.lastMsgPush) > 10000 {
@@ -417,15 +416,17 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 				e.lastMsgPush = fresh
 			}
 			e.msgPushMu.Unlock()
-			// Forward to tenant SSE
-			e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
-				"account_id": accountID.String(),
-				"chat_id":    msg.ChatID,
-				"message_id": msg.ID,
-				"text":       msg.Text,
-				"from_id":    msg.FromID,
-				"date":       msg.Date,
-			})
+			// 仅节流前端预览推送；绝不能 return，否则会跳过后续规则匹配和自动动作。
+			if shouldPush {
+				e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
+					"account_id": accountID.String(),
+					"chat_id":    msg.ChatID,
+					"message_id": msg.ID,
+					"text":       msg.Text,
+					"from_id":    msg.FromID,
+					"date":       msg.Date,
+				})
+			}
 
 			// 匹配+动作整体异步：规则多时匹配循环在回调里同步跑会阻塞消息消费，
 			// 与动作执行同款问题。先拷贝标量字段（msg 指针由 mtgo 库管理），整体移入 goroutine。
