@@ -59,21 +59,21 @@ type RuleRepository interface {
 
 // Engine manages message monitoring and auto-reply for a tenant's accounts.
 type Engine struct {
-	cfg         *config.Config
-	accEngine   AccountEngine
-	ruleRepo    RuleRepository
-	sseBroker   *sse.Broker
-	mu          sync.RWMutex
+	cfg             *config.Config
+	accEngine       AccountEngine
+	ruleRepo        RuleRepository
+	sseBroker       *sse.Broker
+	mu              sync.RWMutex
 	// lifecycleMu serializes StartMonitoring/StopMonitoring so concurrent
 	// requests cannot register multiple handlers for the same account.
-	lifecycleMu sync.Mutex
-	rateLimiter *RateLimiter
-	msgPushMu   sync.Mutex
-	lastMsgPush map[string]time.Time
-	messageDedupMu sync.Mutex
-	seenMessages map[messageDedupKey]time.Time
+	lifecycleMu     sync.Mutex
+	rateLimiter     *RateLimiter
+	msgPushMu       sync.Mutex
+	lastMsgPush     map[string]time.Time
+	messageDedupMu  sync.Mutex
+	seenMessages    map[messageDedupKey]time.Time
 	messageDedupOps uint64
-	done        chan struct{}
+	done            chan struct{}
 	// Rule cache: tenantID -> []MonitorRule + lastUpdate
 	ruleCache   map[uuid.UUID][]domain.MonitorRule
 	ruleCacheMu sync.RWMutex
@@ -131,7 +131,7 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		accEngine:   accEngine,
 		ruleRepo:    ruleRepo,
 		sseBroker:   sseBroker,
-		lastMsgPush: make(map[string]time.Time),
+		lastMsgPush:  make(map[string]time.Time),
 		seenMessages: make(map[messageDedupKey]time.Time),
 		rateLimiter: NewRateLimiter(),
 		ruleCache:   make(map[uuid.UUID][]domain.MonitorRule),
