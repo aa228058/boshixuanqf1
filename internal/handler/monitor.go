@@ -79,8 +79,8 @@ func (h *MonitorHandler) Status(c echo.Context) error {
 		}
 	}
 	return Success(c, map[string]any{
-		"account_id": accountID,
-		"active_rules": activeRules,
+		"account_id":     accountID,
+		"active_rules":   activeRules,
 		"session_active": h.engine.IsMonitoring(tenantID, accountID),
 	})
 }
