@@ -283,8 +283,9 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
   await expect(visibleGroupEntry('运营素材与案例库')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
+  // 未选择任何群组时，页面按需隐藏批量加入按钮；选择后才显示可操作按钮。
   const joinButton = page.getByRole('button', { name: /加入所选/ })
-  await expect(joinButton).toBeDisabled()
+  await expect(joinButton).toHaveCount(0)
   if (testInfo.project.name.includes('mobile')) {
     const groupCard = page.locator('.md\\:hidden .ui-card').filter({ hasText: '产品交流与资源分享' })
     await groupCard.locator('input[type="checkbox"]').check()
@@ -293,6 +294,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
     // TDesign 将原生 checkbox 设为不可直接点击的 input，并由可见的视觉层接收指针事件。
     await groupRow.locator('.t-checkbox__input').click()
   }
+  await expect(joinButton).toBeVisible()
   await expect(joinButton).toBeEnabled()
   await expect(joinButton).toContainText('1')
   await page.screenshot({ path: testInfo.outputPath('groups-discover-selected.png'), fullPage: true })
