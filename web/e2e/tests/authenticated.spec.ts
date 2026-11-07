@@ -126,7 +126,7 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
   page.on('pageerror', error => runtimeErrors.push(error.message))
 
   for (const route of await tenantRoutes(page)) {
-    await page.goto(route)
+    await navigateTenantRoute(page, route)
     await expect(page).toHaveURL(url => url.pathname === route, {
       timeout: 15_000,
     })
@@ -147,7 +147,7 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
   const checkedRoutes = ['/dashboard', '/accounts', '/settings', '/groups/discover', '/help']
 
   for (const route of checkedRoutes) {
-    await page.goto(route)
+    await navigateTenantRoute(page, route)
     await expect(page).toHaveURL(url => url.pathname === route, {
       timeout: 20_000,
     })
@@ -168,7 +168,7 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
 
 test('租户页面没有页面级横向溢出', async ({ page }) => {
   for (const route of await tenantRoutes(page)) {
-    await page.goto(route)
+    await navigateTenantRoute(page, route)
     await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
     await page.waitForTimeout(500)
     const dimensions = await page.evaluate(() => ({
@@ -185,7 +185,7 @@ test('租户页面没有页面级横向溢出', async ({ page }) => {
 
 test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
   for (const route of await tenantRoutes(page)) {
-    await page.goto(route)
+    await navigateTenantRoute(page, route)
     await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
     await page.waitForTimeout(500)
     const dimensions = await page.evaluate(() => ({
