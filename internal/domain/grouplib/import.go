@@ -71,6 +71,22 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	res := &ImportResult{Skipped: skipped}
+	pendingGroups := make([]*domain.SystemGroup, 0, len(entries))
+	flushPending := func(writeCtx context.Context) {
+		if len(pendingGroups) == 0 { return }
+		if err := e.repo.UpsertBatch(writeCtx, pendingGroups); err == nil {
+			for _, group := range pendingGroups { res.Imported = append(res.Imported, *group) }
+			pendingGroups = pendingGroups[:0]
+			return
+		}
+		// Preserve per-link result reporting if the atomic batch fails; the batch transaction has rolled back.
+		for _, group := range pendingGroups {
+			if err := upsertImportGroupWithRetry(writeCtx, e.repo, group); err != nil {
+				res.Failed = append(res.Failed, fmt.Sprintf("[database] %s: 入库失败 %v", group.TmeLink, err))
+			} else { res.Imported = append(res.Imported, *group) }
+		}
+		pendingGroups = pendingGroups[:0]
+	}
 	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
 	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
@@ -111,6 +127,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			return title, count, gtype, 0, err
 		})
 		if ctx.Err() != nil {
+			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			flushPending(writeCtx)
+			cancel()
 			return res, ctx.Err()
 		}
 		if rerr == nil && gtype == "user" {
@@ -123,21 +142,14 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			res.Failed = append(res.Failed, fmt.Sprintf("[%s] %s: %v", classifyImportFailure(rerr), en.link, rerr))
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(rerr, &rateLimitErr) {
+				flushPending(ctx)
 				return res, rateLimitErr
 			}
 			res.Processed++
 			continue
 		}
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
-		if err := upsertImportGroupWithRetry(ctx, e.repo, &sg); err != nil {
-			if ctx.Err() != nil {
-				return res, ctx.Err()
-			}
-			res.Failed = append(res.Failed, fmt.Sprintf("[database] %s: 入库失败 %v", en.link, err))
-			res.Processed++
-			continue
-		}
-		res.Imported = append(res.Imported, sg)
+		pendingGroups = append(pendingGroups, &sg)
 		res.Processed++
 		// MTProto 请求保守限速；HTTP 解析由连接池与 Worker 调度统一控制。
 		if client != nil && !bulkMode {
@@ -148,6 +160,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			}
 		}
 	}
+	flushPending(ctx)
 	return res, nil
 }
 
