@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master, ci/isolated-enterprise-e2e]
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches: [main, master, feat/group-import-resolver-pipeline]
 
 jobs:
