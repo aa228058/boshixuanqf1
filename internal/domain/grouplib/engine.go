@@ -46,7 +46,7 @@ type Engine struct {
 	gW  time.Time // groups 水位
 	mW  time.Time // members 水位
 
-	resolveCache  map[string]cachedImportResolution
+	resolveCache   map[string]cachedImportResolution
 	resolveFlights map[string]*importResolveCall
 }
 
