@@ -263,9 +263,10 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
     accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || '')
   }
 
-  // The app itself routes to the explicit "none" workspace when no account is selected.
-  // Auditing that fallback still exercises the tenant workspace shell and empty states.
-  if (!accountId) accountId = 'none'
+  // Feature-page audits must use the seeded tenant account; /workspace/none only exercises fallback empty states.
+  if (!accountId || accountId === 'none') {
+    throw new Error('Feature-page browser audit requires the seeded demo account in tg_current_account')
+  }
   return [
     ...routes,
     `/workspace/${accountId}/broadcast`,
