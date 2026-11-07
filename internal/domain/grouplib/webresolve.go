@@ -20,6 +20,40 @@ var (
 	pageExtraRe   = regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*tgme_page_extra[^"']*["'][^>]*>(.*?)</[^>]+>`)
 	htmlTagRe     = regexp.MustCompile(`<[^>]+>`)
 	memberCountRe = regexp.MustCompile(`(?i)([0-9][0-9\s,.\x{00a0}\x{202f}]*)\s*([kmb])?\s*(members?|subscribers?|участник(?:а|ов)?|membres?|成员|订阅者)`)
+	telegramUsernameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{4,31}package grouplib
+
+import (
+	"context"
+	"fmt"
+	htmlstd "html"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+var (
+)
+	telegramInviteHashRe = regexp.MustCompile(`^[A-Za-z0-9_-]{5,64}package grouplib
+
+import (
+	"context"
+	"fmt"
+	htmlstd "html"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+var (
+)
 )
 
 const telegramWebUserAgent = "TG-Sender-GroupResolver/1.0 (+https://github.com/aa228058/boshixuanqf1)"
@@ -41,8 +75,9 @@ var telegramWebClient = &http.Client{
 			return fmt.Errorf("Telegram 页面重定向次数过多")
 		}
 		host := strings.ToLower(req.URL.Hostname())
-		if host != "t.me" && host != "www.t.me" {
-			return fmt.Errorf("拒绝跳转到非 Telegram 域名")
+		if req.URL.Scheme != "https" || (host != "t.me" && host != "www.t.me") ||
+			(req.URL.Port() != "" && req.URL.Port() != "443") || req.URL.User != nil {
+			return fmt.Errorf("拒绝跳转到非安全 Telegram 地址")
 		}
 		return nil
 	},
@@ -109,7 +144,7 @@ func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) 
 
 func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, string, error) {
 	hash = strings.TrimSpace(hash)
-	if hash == "" || strings.ContainsAny(hash, "/?#") {
+	if !telegramInviteHashRe.MatchString(hash) {
 		return "", 0, "unknown", fmt.Errorf("邀请 hash 格式无效")
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
@@ -268,7 +303,7 @@ func isGenericTitle(value string) bool {
 
 func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string, int, string, error) {
 	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
-	if username == "" || strings.ContainsAny(username, "/?#") {
+	if !telegramUsernameRe.MatchString(username) {
 		return "", 0, "unknown", fmt.Errorf("公开群 username 格式无效")
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
