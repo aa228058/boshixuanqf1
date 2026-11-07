@@ -198,7 +198,7 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
     await page.screenshot({ path: testInfo.outputPath(`${screenshotName}-viewport.png`) })
     if (route.endsWith('/tasks/e2e00000-0000-4000-8000-000000000001')) {
       await expect(page.getByText('实时日志')).toBeVisible()
-      await expect(page.getByText(/18\/30/)).toBeVisible()
+      await expect(page.getByText(/当前进度\s*18\/30/)).toBeVisible()
       await expect(page.getByText(/FloodWait/)).toBeVisible()
     }
     await page.locator('#main-content').evaluate((element: HTMLElement) => { element.scrollTop = element.scrollHeight })
