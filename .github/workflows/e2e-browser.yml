@@ -151,6 +151,7 @@ jobs:
         working-directory: web/e2e
         env:
           BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:4173' }}
+          E2E_SKIP_WEBSERVER: ${{ !inputs.base_url && '1' || '' }}
         run: npm test
       - name: Upload browser report
         if: always()
