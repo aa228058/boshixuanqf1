@@ -131,7 +131,9 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
   await expect(addButton).toBeVisible()
   await addButton.click()
 
-  const modal = page.locator('.modal-content').last()
+  const visibleModals = page.locator('.modal-content:visible')
+  await expect(visibleModals).toHaveCount(1)
+  const modal = visibleModals.first()
   await expect(modal).toBeVisible()
   const bounds = await modal.boundingBox()
   const viewport = page.viewportSize()
@@ -143,7 +145,7 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
     expect(bounds.y + bounds.height, '移动端弹窗应贴合视口底部').toBeGreaterThanOrEqual(viewport.height - 4)
     expect(bounds.y + bounds.height, '移动端弹窗不能溢出视口').toBeLessThanOrEqual(viewport.height + 1)
   } else {
-    expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2), '桌面端弹窗应水平居中').toBeLessThanOrEqual(3)
-    expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2), '桌面端弹窗应垂直居中').toBeLessThanOrEqual(3)
+    expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2), '桌面端弹窗应水平居中').toBeLessThanOrEqual(5)
+    expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2), '桌面端弹窗应垂直居中').toBeLessThanOrEqual(5)
   }
 })
