@@ -166,11 +166,17 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 	return tx.Commit(ctx)
 }
 
-// MarkInvalidByDedupKey marks a shared link invalid only after its Telegram identifier is confirmed invalid.
+// MarkInvalidByDedupKey is a compatibility wrapper that invalidates only
+// the URL represented by the legacy dedup key, never every alias of the group.
 func (r *SystemGroupRepository) MarkInvalidByDedupKey(ctx context.Context, key string) error {
-	_, err := r.db.Exec(ctx,
-		`UPDATE system_groups SET status='invalid' WHERE dedup_key=$1`, key)
-	return err
+	switch {
+	case strings.HasPrefix(key, "u:"):
+		return r.UpdateLinkValidityByLink(ctx, "https://t.me/"+strings.TrimPrefix(key, "u:"), "invalid")
+	case strings.HasPrefix(key, "l:"):
+		return r.UpdateLinkValidityByLink(ctx, strings.TrimPrefix(key, "l:"), "invalid")
+	default:
+		return nil
+	}
 }
 
 // GetByIDs 按主键批量取(批量加入用), 保持传入顺序无要求。
