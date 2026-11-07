@@ -192,11 +192,17 @@ func (h *GroupLibraryHandler) ConfirmImportJob(c echo.Context) error {
 // RetryFailedImportJob handles POST /group-library/import-jobs/:id/retry.
 func (h *GroupLibraryHandler) RetryFailedImportJob(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	jobID, err := uuid.Parse(c.Param("id"))
-	if err != nil { return echo.NewHTTPError(http.StatusBadRequest, "invalid job id") }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
 	job, err := h.lib.RetryFailedImportJob(c.Request().Context(), tenantID, jobID)
-	if err != nil { return echo.NewHTTPError(http.StatusConflict, err.Error()) }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusConflict, err.Error())
+	}
 	return c.JSON(http.StatusAccepted, job)
 }
 // CancelImportJob handles POST /group-library/import-jobs/:id/cancel.
@@ -206,7 +212,9 @@ func (h *GroupLibraryHandler) CancelImportJob(c echo.Context) error {
 	jobID, err := uuid.Parse(c.Param("id"))
 	if err != nil { return echo.NewHTTPError(http.StatusBadRequest, "invalid job id") }
 	job, err := h.lib.CancelImportJob(c.Request().Context(), tenantID, jobID)
-	if err != nil { return echo.NewHTTPError(http.StatusConflict, "导入任务不存在、已结束或无法取消") }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusConflict, "导入任务不存在、已结束或无法取消")
+	}
 	return c.JSON(http.StatusOK, job)
 }
 // ListImportJobs handles GET /group-library/import-jobs.
