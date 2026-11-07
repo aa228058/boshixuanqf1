@@ -734,7 +734,7 @@ func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tena
 		cancel()
 	case "dm":
 		// 私聊触达: 监控号对触发人执行规则勾选的子动作(私聊文本/联系人名片/语音振铃), 可任意组合
-		executeDM(ctx, e, c, tenantID, accountID, rule, msgFromID)
+		executeDM(ctx, e, c, tenantID, accountID, rule, msgFromID, msgChatID, msgID)
 	default:
 		log.Printf("[monitor] 规则 %s 不支持的规则类型 %s", rule.Type, rule.RuleID)
 	}
@@ -744,7 +744,7 @@ func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tena
 const anonymousSenderID = 1087968824
 
 // executeDM 执行 type=dm 规则的三个子动作。
-func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, targetUser int64) {
+func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, targetUser, sourceChatID int64, sourceMessageID int) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -758,7 +758,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		return
 	}
 	if rule.DMContent != "" {
-		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, "text")
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "text")
 		if e.claimDMAction(key) {
 			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			_, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{})
@@ -776,7 +776,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		return
 	}
 	if rule.DMContact {
-		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, "contact")
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "contact")
 		if e.claimDMAction(key) {
 			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			cleanPhone := strings.Map(func(r rune) rune {
@@ -830,7 +830,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		return
 	}
 	if rule.DMCall {
-		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, "call")
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "call")
 		if e.claimDMAction(key) {
 			if !e.callAllowed(tenantID, accountID, targetUser) {
 				e.finishDMAction(key, dmActionFailedDefinite)
