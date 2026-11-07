@@ -348,7 +348,7 @@ func (r *TaskLogRepository) ListFailedTargets(ctx context.Context, tenantID, tas
 // cartesian and explicit mapping modes.
 func (r *TaskLogRepository) ListFailedTargetsByAccount(ctx context.Context, tenantID, taskID uuid.UUID) (map[uuid.UUID][]string, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT account_id, target_id
+		SELECT DISTINCT account_id, target_id
 		FROM task_logs
 		WHERE tenant_id = $1 AND task_id = $2
 		  AND action = 'send_message' AND status = 'failed'
