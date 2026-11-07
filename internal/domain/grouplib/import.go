@@ -305,8 +305,6 @@ func classifyImportFailure(err error) string {
 	}
 }
 
-const importResolveRetryAttempts = 3
-
 func isTransientResolveError(err error) bool {
 	if err == nil {
 		return false
@@ -330,29 +328,14 @@ func isTransientResolveError(err error) bool {
 	return errors.Is(err, io.ErrUnexpectedEOF)
 }
 
+// resolveWebEntryWithRetry keeps the import call site stable, while retry
+// ownership lives in the shared scheduler. Keeping retries in both layers
+// multiplied transient requests (up to six attempts per link).
 func resolveWebEntryWithRetry(ctx context.Context, private bool, username, hash string) (string, int, string, error) {
-	var title, gtype string
-	var count int
-	var err error
-	for attempt := 0; attempt < importResolveRetryAttempts; attempt++ {
-		if private {
-			title, count, gtype, err = resolveInviteInfoViaWeb(ctx, hash)
-		} else {
-			title, count, gtype, err = resolvePublicGroupInfoViaWeb(ctx, username)
-		}
-		if err == nil || !isTransientResolveError(err) || attempt == importResolveRetryAttempts-1 {
-			return title, count, gtype, err
-		}
-		delay := time.Duration(attempt+1) * 500 * time.Millisecond
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return "", 0, "unknown", ctx.Err()
-		case <-timer.C:
-		}
+	if private {
+		return resolveInviteInfoViaWeb(ctx, hash)
 	}
-	return title, count, gtype, err
+	return resolvePublicGroupInfoViaWeb(ctx, username)
 }
 
 // resolveInviteInfo 用 messages.checkChatInvite 解析私密邀请链接:
