@@ -276,6 +276,8 @@ func (e *Engine) EnsureSession(ctx context.Context, tenantID, accountID uuid.UUI
 
 // StopAll stops all monitoring sessions.
 func (e *Engine) StopAll() {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, tenantSessions := range e.sessions {
