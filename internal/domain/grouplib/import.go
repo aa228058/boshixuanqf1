@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/domain"
@@ -121,7 +122,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			continue
 		}
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
-		if err := e.repo.Upsert(ctx, &sg); err != nil {
+		if err := upsertImportGroupWithRetry(ctx, e.repo, &sg); err != nil {
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
@@ -213,6 +214,52 @@ func (e *Engine) resolveCachedImportTarget(ctx context.Context, key string, reso
 		e.mu.Unlock()
 		return title, count, gtype, chatID, err
 	}
+}
+
+const importDatabaseRetryAttempts = 3
+
+func isTransientImportDatabaseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if len(pgErr.Code) >= 2 {
+			switch pgErr.Code[:2] {
+			case "08", "40", "53":
+				return true
+			}
+		}
+		switch pgErr.Code {
+		case "57P01", "57P02", "57P03":
+			return true
+		}
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var urlErr *url.Error
+	return errors.As(err, &urlErr)
+}
+
+func upsertImportGroupWithRetry(ctx context.Context, repo *repository.SystemGroupRepository, group *domain.SystemGroup) error {
+	var err error
+	for attempt := 0; attempt < importDatabaseRetryAttempts; attempt++ {
+		err = repo.Upsert(ctx, group)
+		if err == nil || !isTransientImportDatabaseError(err) || attempt == importDatabaseRetryAttempts-1 {
+			return err
+		}
+		timer := time.NewTimer(time.Duration(attempt+1) * 250 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return err
 }
 
 func classifyImportFailure(err error) string {
