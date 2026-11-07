@@ -1,6 +1,6 @@
 <template>
-  <main class="space-y-4">
-    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+  <main class="ui-page-shell gap-4">
+    <div class="ui-page-header grid grid-cols-1 xl:grid-cols-[minmax(220px,1fr)_auto_auto] items-center gap-3">
       <div>
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">任务列表</h1>
         <!-- R109: 任务列表为全租户视角(各账号任务汇总), 移除误导性的"当前账号"标签 -->
@@ -14,7 +14,7 @@
           {{ t.label }}
         </button>
       </div>
-      <div class="ui-segmented flex gap-2 mb-3" role="group" aria-label="按创建时间筛选">
+      <div class="ui-segmented flex gap-2" role="group" aria-label="按创建时间筛选">
   <button type="button" v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="ui-segmented__item"
@@ -22,7 +22,7 @@
     {{ r[1] }}
   </button>
 </div>
-<div class="flex items-center gap-2 flex-wrap">
+<div class="ui-page-actions flex items-center gap-2 flex-wrap">
         <!-- R128 原生 select: t-select 的 tdesign 下拉面板在移动端定位滑到页面底部(用户反馈),
              原生 select 视觉已令牌化且系统自带可靠下拉 -->
         <select v-model="statusFilter"
@@ -45,12 +45,12 @@
     </div>
 
     <!-- 群组链接导入任务：任务属于任务中心，不属于正式群组库 -->
-    <section v-if="importJobs.length" class="space-y-3">
+    <section v-if="importJobs.length" class="ui-page-section space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-text-primary">群组导入与解析</h2>
         <span class="text-xs text-text-muted">{{ importJobs.length }} 条任务</span>
       </div>
-      <article v-for="job in importJobs" :key="job.job_id" class="ui-card p-4 space-y-2">
+      <article v-for="job in importJobs" :key="job.job_id" class="ui-task-card p-4 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
@@ -93,7 +93,7 @@
         <EmptyState title="暂无任务" description="创建群发/加群/采集任务后会显示在这里" />
       </div>
       <!-- 电脑端: TDesign 表格骨架 -->
-      <div v-if="tasks.length" class="hidden md:block mt-2 w-full max-w-full overflow-x-auto">
+      <div v-if="tasks.length" class="ui-table-wrap hidden md:block w-full max-w-full overflow-x-auto">
         <t-table row-key="task_id" :data="tasks" :columns="tableCols" hover style="min-width: 860px"
                  @row-click="(ctx: any) => $router.push(`/workspace/${route.params.accountId}/tasks/${ctx.row.task_id}`)">
           <template #status="{ row }">
@@ -153,7 +153,7 @@
       <!-- 手机端: 卡片列表(支持下拉刷新) -->
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" class="md:hidden" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id" :style="{ '--i': ti }"
-           :class="['p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : 'border-border']"
+           :class="['ui-task-card p-4 transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : '']"
            @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.enter.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.space.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -199,7 +199,7 @@
     </div>
 
     <!-- 分页 -->
-    <div v-if="total > pageSize" class="flex items-center justify-between mt-6">
+    <div v-if="total > pageSize" class="ui-page-actions flex items-center justify-between pt-2">
       <span class="text-xs text-text-secondary">共 {{ total }} 条</span>
       <!-- P0-07: TDesign total 是总条数不是页数, 原传 totalPages 导致分页严重错误 -->
       <t-pagination :page="page" :total="total" :page-size="pageSize" @change="(p: any) => page = p.current" />
