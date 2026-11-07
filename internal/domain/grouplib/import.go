@@ -404,6 +404,9 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 	defer cancel()
 	res, err := client.Invoke(rctx, &tg.MessagesCheckChatInviteRequest{Hash: hash})
 	if err != nil {
+		if rateLimitErr := telegramMTProtoRateLimit(err); rateLimitErr != nil {
+			return "", 0, "", 0, rateLimitErr
+		}
 		s := strings.ToLower(err.Error())
 		switch {
 		case strings.Contains(s, "invite_hash_expired"):
@@ -458,6 +461,9 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	defer cancel()
 	peer, err := client.ResolvePeer(rctx, "t.me/"+username)
 	if err != nil {
+		if rateLimitErr := telegramMTProtoRateLimit(err); rateLimitErr != nil {
+			return "", 0, "", 0, rateLimitErr
+		}
 		return "", 0, "", 0, fmt.Errorf("解析失败(可能不存在或已注销)")
 	}
 	switch p := peer.(type) {
@@ -466,6 +472,9 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 			Channel: &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: p.AccessHash},
 		})
 		if err != nil {
+			if rateLimitErr := telegramMTProtoRateLimit(err); rateLimitErr != nil {
+				return "", 0, "", 0, rateLimitErr
+			}
 			return "", 0, "", 0, fmt.Errorf("读取群信息失败")
 		}
 		full, ok := fullRes.(*tg.MessagesChatFull)
