@@ -430,8 +430,13 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(importErr, &rateLimitErr) {
 				progress := summarizeImportBatch(result, true)
+				// A rate-limit result is a durable checkpoint. The resolver lease context
+				// may already be cancelled during shutdown; persist with a short detached
+				// context while retaining the fencing-token and expected-offset checks.
+				persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 				if result != nil && progress.failed > 0 {
-					if err := e.persistImportFailures(leaseCtx, jobID, result.Failed[:progress.failed]); err != nil {
+					if err := e.persistImportFailures(persistCtx, jobID, result.Failed[:progress.failed]); err != nil {
+						persistCancel()
 						log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err)
 						break
 					}
@@ -439,25 +444,27 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				partialImported, partialFailed, partialSkipped := progress.imported, progress.failed, progress.skipped
 				processedPrefix, detail := progress.processed, progress.detail
 				if processedPrefix > 0 {
-					tag, saveErr := e.pool.Exec(leaseCtx, `
+					tag, saveErr := e.pool.Exec(persistCtx, `
 						UPDATE group_library_import_jobs
 						SET processed_count=processed_count+$3,
-						    imported_count=imported_count+$4,
-						    failed_count=failed_count+$5,
-						    skipped_count=skipped_count+$6,
-						    last_error=CASE WHEN $7='' THEN last_error
-						                    WHEN last_error='' THEN $7
-						                    ELSE LEFT(last_error || E'\\n' || $7, 4000) END,
-						    updated_at=NOW()
+							imported_count=imported_count+$4,
+							failed_count=failed_count+$5,
+							skipped_count=skipped_count+$6,
+							last_error=CASE WHEN $7='' THEN last_error
+							                WHEN last_error='' THEN $7
+							                ELSE LEFT(last_error || E'\\n' || $7, 4000) END,
+							updated_at=NOW()
 						WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2
 						  AND processed_count=$8`,
 						jobID, leaseToken, processedPrefix, partialImported, partialFailed,
 						partialSkipped, detail, offset)
 					if saveErr != nil || tag.RowsAffected() != 1 {
+						persistCancel()
 						break
 					}
 					offset += processedPrefix
 				}
+				persistCancel()
 				timer := time.NewTimer(rateLimitErr.RetryAfter)
 				shutdownDuringRateLimit := false
 				select {
