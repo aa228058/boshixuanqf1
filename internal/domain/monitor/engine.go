@@ -129,21 +129,21 @@ type monitorSession struct {
 // NewEngine creates a new monitor engine.
 func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleRepository, sseBroker *sse.Broker) *Engine {
 	e := &Engine{
-		cfg:         cfg,
-		accEngine:   accEngine,
-		ruleRepo:    ruleRepo,
-		sseBroker:   sseBroker,
-		lastMsgPush:  make(map[string]time.Time),
-		seenMessages: make(map[messageDedupKey]time.Time),
-		rateLimiter: NewRateLimiter(),
-		ruleCache:   make(map[uuid.UUID][]domain.MonitorRule),
-		ruleCacheTS: make(map[uuid.UUID]time.Time),
-		sessions:    make(map[uuid.UUID]map[uuid.UUID]*monitorSession),
-		raffleWatch: newRaffleWatcher(),
-		done:        make(chan struct{}),
-		reloadChs:   make(map[string]chan struct{}),
-		lastCall:    make(map[string]time.Time),
-		dmFired:     make(map[string]time.Time),
+		cfg:              cfg,
+		accEngine:        accEngine,
+		ruleRepo:         ruleRepo,
+		sseBroker:        sseBroker,
+		lastMsgPush:      make(map[string]time.Time),
+		seenMessages:     make(map[messageDedupKey]time.Time),
+		rateLimiter:      NewRateLimiter(),
+		ruleCache:        make(map[uuid.UUID][]domain.MonitorRule),
+		ruleCacheTS:      make(map[uuid.UUID]time.Time),
+		sessions:         make(map[uuid.UUID]map[uuid.UUID]*monitorSession),
+		raffleWatch:      newRaffleWatcher(),
+		done:             make(chan struct{}),
+		reloadChs:        make(map[string]chan struct{}),
+		lastCall:         make(map[string]time.Time),
+		dmFired:          make(map[string]time.Time),
 	}
 	// P1-35 审计修复(2026-10-22): 原实现每秒 ticker 调 rateLimiter.Reset()——把
 	// "每分钟 100 条"的限速计数每秒清零, 实际宽松 60 倍。RateLimiter 内部自带每分钟
