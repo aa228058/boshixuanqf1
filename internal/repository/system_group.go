@@ -45,8 +45,10 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			if err != nil {
 				return err
 			}
-		} else {
+		} else if lookupErr == pgx.ErrNoRows {
 			sgID = uuid.Nil
+		} else {
+			return fmt.Errorf("lookup system group by Telegram chat ID: %w", lookupErr)
 		}
 	}
 	if sgID == uuid.Nil {
@@ -55,9 +57,12 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			return err
 		}
 		if sg.TelegramChatID != 0 {
-			_ = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
+			err = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
 		} else {
-			_ = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE dedup_key=$1", sg.DedupKey()).Scan(&sgID)
+			err = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE dedup_key=$1", sg.DedupKey()).Scan(&sgID)
+		}
+		if err != nil {
+			return fmt.Errorf("load upserted system group identity: %w", err)
 		}
 	}
 	if sgID != uuid.Nil && sg.ContributorTenantID != uuid.Nil {
@@ -157,6 +162,8 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 			return err
 		}
 		return tx.Commit(ctx)
+	} else if lookupErr != pgx.ErrNoRows {
+		return fmt.Errorf("lookup canonical system group by Telegram chat ID: %w", lookupErr)
 	}
 
 	_, err = tx.Exec(ctx, "UPDATE system_groups SET dedup_key=$2, telegram_chat_id=$3, title=CASE WHEN $4<>'' THEN $4 ELSE title END, member_count=CASE WHEN $5>0 THEN $5 ELSE member_count END, gtype=$6, resolution_status='resolved', member_count_updated_at=CASE WHEN $5>0 THEN NOW() ELSE member_count_updated_at END, last_seen_at=NOW() WHERE sg_id=$1", sgID, fmt.Sprintf("c:%d", chatID), chatID, title, memberCount, gtype)
