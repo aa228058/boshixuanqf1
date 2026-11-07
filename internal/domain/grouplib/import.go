@@ -14,7 +14,7 @@ import (
 	"tg-sender/internal/domain"
 )
 
-// importLinkRe 从一行文本里提取 t.me 链接 / @用户名 / 裸用户名 / 私密邀请链接。
+// importLinkRe 保留为兼容性测试用的候选识别规则；生产导入统一走 filterImportLinks。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
 var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(s/|joinchat/|\+)?|@)([+a-zA-Z0-9_\-]{5,64})`)
 
