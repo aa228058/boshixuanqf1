@@ -36,7 +36,17 @@
       </span>
     </div>
 
-    <div class="flex justify-end mt-2">
+    <div class="flex flex-wrap justify-end gap-2 mt-2">
+      <button v-if="task.status === 'running'" type="button" :disabled="actionLoading"
+              @click="changeTaskState('pause')"
+              class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:border-amber/50 hover:text-amber disabled:opacity-50">
+        暂停任务
+      </button>
+      <button v-else-if="task.status === 'paused'" type="button" :disabled="actionLoading"
+              @click="changeTaskState('resume')"
+              class="text-xs px-3 py-1.5 rounded-lg border border-[var(--t-brand)]/30 text-[var(--t-brand)] hover:bg-[var(--t-brand)]/5 disabled:opacity-50">
+        继续任务
+      </button>
       <button type="button" @click="$router.push(`/workspace/${accountId}/tasks/${task.task_id}`)"
               class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:border-cyan/40 hover:text-cyan transition-colors">
         查看详情
@@ -62,12 +72,14 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { CheckCircle2, XCircle, Loader2, Pause } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
+import { toast } from '@/utils/toast'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
 
 const props = defineProps<{ accountId: string; taskType: string }>()
 const task = ref<any>(null)
 const lastDone = ref<any>(null)
+const actionLoading = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
 const isActive = computed(() => ['queued', 'running', 'pending', 'paused'].includes(task.value?.status))
@@ -159,6 +171,21 @@ function elapsed(iso: string): string {
   const m = Math.floor(s / 60)
   if (m < 60) return `${m} 分 ${s % 60} 秒`
   return `${Math.floor(m / 60)} 时 ${m % 60} 分`
+}
+
+async function changeTaskState(action: 'pause' | 'resume') {
+  if (!task.value || actionLoading.value) return
+  actionLoading.value = true
+  try {
+    if (action === 'pause') await taskApi.pause(task.value.task_id)
+    else await taskApi.resume(task.value.task_id)
+    toast({ type: 'success', title: action === 'pause' ? '任务已暂停' : '任务已继续' })
+    await load()
+  } catch (e: any) {
+    toast({ type: 'error', title: action === 'pause' ? '暂停失败' : '继续失败', message: e?.message || '请稍后重试' })
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 async function load() {
