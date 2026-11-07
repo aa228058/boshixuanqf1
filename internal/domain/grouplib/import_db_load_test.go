@@ -41,9 +41,9 @@ func TestPersistImportFailuresLoad(t *testing.T) {
 
 	tenantID := uuid.New()
 	_, err = pool.Exec(ctx,
-		`INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
-		 VALUES ($1, $2, 'x', 'Import DB Load Test', $3, 'free')`,
-		tenantID, "importbench_"+tenantID.String()[:8], "importbench-key-"+tenantID.String())
+		`INSERT INTO tenants (tenant_id, name, api_key_hash)
+		 VALUES ($1, 'Import DB Load Test', $2)`,
+		tenantID, "importbench-key-"+tenantID.String())
 	if err != nil {
 		t.Fatalf("create isolated benchmark tenant: %v", err)
 	}
