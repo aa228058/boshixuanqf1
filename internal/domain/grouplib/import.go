@@ -195,7 +195,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		title, count, gtype, chatID, rerr = e.resolveCachedImportTarget(ctx, cacheKey, func() (string, int, string, int64, error) {
 			// 私密邀请链接优先使用 MTProto：checkChatInvite 可读取 Telegram 提供的预览，
 			// 不要求账号加入群组。未选择账号时才退回网页预览。
-			if client != nil && en.private {
+			if accountID != uuid.Nil && en.private {
 				if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 					return "", 0, "", 0, err
 				}
