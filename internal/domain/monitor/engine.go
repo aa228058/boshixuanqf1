@@ -332,6 +332,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			}
 		}
 		e.mu.Unlock()
+		clientKey := tenantID.String() + ":" + accountID.String()
+		e.reloadMu.Lock()
+		delete(e.reloadChs, clientKey)
+		e.reloadMu.Unlock()
 		close(done)
 	}()
 
