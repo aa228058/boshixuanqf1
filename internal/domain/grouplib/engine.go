@@ -73,15 +73,31 @@ func (e *Engine) Start() {
 	e.wg.Add(1)
 	safego.Go(func() {
 		defer e.wg.Done()
-		e.processImportJobs(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
+		stopWatchDone := make(chan struct{})
+		go func() {
+			select {
+			case <-e.stopCh:
+				cancel()
+			case <-stopWatchDone:
+			}
+		}()
+		defer func() {
+			close(stopWatchDone)
+			cancel()
+		}()
+
+		e.processImportJobs(ctx)
 		t := time.NewTicker(2 * time.Second)
 		defer t.Stop()
 		for {
 			select {
 			case <-e.stopCh:
 				return
+			case <-ctx.Done():
+				return
 			case <-t.C:
-				e.processImportJobs(context.Background())
+				e.processImportJobs(ctx)
 			}
 		}
 	})

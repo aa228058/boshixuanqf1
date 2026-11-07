@@ -104,6 +104,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
 	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
+		if err := ctx.Err(); err != nil {
+			return res, err
+		}
 		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link, ContributorTenantID: tenantID}
 		if en.private {
 			sg.GType = "private"
@@ -131,6 +134,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				title, count, gtype, rerr = resolvePublicGroupInfoViaWeb(ctx, en.username)
 			}
 		}
+		if ctx.Err() != nil {
+			return res, ctx.Err()
+		}
 		if rerr == nil && gtype == "user" {
 			rerr = fmt.Errorf("链接指向用户或机器人，不是群组/频道")
 		}
@@ -148,6 +154,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		}
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 		if err := e.repo.Upsert(ctx, &sg); err != nil {
+			if ctx.Err() != nil {
+				return res, ctx.Err()
+			}
 			res.Failed = append(res.Failed, fmt.Sprintf("%s: 入库失败 %v", en.link, err))
 			res.Processed++
 			continue

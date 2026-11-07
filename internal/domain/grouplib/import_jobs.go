@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -214,6 +215,38 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			// 冷却结束后立即释放任务给本轮调度器继续处理。
 			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=NOW() WHERE job_id=$1 AND status='processing'`, jobID)
 			continue
+		}
+		if ctx.Err() != nil {
+			// A graceful shutdown must not turn the unprocessed suffix into failures.
+			// Persist the completed prefix with a short independent context so the job
+			// can resume from the exact next input row after the process restarts.
+			processed, imported, failed, skipped := 0, 0, 0, 0
+			detail := ""
+			if result != nil {
+				processed = result.Processed
+				imported = len(result.Imported)
+				failed = len(result.Failed)
+				skipped = result.Skipped
+				if failed > 0 {
+					detail = strings.Join(result.Failed, "\n")
+				}
+			}
+			persistCtx, persistCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, persistErr := e.pool.Exec(persistCtx, `
+				UPDATE group_library_import_jobs
+				SET processed_count=$2,
+				    imported_count=imported_count+$3,
+				    failed_count=failed_count+$4,
+				    skipped_count=skipped_count+$5,
+				    last_error=CASE WHEN $6='' THEN last_error ELSE LEFT($6, 4000) END,
+				    status='pending', updated_at=NOW()
+				WHERE job_id=$1 AND status='processing'
+			`, jobID, offset+processed, imported, failed, skipped, detail)
+			persistCancel()
+			if persistErr != nil {
+				log.Printf("[grouplib] 保存中断导入进度失败 job=%s: %v", jobID, persistErr)
+			}
+			return
 		}
 		imported, failed, skipped := 0, 0, 0
 		lastError := ""
