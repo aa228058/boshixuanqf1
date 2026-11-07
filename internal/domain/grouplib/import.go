@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -92,12 +95,8 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			}
 		} else {
 			// 无账号或大批量分片时走复用连接池的 HTTP 解析器。
-			// HTTP 页面没有暴露有效标题时，不允许创建正式群组记录。
-			if en.private {
-				title, count, gtype, rerr = resolveInviteInfoViaWeb(ctx, en.hash)
-			} else {
-				title, count, gtype, rerr = resolvePublicGroupInfoViaWeb(ctx, en.username)
-			}
+			// 仅对网络抖动和 408/425/5xx 做有限重试；无效链接、404 和 429 不在这里重试。
+			title, count, gtype, rerr = resolveWebEntryWithRetry(ctx, en.private, en.username, en.hash)
 		}
 		if ctx.Err() != nil {
 			return res, ctx.Err()
@@ -138,6 +137,56 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		}
 	}
 	return res, nil
+}
+
+const importResolveRetryAttempts = 3
+
+func isTransientResolveError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var rateLimitErr *TelegramRateLimitError
+	if errors.As(err, &rateLimitErr) {
+		return false
+	}
+	var statusErr *TelegramHTTPStatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Retryable()
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return true
+	}
+	return errors.Is(err, io.ErrUnexpectedEOF)
+}
+
+func resolveWebEntryWithRetry(ctx context.Context, private bool, username, hash string) (string, int, string, error) {
+	var title, gtype string
+	var count int
+	var err error
+	for attempt := 0; attempt < importResolveRetryAttempts; attempt++ {
+		if private {
+			title, count, gtype, err = resolveInviteInfoViaWeb(ctx, hash)
+		} else {
+			title, count, gtype, err = resolvePublicGroupInfoViaWeb(ctx, username)
+		}
+		if err == nil || !isTransientResolveError(err) || attempt == importResolveRetryAttempts-1 {
+			return title, count, gtype, err
+		}
+		delay := time.Duration(attempt+1) * 500 * time.Millisecond
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return "", 0, "unknown", ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return title, count, gtype, err
 }
 
 // resolveInviteInfo 用 messages.checkChatInvite 解析私密邀请链接:
