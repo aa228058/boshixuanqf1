@@ -122,15 +122,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y nginx
-          sudo tee /etc/nginx/sites-available/default >/dev/null <<'NGINX'
+          sudo tee /etc/nginx/sites-available/default >/dev/null <<NGINX
           server {
             listen 4173;
             server_name _;
-            root $GITHUB_WORKSPACE/web/dist;
+            root ${GITHUB_WORKSPACE}/web/dist;
             index index.html;
             location /api/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; }
             location /admin/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; }
-            location / { try_files $uri $uri/ /index.html; }
+            location / { try_files \\$uri \\$uri/ /index.html; }
           }
           NGINX
           sudo nginx -t
