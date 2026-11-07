@@ -47,7 +47,7 @@ export default defineConfig({
       },
       {
         name: 'authenticated-mobile',
-        testMatch: /authenticated\\.spec\\.ts/,
+        testMatch: /authenticated\.spec\.ts/,
         dependencies: hasTenantCredentials ? ['tenant-auth-setup'] : [],
         use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: authState },
       },
