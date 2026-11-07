@@ -143,6 +143,43 @@ func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*
 	return &job, nil
 }
 
+type importBatchProgress struct {
+	processed int
+	imported  int
+	failed    int
+	skipped   int
+	detail    string
+}
+
+// summarizeImportBatch converts ImportByLinks results into durable job counters.
+// Import jobs store only pre-filtered candidate links. On 429, ImportByLinks'
+// Skipped value may describe the whole parsed slice (including lines after the
+// rate-limited item), so only completed-prefix counters are safe to persist.
+func summarizeImportBatch(result *ImportResult, rateLimited bool) importBatchProgress {
+	var progress importBatchProgress
+	if result == nil {
+		return progress
+	}
+	progress.processed = result.Processed
+	progress.imported = len(result.Imported)
+	progress.failed = len(result.Failed)
+	progress.skipped = result.Skipped
+	if rateLimited {
+		progress.skipped = 0
+		if progress.failed > 0 {
+			progress.failed-- // the final failure is the current, unprocessed 429 item
+		}
+	}
+	detailCount := progress.failed
+	if detailCount > len(result.Failed) {
+		detailCount = len(result.Failed)
+	}
+	if detailCount > 0 {
+		progress.detail = strings.Join(result.Failed[:detailCount], "\n")
+	}
+	return progress
+}
+
 const importJobHeartbeatInterval = 30 * time.Second
 
 // processImportJobs 使用数据库租约领取任务。租约令牌同时作为 fencing token，
@@ -234,18 +271,9 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(importErr, &rateLimitErr) {
-				partialImported, partialFailed, partialSkipped, processedPrefix := 0, 0, 0, 0
-				detail := ""
-				if result != nil {
-					partialImported = len(result.Imported)
-					partialFailed = len(result.Failed)
-					partialSkipped = result.Skipped
-					processedPrefix = result.Processed
-					if partialFailed > 0 {
-						partialFailed-- // 当前触发 429 的链接不算完成
-						detail = strings.Join(result.Failed[:partialFailed], "\n")
-					}
-				}
+				progress := summarizeImportBatch(result, true)
+				partialImported, partialFailed, partialSkipped := progress.imported, progress.failed, progress.skipped
+				processedPrefix, detail := progress.processed, progress.detail
 				if processedPrefix > 0 {
 					tag, saveErr := e.pool.Exec(leaseCtx, `
 						UPDATE group_library_import_jobs
@@ -295,15 +323,9 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					break
 				}
 				// 优雅停机：用独立短上下文保存已完成前缀；CAS 防止重复累计。
-				processed, imported, failed, skipped := 0, 0, 0, 0
-				detail := ""
-				if result != nil {
-					processed, imported, failed, skipped = result.Processed, len(result.Imported), len(result.Failed), result.Skipped
-					if failed > 0 {
-						detail = strings.Join(result.Failed, "\n")
-					}
-				}
-				persistCtx, persistCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				progress := summarizeImportBatch(result, false)
+				processed, imported, failed, skipped, detail := progress.processed, progress.imported, progress.failed, progress.skipped, progress.detail
+				persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 				_, persistErr := e.pool.Exec(persistCtx, `
 					UPDATE group_library_import_jobs
 					SET processed_count=processed_count+$3,
@@ -327,18 +349,14 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			if !leaseValid() {
 				break
 			}
-			imported, failed, skipped := 0, 0, 0
-			lastError := ""
-			if result != nil {
-				imported, failed, skipped = len(result.Imported), len(result.Failed), result.Skipped
-				if len(result.Failed) > 0 {
-					lastError = strings.Join(result.Failed, "\n")
-					if len(lastError) > 4000 {
-						lastError = lastError[:4000] + "…（错误明细已截断）"
-					}
-				}
-			} else if importErr != nil {
+			progress := summarizeImportBatch(result, false)
+			imported, failed, skipped := progress.imported, progress.failed, progress.skipped
+			lastError := progress.detail
+			if result == nil && importErr != nil {
 				failed = end - offset
+			}
+			if len(lastError) > 4000 {
+				lastError = lastError[:4000] + "…（错误明细已截断）"
 			}
 			if importErr != nil {
 				lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
