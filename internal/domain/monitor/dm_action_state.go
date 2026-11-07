@@ -1,8 +1,17 @@
 package monitor
 
 import (
+	"context"
+	"log"
+
 	"github.com/google/uuid"
 )
+
+// DMActionStore is the durable claim ledger. Claim must be atomic across processes.
+type DMActionStore interface {
+	Claim(ctx context.Context, tenantID, accountID, ruleID uuid.UUID, targetID, sourceChatID int64, sourceMessageID int, action string) (bool, error)
+	Finish(ctx context.Context, tenantID, accountID, ruleID uuid.UUID, targetID, sourceChatID int64, sourceMessageID int, action, status, lastError string) error
+}
 
 type dmActionKey struct {
 	tenantID        uuid.UUID
@@ -23,11 +32,18 @@ const (
 	dmActionOutcomeUnknown
 )
 
-// claimDMAction atomically grants one execution attempt for an individual DM
-// action. Terminal states are intentionally not retried automatically: a
-// transport error may mean Telegram accepted the request but its response was
-// lost.
-func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {\n\tif e.dmActionStore != nil {\n\t\tclaimed, err := e.dmActionStore.Claim(ctx, key.tenantID, key.accountID, key.ruleID, key.targetID, key.sourceChatID, key.sourceMessageID, key.action)\n\t\tif err != nil {\n\t\t\tlog.Printf("[monitor] DM 动作持久化领取失败，按 fail-closed 跳过: %v", err)\n\t\t\treturn false\n\t\t}\n\t\treturn claimed\n\t}
+// claimDMAction fails closed when the durable ledger is unavailable.
+func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {
+	if e.dmActionStore != nil {
+		claimed, err := e.dmActionStore.Claim(ctx, key.tenantID, key.accountID, key.ruleID, key.targetID, key.sourceChatID, key.sourceMessageID, key.action)
+		if err != nil {
+			log.Printf("[monitor] DM action claim failed; skipping safely: %v", err)
+			return false
+		}
+		return claimed
+	}
+	// In-memory fallback keeps isolated unit tests and explicitly unconfigured
+	// Engine instances usable. Production wiring always injects the DB store.
 	e.dmActionMu.Lock()
 	defer e.dmActionMu.Unlock()
 	if e.dmActions == nil {
@@ -36,8 +52,6 @@ func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {\n\ti
 	if _, exists := e.dmActions[key]; exists {
 		return false
 	}
-	// Fail closed at the cap: evicting old keys could resend an action that
-	// was already delivered, while an unbounded map would leak memory.
 	if len(e.dmActions) >= 100000 {
 		return false
 	}
@@ -45,7 +59,13 @@ func (e *Engine) claimDMAction(ctx context.Context, key dmActionKey) bool {\n\ti
 	return true
 }
 
-func (e *Engine) finishDMAction(ctx context.Context, key dmActionKey, status dmActionStatus) {\n\tif e.dmActionStore != nil {\n\t\tif err := e.dmActionStore.Finish(ctx, key.tenantID, key.accountID, key.ruleID, key.targetID, key.sourceChatID, key.sourceMessageID, key.action, dmActionStatusName(status), ""); err != nil {\n\t\t\tlog.Printf("[monitor] DM 动作持久化完成状态失败: %v", err)\n\t\t}\n\t\treturn\n\t}
+func (e *Engine) finishDMAction(ctx context.Context, key dmActionKey, status dmActionStatus) {
+	if e.dmActionStore != nil {
+		if err := e.dmActionStore.Finish(ctx, key.tenantID, key.accountID, key.ruleID, key.targetID, key.sourceChatID, key.sourceMessageID, key.action, dmActionStatusName(status), ""); err != nil {
+			log.Printf("[monitor] DM action finish persistence failed: %v", err)
+		}
+		return
+	}
 	e.dmActionMu.Lock()
 	defer e.dmActionMu.Unlock()
 	if e.dmActions == nil {
