@@ -1,5 +1,5 @@
 <template>
-  <div class="ui-page-shell w-full max-w-3xl mx-auto p-4 sm:p-6">
+  <div class="ui-page-shell w-full max-w-6xl mx-auto p-4 sm:p-6">
     <div class="ui-page-header">
       <div class="ui-page-heading min-w-0">
         <h1 class="ui-page-title truncate">进群邀请</h1>
