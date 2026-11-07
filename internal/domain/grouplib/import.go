@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,7 +23,43 @@ import (
 
 // importLinkRe 保留为兼容性测试用的候选识别规则；生产导入统一走 filterImportLinks。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
-var telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\d+)`)
+var (
+	telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\d+)`)
+	mtprotoImportScheduleMu sync.Mutex
+	mtprotoImportNextStart = make(map[uuid.UUID]time.Time)
+)
+
+const mtprotoImportMinInterval = time.Second
+
+// waitForMTProtoImportPermit applies one shared per-account request cadence across concurrent import jobs.
+func waitForMTProtoImportPermit(ctx context.Context, accountID uuid.UUID) error {
+	now := time.Now()
+	mtprotoImportScheduleMu.Lock()
+	startAt := now
+	if next := mtprotoImportNextStart[accountID]; next.After(startAt) {
+		startAt = next
+	}
+	mtprotoImportNextStart[accountID] = startAt.Add(mtprotoImportMinInterval)
+	if len(mtprotoImportNextStart) > 2048 {
+		for id, next := range mtprotoImportNextStart {
+			if !next.After(now) {
+				delete(mtprotoImportNextStart, id)
+			}
+		}
+	}
+	mtprotoImportScheduleMu.Unlock()
+
+	if wait := time.Until(startAt); wait > 0 {
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return ctx.Err()
+}
 
 func telegramMTProtoRateLimit(err error) error {
 	if err == nil {
@@ -137,7 +174,6 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		var gtype string
 		var chatID int64
 		var rerr error
-		usedMTProto := false
 		cacheKey := "u:" + strings.ToLower(en.username)
 		if en.private {
 			cacheKey = "p:" + en.hash // Telegram invite hashes are case-sensitive.
@@ -152,7 +188,9 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			// 私密邀请链接优先使用 MTProto：checkChatInvite 可读取 Telegram 提供的预览，
 			// 不要求账号加入群组。未选择账号时才退回网页预览。
 			if client != nil && en.private {
-				usedMTProto = true
+				if err := waitForMTProtoImportPermit(ctx, accountID); err != nil {
+					return "", 0, "", 0, err
+				}
 				title, count, gtype, chatID, mtErr := resolveInviteInfo(ctx, client, en.hash)
 				if mtErr == nil {
 					return title, count, gtype, chatID, nil
@@ -169,7 +207,9 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				return "", 0, "", 0, fmt.Errorf("MTProto: %v; 网页预览: %w", mtErr, webErr)
 			}
 			if client != nil && !bulkMode {
-				usedMTProto = true
+				if err := waitForMTProtoImportPermit(ctx, accountID); err != nil {
+					return "", 0, "", 0, err
+				}
 				return resolveGroupInfo(ctx, client, en.username)
 			}
 			// 大批量公开链接优先走共享网页调度器，避免把一个账号压成逐条串行瓶颈。
@@ -182,7 +222,9 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				return "", 0, "", 0, webErr
 			}
 			// 网页预览不可用/信息不完整时，用用户明确选择的在线账号补充 MTProto 解析。
-			usedMTProto = true
+			if err := waitForMTProtoImportPermit(ctx, accountID); err != nil {
+				return "", 0, "", 0, err
+			}
 			return resolveGroupInfo(ctx, client, en.username)
 		})
 		if ctx.Err() != nil {
@@ -211,17 +253,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 		pendingGroups = append(pendingGroups, &sg)
 		res.Processed++
-		// MTProto 请求保守限速；HTTP 解析由连接池与 Worker 调度统一控制。
-		if client != nil && usedMTProto {
-			select {
-			case <-ctx.Done():
-				writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-				flushPending(writeCtx)
-				cancel()
-				return res, ctx.Err()
-			case <-time.After(time.Second):
-			}
-		}
+
 	}
 	flushPending(ctx)
 	return res, nil
