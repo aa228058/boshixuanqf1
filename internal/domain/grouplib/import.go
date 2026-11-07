@@ -73,9 +73,13 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	res := &ImportResult{Skipped: skipped}
 	pendingGroups := make([]*domain.SystemGroup, 0, len(entries))
 	flushPending := func(writeCtx context.Context) {
-		if len(pendingGroups) == 0 { return }
+		if len(pendingGroups) == 0 {
+			return
+		}
 		if err := e.repo.UpsertBatch(writeCtx, pendingGroups); err == nil {
-			for _, group := range pendingGroups { res.Imported = append(res.Imported, *group) }
+			for _, group := range pendingGroups {
+				res.Imported = append(res.Imported, *group)
+			}
 			pendingGroups = pendingGroups[:0]
 			return
 		}
@@ -83,7 +87,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		for _, group := range pendingGroups {
 			if err := upsertImportGroupWithRetry(writeCtx, e.repo, group); err != nil {
 				res.Failed = append(res.Failed, fmt.Sprintf("[database] %s: 入库失败 %v", group.TmeLink, err))
-			} else { res.Imported = append(res.Imported, *group) }
+			} else {
+				res.Imported = append(res.Imported, *group)
+			}
 		}
 		pendingGroups = pendingGroups[:0]
 	}
