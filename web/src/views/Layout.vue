@@ -41,8 +41,8 @@
               <router-link
                 :to="item.path"
                 class="relative flex items-center gap-3 px-3.5 py-2 rounded-[var(--t-r-md)] text-sm font-medium transition-[transform,opacity,border-color,background-color] duration-200"
-                :class="[$route.path === item.path ? 'menu-on' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover', item.locked ? 'opacity-60' : '']"
-                @click="onGlobalItemClick(item, $event)"
+                :class="$route.path === item.path ? 'menu-on' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
+                @click="closeSidebarOnMobile"
               >
                 <!-- 激活指示条: 弹性滑入滑出 + 高度过渡(2026-10-21 侧边栏精修) -->
                 <i
@@ -842,43 +842,23 @@ const unreadCount = computed(() => notifStore.unreadCount)
 const unreadAnnouncements = ref(0)
 
 // 全局菜单（未选中账号时显示）
-// group: 'protocol' 的项属于「协议号系统」折叠区, 仅专业版/企业版可见(与后端 PlanID 门槛一致)
-const globalMenuItems: Array<{ path: string; label: string; icon: Component; group?: string; locked?: boolean }> = [
+const globalMenuItems: Array<{ path: string; label: string; icon: Component; group?: string }> = [
   { path: '/dashboard', label: '仪表盘', icon: LayoutDashboard },
   { path: '/accounts', label: '账号管理', icon: Users },
   // 发现群组入口已合并至工作区"发现群组·搜群"(原全局项与 workspace 项同页双入口, 删此)
   // R87-M3: 全局"验证记录"入口删除 —— 与 workspace 监控验证组功能重叠,
   // 需要看验证日志时从「入群验证」页面进入, 侧栏不再单列陌生入口
-  // 协议号导入已整合进「账号管理→添加账号→批量导入」, 侧边栏不再单列入口
-  // 协议号导入/管理已整合进「账号管理」(添加账号→批量导入/协议账号视图), 侧边栏不再单列
-  // { path: '/sessions', label: '协议号管理', icon: KeyRound, group: 'protocol' },
-  // Phase 4: 帮助中心/设置归入"系统"组(menuSections 按 group 分组渲染)
+  // 协议号导入/管理已整合进账号管理，不再提供独立入口。
   { path: '/help', label: '帮助中心', icon: HelpCircle, group: 'system' },
   { path: '/settings', label: '设置', icon: Settings, group: 'system' },
 ]
 
-const PROTOCOL_PLAN_IDS = ['pro', 'enterprise']
-const canProtocol = computed(() => PROTOCOL_PLAN_IDS.includes(authStore.tenant?.plan_id || ''))
-
-// 侧边栏分组展开/收缩(记住状态)
-
-function showUpgradeTip() {
-  toast({ type: 'warning', title: '该功能仅限专业版/企业版', message: '请联系管理员升级套餐后使用' })
-}
-
 // 区头中文映射(原始 group 键 → 显示名)
 const GROUP_LABELS: Record<string, string> = { msg: '消息', group: '群组', monitor: '监控验证', account: '账号', data: '任务数据', system: '系统' }
 
-// 单一世界菜单: 正常号与协议号功能全部并列展示（2026-09-21 取消世界切换）
+// 全局菜单按主导航/系统分组渲染。
 const menuSections = computed(() => {
-  // 每次 map 生成全新条目对象，绝不改写 globalMenuItems 原数组里的对象：
-  // ① canProtocol 依赖的 tenant 是异步加载的，首次计算时 plan_id 可能还没回来
-  //    → 误判锁上 → 锁痕迹留在原对象上 → 套餐正确也"永久锁"（表现为专业版仍锁着）；
-  // ② tenant 加载完成后 computed 重算，新对象上的 locked 会随 canProtocol 自动纠正。
-  const items = globalMenuItems.map(item => ({
-    ...item,
-    locked: item.path === '/sessions' ? !canProtocol.value : false,
-  }))
+  const items = globalMenuItems
   // Phase 4 信息架构: 全局菜单分 2 组——主导航(顶格无组标题, 功能入口) +
   // 系统组(带"系统"区头与缩进, 低频入口)。组标签经 GROUP_LABELS 渲染。
   const main = items.filter((i: any) => (i.group || 'main') !== 'system')
@@ -887,16 +867,6 @@ const menuSections = computed(() => {
   if (sys.length) sections.push({ label: 'system', items: sys })
   return sections
 })
-
-// 锁定的协议号管理：拦截跳转并提示升级
-function onGlobalItemClick(item: any, evt: MouseEvent) {
-  if (item.locked) {
-    evt.preventDefault()
-    toast({ type: 'warning', title: '协议号系统已锁定', message: '仅限专业版/企业版套餐，请联系管理员升级' })
-    return
-  }
-  closeSidebarOnMobile()
-}
 
 // Phase 7 移动端底部 Tab: 主导航 4 项 + 高亮匹配(工作区页归入"任务")
 const mobileTabs = [
