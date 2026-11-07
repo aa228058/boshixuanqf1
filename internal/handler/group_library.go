@@ -189,6 +189,16 @@ func (h *GroupLibraryHandler) ConfirmImportJob(c echo.Context) error {
 	return c.JSON(http.StatusOK, job)
 }
 
+// RetryFailedImportJob handles POST /group-library/import-jobs/:id/retry.
+func (h *GroupLibraryHandler) RetryFailedImportJob(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil { return err }
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil { return echo.NewHTTPError(http.StatusBadRequest, "invalid job id") }
+	job, err := h.lib.RetryFailedImportJob(c.Request().Context(), tenantID, jobID)
+	if err != nil { return echo.NewHTTPError(http.StatusConflict, err.Error()) }
+	return c.JSON(http.StatusAccepted, job)
+}
 // CancelImportJob handles POST /group-library/import-jobs/:id/cancel.
 func (h *GroupLibraryHandler) CancelImportJob(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
