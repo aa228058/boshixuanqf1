@@ -1,6 +1,6 @@
 <template>
   <main class="ui-page-shell gap-4">
-    <div class="ui-page-header grid grid-cols-1 xl:grid-cols-[minmax(220px,1fr)_auto_auto] items-center gap-3">
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(220px,1fr)_auto_auto] items-center gap-3">
       <div>
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">任务列表</h1>
         <!-- R109: 任务列表为全租户视角(各账号任务汇总), 移除误导性的"当前账号"标签 -->
