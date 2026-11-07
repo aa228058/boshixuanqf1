@@ -61,11 +61,11 @@ type RuleRepository interface {
 
 // Engine manages message monitoring and auto-reply for a tenant's accounts.
 type Engine struct {
-	cfg             *config.Config
-	accEngine       AccountEngine
-	ruleRepo        RuleRepository
-	sseBroker       *sse.Broker
-	mu              sync.RWMutex
+	cfg       *config.Config
+	accEngine AccountEngine
+	ruleRepo  RuleRepository
+	sseBroker *sse.Broker
+	mu        sync.RWMutex
 	// lifecycleMu serializes StartMonitoring/StopMonitoring so concurrent
 	// requests cannot register multiple handlers for the same account.
 	lifecycleMu     sync.Mutex
