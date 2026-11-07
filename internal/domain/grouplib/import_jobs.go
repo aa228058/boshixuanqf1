@@ -165,16 +165,32 @@ func importFailureLink(detail string) string {
 }
 
 func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, failures []string) error {
+	if len(failures) == 0 {
+		return nil
+	}
+	links := make([]string, 0, len(failures))
+	details := make([]string, 0, len(failures))
 	for _, detail := range failures {
 		link := importFailureLink(detail)
 		if link == "" {
 			continue
 		}
-		if _, err := e.pool.Exec(ctx, `INSERT INTO group_library_import_job_failures (job_id,original_link,error_text) VALUES ($1,$2,$3) ON CONFLICT (job_id,original_link) DO UPDATE SET error_text=EXCLUDED.error_text, updated_at=NOW()`, jobID, link, detail); err != nil {
-			return err
-		}
+		links = append(links, link)
+		details = append(details, detail)
 	}
-	return nil
+	if len(links) == 0 {
+		return nil
+	}
+	// Persist a whole worker chunk in one round trip instead of issuing one
+	// INSERT per failed link. UNNEST keeps the two arrays positionally paired.
+	_, err := e.pool.Exec(ctx, `
+		INSERT INTO group_library_import_job_failures (job_id, original_link, error_text)
+		SELECT $1, item.original_link, item.error_text
+		FROM UNNEST($2::text[], $3::text[]) AS item(original_link, error_text)
+		ON CONFLICT (job_id, original_link) DO UPDATE
+		SET error_text=EXCLUDED.error_text, updated_at=NOW()
+	`, jobID, links, details)
+	return err
 }
 
 func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
