@@ -3,6 +3,8 @@ package grouplib
 import (
 	"reflect"
 	"testing"
+
+	"tg-sender/internal/domain"
 )
 
 func TestFilterImportLinks(t *testing.T) {
@@ -52,5 +54,37 @@ func TestFilterImportLinksExcludesBotUsernamesFromResumablePayload(t *testing.T)
 	}
 	if got.RawCount != 4 || got.Invalid != 2 || got.Duplicate != 0 {
 		t.Fatalf("counts = raw:%d duplicate:%d invalid:%d, want raw:4 duplicate:0 invalid:2", got.RawCount, got.Duplicate, got.Invalid)
+	}
+}
+
+func TestSummarizeImportBatchRateLimitPersistsOnlyCompletedPrefix(t *testing.T) {
+	result := &ImportResult{
+		Processed: 2,
+		Imported:  []domain.SystemGroup{{}, {}},
+		Failed:    []string{"first link: unavailable", "third link: FLOOD_WAIT"},
+		Skipped:   5, // includes parse-time skips from the unprocessed suffix
+	}
+	got := summarizeImportBatch(result, true)
+	if got.processed != 2 || got.imported != 2 || got.failed != 1 || got.skipped != 0 {
+		t.Fatalf("progress = %+v, want processed=2 imported=2 failed=1 skipped=0", got)
+	}
+	if got.detail != "first link: unavailable" {
+		t.Fatalf("detail = %q, want only completed-prefix failure", got.detail)
+	}
+}
+
+func TestSummarizeImportBatchKeepsSkippedForCompletedBatch(t *testing.T) {
+	result := &ImportResult{
+		Processed: 3,
+		Imported:  []domain.SystemGroup{{}},
+		Failed:    []string{"second link: unavailable", "third link: unavailable"},
+		Skipped:   4,
+	}
+	got := summarizeImportBatch(result, false)
+	if got.processed != 3 || got.imported != 1 || got.failed != 2 || got.skipped != 4 {
+		t.Fatalf("progress = %+v, want processed=3 imported=1 failed=2 skipped=4", got)
+	}
+	if got.detail != "second link: unavailable\nthird link: unavailable" {
+		t.Fatalf("detail = %q, want both completed failures", got.detail)
 	}
 }
