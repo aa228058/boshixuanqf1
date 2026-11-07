@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	metaTagRe     = regexp.MustCompile("(?is)<meta\\b[^>]*>")
-	attrRe        = regexp.MustCompile("(?is)([a-z_:][-a-z0-9_:]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))")
-	htmlTitleRe   = regexp.MustCompile("(?is)<title[^>]*>(.*?)</title>")
-	pageExtraRe   = regexp.MustCompile("(?is)<[^>]+class=[\"'][^\"']*tgme_page_extra[^\"']*[\"'][^>]*>(.*?)</[^>]+>")
-	htmlTagRe     = regexp.MustCompile("<[^>]+>")
-	memberCountRe = regexp.MustCompile("(?i)([0-9][0-9\\s,.\\x{00a0}\\x{202f}]*)\\s*([kmb])?\\s*(members?|subscribers?|участник(?:а|ов)?|membres?|成员|订阅者)")
-	telegramUsernameRe = regexp.MustCompile("^[A-Za-z][A-Za-z0-9_]{4,31}$")
+	metaTagRe            = regexp.MustCompile("(?is)<meta\\b[^>]*>")
+	attrRe               = regexp.MustCompile("(?is)([a-z_:][-a-z0-9_:]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))")
+	htmlTitleRe          = regexp.MustCompile("(?is)<title[^>]*>(.*?)</title>")
+	pageExtraRe          = regexp.MustCompile("(?is)<[^>]+class=[\"'][^\"']*tgme_page_extra[^\"']*[\"'][^>]*>(.*?)</[^>]+>")
+	htmlTagRe            = regexp.MustCompile("<[^>]+>")
+	memberCountRe        = regexp.MustCompile("(?i)([0-9][0-9\\s,.\\x{00a0}\\x{202f}]*)\\s*([kmb])?\\s*(members?|subscribers?|участник(?:а|ов)?|membres?|成员|订阅者)")
+	telegramUsernameRe   = regexp.MustCompile("^[A-Za-z][A-Za-z0-9_]{4,31}$")
 	telegramInviteHashRe = regexp.MustCompile("^[A-Za-z0-9_-]{5,64}$")
 )
 
