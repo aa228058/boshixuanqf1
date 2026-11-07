@@ -50,7 +50,6 @@
         <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
         <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
         <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
-        <t-button v-if="['completed', 'failed'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
       </div>
     </section>
 
@@ -242,6 +241,12 @@
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
         <textarea v-model="importText" rows="8" class="ui-input text-sm"
           placeholder="t.me/群用户名&#10;@群用户名&#10;https://t.me/+邀请hash"></textarea>
+        <label class="block text-xs font-medium text-text-secondary">解析账号（可选）</label>
+        <select v-model="importAccountId" class="ui-input w-full text-sm" aria-label="选择 Telegram 解析账号">
+          <option value="">自动网页解析（不使用账号）</option>
+          <option v-for="acc in joinableAccounts" :key="acc.account_id" :value="acc.account_id">{{ acc.remark || acc.first_name || acc.phone }} · {{ acc.phone }}</option>
+        </select>
+        <p class="text-[11px] text-text-muted">选择在线账号后：公开链接优先网页解析，网页无法完整读取时再用 MTProto 补充；私密邀请链接使用 MTProto 预览。不会让账号加入群组。</p>
         <p class="text-[11px] leading-relaxed" style="color: var(--t-text-3);">
           提交后由后台分批处理；只会完善公共群组库，不会让任何账号加入群组。
           同一批任务可处理数万条链接，文件大小上限 20MB。
@@ -375,6 +380,7 @@ const importModalVisible = ref(false)
 const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
+const importAccountId = ref('')
 const importJob = ref<any>(null)
 const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
@@ -511,7 +517,7 @@ async function doImport() {
   importing.value = true
   importJob.value = null
   try {
-    const job = await importLibraryGroups(importText.value, importFileName.value)
+    const job = await importLibraryGroups(importText.value, importFileName.value, importAccountId.value || undefined)
     if (importPageUnmounted) return
     importJob.value = job
     importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
