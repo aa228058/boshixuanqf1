@@ -99,10 +99,13 @@ func (e *Engine) CancelImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 	job.ValidCount = job.TotalCount
 	return &job, nil
 }
+
 // RetryFailedImportJob creates a new job containing only failures that have not already been retried.
 func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*ImportJob, error) {
 	tx, err := e.pool.Begin(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer tx.Rollback(ctx)
 	var job ImportJob
 	err = tx.QueryRow(ctx, `
@@ -161,6 +164,7 @@ func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, fai
 	}
 	return nil
 }
+
 func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
 	// Keep the legacy one-step API on the same normalized payload path as the
 	// preview/confirm flow. Worker offsets are candidate-line offsets, so raw
