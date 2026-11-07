@@ -1,7 +1,7 @@
 <template>
-  <div class="ui-page-shell space-y-4">
+  <div class="ui-page-shell">
     <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
-    <section class="ui-page-section space-y-3">
+    <section class="ui-page-section">
       <div class="ui-page-heading">
         <h2 class="ui-page-title">发现群组</h2>
         <p class="ui-page-description mt-1">
