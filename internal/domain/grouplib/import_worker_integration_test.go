@@ -222,7 +222,7 @@ func TestImportWorkerRateLimitSavesPrefixAndRequeues(t *testing.T) {
 
 func TestImportWorkerFailedLinksRetryExactlyOnce(t *testing.T) {
 	pool := importWorkerTestPool(t)
-	tenantID, jobID, links := createImportWorkerFixture(t, pool, 2, "pending", 0)
+	tenantID, jobID, _ := createImportWorkerFixture(t, pool, 2, "pending", 0)
 	engine := &Engine{pool: pool}
 	engine.workerImportOverride = func(_ context.Context, _, _ uuid.UUID, batch []string) (*ImportResult, error) {
 		failures := make([]string, 0, len(batch))
