@@ -58,6 +58,23 @@ type TelegramRateLimitError struct {
 	Endpoint   string
 }
 
+// TelegramHTTPStatusError preserves HTTP status so callers can distinguish
+// permanent target failures from transient service failures.
+type TelegramHTTPStatusError struct {
+	StatusCode int
+	Endpoint   string
+}
+
+func (e *TelegramHTTPStatusError) Error() string {
+	return fmt.Sprintf("Telegram 网页返回 %d（%s）", e.StatusCode, e.Endpoint)
+}
+
+func (e *TelegramHTTPStatusError) Retryable() bool {
+	return e.StatusCode == http.StatusRequestTimeout ||
+		e.StatusCode == http.StatusTooEarly ||
+		e.StatusCode >= http.StatusInternalServerError
+}
+
 func (e *TelegramRateLimitError) Error() string {
 	return fmt.Sprintf("Telegram 网页请求触发限流（%s），建议等待 %s", e.Endpoint, e.RetryAfter)
 }
@@ -94,7 +111,7 @@ func telegramHTTPStatusError(resp *http.Response, endpoint string) error {
 			Endpoint:   endpoint,
 		}
 	}
-	return fmt.Errorf("Telegram 网页返回 %d", resp.StatusCode)
+	return &TelegramHTTPStatusError{StatusCode: resp.StatusCode, Endpoint: endpoint}
 }
 
 // applyTelegramWebHeaders uses a stable, internally consistent request profile.
