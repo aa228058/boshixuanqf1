@@ -3,6 +3,7 @@ import type { MonitorRule, MonitorMessage, ListResponse } from '@/types'
 
 export const monitorApi = {
   listRules: () => api.get<ListResponse<MonitorRule>>('/monitor/rules'),
+  getStatus: (accountId: string) => api.get<{ account_id: string; active_rules: number; session_active: boolean }>(`/monitor/status/${accountId}`),
   getRule: (id: string) => api.get<MonitorRule>(`/monitor/rules/${id}`),
   createRule: (data: Partial<MonitorRule>) => api.post<MonitorRule>('/monitor/rules', data),
   updateRule: (id: string, data: Partial<MonitorRule>) => api.put<MonitorRule>(`/monitor/rules/${id}`, data),

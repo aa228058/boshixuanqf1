@@ -1,16 +1,17 @@
 <template>
-  <main class="space-y-4">
-    <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
-    <div class="grid gap-2 mb-3.5">
-      <div class="flex gap-2">
-        <t-button theme="primary" class="flex-1 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
+  <main class="ui-page-shell gap-4">
+    <!-- 账号工具栏：常用操作在左，搜索框在右；窄屏自动换行 -->
+    <div class="ui-toolbar">
+      <div class="ui-page-actions flex-1">
+
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
-        <t-button theme="default" class="flex-1 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
+        <t-button theme="default" class="ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
         <!-- 多选模式入口(桌面端; 移动端可长按列表行进入) -->
         <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap"
                 @click="enterSelecting">多选</t-button>
       </div>
-      <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full">
+      <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full sm:w-64">
         <template #prefix>
           <Search class="w-4 h-4" style="color: var(--t-text-3);" />
         </template>
@@ -18,7 +19,7 @@
     </div>
 
     <!-- 全选行(仅多选模式显示; 操作按钮在下方悬浮栏) -->
-    <div v-if="selecting && filteredAccounts.length" class="flex items-center gap-2 mb-2 px-1">
+    <div v-if="selecting && filteredAccounts.length" class="flex items-center gap-2 px-1">
       <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none" style="color: var(--t-text-2);">
         <input ref="selectAllRef" type="checkbox" :checked="allSelected"
                class="accent-[var(--t-brand)] w-4 h-4" @change="toggleSelectAll" />
@@ -71,7 +72,7 @@
     </div>
     <template v-else>
       <!-- 统计瓦片(R141 新皮肤适配): 横向滑动条(移动端不再折行挤瘪), 实底卡 + 令牌字号/状态色 -->
-      <div class="stat-strip scrollbar-hide mb-3">
+      <div class="stat-strip scrollbar-hide">
         <div class="ui-card px-4 py-3">
           <div class="flex items-center gap-1.5 text-[11px] font-medium" style="color: var(--t-text-3);"><span class="w-1.5 h-1.5 rounded-full" style="background: var(--t-text-3);" />已绑定账号</div>
           <div class="mt-1.5 leading-none font-extrabold tabular-nums" style="font-size: var(--t-fs-display); color: var(--t-text-1);" v-countup="(accountStore.accounts || []).length">0</div>
@@ -200,7 +201,7 @@
         </div>
 
         <!-- R108 操作区: 状态专属按钮(断开/验证码/受限) + ghost 主操作 + 更多菜单, 与信息区同行 -->
-        <div class="flex items-center gap-1 shrink-0 self-center">
+        <div class="acc-actions flex items-center gap-1 shrink-0 self-center">
           <button type="button" v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
                   class="ui-icon-btn ui-icon-btn--danger"
                   title="断开" aria-label="断开">
@@ -217,12 +218,12 @@
                 :title="cooldownText(acc) ? `受限中 · ${cooldownText(acc)}后恢复` : '受限中'">
             <ShieldAlert class="w-3.5 h-3.5" />受限
           </span>
-          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)" class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
+          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)" class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden lg:inline-flex whitespace-nowrap">
             <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" /> {{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
           </t-button>
           <!-- R128 窄屏适配: 资料/检测桌面直出, 移动端收进 ⋯ 菜单(原窄屏被信息区挤出屏幕) -->
           <t-button theme="default" variant="outline" size="sm" @click="openProfile(acc)"
-                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden lg:inline-flex whitespace-nowrap">
             <UserRoundPen class="w-3.5 h-3.5" /> 资料
           </t-button>
           <!-- R119: 能力检测(8 项矩阵, 全套餐可用) -->
@@ -236,11 +237,11 @@
                     class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0"
                     aria-label="更多操作">更多</t-button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
-            <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
+            <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] lg:hidden"
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
             <!-- 更多菜单(R141): 移动端 = 底部 ActionSheet(圆角上提, 遮罩关闭); 桌面端 = 向上弹出菜单 -->
             <div v-if="openMenuId === acc?.account_id"
-                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1 sm:w-44 sm:z-50"
+                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl lg:absolute lg:right-0 lg:bottom-full lg:mb-1 lg:w-44 lg:z-50"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
               <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
@@ -269,16 +270,16 @@
               <div class="border-t border-border my-1"></div>
               <!-- R108 修复: 转备用/资料/检测在移动端收进面板(桌面另有 ghost 按钮直出) -->
               <button type="button" @click="openMenuId = ''; togglePool(acc)"
-                      class="ui-menu-item w-full sm:hidden">
+                      class="ui-menu-item w-full lg:hidden">
                 <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" />{{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
               </button>
               <button type="button" @click="openMenuId = ''; openProfile(acc)"
-                      class="ui-menu-item w-full sm:hidden">
+                      class="ui-menu-item w-full lg:hidden">
                 <UserRoundPen class="w-3.5 h-3.5" />查看资料
               </button>
               <!-- R119: 能力检测(移动端面板, sm:hidden 桌面不重复显示) -->
               <button type="button" @click="openMenuId = ''; openProbe(acc)"
-                      class="ui-menu-item w-full sm:hidden">
+                      class="ui-menu-item w-full lg:hidden">
                 <ShieldCheck class="w-3.5 h-3.5" />检测
               </button>
               <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
@@ -303,8 +304,8 @@
         </div>
 
         <template v-if="addMode === 'phone'">
-        <div>
-          <label for="add-phone" class="block text-sm text-text-secondary mb-1.5">手机号</label>
+        <div class="ui-form-field">
+          <label for="add-phone" class="ui-form-label">手机号</label>
           <div class="flex items-center">
             <span class="inline-flex items-center px-3 h-[44px] rounded-l-lg bg-bg-card border border-r-0 border-border text-text-secondary text-sm">+</span>
             <input
@@ -316,28 +317,28 @@
           </div>
           <p class="text-xs text-text-secondary mt-1">输入国际格式手机号，如 86 13800138000</p>
         </div>
-        <div>
-          <label for="add-remark" class="block text-sm text-text-secondary mb-1.5">备注（可选）</label>
+        <div class="ui-form-field">
+          <label for="add-remark" class="ui-form-label">备注（可选）</label>
           <input
             id="add-remark"
             v-model="newRemark"
             placeholder="如：主号-客服"
             class="ui-input !min-h-[44px] !text-sm" aria-label="备注" />
         </div>
-        <div>
-          <label for="add-group" class="block text-sm text-text-secondary mb-1.5">分组（可选）</label>
+        <div class="ui-form-field">
+          <label for="add-group" class="ui-form-label">分组（可选）</label>
           <t-select v-model="newGroupId" :options="groupOptions" placeholder="不分组" />
         </div>
         </template>
 
         <!-- 协议号导入面板 -->
         <template v-else>
-          <div>
-            <label class="block text-sm text-text-secondary mb-1.5">Session 字符串（每行一个）</label>
+          <div class="ui-form-field">
+            <label class="ui-form-label">Session 字符串（每行一个）</label>
             <textarea v-model="importText" rows="5" class="ui-input !text-sm font-mono" placeholder="每行粘贴一个 session 字符串，可批量导入" aria-label="session 字符串"></textarea>
           </div>
-          <div>
-            <label class="block text-sm text-text-secondary mb-1.5">或上传 session 文件（可多选）</label>
+          <div class="ui-form-field">
+            <label class="ui-form-label">或上传 session 文件（可多选）</label>
             <input type="file" multiple accept=".session,.see,.tdata,.zip,.rar,.7z,.json" class="w-full text-sm text-text-secondary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-bg-hover file:text-text-primary" @change="onImportFiles" aria-label="session 文件" />
             <p v-if="importFileList.length" class="text-xs text-[var(--t-brand)] mt-1">已选 {{ importFileList.length }} 个文件</p>
           </div>
@@ -422,7 +423,7 @@
     <!-- 分组管理弹窗 -->
     <Modal v-model="showGroupModal" title="账号分组管理">
       <div class="space-y-3">
-        <div v-for="g in accountGroups" :key="g.group_id" class="flex items-center gap-2 p-3 rounded-lg bg-bg-card">
+        <div v-for="g in accountGroups" :key="g.group_id" class="ui-task-card flex items-center gap-2 p-3">
           <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'text-text-muted'}`" />
           <span class="flex-1 text-sm">{{ g.name }}</span>
           <span class="text-xs text-text-secondary">{{ (g.account_ids || []).length }} 个账号</span>
@@ -436,16 +437,16 @@
         <div v-if="!accountGroups.length" class="text-center text-sm text-text-secondary py-4">
           暂无分组，点击下方按钮添加~
         </div>
-        <div class="flex gap-2 mt-3">
+        <div class="flex flex-col sm:flex-row gap-2 mt-3">
           <input
             id="group-name" v-model="newGroupName"
             placeholder="新分组名称..."
-            class="ui-input !w-auto flex-1 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="新分组名称..." />
+            class="ui-input !w-full sm:!w-auto flex-1 !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="新分组名称..." />
           <input
             id="group-color" v-model="newGroupColor"
             type="color"
             class="w-10 h-9 rounded cursor-pointer" aria-label="选择颜色" />
-          <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="createGroup">添加</t-button>
+          <t-button class="ui-t-button ui-t-button--primary w-full sm:w-auto" theme="primary" @click="createGroup">添加</t-button>
         </div>
       </div>
     </Modal>
@@ -453,12 +454,12 @@
     <!-- 编辑分组弹窗 -->
     <Modal v-model="showEditGroup" title="编辑分组">
       <div class="space-y-3">
-        <div>
-          <label for="group-name" class="block text-sm text-text-secondary mb-1">分组名称</label>
+        <div class="ui-form-field">
+          <label for="group-name" class="ui-form-label">分组名称</label>
           <input id="group-name" v-model="editGroupName" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="群组名称" />
         </div>
-        <div>
-          <label for="group-color" class="block text-sm text-text-secondary mb-1">颜色</label>
+        <div class="ui-form-field">
+          <label for="group-color" class="ui-form-label">颜色</label>
           <input id="group-color" v-model="editGroupColor" type="color" class="w-full h-10 rounded cursor-pointer" aria-label="选择颜色" />
         </div>
       </div>
@@ -516,12 +517,12 @@
           <label class="block text-sm text-text-secondary mb-1.5">代理（SOCKS5，留空 = 直连）</label>
           <input v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
             class="ui-input !min-h-[44px] !text-sm font-mono" aria-label="代理地址" />
-          <div class="flex items-center gap-2 mt-2">
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
+          <div class="flex flex-wrap items-start gap-2 mt-2">
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm !min-h-[44px]" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
               <Loader2 v-if="proxyTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
               测试连通
             </t-button>
-            <span v-if="proxyTestResult" class="text-xs" :class="proxyTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
+            <span v-if="proxyTestResult" class="text-xs min-w-0 flex-1 basis-full sm:basis-auto break-words" :class="proxyTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
               {{ proxyTestResult.ok ? `连通正常 · 延迟 ${proxyTestResult.latency_ms}ms` : (proxyTestResult.error || '连接失败') }}
             </span>
           </div>
@@ -609,22 +610,22 @@
     <Modal v-model="showBatchProfile" title="批量修改资料" width="480px">
       <div class="space-y-3">
         <p class="text-xs text-text-muted">对选中的 {{ selectedIds.size }} 个账号逐个应用(留空的字段不变)。改资料有 2-4 秒间隔防风控, 大批量请耐心等待。</p>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <t-input v-model="batchProfile.first_name" placeholder="名字(留空不变)" />
           <t-input v-model="batchProfile.last_name" placeholder="姓氏(留空不变)" />
         </div>
         <t-textarea v-model="batchProfile.about" placeholder="个人简介(留空不变)" :rows="2" />
-        <div class="flex items-center gap-2">
-          <t-input v-model="batchProfile.username" placeholder="用户名(留空不变)" class="flex-1" />
-          <label class="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer shrink-0">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+          <t-input v-model="batchProfile.username" placeholder="用户名(留空不变)" class="w-full sm:flex-1 min-w-0" />
+          <label class="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]">
             <input type="checkbox" v-model="batchProfile.random_username" class="accent-[var(--t-brand)] w-4 h-4" />
             随机生成
           </label>
         </div>
         <t-input v-model="batchProfile.remark" placeholder="备注(留空不变)" />
         <!-- R119: 头像上传 —— 仅勾选单个账号时可用, 选图即传 -->
-        <div class="flex items-center gap-3">
-          <label class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed cursor-pointer transition-colors"
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <label class="w-full sm:flex-1 flex items-center gap-2 px-3 py-3 min-h-[44px] rounded-lg border border-dashed cursor-pointer transition-colors"
                  :class="selectedIds.size === 1 ? 'border-border hover:border-[color:var(--t-brand)] text-text-secondary' : 'border-border/50 text-text-muted cursor-not-allowed'">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span class="text-xs truncate">{{ avatarFileName || (selectedIds.size === 1 ? '选择头像图片(JPG/PNG, 选图即上传)' : '头像上传需先勾选 1 个账号') }}</span>
@@ -632,10 +633,10 @@
           </label>
           <span v-if="avatarUploading" class="text-xs text-[var(--t-brand)] shrink-0">上传中…</span>
         </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showBatchProfile = false">取消</t-button>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+          <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary w-full sm:w-auto min-h-[44px]" @click="showBatchProfile = false">取消</t-button>
           <t-button theme="primary" size="sm" @click="runBatchProfile" :disabled="batchingProfile"
-                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto min-h-[44px] disabled:opacity-50">
             {{ batchingProfile ? '执行中…' : '开始批量修改' }}
           </t-button>
         </div>
@@ -652,10 +653,10 @@
           class="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:border-[color:var(--t-brand)] focus:outline-none"
           @keyup.enter="runClone"
         />
-        <div class="flex items-center justify-between text-xs text-text-muted">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-text-muted">
           <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
           <t-button theme="primary" size="sm" @click="runClone" :disabled="cloning"
-                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto min-h-[44px] disabled:opacity-50">
             {{ cloning ? '克隆中…' : '开始克隆' }}
           </t-button>
         </div>
@@ -868,7 +869,7 @@ async function runBatchProfile() {
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号资料已修改` })
     } else {
-      toast({ type: 'warning', message: `成功 ${r.success}, 失败 ${r.failed} 个` })
+      toast({ type: 'warning', message: [`成功 ${r.success}, 失败 ${r.failed} 个`, ...(r.errors || []).slice(0, 3)].join('；') })
     }
     showBatchProfile.value = false
     selectedIds.value = new Set()
@@ -1027,10 +1028,10 @@ async function batchSetPool(status: 'active' | 'standby') {
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号已${label}` })
     } else {
-      toast({ type: 'warning', message: `${label}: 成功 ${r.success}, 失败 ${r.failed}(额度不足或状态异常)` })
+      toast({ type: 'warning', message: [`${label}: 成功 ${r.success}, 失败 ${r.failed} 个`, ...(r.errors || []).slice(0, 3)].join('；') })
     }
     selectedIds.value = new Set()
-    accountStore.fetchAccounts(true)
+    await accountStore.fetchAccounts(true)
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '批量操作失败' })
   } finally {
@@ -1938,6 +1939,14 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   gap: var(--t-space-2);
   padding: var(--t-space-3) var(--t-space-4);
   position: relative;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease;
+}
+.acc-row:hover { background: var(--t-surface-2); }
+.acc-row:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--t-brand);
+  outline-offset: -2px;
 }
 .acc-row + .acc-row { border-top: 1px solid var(--t-line-light); }
 .acc-row.standby { background: var(--t-surface-2); }
@@ -1991,13 +2000,21 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   scroll-snap-type: x mandatory;
 }
 .stat-strip > * { flex-shrink: 0; width: 128px; scroll-snap-align: start; }
+@media (min-width: 769px) {
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .stat-strip > * { width: auto; min-width: 0; }
+}
 
 /* 风控轻提示(弱化) */
 .risk-hint {
   display: flex;
   align-items: center;
   gap: var(--t-space-1-5);
-  margin-bottom: var(--t-space-4);
   padding: 0 var(--t-space-1);
   font-size: var(--t-fs-caption);
   color: var(--t-warn);
@@ -2016,7 +2033,18 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   border-radius: var(--t-r-md);
   box-shadow: var(--t-shadow-pop);
 }
-@media (min-width: 640px) {
+/* 移动端账号卡片：操作区独占第二行，避免与手机号/状态信息争抢横向空间。 */
+@media (max-width: 1023px) {
+  .acc-row { flex-wrap: wrap; }
+  .acc-actions {
+    flex: 0 0 100%;
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: var(--t-space-1);
+  }
+}
+
+@media (min-width: 1024px) {
   .acc-menu {
     left: auto;
     right: 0;

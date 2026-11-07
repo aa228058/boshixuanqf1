@@ -277,4 +277,17 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.08);
   color: var(--td-text-color-primary, #e8eaf6);
 }
+
+/* Mobile modal controls: keep the close affordance and footer actions easy to tap. */
+@media (max-width: 768px) {
+  .modal-close {
+    width: 44px;
+    height: 44px;
+    margin-right: -6px;
+  }
+  .modal-footer :deep(.t-button) {
+    width: 100%;
+    min-height: 44px;
+  }
+}
 </style>

@@ -8,11 +8,11 @@ import (
 	"log"
 	"regexp"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"tg-sender/internal/safego"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,8 +20,10 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram/params"
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
+
 	"tg-sender/internal/config"
 	"tg-sender/internal/domain"
+	"tg-sender/internal/safego"
 	"tg-sender/internal/sse"
 )
 
@@ -59,15 +61,21 @@ type RuleRepository interface {
 
 // Engine manages message monitoring and auto-reply for a tenant's accounts.
 type Engine struct {
-	cfg         *config.Config
-	accEngine   AccountEngine
-	ruleRepo    RuleRepository
-	sseBroker   *sse.Broker
-	mu          sync.RWMutex
-	rateLimiter *RateLimiter
-	msgPushMu   sync.Mutex
-	lastMsgPush map[int64]time.Time
-	done        chan struct{}
+	cfg             *config.Config
+	accEngine       AccountEngine
+	ruleRepo        RuleRepository
+	sseBroker       *sse.Broker
+	mu              sync.RWMutex
+	// lifecycleMu serializes StartMonitoring/StopMonitoring so concurrent
+	// requests cannot register multiple handlers for the same account.
+	lifecycleMu     sync.Mutex
+	rateLimiter     *RateLimiter
+	msgPushMu       sync.Mutex
+	lastMsgPush     map[string]time.Time
+	messageDedupMu  sync.Mutex
+	seenMessages    map[messageDedupKey]time.Time
+	messageDedupOps uint64
+	done            chan struct{}
 	// Rule cache: tenantID -> []MonitorRule + lastUpdate
 	ruleCache   map[uuid.UUID][]domain.MonitorRule
 	ruleCacheMu sync.RWMutex
@@ -107,7 +115,7 @@ type Engine struct {
 	// dm 动作"同一用户同一规则只触发一次"去重表(规则重载/引擎重启后重新计数,
 	// 与 lastMsgPush 同款内存级语义; 通话另有 10 分钟冷却双保险)。
 	dmFiredMu sync.Mutex
-	dmFired   map[string]struct{}
+	dmFired   map[string]time.Time
 }
 
 // monitorSession tracks one account's monitoring goroutine.
@@ -125,7 +133,8 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		accEngine:   accEngine,
 		ruleRepo:    ruleRepo,
 		sseBroker:   sseBroker,
-		lastMsgPush: make(map[int64]time.Time),
+		lastMsgPush: make(map[string]time.Time),
+		seenMessages: make(map[messageDedupKey]time.Time),
 		rateLimiter: NewRateLimiter(),
 		ruleCache:   make(map[uuid.UUID][]domain.MonitorRule),
 		ruleCacheTS: make(map[uuid.UUID]time.Time),
@@ -134,7 +143,7 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		done:        make(chan struct{}),
 		reloadChs:   make(map[string]chan struct{}),
 		lastCall:    make(map[string]time.Time),
-		dmFired:     make(map[string]struct{}),
+		dmFired:     make(map[string]time.Time),
 	}
 	// P1-35 审计修复(2026-10-22): 原实现每秒 ticker 调 rateLimiter.Reset()——把
 	// "每分钟 100 条"的限速计数每秒清零, 实际宽松 60 倍。RateLimiter 内部自带每分钟
@@ -154,6 +163,8 @@ func (e *Engine) IsMonitoring(tenantID, accountID uuid.UUID) bool {
 }
 
 func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.UUID, rules []domain.MonitorRule) error {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	// 先停掉同账号的旧会话, 并等待其 goroutine 完全退出——否则旧 goroutine
 	// 的清理逻辑可能在新 goroutine 注册 OnMessage 之后执行, 造成双注册/竞态。
 	e.mu.Lock()
@@ -216,6 +227,8 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 
 // StopMonitoring stops monitoring for a specific account.
 func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	e.mu.Lock()
 	var done chan struct{}
 	if tenantSessions, ok := e.sessions[tenantID]; ok {
@@ -265,6 +278,8 @@ func (e *Engine) EnsureSession(ctx context.Context, tenantID, accountID uuid.UUI
 
 // StopAll stops all monitoring sessions.
 func (e *Engine) StopAll() {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, tenantSessions := range e.sessions {
@@ -314,7 +329,23 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 		}
 	}()
 	// 通知 StartMonitoring/StopMonitoring 本 goroutine 已完全退出。
-	defer close(done)
+	defer func() {
+		e.mu.Lock()
+		if tenantSessions := e.sessions[tenantID]; tenantSessions != nil {
+			if current := tenantSessions[accountID]; current != nil && current.done == done {
+				delete(tenantSessions, accountID)
+				if len(tenantSessions) == 0 {
+					delete(e.sessions, tenantID)
+				}
+			}
+		}
+		e.mu.Unlock()
+		clientKey := tenantID.String() + ":" + accountID.String()
+		e.reloadMu.Lock()
+		delete(e.reloadChs, clientKey)
+		e.reloadMu.Unlock()
+		close(done)
+	}()
 
 	clientKey := tenantID.String() + ":" + accountID.String()
 
@@ -373,6 +404,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			if msg.ChatID == 0 || msg.ID == 0 {
 				return
 			}
+			// Deduplicate the same Telegram update across overlapping handlers/reconnects.
+			if !e.markMessageSeen(tenantID, accountID, msg.ChatID, msg.ID) {
+				return
+			}
 			// 入群验证: 命中验证消息时自动处理(详见 verifier.go / verifier_tap.go)
 			// R153: 登录验证码捕获(TG官方777000/私聊), 异步处理不阻塞消息循环
 			if code := extractLoginCode(msg.Text, msg.FromID, msg.ChatID); code != "" && e.loginCodeNotify != nil {
@@ -380,11 +415,13 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			}
 			e.tapVerification(ctx, cl, tenantID, accountID, msg.ChatID, "", fmt.Sprint(msg.FromID), msg.Text, rawTG(msg))
 			// 抽奖助手: 命中抽奖公告自动参与(raffle.go)。
-			// 多号抢答并行: 各账号 OnMessage 天然独立; 发送丢 goroutine 不阻塞消息循环(第一时间)
-			safego.Go(func() { e.tapRaffle(ctx, cl, tenantID, accountID, msg) })
+			// 消息包装对象由 Telegram 客户端管理，不跨 goroutine 捕获原指针；
+			// 复制包装结构后再异步处理，避免回调返回后对象被复用导致字段错乱。
+			msgSnapshot := *msg
+			safego.Go(func() { e.tapRaffle(ctx, cl, tenantID, accountID, &msgSnapshot) })
 			// 抽奖结果追踪: 开奖解析(text_mention实体) + 参与回执确认(2026-10-20)
 			// + 中奖自动回复(060, 需 cl 发送)
-			e.watchRaffleMessage(tenantID, accountID, msg.ChatID, msg, cl)
+			e.watchRaffleMessage(ctx, tenantID, accountID, msg.ChatID, msg, cl)
 			textPreview := msg.Text
 			if len(textPreview) > 30 {
 				textPreview = textPreview[:30] + "..."
@@ -398,16 +435,16 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 
 			// 节流: 同群 1 秒内最多推 1 条, 避免高频消息刷爆前端
 			now := time.Now()
+			pushKey := fmt.Sprintf("%s:%s:%d", tenantID, accountID, msg.ChatID)
 			e.msgPushMu.Lock()
-			if now.Sub(e.lastMsgPush[msg.ChatID]) < time.Second {
-				e.msgPushMu.Unlock()
-				return
+			shouldPush := now.Sub(e.lastMsgPush[pushKey]) >= time.Second
+			if shouldPush {
+				e.lastMsgPush[pushKey] = now
 			}
-			e.lastMsgPush[msg.ChatID] = now
 			// 防内存泄漏：map 只增不减，监控账号漫游大量群组后无界增长。
 			// 超过阈值时重建并丢弃过期条目（保留最近 5 分钟），摊销清理成本。
 			if len(e.lastMsgPush) > 10000 {
-				fresh := make(map[int64]time.Time, len(e.lastMsgPush))
+				fresh := make(map[string]time.Time, len(e.lastMsgPush))
 				for k, v := range e.lastMsgPush {
 					if now.Sub(v) < 5*time.Minute {
 						fresh[k] = v
@@ -416,14 +453,17 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 				e.lastMsgPush = fresh
 			}
 			e.msgPushMu.Unlock()
-			// Forward to tenant SSE
-			e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
-				"chat_id":    msg.ChatID,
-				"message_id": msg.ID,
-				"text":       msg.Text,
-				"from_id":    msg.FromID,
-				"date":       msg.Date,
-			})
+			// 仅节流前端预览推送；绝不能 return，否则会跳过后续规则匹配和自动动作。
+			if shouldPush {
+				e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
+					"account_id": accountID.String(),
+					"chat_id":    msg.ChatID,
+					"message_id": msg.ID,
+					"text":       msg.Text,
+					"from_id":    msg.FromID,
+					"date":       msg.Date,
+				})
+			}
 
 			// 匹配+动作整体异步：规则多时匹配循环在回调里同步跑会阻塞消息消费，
 			// 与动作执行同款问题。先拷贝标量字段（msg 指针由 mtgo 库管理），整体移入 goroutine。
@@ -511,13 +551,13 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 							}
 						}
 					default:
-						log.Printf("[monitor] 规则 %s 不支持匹配类型 %s", rule.MatchType, rule.RuleID)
+						log.Printf("[monitor] 规则 %s 不支持匹配类型 %s", rule.RuleID, rule.MatchType)
 					}
 					if !matched {
 						continue
 					}
 
-					log.Printf("[monitor] 规则命中: rule=%s type=%s chat=%d text=%q", rule.Name, rule.Type, msg.ChatID, func() string {
+					log.Printf("[monitor] 规则命中: rule=%s type=%s chat=%d text=%q", rule.Name, rule.Type, msgChatID2, func() string {
 						t := msgText2
 						if len(t) > 30 {
 							t = t[:30] + "..."
@@ -543,17 +583,18 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 		defer ticker.Stop()
 		// 保活: OnMessage 回调不会刷新客户端 lastUsed, 若不加保活,
 		// 池清理器(默认5分钟)会把监听依附的连接当空闲连接回收。
-		keepAlive := func() {
+		keepAlive := func() bool {
 			// R159: 账号已被删除 → 停止本监控会话(否则僵尸会话会继续向池要连接,
 			// 对不存在的会话反复重连, 刷 401 AUTH_KEY_UNREGISTERED)
 			if e.accountExists != nil && !e.accountExists(tenantID, accountID) {
 				log.Printf("[monitor] 账号 %s 已删除, 停止监控会话", accountID)
-				e.StopMonitoring(tenantID, accountID)
-				return
+				// Let this loop exit; its deferred cleanup removes only its own
+				// session (never a newer replacement session).
+				return false
 			}
 			cl, _, err := e.accEngine.GetClientByAccount(ctx, tenantID, accountID)
 			if err != nil {
-				return
+				return true
 			}
 			e.accEngine.ReleaseClient(tenantID, accountID, cl)
 			// 底层连接被回收后重建了新实例: 把 OnMessage 重挂到新连接上。
@@ -577,11 +618,14 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 					}
 				}
 			}
+			return true
 		}
 		for {
 			select {
 			case <-ticker.C:
-				keepAlive()
+				if !keepAlive() {
+					return
+				}
 				if e.ruleRepo != nil {
 					newRules, err := e.ruleRepo.ListByTenant(ctx, tenantID)
 					if err == nil {
@@ -624,10 +668,18 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 // 动作是联网调用，若在消息回调里同步执行，高频群消息会互相阻塞、拖垮整个监听会话。
 // 参数只传标量副本（msg 指针生命周期由 mtgo 库管理，不可跨 goroutine 捕获）。
 func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, msgChatID, msgFromID int64, msgID int, msgText string, msgHasMedia bool) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 	switch rule.Type {
 	case "forward":
 		// Forward message to target chats
 		for _, targetChatID := range rule.TargetChatIDs {
+			if ctx.Err() != nil {
+				return
+			}
 			fwdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			var tgtID int64
 			if parsed, err := strconv.ParseInt(targetChatID, 10, 64); err == nil {
@@ -694,24 +746,47 @@ const anonymousSenderID = 1087968824
 
 // executeDM 执行 type=dm 规则的三个子动作。
 func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, targetUser int64) {
+	if ctx.Err() != nil {
+		return
+	}
 	if targetUser <= 0 || targetUser == anonymousSenderID {
 		log.Printf("[monitor] dm 动作跳过: 触发人不可触达(from=%d)", targetUser)
 		return
 	}
 	// 同一用户同一 dm 规则只触发一次(避免同一人反复命中关键词被连发私聊/连拨)
-	key := rule.RuleID.String() + ":" + strconv.FormatInt(targetUser, 10)
+	key := tenantID.String() + ":" + accountID.String() + ":" + rule.RuleID.String() + ":" + strconv.FormatInt(targetUser, 10)
 	e.dmFiredMu.Lock()
 	if _, ok := e.dmFired[key]; ok {
 		e.dmFiredMu.Unlock()
 		return
 	}
-	e.dmFired[key] = struct{}{}
-	// 防内存泄漏: 超限重建(10 万条 ≈ 百万级群监控下的上限, 正常规模远达不到)
+	e.dmFired[key] = time.Now()
+	// 仅淘汰最旧的 10% 条目，避免超限后整体清空导致已触达用户再次触发。
 	if len(e.dmFired) > 100000 {
-		e.dmFired = make(map[string]struct{}, 1024)
+		type firedEntry struct {
+			key string
+			at  time.Time
+		}
+		entries := make([]firedEntry, 0, len(e.dmFired))
+		for firedKey, firedAt := range e.dmFired {
+			entries = append(entries, firedEntry{key: firedKey, at: firedAt})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].at.Before(entries[j].at)
+		})
+		evictCount := len(entries) / 10
+		if evictCount < 1 {
+			evictCount = 1
+		}
+		for _, entry := range entries[:evictCount] {
+			delete(e.dmFired, entry.key)
+		}
 	}
 	e.dmFiredMu.Unlock()
 	// ① 私聊文本
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMContent != "" {
 		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		if _, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{}); err != nil {
@@ -720,6 +795,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		cancel()
 	}
 	// ② 联系人名片(即客户端回形针→联系人生成的绿色卡片: inputMediaContact)
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMContact {
 		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
@@ -787,6 +865,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 
 	// ③ 语音振铃(只振铃不接通, 走通话信令: requestCall→响 N 秒→discardCall)
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMCall {
 		if !e.callAllowed(tenantID, accountID, targetUser) {
 			log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)

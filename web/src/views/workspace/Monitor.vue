@@ -1,24 +1,54 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-4xl mx-auto">
-    <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">消息监控</h1>
-    <p class="text-sm text-text-muted mt-1 mb-6">
-      <!-- R109: 账号下拉(源群组选择/规则展示跟随), 不依赖顶栏切换器 -->
-      <span>账号:
-        <select v-model="monAccId" class="input-box h-8 px-2 text-xs rounded-lg ml-1 align-middle">
-          <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
-        </select>
-      </span>
-    </p>
+  <div class="ui-page-shell w-full max-w-6xl mx-auto p-4 sm:p-6">
+    <header class="ui-page-header">
+      <div class="ui-page-heading">
+        <h1 class="ui-page-title truncate">消息监控</h1>
+        <p class="ui-page-description">启用规则后，自动监控所选账号收到的消息。</p>
+      </div>
+      <div class="ui-page-actions">
+        <label class="ui-form-field">
+          <span class="ui-form-label">监控账号</span>
+          <select v-model="monAccId" class="ui-input min-w-44">
+            <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
+          </select>
+        </label>
+      </div>
+    </header>
 
-    <div class="glass rounded-[var(--t-r-md)] p-4 sm:p-6 space-y-4">
+    <div class="ui-data-surface p-4 sm:p-6 space-y-4">
       <!-- 监控状态(自动模式: 规则即开关) -->
       <div class="p-4 rounded-lg border border-border bg-bg-card">
         <div class="flex items-center gap-3">
-          <div class="w-3 h-3 rounded-full shrink-0" :class="anyRuleActive ? 'bg-[var(--t-ok)] animate-pulse' : 'bg-text-muted'" />
-          <span class="text-sm font-medium whitespace-nowrap">{{ anyRuleActive ? '监控运行中' : '监控已停止' }}</span>
+          <div class="w-3 h-3 rounded-full shrink-0" :class="monitorStatus?.session_active ? 'bg-[var(--t-ok)] animate-pulse' : 'bg-text-muted'" />
+          <span class="text-sm font-medium whitespace-nowrap">{{ monitorStatusLoading ? '正在检查监听状态…' : monitorStatusError ? '监听状态暂不可用' : monitorStatus?.session_active ? '监听会话已启动' : '监听会话未启动' }}</span>
+          <span v-if="monitorStatus?.active_rules" class="text-xs text-text-muted">· {{ monitorStatus.active_rules }} 条启用规则</span>
         </div>
-        <p class="text-xs text-text-muted mt-1.5 pl-6">启用任意规则即自动开始，全部停用自动停止</p>
+        <p class="text-xs text-text-muted mt-1.5 pl-6">
+          {{ monitorStatusError || (monitorStatus?.session_active ? '当前账号的监听会话已注册；这不代表 Telegram 消息流一定正常。' : monitorStatus?.active_rules ? '规则已启用，但当前账号尚无监听会话，请检查账号连接状态。' : '当前账号没有启用中的规则。') }}
+        </p>
       </div>
+
+      <section class="rounded-lg border border-border bg-bg-card overflow-hidden">
+        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold">实时消息</h3>
+            <p class="text-xs text-text-muted mt-0.5">仅显示当前选择账号收到的新消息 · 最多保留 50 条</p>
+          </div>
+          <t-button size="small" variant="outline" @click="liveMessages = []" :disabled="liveMessages.length === 0">清空</t-button>
+        </div>
+        <div v-if="liveMessages.length === 0" class="px-4 py-7 text-center text-sm text-text-muted">
+          暂无实时消息。确认监听会话已启动后，收到新消息时会显示在这里。
+        </div>
+        <div v-else class="divide-y divide-border max-h-96 overflow-y-auto">
+          <article v-for="message in liveMessages" :key="message.key" class="px-4 py-3 min-w-0">
+            <div class="flex items-center justify-between gap-3 text-xs text-text-muted">
+              <span class="truncate">群组 {{ message.chat_id }} · 用户 {{ message.from_id }}</span>
+              <time class="shrink-0">{{ formatMonitorMessageTime(message.date) }}</time>
+            </div>
+            <p class="mt-1.5 text-sm text-text-primary whitespace-pre-wrap break-words">{{ message.text || '（非文本消息）' }}</p>
+          </article>
+        </div>
+      </section>
 
       <!-- 规则列表 -->
       <div>
@@ -30,8 +60,7 @@
         <div class="space-y-2">
           <EmptyState v-if="rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
           <div v-for="rule in rules" :key="rule.rule_id"
-               class="p-4 rounded-[18px] flex items-center justify-between"
-               style="background: var(--t-surface-1); border: 1px solid var(--t-line);">
+               class="ui-task-card p-4 flex items-center justify-between">
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-sm font-extrabold">{{ rule.name }}</span>
@@ -216,12 +245,12 @@
       @refresh="fetchGroups"
     />
   </div>
-  <LiveTaskFeed v-if="monAccId" :account-id="monAccId" task-type="broadcast" class="mt-6" />
+  <LiveTaskFeed v-if="monAccId" :account-id="monAccId" task-type="monitor_scrape" class="mt-6" />
 
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { useAuthStore } from '@/stores/auth'
@@ -236,6 +265,7 @@ import GroupSelector from '@/components/selectors/GroupSelector.vue'
 import type { Group } from '@/types'
 import LiveTaskFeed from '@/components/LiveTaskFeed.vue'
 import { ask } from '@/utils/confirm'
+import { useTaskEvents } from '@/composables/useTaskEvents'
 
 const route = useRoute()
 const router = useRouter()
@@ -246,7 +276,7 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 // R109: 监控按账号管理, 下拉选择管理哪个号
 const monAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !monAccId.value) monAccId.value = acc.account_id }, { immediate: true })
-watch(monAccId, () => { fetchGroups(); fetchRules() })
+watch(monAccId, () => { monitorStatus.value = null; liveMessages.value = []; fetchGroups(); fetchRules(); fetchMonitorStatus() })
 const groups = ref<Group[]>([])
 const showSourceSelector = ref(false)
 const showTargetSelector = ref(false)
@@ -264,8 +294,61 @@ async function fetchGroups() {
 }
 
 const rules = ref<any[]>([])
-const isMonitoring = ref(false) // 精读注: 预留字段, 当前由 rules.length+isAccountOnline 推导运行态
-const anyRuleActive = computed(() => rules.value.some(r => r.is_active))
+const monitorStatus = ref<{ account_id: string; active_rules: number; session_active: boolean } | null>(null)
+const monitorStatusLoading = ref(false)
+let monitorStatusTimer: ReturnType<typeof setInterval> | null = null
+const monitorStatusError = ref('')
+
+interface LiveMonitorMessage {
+  key: string
+  account_id: string
+  chat_id: number | string
+  message_id: number | string
+  from_id: number | string
+  text: string
+  date: number | string
+}
+const liveMessages = ref<LiveMonitorMessage[]>([])
+function handleMonitorEvent(evt: any) {
+  if (evt?.type !== 'new_message') return
+  const payload = evt.payload || evt
+  if (!payload.account_id || payload.account_id !== monAccId.value) return
+  const key = `${payload.account_id}:${payload.chat_id}:${payload.message_id}`
+  if (liveMessages.value.some(message => message.key === key)) return
+  liveMessages.value = [{
+    key,
+    account_id: payload.account_id,
+    chat_id: payload.chat_id,
+    message_id: payload.message_id,
+    from_id: payload.from_id,
+    text: typeof payload.text === 'string' ? payload.text : '',
+    date: payload.date,
+  }, ...liveMessages.value].slice(0, 50)
+}
+useTaskEvents(handleMonitorEvent)
+function formatMonitorMessageTime(value: number | string) {
+  const numeric = Number(value)
+  const date = new Date(Number.isFinite(numeric) && numeric > 0 ? (numeric < 1e12 ? numeric * 1000 : numeric) : value)
+  return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString()
+}
+
+async function fetchMonitorStatus() {
+  const accountId = monAccId.value
+  if (!accountId) { monitorStatus.value = null; monitorStatusError.value = ''; return }
+  monitorStatusError.value = ''
+  monitorStatusLoading.value = !monitorStatus.value
+  try {
+    const status = await monitorApi.getStatus(accountId)
+    if (accountId === monAccId.value) monitorStatus.value = status
+  } catch (e: any) {
+    if (accountId === monAccId.value) {
+      monitorStatus.value = null
+      monitorStatusError.value = e?.message || '请稍后重试'
+    }
+  } finally {
+    monitorStatusLoading.value = false
+  }
+}
 const showAddRule = ref(false)
 const editingRule = ref<any>(null)
 const emptyRuleForm = () => ({
@@ -314,12 +397,25 @@ function applyContact() {
   ruleForm.value.dm_contact_last_name = ct.last_name || ''
 }
 
+let rulesRequestId = 0
+
 async function fetchRules() {
+  const requestId = ++rulesRequestId
+  const accountId = monAccId.value
+  if (!accountId) {
+    rules.value = []
+    return
+  }
   try {
     const res = await monitorApi.listRules()
-    rules.value = res.list || []
+    // API 返回当前租户的全部规则；页面按所选账号展示该账号规则及“全部账号”规则。
+    // 同时用请求序号丢弃切换账号后迟到的旧响应，避免 A 账号规则覆盖 B 账号列表。
+    if (requestId !== rulesRequestId || accountId !== monAccId.value) return
+    rules.value = (res.list || []).filter((rule: any) => !rule.account_id || rule.account_id === accountId)
   } catch (e: any) {
-    toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+    if (requestId === rulesRequestId) {
+      toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+    }
   }
 }
 
@@ -327,10 +423,13 @@ async function fetchRules() {
 async function toggleRule(id: string, val: boolean) {
   try {
     await monitorApi.toggleRule(id, { is_active: val })
-    fetchRules()
-  } catch {
-    toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
-    fetchRules() // 回滚本地乐观变更
+    await fetchRules()
+    await fetchMonitorStatus()
+    toast({ type: 'success', title: val ? '规则已启用' : '规则已停用' })
+  } catch (e: any) {
+    toast({ type: 'error', title: '操作失败', message: e?.message || '规则状态更新失败，请重试' })
+    await fetchRules()
+    await fetchMonitorStatus()
   }
 }
 
@@ -456,5 +555,11 @@ onMounted(() => {
     return
   }
   fetchRules()
+  fetchMonitorStatus()
+  monitorStatusTimer = setInterval(fetchMonitorStatus, 5000)
+})
+
+onUnmounted(() => {
+  if (monitorStatusTimer) clearInterval(monitorStatusTimer)
 })
 </script>

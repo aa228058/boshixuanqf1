@@ -90,7 +90,11 @@ async function ensureConnected() {
       // R99 解包: 全局事件流帧为 broker Event{topic,payload} 结构,
       // 真正的业务事件(type/task_id/progress...)在 payload 里。不解包则
       // 各页 task_status/progress 分支全是死代码(任务列表不实时)。
-      const evt = raw && raw.payload ? raw.payload : raw
+      // Broker 的租户统一事件帧为 { type, payload }。解包业务 payload 时保留外层 type，
+      // 否则 new_message/task_status 等事件会丢失类型，订阅方无法正确分发。
+      const evt = raw && raw.payload && typeof raw.payload === 'object'
+        ? { ...raw.payload, type: raw.payload.type || raw.type }
+        : raw
       listeners.forEach((fn) => { try { fn(evt) } catch { /* 单个回调异常不影响其他 */ } })
     } catch { /* 非 JSON 帧忽略 */ }
   })

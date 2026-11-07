@@ -10,7 +10,9 @@
         <span class="text-sm font-medium">{{ typeLabel }} · {{ statusText }}</span>
       </div>
       <span class="text-xs text-text-muted">
-        <template v-if="task.status === 'queued'">已等待 {{ elapsed(task.created_at) }}</template>
+        <template v-if="task.status === 'scheduled' && task.scheduled_at">计划启动 {{ elapsed(task.scheduled_at) }}</template>
+        <template v-else-if="['queued','pending'].includes(task.status)">已等待 {{ elapsed(task.created_at) }}</template>
+        <template v-else-if="task.status === 'paused'">已暂停</template>
         <template v-else>已运行 {{ elapsed(task.started_at || task.created_at) }}</template>
       </span>
     </div>
@@ -28,14 +30,25 @@
 
     <!-- 当前动作: 单行实时步骤, 不再刷日志列表 -->
     <div class="flex items-center gap-2 text-xs text-text-secondary min-h-5">
-      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Loader2 v-if="task.status !== 'paused'" class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Pause v-else class="w-3.5 h-3.5 shrink-0 text-amber" />
       <span class="truncate">{{ currentAction }}</span>
       <span v-if="waitRemain > 0" class="ml-2 px-2 py-0.5 rounded-full bg-amber/15 text-amber text-xs shrink-0">
         下次发送 {{ waitRemain }}s
       </span>
     </div>
 
-    <div class="flex justify-end mt-2">
+    <div class="flex flex-wrap justify-end gap-2 mt-2">
+      <button v-if="['running','queued','pending','scheduled'].includes(task.status)" type="button" :disabled="actionLoading"
+              @click="changeTaskState('pause')"
+              class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:border-amber/50 hover:text-amber disabled:opacity-50">
+        暂停任务
+      </button>
+      <button v-else-if="task.status === 'paused'" type="button" :disabled="actionLoading"
+              @click="changeTaskState('resume')"
+              class="text-xs px-3 py-1.5 rounded-lg border border-[var(--t-brand)]/30 text-[var(--t-brand)] hover:bg-[var(--t-brand)]/5 disabled:opacity-50">
+        继续任务
+      </button>
       <button type="button" @click="$router.push(`/workspace/${accountId}/tasks/${task.task_id}`)"
               class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:border-cyan/40 hover:text-cyan transition-colors">
         查看详情
@@ -59,17 +72,19 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-vue-next'
+import { CheckCircle2, XCircle, Loader2, Pause } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
+import { toast } from '@/utils/toast'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
 
 const props = defineProps<{ accountId: string; taskType: string }>()
 const task = ref<any>(null)
 const lastDone = ref<any>(null)
+const actionLoading = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
+const isActive = computed(() => ['queued', 'running', 'pending', 'scheduled', 'paused'].includes(task.value?.status))
 
 // 后端 progress 可能是 JSON 字符串或对象, 统一解析
 function parseProgress(p: any): { total: number; done: number; failed: number } {
@@ -95,7 +110,7 @@ const typeNames: Record<string, string> = {
 const typeLabel = computed(() => typeNames[props.taskType] || '任务')
 
 const statusMap: Record<string, string> = {
-  queued: '排队中', running: '进行中', pending: '等待调度',
+  queued: '排队中', running: '进行中', pending: '等待调度', scheduled: '定时待启动', paused: '已暂停',
 }
 const statusText = computed(() => statusMap[task.value?.status] || '')
 
@@ -160,18 +175,34 @@ function elapsed(iso: string): string {
   return `${Math.floor(m / 60)} 时 ${m % 60} 分`
 }
 
+async function changeTaskState(action: 'pause' | 'resume') {
+  if (!task.value || actionLoading.value) return
+  actionLoading.value = true
+  try {
+    if (action === 'pause') await taskApi.pause(task.value.task_id)
+    else await taskApi.resume(task.value.task_id)
+    toast({ type: 'success', title: action === 'pause' ? '任务已暂停' : '任务已继续' })
+    await load()
+  } catch (e: any) {
+    toast({ type: 'error', title: action === 'pause' ? '暂停失败' : '继续失败', message: e?.message || '请稍后重试' })
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 async function load() {
   if (!props.accountId || !props.taskType) return
   try {
     const res: any = await taskApi.list({ account_id: props.accountId, type: props.taskType, page: 1, page_size: 5 })
     const arr = res.list || res.items || []
-    const active = arr.find((t: any) => ['queued', 'running', 'pending'].includes(t.status))
+    const active = arr.find((t: any) => ['queued', 'running', 'pending', 'scheduled', 'paused'].includes(t.status))
     if (active) {
       // 切换到新任务时清空当前动作
       if (task.value?.task_id !== active.task_id) liveLogs.value = []
       task.value = active
       lastDone.value = null
-      // 运行中才拉取最新一条日志作为当前动作
+      // 活动任务拉取最新日志；暂停/预约任务可能暂无日志，保持状态可见。
+
       const lr: any = await taskApi.getLogs(active.task_id)
       const logs = lr?.list || lr?.data || (Array.isArray(lr) ? lr : [])
       if (logs.length) liveLogs.value = logs.slice(-6).reverse()

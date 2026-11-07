@@ -1,11 +1,11 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-4xl mx-auto">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-      <div>
-        <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">成员采集</h1>
+  <div class="ui-page-shell w-full max-w-6xl mx-auto p-4 sm:p-6">
+    <div class="ui-page-header">
+      <div class="ui-page-heading">
+        <h1 class="ui-page-title truncate">成员采集</h1>
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
       </div>
-      <div class="flex items-center gap-2 shrink-0 ml-auto">
+      <div class="ui-page-actions">
         <t-button v-if="tasks.length" type="button" class="ui-t-button ui-t-button--danger ui-t-button--text flex items-center gap-2" @click="clearLogs" variant="text">
           <Trash2 class="w-4 h-4" />
           清空记录
@@ -101,7 +101,7 @@
       <EmptyState v-else-if="!tasks.length" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
-           class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
+           class="ui-task-card p-4 card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
         <div class="flex items-center justify-between gap-3 cursor-pointer" @click="toggleExpand(task.task_id)">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-[color:var(--t-warn-dim)] flex items-center justify-center shrink-0">
@@ -140,6 +140,11 @@
           <div class="h-1.5 bg-bg-card rounded-full overflow-hidden">
             <div class="h-full bg-[var(--t-warn)] rounded-full transition-all" :style="{ width: progressPct(task) + '%' }" />
           </div>
+        </div>
+
+        <div v-if="['running', 'paused'].includes(task.status)" class="flex justify-end gap-2 mt-2">
+          <t-button v-if="task.status === 'running'" size="small" theme="default" class="ui-t-button ui-t-button--secondary" @click.stop="pauseTask(task.task_id)">暂停</t-button>
+          <t-button v-else size="small" theme="primary" class="ui-t-button ui-t-button--primary" @click.stop="resumeTask(task.task_id)">继续</t-button>
         </div>
 
         <!-- 展开: 成员结果列表 -->
@@ -263,7 +268,7 @@ function isBot(m: any): boolean {
 // 清空当前账号的全部采集任务记录(进行中的任务不会删除)
 const clearing = ref(false)
 async function clearLogs() {
-  const finished = tasks.value.filter(t => t.status !== 'running' && t.status !== 'queued')
+  const finished = tasks.value.filter(t => !['running', 'queued', 'pending', 'paused'].includes(t.status))
   if (!finished.length) return
   if (!await ask(`确定清空 ${finished.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })) return
   clearing.value = true
@@ -281,7 +286,7 @@ async function clearLogs() {
 }
 
 function statusText(s: string) {
-  const map: Record<string, string> = { pending: '待执行', running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' }
+  const map: Record<string, string> = { pending: '待执行', queued: '排队中', running: '执行中', paused: '已暂停', completed: '已完成', failed: '失败', cancelled: '已取消' }
   return map[s] || s
 }
 function formatDate(d: string) {
@@ -388,6 +393,15 @@ const pullRefreshing = ref(false)
 async function onPullRefresh() {
   await fetchTasks()
   pullRefreshing.value = false
+}
+
+async function pauseTask(taskId: string) {
+  try { await taskApi.pause(taskId); await fetchTasks(); toast({ type: 'success', title: '采集任务已暂停' }) }
+  catch (e: any) { toast({ type: 'error', title: '暂停失败', message: e?.message || '请稍后重试' }) }
+}
+async function resumeTask(taskId: string) {
+  try { await taskApi.resume(taskId); await fetchTasks(); toast({ type: 'success', title: '采集任务已继续' }) }
+  catch (e: any) { toast({ type: 'error', title: '继续失败', message: e?.message || '请稍后重试' }) }
 }
 
 async function fetchTasks() {

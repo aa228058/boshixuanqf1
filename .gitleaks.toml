@@ -1,0 +1,6 @@
+title = "TG Sender Gitleaks configuration"
+
+[[allowlists]]
+description = "Historical Playwright workflow used a fixed non-secret TG_API_HASH test placeholder; the workflow has been removed."
+paths = ['''\.github/workflows/e2e-browser\.yml''']
+regexes = ['''0123456789abcdef0123456789abcdef''']

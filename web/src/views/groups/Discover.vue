@@ -1,10 +1,10 @@
 <template>
-  <div class="space-y-4">
+  <div class="ui-page-shell">
     <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
-    <section class="space-y-3">
-      <div>
-        <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
-        <p class="text-xs text-text-secondary mt-1">
+    <section class="ui-page-section">
+      <div class="ui-page-heading">
+        <h2 class="ui-page-title">发现群组</h2>
+        <p class="ui-page-description mt-1">
           所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
       </div>
@@ -26,6 +26,28 @@
           <CheckSquare class="w-4 h-4 mr-1" />
           加入所选（{{ selected.size }}）
         </t-button>
+      </div>
+    </section>
+
+    <section v-if="importJobs.length" class="ui-card p-3 space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-sm font-semibold">最近的导入任务</div>
+        <button type="button" class="text-xs text-text-muted hover:text-[var(--t-brand)]" @click="loadImportJobs">刷新</button>
+      </div>
+      <div v-for="job in importJobs" :key="job.job_id" class="flex flex-wrap items-center gap-3 border-t border-border/60 pt-2 first:border-0 first:pt-0">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 text-xs">
+            <span class="font-medium">{{ job.status === 'review' ? '等待确认' : job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : '解析中' }}</span>
+            <span class="text-text-muted">{{ job.processed_count || 0 }} / {{ job.total_count || 0 }}</span>
+          </div>
+          <div class="h-1.5 rounded-full bg-bg-hover overflow-hidden mt-1.5">
+            <div class="h-full rounded-full bg-[var(--t-brand)]" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }" />
+          </div>
+          <div class="text-[11px] text-text-muted mt-1">入库 {{ job.imported_count || 0 }} · 失败 {{ job.failed_count || 0 }} · 跳过 {{ job.skipped_count || 0 }}</div>
+          <div v-if="job.last_error" class="text-[11px] text-[var(--t-err)] mt-1 break-words">{{ job.last_error }}</div>
+        </div>
+        <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
+        <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
       </div>
     </section>
 
@@ -287,7 +309,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -351,6 +373,7 @@ const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
 const importJob = ref<any>(null)
+const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
 const activeImportPolls = new Set<string>()
 const importPollTimers = new Map<string, number>()
@@ -391,6 +414,23 @@ async function onImportFile(event: Event) {
   }
 }
 
+async function loadImportJobs() {
+  try {
+    const res = await listGroupLibraryImportJobs()
+    importJobs.value = (res.list || []).slice(0, 8)
+    for (const job of importJobs.value) {
+      if (['pending', 'queued', 'running', 'processing'].includes(job.status)) void pollImportJob(job.job_id)
+    }
+  } catch {
+    // 列表恢复失败不影响群库浏览；下次手动刷新可重试。
+  }
+}
+
+function resumeImportReview(job: any) {
+  importJob.value = job
+  importModalVisible.value = true
+}
+
 async function pollImportJob(jobId: string) {
   if (importPageUnmounted || activeImportPolls.has(jobId)) return
   const scheduled = importPollTimers.get(jobId)
@@ -405,6 +445,9 @@ async function pollImportJob(jobId: string) {
     if (importPageUnmounted) return
     // 后台历史任务的轮询不能覆盖当前弹窗正在处理的另一笔导入。
     if (importJob.value?.job_id === job.job_id) importJob.value = job
+    const jobIndex = importJobs.value.findIndex((item: any) => item.job_id === job.job_id)
+    if (jobIndex >= 0) importJobs.value[jobIndex] = job
+    else importJobs.value.unshift(job)
     if (job.status === 'completed' || job.status === 'failed') {
       terminal = true
       load()
@@ -446,6 +489,7 @@ async function doImport() {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     if (importPageUnmounted) return
     importJob.value = job
+    importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
     toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，格式有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
   } catch (err: any) {
     toast({ type: 'error', title: '筛选失败', message: err?.message || '筛选导入内容失败' })
@@ -573,6 +617,7 @@ function goDiy() {
 
 onMounted(() => {
   load()
+  loadImportJobs()
   if (!accountStore.accounts?.length) accountStore.fetchAccounts(true)
 })
 </script>

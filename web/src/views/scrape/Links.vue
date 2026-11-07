@@ -1,11 +1,11 @@
 <template>
-  <main class="max-w-3xl mx-auto space-y-4">
+  <main class="ui-page-shell w-full max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
     <Breadcrumb :items="[{ path: `/workspace/${accountStore.currentAccount?.account_id || ''}`, label: '工作台' }, { path: '', label: '链接采集' }]" />
     <div class="flex items-center gap-3">
       <button type="button" @click="$router.back()" class="ui-icon-btn" aria-label="返回" title="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
-      <h2 class="text-lg font-semibold text-gradient">群链接采集</h2>
+      <h1 class="ui-page-title">群链接采集</h1>
     </div>
 
     <!-- R127 令牌化: seg 容器深浅主题自适应 -->
@@ -136,7 +136,9 @@
               >{{ statusLabel(task.status) }}</span>
               <span class="text-xs text-text-muted hidden sm:inline">{{ new Date(task.created_at).toLocaleString() }}</span>
             </button>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0 flex-wrap">
+              <t-button v-if="task.status === 'running'" type="button" class="ui-t-button--secondary ui-t-button" @click="pauseTask(task.task_id)">暂停</t-button>
+              <t-button v-else-if="task.status === 'paused'" type="button" class="ui-t-button--primary ui-t-button" @click="resumeTask(task.task_id)">继续</t-button>
               <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'txt')">导出 TXT</t-button>
               <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'csv')">导出 CSV</t-button>
             </div>
@@ -242,6 +244,26 @@ const linksLoading = ref<Record<string, boolean>>({})
 const linksAccId = ref('')
 watch(accountStore.currentAccount, (acc: any) => { if (acc?.account_id && !linksAccId.value) linksAccId.value = acc.account_id }, { immediate: true })
 watch(linksAccId, () => { fetchTasks(); loadAllLinks() })
+
+async function pauseTask(taskId: string) {
+  try {
+    await taskApi.pause(taskId)
+    await fetchTasks()
+    toast({ type: 'success', title: '链接采集已暂停' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '暂停失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  }
+}
+
+async function resumeTask(taskId: string) {
+  try {
+    await taskApi.resume(taskId)
+    await fetchTasks()
+    toast({ type: 'success', title: '链接采集已继续' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '继续失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  }
+}
 
 async function fetchTasks() {
   const accId = linksAccId.value

@@ -393,6 +393,7 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	api.POST("/monitor/rules/:id/toggle", c.MonitorHandler.Toggle, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.DELETE("/monitor/rules/:id", c.MonitorHandler.Delete, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.GET("/monitor/messages", c.MonitorHandler.GetMessages, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
+	api.GET("/monitor/status/:account_id", c.MonitorHandler.Status, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.POST("/monitor/start/:account_id", c.MonitorHandler.StartMonitoring, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.POST("/monitor/stop/:account_id", c.MonitorHandler.StopMonitoring, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 

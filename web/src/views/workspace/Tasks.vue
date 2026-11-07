@@ -1,6 +1,6 @@
 <template>
-  <main class="space-y-4">
-    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+  <main class="ui-page-shell gap-4">
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(220px,1fr)_auto_auto] items-center gap-3">
       <div>
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">任务列表</h1>
         <!-- R109: 任务列表为全租户视角(各账号任务汇总), 移除误导性的"当前账号"标签 -->
@@ -14,7 +14,7 @@
           {{ t.label }}
         </button>
       </div>
-      <div class="ui-segmented flex gap-2 mb-3" role="group" aria-label="按创建时间筛选">
+      <div class="ui-segmented flex gap-2" role="group" aria-label="按创建时间筛选">
   <button type="button" v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="ui-segmented__item"
@@ -22,7 +22,7 @@
     {{ r[1] }}
   </button>
 </div>
-<div class="flex items-center gap-2 flex-wrap">
+<div class="ui-page-actions flex items-center gap-2 flex-wrap">
         <!-- R128 原生 select: t-select 的 tdesign 下拉面板在移动端定位滑到页面底部(用户反馈),
              原生 select 视觉已令牌化且系统自带可靠下拉 -->
         <select v-model="statusFilter"
@@ -30,6 +30,7 @@
                 style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);">
           <option value="">全部状态</option>
           <option value="running">运行中</option>
+          <option value="paused">已暂停</option>
           <option value="queued">排队中</option>
           <option value="completed">已完成</option>
           <option value="failed">失败</option>
@@ -45,12 +46,12 @@
     </div>
 
     <!-- 群组链接导入任务：任务属于任务中心，不属于正式群组库 -->
-    <section v-if="importJobs.length" class="space-y-3">
+    <section v-if="importJobs.length" class="ui-page-section space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-text-primary">群组导入与解析</h2>
         <span class="text-xs text-text-muted">{{ importJobs.length }} 条任务</span>
       </div>
-      <article v-for="job in importJobs" :key="job.job_id" class="ui-card p-4 space-y-2">
+      <article v-for="job in importJobs" :key="job.job_id" class="ui-task-card p-4 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
@@ -93,7 +94,7 @@
         <EmptyState title="暂无任务" description="创建群发/加群/采集任务后会显示在这里" />
       </div>
       <!-- 电脑端: TDesign 表格骨架 -->
-      <div v-if="tasks.length" class="hidden md:block mt-2 w-full max-w-full overflow-x-auto">
+      <div v-if="tasks.length" class="ui-table-wrap hidden md:block w-full max-w-full overflow-x-auto">
         <t-table row-key="task_id" :data="tasks" :columns="tableCols" hover style="min-width: 860px"
                  @row-click="(ctx: any) => $router.push(`/workspace/${route.params.accountId}/tasks/${ctx.row.task_id}`)">
           <template #status="{ row }">
@@ -135,7 +136,9 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
+              <t-button v-if="['running','queued','scheduled','pending'].includes(row.status)" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(row.task_id)">暂停</t-button>
+              <t-button v-if="row.status === 'paused'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="resumeTask(row.task_id)">继续</t-button>
+              <t-button v-if="['running','queued','scheduled','pending','paused'].includes(row.status)" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
               <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
                          class="ui-t-button" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
@@ -153,23 +156,26 @@
       <!-- 手机端: 卡片列表(支持下拉刷新) -->
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" class="md:hidden" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id" :style="{ '--i': ti }"
-           :class="['p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : 'border-border']"
+           :class="['ui-task-card p-4 transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : '']"
            @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.enter.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.space.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap" :class="statusClass(task.status)">
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <span class="inline-flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap" :class="statusClass(task.status)">
               <i class="w-1.5 h-1.5 rounded-full bg-current opacity-80"></i>{{ statusLabel(task.status) }}
             </span>
-            <span class="text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
+            <span class="shrink-0 whitespace-nowrap text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
             <!-- R112: 执行账号列 —— 全租户汇总后标识每条任务属于哪个号 -->
-            <span v-if="accountNameOf(task)" class="text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
+            <span v-if="accountNameOf(task)" class="max-w-full truncate text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]"
                   :title="'执行账号: ' + accountNameOf(task)">
               {{ accountNameOf(task) }}
             </span>
           </div>
-          <span class="text-xs text-text-secondary">{{ formatDate(task.created_at) }}</span>
-          <span v-if="task.status === 'queued'" class="text-xs text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
-          <span v-else-if="task.status === 'running'" class="text-xs text-[var(--t-brand)]">已运行 {{ elapsed(task.created_at) }}</span>
+          <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
+            <span class="whitespace-nowrap text-text-secondary">{{ formatDate(task.created_at) }}</span>
+            <span v-if="task.status === 'scheduled' && task.scheduled_at" class="whitespace-nowrap text-[var(--t-warn)]">计划启动 {{ formatDate(task.scheduled_at) }}</span>
+            <span v-else-if="task.status === 'queued'" class="whitespace-nowrap text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
+            <span v-else-if="task.status === 'running'" class="whitespace-nowrap text-[var(--t-brand)]">已运行 {{ elapsed(task.created_at) }}</span>
+          </div>
         </div>
         <div class="mt-2">
           <div class="flex items-center justify-between text-xs text-text-secondary mb-1">
@@ -188,7 +194,9 @@
           </div>
         </div>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
+          <t-button v-if="['running','queued','scheduled','pending'].includes(task.status)" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(task.task_id)">暂停</t-button>
+          <t-button v-if="task.status === 'paused'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="resumeTask(task.task_id)">继续</t-button>
+          <t-button v-if="['running','queued','scheduled','pending','paused'].includes(task.status)" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
           <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                      size="small" theme="warning" class="ui-t-button" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
@@ -199,7 +207,7 @@
     </div>
 
     <!-- 分页 -->
-    <div v-if="total > pageSize" class="flex items-center justify-between mt-6">
+    <div v-if="total > pageSize" class="ui-page-actions flex items-center justify-between pt-2">
       <span class="text-xs text-text-secondary">共 {{ total }} 条</span>
       <!-- P0-07: TDesign total 是总条数不是页数, 原传 totalPages 导致分页严重错误 -->
       <t-pagination :page="page" :total="total" :page-size="pageSize" @change="(p: any) => page = p.current" />
@@ -299,36 +307,56 @@ const typeFilter = ref(query.type || '')
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
 // 清空已结束任务: 复用现有 batch/delete 接口, 零后端改动
-// 跨页拉全量(每状态最多 500 条), 避免只清当前页漏其他页
+// 按后端允许的 page_size=100 分页拉取全部已结束任务，避免漏删
 // R109: 任务列表全租户化 —— 移除 account_id 过滤(原绑全局切换器, 已删除;
 // 页头文案已是"全部账号的任务汇总")
 async function clearFinished() {
-  const ids: string[] = []
-  for (const status of ['completed', 'failed', 'cancelled']) {
-    try {
-      const res: any = await taskApi.list({
-        status,
-        page: 1,
-        page_size: 500,
-        hide_loops: 1,
-        range: 'all',
-      } as any)
-      const list = Array.isArray(res) ? res : (res?.data ?? res?.list ?? [])
-      for (const t of list) if (t?.task_id) ids.push(t.task_id)
-    } catch { /* 单状态拉取失败不阻塞整体 */ }
+  const ids = new Set<string>()
+  const pageSizeForCleanup = 100
+  try {
+    for (const status of ['completed', 'failed', 'cancelled']) {
+      let cleanupPage = 1
+      while (true) {
+        const res: any = await taskApi.list({
+          status,
+          page: cleanupPage,
+          page_size: pageSizeForCleanup,
+          hide_loops: 1,
+          range: 'all',
+        } as any)
+        const list = Array.isArray(res) ? res : (res?.data ?? res?.list ?? [])
+        for (const task of list) if (task?.task_id) ids.add(task.task_id)
+        if (!Array.isArray(list) || list.length < pageSizeForCleanup) break
+        cleanupPage += 1
+      }
+    }
+  } catch (e: any) {
+    toast({
+      type: 'error',
+      title: '任务列表未完整加载，已取消清理',
+      message: e?.message || '请检查网络后重试',
+    })
+    return
   }
-  if (!ids.length) {
+
+  const taskIds = [...ids]
+  if (!taskIds.length) {
     toast({ type: 'info', title: '没有已结束的任务' })
     return
   }
-  const ok = await ask(`确定清空 ${ids.length} 条已结束任务？此操作不可恢复`,
+  const ok = await ask(`确定清空 ${taskIds.length} 条已结束任务？此操作不可恢复`,
     { title: '清空任务', danger: true, confirmText: '清空' })
   if (!ok) return
   try {
-    await taskApi.batchDelete(ids)
-    toast({ type: 'success', title: `已清空 ${ids.length} 条任务` })
+    const result: any = await taskApi.batchDelete(taskIds)
+    const deleted = Number(result?.deleted ?? taskIds.length)
+    if (deleted < taskIds.length) {
+      toast({ type: 'warning', title: `已删除 ${deleted}/${taskIds.length} 条任务`, message: '部分任务可能已被其他操作删除或状态发生变化，请刷新核对' })
+    } else {
+      toast({ type: 'success', title: `已清空 ${deleted} 条任务` })
+    }
     page.value = 1
-    fetchTasks()
+    await fetchTasks()
   } catch (e: any) {
     toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
   }
@@ -398,10 +426,30 @@ watch([page, range, statusFilter, typeFilter], () => {
   })
 })
 
+async function pauseTask(id: string) {
+  try {
+    await taskApi.pause(id)
+    await fetchTasks()
+    toast({ type: 'success', title: '任务已暂停' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '暂停失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  }
+}
+
+async function resumeTask(id: string) {
+  try {
+    await taskApi.resume(id)
+    await fetchTasks()
+    toast({ type: 'success', title: '任务已继续' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '继续失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  }
+}
+
 async function cancelTask(id: string) {
   try {
     await taskApi.cancel(id)
-    fetchTasks()
+    await fetchTasks()
     toast({ type: 'success', title: '任务已取消' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '取消失败', message: (e instanceof Error ? e.message : '请稍后重试') })
@@ -453,7 +501,7 @@ function statusClass(s: string) {
     running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
     completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]', failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]',
     cancelled: 'bg-text-muted/15 text-text-muted', paused: 'bg-text-muted/15 text-text-muted',
-    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'
+    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', scheduled: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'
   }
   return map[s] || 'bg-text-muted/15 text-text-muted'
 }
@@ -461,7 +509,7 @@ function statusClass(s: string) {
 function statusLabel(s: string) {
   const map: Record<string, string> = {
     running: '运行中', queued: '排队中', completed: '已完成',
-    failed: '失败', cancelled: '已取消', paused: '已暂停', pending: '待执行'
+    failed: '失败', cancelled: '已取消', paused: '已暂停', pending: '待执行', scheduled: '定时待启动'
   }
   return map[s] || s
 }

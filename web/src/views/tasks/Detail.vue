@@ -1,12 +1,12 @@
 <template>
-  <main class="max-w-4xl mx-auto space-y-6">
+  <main class="ui-page-shell max-w-6xl mx-auto gap-4">
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
       <t-button @click="fetchTask" class="ui-t-button--secondary ui-t-button mt-3">重新加载</t-button>
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
-    <div v-if="task" class="flex flex-wrap items-center gap-3">
+    <div v-if="task" class="ui-page-header flex flex-wrap items-center gap-3">
       <button type="button" @click="$router.push(`/workspace/${route.params.accountId}/tasks`)" class="ui-icon-btn" aria-label="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
@@ -23,13 +23,23 @@
       </span>
     </div>
 
+    <div v-if="task?.scheduled_at && task.status === 'scheduled'" class="rounded-lg border border-[var(--t-warn)]/30 bg-[var(--t-warn)]/5 px-3 py-2 text-sm text-[var(--t-warn)]">
+      计划启动时间：{{ formatDateTime(task.scheduled_at) }}
+    </div>
+    <div v-if="task?.error && ['failed','cancelled'].includes(task.status)" class="rounded-lg border border-[var(--t-err)]/25 bg-[var(--t-err)]/5 px-3 py-3">
+      <div class="flex items-center gap-2 text-sm font-semibold text-[var(--t-err)]">
+        <AlertCircle class="w-4 h-4 shrink-0" />任务结束原因
+      </div>
+      <p class="mt-1 text-sm text-text-secondary whitespace-pre-wrap break-words">{{ task.error }}</p>
+    </div>
+
     <!-- R106: 桌面端两栏 —— 左列进度卡(固定宽), 右列实时日志(自适应); 移动端保持单列堆叠 -->
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-4 items-start">
     <div class="space-y-4 min-w-0">
     <!-- 进度 -->
-    <div class="glass rounded-[var(--t-r-md)] p-6 lift">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-5">
+    <div class="glass rounded-[var(--t-r-md)] p-4 sm:p-6 lift min-w-0">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div class="flex items-center gap-3 sm:gap-5 min-w-0">
           <!-- R126 示例2 ring 进度环: conic-gradient 环 + 内圈百分比 -->
           <div class="relative w-[92px] h-[92px] rounded-full grid place-items-center shrink-0"
                :style="{ background: `conic-gradient(var(--t-brand) ${progressPercent * 3.6}deg, var(--t-surface-2) 0deg)` }">
@@ -45,7 +55,7 @@
             </p>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 sm:justify-end">
           <t-button v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
           <t-button v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</t-button>
           <t-button v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
@@ -79,7 +89,7 @@
 
     <!-- 成员采集结果 -->
     <div v-if="task?.type === 'scrape_members'" class="glass rounded-[var(--t-r-md)] p-5 lift">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div class="flex items-center gap-2">
           <Users class="w-4 h-4 text-text-muted" />
           <h3 class="text-sm font-medium">采集到的成员</h3>
@@ -103,14 +113,14 @@
     </div><!-- /左列 -->
     <div class="min-w-0">
     <!-- 实时日志 -->
-    <div class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div class="glass rounded-[var(--t-r-md)] p-4 sm:p-5 lift min-w-0">
       <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 min-w-0">
           <Clock class="w-4 h-4 text-text-muted" />
           <h3 class="text-sm font-medium">实时日志</h3>
           <span class="text-xs text-text-secondary">({{ logs.length }})</span>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <span v-if="connState === 'connected'" class="flex items-center gap-1 text-xs text-[var(--t-ok)]">
             <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-ok)] animate-pulse" />
             实时连接中
@@ -140,7 +150,7 @@
       <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
         <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
       </div>
-      <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
+      <div ref="logContainer" class="max-h-[60vh] sm:max-h-[560px] overflow-y-auto overscroll-contain space-y-1.5">
         <div
           v-for="(log, i) in filteredDisplayLogs"
           :key="log.log_id || `${log.executed_at}-${i}`"
@@ -368,12 +378,14 @@ useTaskEvents((evt: any) => {
     }
     return
   }
-  if (evt.progress && task.value) {
-    task.value = { ...task.value, progress: evt.progress }
-    return
-  }
+  // 状态事件优先处理：某些 task_status 同时携带 progress，
+  // 不能先被 progress 分支 return，否则详情页会一直停留在旧状态。
   if (evt.type === 'task_status') {
     fetchTask()
+    return
+  }
+  if (evt.progress && task.value) {
+    task.value = { ...task.value, progress: evt.progress }
   }
 })
 
