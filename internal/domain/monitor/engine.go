@@ -109,8 +109,8 @@ type Engine struct {
 
 	// 语音振铃冷却: key=tenantID:accountID:calleeID → 上次拨打时间。
 	// 通话是强打扰动作, 同一监控号对同一目标 10 分钟内最多拨一次, 防风控封号和恶意骚扰。
-	callMu   sync.Mutex
-	lastCall map[string]time.Time
+	callMu            sync.Mutex
+	lastCall          map[string]time.Time
 	callCooldownStore CallCooldownStore
 
 	// DM 子动作状态按租户/账号/规则/目标/动作隔离，避免部分成功被整体去重吞掉。
