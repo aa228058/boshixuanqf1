@@ -65,7 +65,7 @@ func TestDMActionTerminalStatesAreNotRetried(t *testing.T) {
 			}
 			e.finishDMAction(key, status)
 			if e.claimDMAction(key) {
-				t.Fatalf("%s state must not be retried automatically", status)
+				t.Fatalf("%v state must not be retried automatically", status)
 			}
 			if got := e.dmActions[key]; got != status {
 				t.Fatalf("terminal state changed: got %v, want %v", got, status)
