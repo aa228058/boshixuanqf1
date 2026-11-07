@@ -16,7 +16,7 @@ import (
 
 // importLinkRe 从一行文本里提取 t.me 链接 / @用户名 / 裸用户名 / 私密邀请链接。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
-var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(joinchat/|\+)?|@)([+a-zA-Z0-9_\-]{4,64})`)
+var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(s/|joinchat/|\+)?|@)([+a-zA-Z0-9_\-]{4,64})`)
 
 // ImportResult 批量导入结果汇总。
 type ImportResult struct {
@@ -62,7 +62,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			}
 			if kind == "+" || kind == "joinchat/" || strings.HasPrefix(name, "+") {
 				hash := strings.TrimPrefix(name, "+")
-				if len(hash) < 5 {
+				if !telegramInviteHashRe.MatchString(hash) {
 					continue
 				}
 				link := "t.me/+" + hash
@@ -73,6 +73,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				entries = append(entries, entry{private: true, hash: hash, link: link})
 				found = true
 			} else {
+				if !telegramUsernameRe.MatchString(name) {
+					continue
+				}
 				link := "u:" + strings.ToLower(name)
 				if seen[link] {
 					continue
