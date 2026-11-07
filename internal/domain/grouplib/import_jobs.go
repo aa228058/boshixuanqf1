@@ -177,8 +177,7 @@ func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, fai
 		}
 		links = append(links, link)
 		details = append(details, detail)
-	}
-	if len(links) == 0 {
+	}	if len(links) == 0 {
 		return nil
 	}
 	// Persist a whole worker chunk in one round trip instead of issuing one
@@ -296,6 +295,13 @@ func summarizeImportBatch(result *ImportResult, rateLimited bool) importBatchPro
 	return progress
 }
 
+func (e *Engine) importWorkerBatch(ctx context.Context, tenantID, accountID uuid.UUID, lines []string) (*ImportResult, error) {
+	if e.workerImportOverride != nil {
+		return e.workerImportOverride(ctx, tenantID, accountID, lines)
+	}
+	return e.importByLinks(ctx, tenantID, accountID, lines, true)
+}
+
 const importJobHeartbeatInterval = 30 * time.Second
 
 // processImportJobs 使用数据库租约领取任务。租约令牌同时作为 fencing token，
@@ -357,8 +363,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 
 		cancelWatchDone := make(chan struct{})
 		go func() {
-			defer close(cancelWatchDone)
-			ticker := time.NewTicker(time.Second)
+			defer close(cancelWatchDone)			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 			for {
 				select {
@@ -414,10 +419,10 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				end = len(lines)
 			}
 			// 公开链接优先共享网页解析；选择账号时，私密邀请及网页失败项由 MTProto 补充解析。
-			result, importErr := e.importByLinks(leaseCtx, tenantID, accountID, lines[offset:end], true)
+			result, importErr := e.importWorkerBatch(leaseCtx, tenantID, accountID, lines[offset:end])
 			if importErr != nil && accountID != uuid.Nil && strings.Contains(importErr.Error(), "取账号连接失败") && leaseCtx.Err() == nil {
 				log.Printf("[grouplib] 导入账号暂不可用，任务 %s 本批降级为网页解析: %v", jobID, importErr)
-				result, importErr = e.importByLinks(leaseCtx, tenantID, uuid.Nil, lines[offset:end], true)
+				result, importErr = e.importWorkerBatch(leaseCtx, tenantID, uuid.Nil, lines[offset:end])
 			}
 
 			var rateLimitErr *TelegramRateLimitError
@@ -558,47 +563,3 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				    finished_at=CASE WHEN status='cancelling' THEN NOW() ELSE $9 END,
 				    payload=CASE WHEN status='cancelling' OR $8='completed' THEN '' ELSE payload END,
 				    lease_token=CASE WHEN status='cancelling' OR $8='completed' THEN NULL ELSE lease_token END,
-				    lease_expires_at=CASE WHEN status='cancelling' OR $8='completed' THEN NULL ELSE lease_expires_at END,
-				    updated_at=NOW()
-				WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2
-				  AND processed_count=$10`,
-				jobID, leaseToken, end, imported, failed, skipped, lastError,
-				nextStatus, finished, offset)
-			if updateErr != nil || tag.RowsAffected() != 1 {
-				break
-			}
-			offset = end
-			if nextStatus == "completed" {
-				break
-			}
-		}
-
-		if leaseCtx.Err() != nil && leaseValid() {
-			persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-			_, _ = e.pool.Exec(persistCtx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE job_id=$1 AND status='cancelling' AND lease_token=$2`, jobID, leaseToken)
-			persistCancel()
-		}
-		// 每次调度最多处理 300 条；未完成任务立即释放回 pending，不必等待租约过期。
-		if leaseValid() && leaseCtx.Err() == nil {
-			_, _ = e.pool.Exec(leaseCtx, `
-				UPDATE group_library_import_jobs
-				SET status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
-				WHERE job_id=$1 AND status='processing' AND lease_token=$2`,
-				jobID, leaseToken)
-		}
-		stopLease()
-		<-heartbeatDone
-		<-cancelWatchDone
-	}
-}
-
-func splitImportLines(payload string) []string {
-	return strings.FieldsFunc(payload, func(r rune) bool {
-		switch r {
-		case 10, 13, 32, 9, ',', '；', ';':
-			return true
-		default:
-			return false
-		}
-	})
-}
