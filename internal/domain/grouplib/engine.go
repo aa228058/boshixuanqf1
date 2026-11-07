@@ -48,6 +48,9 @@ type Engine struct {
 
 	resolveCache   map[string]cachedImportResolution
 	resolveFlights map[string]*importResolveCall
+
+	// workerImportOverride is set only by deterministic PostgreSQL worker tests.
+	workerImportOverride func(context.Context, uuid.UUID, uuid.UUID, []string) (*ImportResult, error)
 }
 
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
