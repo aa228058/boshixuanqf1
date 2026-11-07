@@ -74,7 +74,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   })
   // 头像接口返回二进制图片，而不是通用 GET 夹具的 JSON。
   // 否则浏览器会把 JSON Blob 当作图片解码失败，触发全局资源错误红条并污染视觉截图。
-  await page.route(/\\/api\\/v1\\/accounts\\/[^/]+\\/avatar(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/avatar(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     return route.fulfill({
       status: 200,
