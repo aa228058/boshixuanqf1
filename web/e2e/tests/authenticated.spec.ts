@@ -251,7 +251,7 @@ test('租户页面没有页面级横向溢出', async ({ page }) => {
 })
 
 
-test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
+test('移动端租户页面没有页面级横向溢出', async ({ page }, testInfo) => {
   for (const route of await tenantRoutes(page)) {
     await navigateTenantRoute(page, route)
     await page.waitForTimeout(500)
