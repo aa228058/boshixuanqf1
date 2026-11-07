@@ -46,7 +46,13 @@
   max-height: min(88dvh, 900px) !important;
   margin: auto !important;
 }
-.modal-card { width: 100%; min-width: 0; min-height: 0; max-height: inherit; }
+.modal-card {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(88dvh, 900px) !important;
+}
 @media (min-width: 769px) {
   .modal-wrapper {
     align-items: center !important;
