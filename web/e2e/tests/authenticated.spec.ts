@@ -63,7 +63,6 @@ const routes = [
   '/updates',
   '/help',
   '/raffle',
-  '/sessions',
 ]
 
 // 通过 Vue 应用实例调用真实 Vue Router，避免整页 reload 重复恢复会话，
@@ -85,6 +84,12 @@ async function navigateTenantRoute(page: import('@playwright/test').Page, route:
   }, route)
   await expect(page).toHaveURL(url => url.pathname === new URL(finalPath, url.origin).pathname, { timeout: 15_000 })
 }
+
+test('旧协议号管理地址跳转到统一账号管理页', async ({ page }) => {
+  await navigateTenantRoute(page, '/sessions')
+  await expect(page).toHaveURL(url => url.pathname === '/accounts')
+  await expect(page.getByRole('heading', { name: /账号管理/ })).toBeVisible()
+})
 
 async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
   let accountId = process.env.E2E_ACCOUNT_ID
