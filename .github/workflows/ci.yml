@@ -2,17 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [main, master, ci/isolated-enterprise-e2e]
+    branches:
+      - main
+      - master
+      - ci/isolated-enterprise-e2e
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [main, master, feat/group-import-resolver-pipeline]
+    branches:
+      - main
+      - master
+      - feat/group-import-resolver-pipeline
 
 jobs:
   sql-audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: SQL coverage scan (INSERT coverage + SELECT/Scan count)
+      - name: SQL coverage scan
         run: python3 scripts/check-sql-coverage.py
 
   integration:
@@ -22,14 +28,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26.6'
-      - name: Run integration tests (testcontainers PG16 + 全量迁移)
+      - name: Run repository integration tests (PostgreSQL 16 via testcontainers)
         run: go test -tags=integration -timeout 600s ./internal/repository/
 
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Run gitleaks
@@ -40,12 +45,10 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -87,7 +90,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.2'
+          go-version: '1.26.6'
       - name: Download dependencies
         run: go mod download
       - name: Check formatting
@@ -96,19 +99,18 @@ jobs:
           if [ -n "$UNFORMATTED" ]; then
             echo "These files are not gofmt-formatted:"
             echo "$UNFORMATTED"
-            echo "gofmt diff:"
             gofmt -d $UNFORMATTED
             exit 1
           fi
       - name: Run go vet
         run: go vet ./...
-      - name: Run gosec (security scan)
+      - name: Run gosec
         id: gosec
         continue-on-error: true
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           gosec -exclude-generated ./...
-      - name: Run tests
+      - name: Run Go tests
         env:
           DB_HOST: localhost
           DB_PORT: 5432
@@ -116,7 +118,7 @@ jobs:
           DB_PASSWORD: postgres
           DB_NAME: tg_sender_test
           DB_SSLMODE: disable
-          JWT_SECRET: test-secret-key-32-char-long!!! # gitleaks:allow 测试夹具，非真实密钥
+          JWT_SECRET: test-secret-key-32-char-long!!! # gitleaks:allow test fixture
           TG_API_ID: 12345
           TG_API_HASH: test_hash
         run: go test -race -coverprofile=coverage.out ./...
@@ -127,14 +129,7 @@ jobs:
           fail_ci_if_error: false
       - name: Build binary
         run: go build -o tg-sender ./cmd/server
-      - name: Run migrations
-        env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: postgres
-          DB_PASSWORD: postgres
-          DB_NAME: tg_sender_test
-          DB_SSLMODE: disable
+      - name: Apply all database migrations
         run: |
           go install github.com/pressly/goose/v3/cmd/goose@latest
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
@@ -142,81 +137,8 @@ jobs:
         env:
           GOMAXPROCS: 2
         run: |
-          go test ./internal/domain/grouplib -run '^      - name: Upload import benchmark report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: group-import-parser-benchmark
-          path: import-filter-bench.txt
-          if-no-files-found: ignore
-          retention-days: 14
-      - name: Enforce gosec result
-        if: always() && steps.gosec.outcome == 'failure'
-        run: |
-          echo "gosec reported security findings; review the Run gosec step before merging."
-          exit 1
-
-  frontend-check:
-    name: Frontend Typecheck + Unit Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Design token guard
-        run: npm run check:design-tokens
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Unit tests
-        run: npm test
- -bench '^BenchmarkFilterImportLinks      - name: Upload import benchmark report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: group-import-parser-benchmark
-          path: import-filter-bench.txt
-          if-no-files-found: ignore
-          retention-days: 14
-      - name: Enforce gosec result
-        if: always() && steps.gosec.outcome == 'failure'
-        run: |
-          echo "gosec reported security findings; review the Run gosec step before merging."
-          exit 1
-
-  frontend-check:
-    name: Frontend Typecheck + Unit Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Design token guard
-        run: npm run check:design-tokens
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Unit tests
-        run: npm test
- -benchmem -benchtime=1x -count=1 | tee import-filter-bench.txt
+          set -o pipefail
+          go test ./internal/domain/grouplib -run '^$' -bench '^BenchmarkFilterImportLinks$' -benchmem -benchtime=1x -count=1 | tee import-filter-bench.txt
       - name: Benchmark PostgreSQL failure batch persistence (10k/30k/50k)
         env:
           DB_HOST: localhost
@@ -227,49 +149,12 @@ jobs:
           DB_SSLMODE: disable
         run: |
           set -o pipefail
-          go test -tags=importbench ./internal/domain/grouplib -run '^TestPersistImportFailuresLoad      - name: Upload import benchmark report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: group-import-parser-benchmark
-          path: import-filter-bench.txt
-          if-no-files-found: ignore
-          retention-days: 14
-      - name: Enforce gosec result
-        if: always() && steps.gosec.outcome == 'failure'
-        run: |
-          echo "gosec reported security findings; review the Run gosec step before merging."
-          exit 1
-
-  frontend-check:
-    name: Frontend Typecheck + Unit Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Design token guard
-        run: npm run check:design-tokens
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Unit tests
-        run: npm test
- -v -count=1 2>&1 | tee -a import-filter-bench.txt
+          go test -tags=importbench ./internal/domain/grouplib -run '^TestPersistImportFailuresLoad$' -v -count=1 2>&1 | tee -a import-filter-bench.txt
       - name: Upload import benchmark report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: group-import-parser-benchmark
+          name: group-import-parser-and-postgres-benchmark
           path: import-filter-bench.txt
           if-no-files-found: ignore
           retention-days: 14
@@ -278,27 +163,3 @@ jobs:
         run: |
           echo "gosec reported security findings; review the Run gosec step before merging."
           exit 1
-
-  frontend-check:
-    name: Frontend Typecheck + Unit Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Design token guard
-        run: npm run check:design-tokens
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Unit tests
-        run: npm test
