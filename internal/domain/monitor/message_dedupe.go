@@ -17,13 +17,13 @@ type messageDedupKey struct {
 	tenantID  uuid.UUID
 	accountID uuid.UUID
 	chatID    int64
-	messageID int
+	messageID int32
 }
 
 // markMessageSeen returns false when this account has already delivered the
 // same Telegram message recently. The key is scoped by tenant, account, chat,
 // and message so independent accounts never suppress each other's updates.
-func (e *Engine) markMessageSeen(tenantID, accountID uuid.UUID, chatID int64, messageID int) bool {
+func (e *Engine) markMessageSeen(tenantID, accountID uuid.UUID, chatID int64, messageID int32) bool {
 	now := time.Now()
 	key := messageDedupKey{
 		tenantID:  tenantID,
