@@ -93,7 +93,9 @@ func (e *Engine) CancelImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	job.ValidCount = job.TotalCount
 	return &job, nil
 }
@@ -119,21 +121,33 @@ func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.
 		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
-	if err != nil { return nil, fmt.Errorf("没有可重试的失败链接或原任务不存在: %w", err) }
-	if _, err := tx.Exec(ctx, `UPDATE group_library_import_job_failures SET retry_job_id=$3, updated_at=NOW() WHERE job_id=$1 AND retry_job_id IS NULL AND EXISTS (SELECT 1 FROM group_library_import_jobs WHERE job_id=$3 AND tenant_id=$2)`, jobID, tenantID, job.JobID); err != nil { return nil, err }
-	if err := tx.Commit(ctx); err != nil { return nil, err }
+	if err != nil {
+		return nil, fmt.Errorf("没有可重试的失败链接或原任务不存在: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE group_library_import_job_failures SET retry_job_id=$3, updated_at=NOW() WHERE job_id=$1 AND retry_job_id IS NULL AND EXISTS (SELECT 1 FROM group_library_import_jobs WHERE job_id=$3 AND tenant_id=$2)`, jobID, tenantID, job.JobID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	job.ValidCount = job.TotalCount
 	return &job, nil
 }
 
 func importFailureLink(detail string) string {
 	closeBracket := strings.Index(detail, "] ")
-	if closeBracket < 0 { return "" }
+	if closeBracket < 0 {
+		return ""
+	}
 	value := detail[closeBracket+2:]
 	separator := strings.Index(value, ": ")
-	if separator < 0 { return "" }
+	if separator < 0 {
+		return ""
+	}
 	link := strings.TrimSpace(value[:separator])
-	if strings.HasPrefix(link, "https://t.me/") || strings.HasPrefix(link, "http://t.me/") || strings.HasPrefix(link, "tg://") { return link }
+	if strings.HasPrefix(link, "https://t.me/") || strings.HasPrefix(link, "http://t.me/") || strings.HasPrefix(link, "tg://") {
+		return link
+	}
 	return ""
 }
 
@@ -141,7 +155,9 @@ func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, fai
 	for _, detail := range failures {
 		link := importFailureLink(detail)
 		if link == "" { continue }
-		if _, err := e.pool.Exec(ctx, `INSERT INTO group_library_import_job_failures (job_id,original_link,error_text) VALUES ($1,$2,$3) ON CONFLICT (job_id,original_link) DO UPDATE SET error_text=EXCLUDED.error_text, updated_at=NOW()`, jobID, link, detail); err != nil { return err }
+		if _, err := e.pool.Exec(ctx, `INSERT INTO group_library_import_job_failures (job_id,original_link,error_text) VALUES ($1,$2,$3) ON CONFLICT (job_id,original_link) DO UPDATE SET error_text=EXCLUDED.error_text, updated_at=NOW()`, jobID, link, detail); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -369,7 +385,12 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(importErr, &rateLimitErr) {
 				progress := summarizeImportBatch(result, true)
-				if result != nil && progress.failed > 0 { if err := e.persistImportFailures(leaseCtx, jobID, result.Failed[:progress.failed]); err != nil { log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err); break } }
+				if result != nil && progress.failed > 0 {
+					if err := e.persistImportFailures(leaseCtx, jobID, result.Failed[:progress.failed]); err != nil {
+						log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err)
+						break
+					}
+				}
 				partialImported, partialFailed, partialSkipped := progress.imported, progress.failed, progress.skipped
 				processedPrefix, detail := progress.processed, progress.detail
 				if processedPrefix > 0 {
@@ -424,7 +445,11 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				progress := summarizeImportBatch(result, false)
 				processed, imported, failed, skipped, detail := progress.processed, progress.imported, progress.failed, progress.skipped, progress.detail
 				persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-				if result != nil && progress.failed > 0 { if err := e.persistImportFailures(persistCtx, jobID, result.Failed[:progress.failed]); err != nil { log.Printf("[grouplib] 保存中断任务失败链接失败 job=%s: %v", jobID, err) } }
+				if result != nil && progress.failed > 0 {
+					if err := e.persistImportFailures(persistCtx, jobID, result.Failed[:progress.failed]); err != nil {
+						log.Printf("[grouplib] 保存中断任务失败链接失败 job=%s: %v", jobID, err)
+					}
+				}
 				_, persistErr := e.pool.Exec(persistCtx, `
 					UPDATE group_library_import_jobs
 					SET processed_count=processed_count+$3,
@@ -452,7 +477,12 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				break
 			}
 			progress := summarizeImportBatch(result, false)
-			if result != nil && progress.failed > 0 { if err := e.persistImportFailures(leaseCtx, jobID, result.Failed); err != nil { log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err); break } }
+			if result != nil && progress.failed > 0 {
+				if err := e.persistImportFailures(leaseCtx, jobID, result.Failed); err != nil {
+					log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err)
+					break
+				}
+			}
 			imported, failed, skipped := progress.imported, progress.failed, progress.skipped
 			lastError := progress.detail
 			if result == nil && importErr != nil {
