@@ -24,3 +24,5 @@ A real end-to-end run must use an isolated PostgreSQL database and explicit
 authorized Telegram test fixtures. Public-link network resolution and
 MTProto invite resolution must be reported as separate scenarios. Never run
 high-volume tests against production accounts or production group libraries.
+
+The pull-request CI workflow runs the three local parser benchmark sizes after database migrations and archives the output as `group-import-parser-benchmark`.
