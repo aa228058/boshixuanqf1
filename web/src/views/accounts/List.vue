@@ -1,16 +1,17 @@
 <template>
   <main class="ui-page-shell">
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
-    <div class="grid gap-2 mb-3.5">
-      <div class="flex gap-2">
-        <t-button theme="primary" class="flex-1 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
+    <div class="ui-toolbar mb-3.5">
+      <div class="ui-page-actions flex-1">
+
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
-        <t-button theme="default" class="flex-1 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
+        <t-button theme="default" class="ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
         <!-- 多选模式入口(桌面端; 移动端可长按列表行进入) -->
         <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap"
                 @click="enterSelecting">多选</t-button>
       </div>
-      <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full">
+      <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full sm:w-64">
         <template #prefix>
           <Search class="w-4 h-4" style="color: var(--t-text-3);" />
         </template>
@@ -217,7 +218,7 @@
                 :title="cooldownText(acc) ? `受限中 · ${cooldownText(acc)}后恢复` : '受限中'">
             <ShieldAlert class="w-3.5 h-3.5" />受限
           </span>
-          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)" class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
+          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)" class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden lg:inline-flex whitespace-nowrap">
             <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" /> {{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
           </t-button>
           <!-- R128 窄屏适配: 资料/检测桌面直出, 移动端收进 ⋯ 菜单(原窄屏被信息区挤出屏幕) -->
@@ -269,16 +270,16 @@
               <div class="border-t border-border my-1"></div>
               <!-- R108 修复: 转备用/资料/检测在移动端收进面板(桌面另有 ghost 按钮直出) -->
               <button type="button" @click="openMenuId = ''; togglePool(acc)"
-                      class="ui-menu-item w-full sm:hidden">
+                      class="ui-menu-item w-full lg:hidden">
                 <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" />{{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
               </button>
               <button type="button" @click="openMenuId = ''; openProfile(acc)"
-                      class="ui-menu-item w-full sm:hidden">
+                      class="ui-menu-item w-full lg:hidden">
                 <UserRoundPen class="w-3.5 h-3.5" />查看资料
               </button>
               <!-- R119: 能力检测(移动端面板, sm:hidden 桌面不重复显示) -->
               <button type="button" @click="openMenuId = ''; openProbe(acc)"
-                      class="ui-menu-item w-full sm:hidden">
+                      class="ui-menu-item w-full lg:hidden">
                 <ShieldCheck class="w-3.5 h-3.5" />检测
               </button>
               <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
@@ -303,8 +304,8 @@
         </div>
 
         <template v-if="addMode === 'phone'">
-        <div>
-          <label for="add-phone" class="block text-sm text-text-secondary mb-1.5">手机号</label>
+        <div class="ui-form-field">
+          <label for="add-phone" class="ui-form-label">手机号</label>
           <div class="flex items-center">
             <span class="inline-flex items-center px-3 h-[44px] rounded-l-lg bg-bg-card border border-r-0 border-border text-text-secondary text-sm">+</span>
             <input
@@ -316,28 +317,28 @@
           </div>
           <p class="text-xs text-text-secondary mt-1">输入国际格式手机号，如 86 13800138000</p>
         </div>
-        <div>
-          <label for="add-remark" class="block text-sm text-text-secondary mb-1.5">备注（可选）</label>
+        <div class="ui-form-field">
+          <label for="add-remark" class="ui-form-label">备注（可选）</label>
           <input
             id="add-remark"
             v-model="newRemark"
             placeholder="如：主号-客服"
             class="ui-input !min-h-[44px] !text-sm" aria-label="备注" />
         </div>
-        <div>
-          <label for="add-group" class="block text-sm text-text-secondary mb-1.5">分组（可选）</label>
+        <div class="ui-form-field">
+          <label for="add-group" class="ui-form-label">分组（可选）</label>
           <t-select v-model="newGroupId" :options="groupOptions" placeholder="不分组" />
         </div>
         </template>
 
         <!-- 协议号导入面板 -->
         <template v-else>
-          <div>
-            <label class="block text-sm text-text-secondary mb-1.5">Session 字符串（每行一个）</label>
+          <div class="ui-form-field">
+            <label class="ui-form-label">Session 字符串（每行一个）</label>
             <textarea v-model="importText" rows="5" class="ui-input !text-sm font-mono" placeholder="每行粘贴一个 session 字符串，可批量导入" aria-label="session 字符串"></textarea>
           </div>
-          <div>
-            <label class="block text-sm text-text-secondary mb-1.5">或上传 session 文件（可多选）</label>
+          <div class="ui-form-field">
+            <label class="ui-form-label">或上传 session 文件（可多选）</label>
             <input type="file" multiple accept=".session,.see,.tdata,.zip,.rar,.7z,.json" class="w-full text-sm text-text-secondary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-bg-hover file:text-text-primary" @change="onImportFiles" aria-label="session 文件" />
             <p v-if="importFileList.length" class="text-xs text-[var(--t-brand)] mt-1">已选 {{ importFileList.length }} 个文件</p>
           </div>
@@ -422,7 +423,7 @@
     <!-- 分组管理弹窗 -->
     <Modal v-model="showGroupModal" title="账号分组管理">
       <div class="space-y-3">
-        <div v-for="g in accountGroups" :key="g.group_id" class="flex items-center gap-2 p-3 rounded-lg bg-bg-card">
+        <div v-for="g in accountGroups" :key="g.group_id" class="ui-task-card flex items-center gap-2 p-3">
           <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'text-text-muted'}`" />
           <span class="flex-1 text-sm">{{ g.name }}</span>
           <span class="text-xs text-text-secondary">{{ (g.account_ids || []).length }} 个账号</span>
