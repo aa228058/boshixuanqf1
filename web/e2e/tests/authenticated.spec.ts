@@ -6,7 +6,7 @@ const tenantPassword = process.env.E2E_TENANT_PASSWORD
 test.beforeEach(async ({ page }) => {
   if (!tenantUsername || !tenantPassword) return // 使用项目配置加载的 .auth/user.json
   // 所有认证页面共用一组只读演示账号；不依赖租户真实账号数据，也不触发 Telegram 操作。
-  await page.route(/\\/api\\/v1\\/accounts(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/accounts(?:\\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     await route.fulfill({
       status: 200, contentType: 'application/json',
@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
       }] }),
     })
   })
-  await page.route(/\\/api\\/v1\\/tasks\\/e2e-demo-task(?:\\/.*)?(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/tasks\/e2e-demo-task(?:\/.*)?(?:\\?.*)?$/, async route => {
     const url = new URL(route.request().url())
     if (url.pathname.endsWith('/logs')) {
       return route.fulfill({
