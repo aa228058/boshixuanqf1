@@ -150,6 +150,27 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
       node.getAnimations().map(animation => animation.finished.catch(() => undefined)),
     ))
   })
+  const layoutDiagnostics = await modal.evaluate((element) => {
+    const rect = (node: Element) => {
+      const r = node.getBoundingClientRect()
+      const s = getComputedStyle(node)
+      return {
+        tag: node.tagName,
+        className: typeof node.className === 'string' ? node.className : '',
+        rect: { x: r.x, y: r.y, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height },
+        style: { position: s.position, display: s.display, alignItems: s.alignItems, justifyContent: s.justifyContent, inset: s.inset, top: s.top, right: s.right, bottom: s.bottom, left: s.left, height: s.height, margin: s.margin, padding: s.padding, transform: s.transform, overflow: s.overflow, boxSizing: s.boxSizing },
+      }
+    }
+    const ancestors: Element[] = []
+    let node: Element | null = element
+    while (node && ancestors.length < 6) { ancestors.push(node); node = node.parentElement }
+    return {
+      viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight, visual: window.visualViewport ? { width: window.visualViewport.width, height: window.visualViewport.height, offsetTop: window.visualViewport.offsetTop, pageTop: window.visualViewport.pageTop } : null },
+      keyboardOffset: getComputedStyle(document.documentElement).getPropertyValue('--modal-kb'),
+      ancestors: ancestors.map(rect),
+    }
+  })
+  console.log('[modal-layout-diagnostics]', JSON.stringify(layoutDiagnostics))
   const bounds = await modal.boundingBox()
   const viewport = page.viewportSize()
   expect(bounds, '弹窗应有可见布局边界').not.toBeNull()
