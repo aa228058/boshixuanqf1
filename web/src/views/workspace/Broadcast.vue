@@ -1,12 +1,14 @@
 <template>
   <div class="ui-page-shell w-full max-w-3xl mx-auto p-4 sm:p-6">
-    <div class="ui-page-header mb-4">
+    <div class="ui-page-header">
       <div class="ui-page-heading min-w-0">
         <h1 class="ui-page-title truncate">群发消息</h1>
         <!-- R109: 移除"当前账号"标签(群发已多账号池化, 单一账号标签误导) -->
         <p class="ui-page-description mt-1">执行账号在创建任务时选择，可多选</p>
       </div>
-      <t-button theme="primary" class="ui-t-button ui-t-button--primary shrink-0" @click="showCreate = true">新建群发任务</t-button>
+      <div class="ui-page-actions">
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary shrink-0" @click="showCreate = true">新建群发任务</t-button>
+      </div>
     </div>
 
     <!-- 页面 tab: 任务列表 / 发送日历(发送日历合并自原独立页) -->
