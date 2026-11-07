@@ -43,3 +43,14 @@ func TestFilterImportLinksRejectsInvalidUsernameLength(t *testing.T) {
 		t.Fatalf("expected no valid links, got %#v", got.Links)
 	}
 }
+
+func TestFilterImportLinksExcludesBotUsernamesFromResumablePayload(t *testing.T) {
+	got := filterImportLinks("https://t.me/real_group\nhttps://t.me/SomeBot\n@anotherbot\n@validchannel")
+	want := []string{"https://t.me/real_group", "https://t.me/validchannel"}
+	if !reflect.DeepEqual(got.Links, want) {
+		t.Fatalf("links = %#v, want %#v", got.Links, want)
+	}
+	if got.RawCount != 4 || got.Invalid != 2 || got.Duplicate != 0 {
+		t.Fatalf("counts = raw:%d duplicate:%d invalid:%d, want raw:4 duplicate:0 invalid:2", got.RawCount, got.Duplicate, got.Invalid)
+	}
+}
