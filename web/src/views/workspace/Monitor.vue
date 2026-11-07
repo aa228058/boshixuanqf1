@@ -1,5 +1,5 @@
 <template>
-  <div class="ui-page-shell w-full max-w-4xl mx-auto p-4 sm:p-6">
+  <div class="ui-page-shell w-full max-w-6xl mx-auto p-4 sm:p-6">
     <header class="ui-page-header">
       <div class="ui-page-heading">
         <h1 class="ui-page-title truncate">消息监控</h1>
