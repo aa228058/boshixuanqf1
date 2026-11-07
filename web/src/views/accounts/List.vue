@@ -223,7 +223,7 @@
           </t-button>
           <!-- R128 窄屏适配: 资料/检测桌面直出, 移动端收进 ⋯ 菜单(原窄屏被信息区挤出屏幕) -->
           <t-button theme="default" variant="outline" size="sm" @click="openProfile(acc)"
-                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden lg:inline-flex whitespace-nowrap">
             <UserRoundPen class="w-3.5 h-3.5" /> 资料
           </t-button>
           <!-- R119: 能力检测(8 项矩阵, 全套餐可用) -->
@@ -237,11 +237,11 @@
                     class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0"
                     aria-label="更多操作">更多</t-button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
-            <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
+            <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] lg:hidden"
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
             <!-- 更多菜单(R141): 移动端 = 底部 ActionSheet(圆角上提, 遮罩关闭); 桌面端 = 向上弹出菜单 -->
             <div v-if="openMenuId === acc?.account_id"
-                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1 sm:w-44 sm:z-50"
+                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl lg:absolute lg:right-0 lg:bottom-full lg:mb-1 lg:w-44 lg:z-50"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
               <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
@@ -2034,7 +2034,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   box-shadow: var(--t-shadow-pop);
 }
 /* 移动端账号卡片：操作区独占第二行，避免与手机号/状态信息争抢横向空间。 */
-@media (max-width: 639px) {
+@media (max-width: 1023px) {
   .acc-row { flex-wrap: wrap; }
   .acc-actions {
     flex: 0 0 100%;
@@ -2044,7 +2044,7 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   }
 }
 
-@media (min-width: 640px) {
+@media (min-width: 1024px) {
   .acc-menu {
     left: auto;
     right: 0;
