@@ -35,6 +35,11 @@ func (e *Engine) claimDMAction(key dmActionKey) bool {
 	if _, exists := e.dmActions[key]; exists {
 		return false
 	}
+	// Fail closed at the cap: evicting old keys could resend an action that
+	// was already delivered, while an unbounded map would leak memory.
+	if len(e.dmActions) >= 100000 {
+		return false
+	}
 	e.dmActions[key] = dmActionInProgress
 	return true
 }
