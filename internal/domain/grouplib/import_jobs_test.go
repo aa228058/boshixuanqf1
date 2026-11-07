@@ -1,6 +1,7 @@
 package grouplib
 
 import (
+	"tg-sender/internal/domain"
 	"errors"
 	"testing"
 	"time"
@@ -54,5 +55,41 @@ func TestTelegramMTProtoRateLimit(t *testing.T) {
 				t.Fatalf("RetryAfter = %s, want %s", rateLimitErr.RetryAfter, tt.want)
 			}
 		})
+	}
+}
+
+
+func TestSummarizeImportBatchRateLimitPreservesCompletedPrefix(t *testing.T) {
+	result := &ImportResult{
+		Processed: 3,
+		Imported: []domain.SystemGroup{{Title: "one"}},
+		Failed: []string{
+			"[not_found] https://t.me/missinggroup: not found",
+			"[rate_limited] https://t.me/currentgroup: FLOOD_WAIT_37",
+		},
+		Skipped: 4,
+	}
+	got := summarizeImportBatch(result, true)
+	if got.processed != 3 || got.imported != 1 || got.failed != 1 || got.skipped != 0 {
+		t.Fatalf("unexpected rate-limited progress: %+v", got)
+	}
+	if got.detail != "[not_found] https://t.me/missinggroup: not found" {
+		t.Fatalf("unexpected completed-prefix detail: %q", got.detail)
+	}
+}
+
+func TestSummarizeImportBatchNormalProgress(t *testing.T) {
+	result := &ImportResult{
+		Processed: 5,
+		Imported: []domain.SystemGroup{{Title: "one"}, {Title: "two"}},
+		Failed: []string{"[not_found] https://t.me/missinggroup: not found"},
+		Skipped: 2,
+	}
+	got := summarizeImportBatch(result, false)
+	if got.processed != 5 || got.imported != 2 || got.failed != 1 || got.skipped != 2 {
+		t.Fatalf("unexpected progress: %+v", got)
+	}
+	if got.detail != result.Failed[0] {
+		t.Fatalf("detail = %q, want %q", got.detail, result.Failed[0])
 	}
 }
