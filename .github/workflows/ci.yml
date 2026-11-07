@@ -133,6 +133,15 @@ jobs:
         run: |
           go install github.com/pressly/goose/v3/cmd/goose@latest
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
+      - name: Run group import worker PostgreSQL integration suite
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: tg_sender_test
+          DB_SSLMODE: disable
+        run: go test -race -tags=importworker -timeout 300s ./internal/domain/grouplib -run '^TestImportWorker' -count=1 -v
       - name: Benchmark group import parser (10k/30k/50k)
         env:
           GOMAXPROCS: 2
