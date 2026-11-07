@@ -136,7 +136,9 @@
               >{{ statusLabel(task.status) }}</span>
               <span class="text-xs text-text-muted hidden sm:inline">{{ new Date(task.created_at).toLocaleString() }}</span>
             </button>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0 flex-wrap">
+              <t-button v-if="task.status === 'running'" type="button" class="ui-t-button--secondary ui-t-button" @click="pauseTask(task.task_id)">暂停</t-button>
+              <t-button v-else-if="task.status === 'paused'" type="button" class="ui-t-button--primary ui-t-button" @click="resumeTask(task.task_id)">继续</t-button>
               <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'txt')">导出 TXT</t-button>
               <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'csv')">导出 CSV</t-button>
             </div>
@@ -242,6 +244,26 @@ const linksLoading = ref<Record<string, boolean>>({})
 const linksAccId = ref('')
 watch(accountStore.currentAccount, (acc: any) => { if (acc?.account_id && !linksAccId.value) linksAccId.value = acc.account_id }, { immediate: true })
 watch(linksAccId, () => { fetchTasks(); loadAllLinks() })
+
+async function pauseTask(taskId: string) {
+  try {
+    await taskApi.pause(taskId)
+    await fetchTasks()
+    toast({ type: 'success', title: '链接采集已暂停' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '暂停失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  }
+}
+
+async function resumeTask(taskId: string) {
+  try {
+    await taskApi.resume(taskId)
+    await fetchTasks()
+    toast({ type: 'success', title: '链接采集已继续' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '继续失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  }
+}
 
 async function fetchTasks() {
   const accId = linksAccId.value
