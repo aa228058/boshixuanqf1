@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ code: 0, data: [{
-        account_id: 'e2e-demo-account', phone: '+8613800000001',
+        account_id: 'e2e00000-0000-4000-8000-000000000002', phone: '+8613800000001',
         first_name: '演示运营号', last_name: '', username: 'demo_operator',
         status: 'online', source: 'phone', remark: 'Playwright 视觉验收专用',
         created_at: '2026-11-01T08:00:00.000Z',
@@ -37,13 +37,13 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify({ code: 0, data: {
         task_id: 'e2e00000-0000-4000-8000-000000000001', type: 'broadcast', status: 'running',
         created_at: '2026-11-07T09:58:00.000Z', started_at: '2026-11-07T10:00:00.000Z',
-        account_id: 'e2e-demo-account', account_name: '演示运营号',
+        account_id: 'e2e00000-0000-4000-8000-000000000002', account_name: '演示运营号',
         progress: { total: 30, done: 16, failed: 2 },
         config: { message: '本周产品更新与运营活动通知', target_count: 30 },
       } }),
     })
   })
-  await page.addInitScript(() => localStorage.setItem('tg_current_account', 'e2e-demo-account'))
+  await page.addInitScript(() => localStorage.setItem('tg_current_account', 'e2e00000-0000-4000-8000-000000000002'))
   await page.goto('/login')
   await page.locator('input[autocomplete="username"]').fill(tenantUsername)
   await page.locator('input[autocomplete="current-password"]').fill(tenantPassword)
