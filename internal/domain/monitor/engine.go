@@ -753,36 +753,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		log.Printf("[monitor] dm 动作跳过: 触发人不可触达(from=%d)", targetUser)
 		return
 	}
-	// 同一用户同一 dm 规则只触发一次(避免同一人反复命中关键词被连发私聊/连拨)
-	key := tenantID.String() + ":" + accountID.String() + ":" + rule.RuleID.String() + ":" + strconv.FormatInt(targetUser, 10)
-	e.dmFiredMu.Lock()
-	if _, ok := e.dmFired[key]; ok {
-		e.dmFiredMu.Unlock()
-		return
-	}
-	e.dmFired[key] = time.Now()
-	// 仅淘汰最旧的 10% 条目，避免超限后整体清空导致已触达用户再次触发。
-	if len(e.dmFired) > 100000 {
-		type firedEntry struct {
-			key string
-			at  time.Time
-		}
-		entries := make([]firedEntry, 0, len(e.dmFired))
-		for firedKey, firedAt := range e.dmFired {
-			entries = append(entries, firedEntry{key: firedKey, at: firedAt})
-		}
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].at.Before(entries[j].at)
-		})
-		evictCount := len(entries) / 10
-		if evictCount < 1 {
-			evictCount = 1
-		}
-		for _, entry := range entries[:evictCount] {
-			delete(e.dmFired, entry.key)
-		}
-	}
-	e.dmFiredMu.Unlock()
+	// 每个子动作独立领取和记录结果，避免一个动作失败阻断其他动作。
 	// ① 私聊文本
 	if ctx.Err() != nil {
 		return
