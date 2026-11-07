@@ -1,7 +1,6 @@
 package monitor
 
 import (
-
 	"github.com/google/uuid"
 )
 
