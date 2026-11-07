@@ -10,7 +10,9 @@
         <span class="text-sm font-medium">{{ typeLabel }} · {{ statusText }}</span>
       </div>
       <span class="text-xs text-text-muted">
-        <template v-if="task.status === 'queued'">已等待 {{ elapsed(task.created_at) }}</template>
+        <template v-if="task.status === 'scheduled' && task.scheduled_at">计划启动 {{ elapsed(task.scheduled_at) }}</template>
+        <template v-else-if="['queued','pending'].includes(task.status)">已等待 {{ elapsed(task.created_at) }}</template>
+        <template v-else-if="task.status === 'paused'">已暂停</template>
         <template v-else>已运行 {{ elapsed(task.started_at || task.created_at) }}</template>
       </span>
     </div>
@@ -37,7 +39,7 @@
     </div>
 
     <div class="flex flex-wrap justify-end gap-2 mt-2">
-      <button v-if="task.status === 'running'" type="button" :disabled="actionLoading"
+      <button v-if="['running','queued','pending','scheduled'].includes(task.status)" type="button" :disabled="actionLoading"
               @click="changeTaskState('pause')"
               class="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:border-amber/50 hover:text-amber disabled:opacity-50">
         暂停任务
@@ -82,7 +84,7 @@ const lastDone = ref<any>(null)
 const actionLoading = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const isActive = computed(() => ['queued', 'running', 'pending', 'paused'].includes(task.value?.status))
+const isActive = computed(() => ['queued', 'running', 'pending', 'scheduled', 'paused'].includes(task.value?.status))
 
 // 后端 progress 可能是 JSON 字符串或对象, 统一解析
 function parseProgress(p: any): { total: number; done: number; failed: number } {
@@ -108,7 +110,7 @@ const typeNames: Record<string, string> = {
 const typeLabel = computed(() => typeNames[props.taskType] || '任务')
 
 const statusMap: Record<string, string> = {
-  queued: '排队中', running: '进行中', pending: '等待调度', paused: '已暂停',
+  queued: '排队中', running: '进行中', pending: '等待调度', scheduled: '定时待启动', paused: '已暂停',
 }
 const statusText = computed(() => statusMap[task.value?.status] || '')
 
@@ -193,13 +195,14 @@ async function load() {
   try {
     const res: any = await taskApi.list({ account_id: props.accountId, type: props.taskType, page: 1, page_size: 5 })
     const arr = res.list || res.items || []
-    const active = arr.find((t: any) => ['queued', 'running', 'pending'].includes(t.status))
+    const active = arr.find((t: any) => ['queued', 'running', 'pending', 'scheduled', 'paused'].includes(t.status))
     if (active) {
       // 切换到新任务时清空当前动作
       if (task.value?.task_id !== active.task_id) liveLogs.value = []
       task.value = active
       lastDone.value = null
-      // 运行中才拉取最新一条日志作为当前动作
+      // 活动任务拉取最新日志；暂停/预约任务可能暂无日志，保持状态可见。
+
       const lr: any = await taskApi.getLogs(active.task_id)
       const logs = lr?.list || lr?.data || (Array.isArray(lr) ? lr : [])
       if (logs.length) liveLogs.value = logs.slice(-6).reverse()
