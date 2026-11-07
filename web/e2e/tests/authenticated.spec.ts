@@ -6,7 +6,7 @@ const tenantPassword = process.env.E2E_TENANT_PASSWORD
 test.beforeEach(async ({ page }) => {
   if (!tenantUsername || !tenantPassword) return // 使用项目配置加载的 .auth/user.json
   // 所有认证页面共用一组只读演示账号；不依赖租户真实账号数据，也不触发 Telegram 操作。
-  await page.route(/\/api\/v1\/accounts(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/accounts(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     await route.fulfill({
       status: 200, contentType: 'application/json',
@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
       }] }),
     })
   })
-  await page.route(/\/api\/v1\/tasks\/e2e-demo-task(?:\/.*)?(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/tasks\/e2e00000-0000-4000-8000-000000000001(?:\/.*)?(?:\?.*)?$/, async route => {
     const url = new URL(route.request().url())
     if (url.pathname.endsWith('/logs')) {
       return route.fulfill({
@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
     return route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ code: 0, data: {
-        task_id: 'e2e-demo-task', type: 'broadcast', status: 'running',
+        task_id: 'e2e00000-0000-4000-8000-000000000001', type: 'broadcast', status: 'running',
         created_at: '2026-11-07T09:58:00.000Z', started_at: '2026-11-07T10:00:00.000Z',
         account_id: 'e2e-demo-account', account_name: '演示运营号',
         progress: { total: 30, done: 16, failed: 2 },
@@ -106,7 +106,7 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
     `/workspace/${accountId}/scrape-links`,
     `/workspace/${accountId}/monitor`,
     `/workspace/${accountId}/tasks`,
-    `/workspace/${accountId}/tasks/e2e-demo-task`,
+    `/workspace/${accountId}/tasks/e2e00000-0000-4000-8000-000000000001`,
   ]
 }
 
@@ -135,7 +135,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
     ] : undefined,
     last_seen_at: new Date(Date.UTC(2026, 10, 6 - i, 9, 30)).toISOString(),
   }))
-  await page.route(/\/api\/v1\/group-library(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/group-library(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     const url = new URL(route.request().url())
     const keyword = (url.searchParams.get('keyword') || '').toLowerCase()
@@ -196,7 +196,7 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
     // 固定底栏在 fullPage 截图中会停留在视口原位置，不能单凭长截图判断是否遮挡。
     // 每页额外保存首屏与滚动到底部的真实视口截图，便于检查底栏、浮动按钮和末尾内容。
     await page.screenshot({ path: testInfo.outputPath(`${screenshotName}-viewport.png`) })
-    if (route.endsWith('/tasks/e2e-demo-task')) {
+    if (route.endsWith('/tasks/e2e00000-0000-4000-8000-000000000001')) {
       await expect(page.getByText('实时日志')).toBeVisible()
       await expect(page.getByText(/18\/30/)).toBeVisible()
       await expect(page.getByText(/FloodWait/)).toBeVisible()
