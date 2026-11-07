@@ -28,7 +28,8 @@
 
     <!-- 当前动作: 单行实时步骤, 不再刷日志列表 -->
     <div class="flex items-center gap-2 text-xs text-text-secondary min-h-5">
-      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Loader2 v-if="task.status !== 'paused'" class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Pause v-else class="w-3.5 h-3.5 shrink-0 text-amber" />
       <span class="truncate">{{ currentAction }}</span>
       <span v-if="waitRemain > 0" class="ml-2 px-2 py-0.5 rounded-full bg-amber/15 text-amber text-xs shrink-0">
         下次发送 {{ waitRemain }}s
@@ -59,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-vue-next'
+import { CheckCircle2, XCircle, Loader2, Pause } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
@@ -69,7 +70,7 @@ const task = ref<any>(null)
 const lastDone = ref<any>(null)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
+const isActive = computed(() => ['queued', 'running', 'pending', 'paused'].includes(task.value?.status))
 
 // 后端 progress 可能是 JSON 字符串或对象, 统一解析
 function parseProgress(p: any): { total: number; done: number; failed: number } {
@@ -95,7 +96,7 @@ const typeNames: Record<string, string> = {
 const typeLabel = computed(() => typeNames[props.taskType] || '任务')
 
 const statusMap: Record<string, string> = {
-  queued: '排队中', running: '进行中', pending: '等待调度',
+  queued: '排队中', running: '进行中', pending: '等待调度', paused: '已暂停',
 }
 const statusText = computed(() => statusMap[task.value?.status] || '')
 
