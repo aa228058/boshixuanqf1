@@ -91,6 +91,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
 		if err := ctx.Err(); err != nil {
+			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			flushPending(writeCtx)
+			cancel()
 			return res, err
 		}
 		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link, ContributorTenantID: tenantID}
@@ -155,6 +158,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		if client != nil && !bulkMode {
 			select {
 			case <-ctx.Done():
+				writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				flushPending(writeCtx)
+				cancel()
 				return res, ctx.Err()
 			case <-time.After(time.Second):
 			}
