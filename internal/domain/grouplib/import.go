@@ -151,7 +151,20 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			// 私密邀请链接优先使用 MTProto：checkChatInvite 可读取 Telegram 提供的预览，
 			// 不要求账号加入群组。未选择账号时才退回网页预览。
 			if client != nil && en.private {
-				return resolveInviteInfo(ctx, client, en.hash)
+				title, count, gtype, chatID, mtErr := resolveInviteInfo(ctx, client, en.hash)
+				if mtErr == nil {
+					return title, count, gtype, chatID, nil
+				}
+				var rateLimitErr *TelegramRateLimitError
+				if errors.As(mtErr, &rateLimitErr) || ctx.Err() != nil {
+					return "", 0, "", 0, mtErr
+				}
+				// MTProto 未能取得邀请预览时，再尝试网页公开预览；两条路径都失败才记失败。
+				webTitle, webCount, webType, webErr := resolveInviteInfoViaWeb(ctx, en.hash)
+				if webErr == nil {
+					return webTitle, webCount, webType, 0, nil
+				}
+				return "", 0, "", 0, fmt.Errorf("MTProto: %v; 网页预览: %w", mtErr, webErr)
 			}
 			if client != nil && !bulkMode {
 				return resolveGroupInfo(ctx, client, en.username)
