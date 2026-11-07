@@ -4,6 +4,10 @@ const tenantUsername = process.env.E2E_TENANT_USERNAME
 const tenantPassword = process.env.E2E_TENANT_PASSWORD
 
 test.beforeEach(async ({ page }, testInfo) => {
+  // 所有工作台功能页必须绑定到真实的演示账号，不能落入 /workspace/none 空上下文。
+  await page.addInitScript(() => {
+    localStorage.setItem('tg_current_account', 'e2e00000-0000-4000-8000-000000000002')
+  })
   // 该用例只检查移动端视口；在 beforeEach 阶段跳过，避免桌面项目先触发登录流程。
   if (testInfo.title === '移动端账号卡片操作区不超出可视宽度' && !testInfo.project.name.includes('mobile')) test.skip()
   if (!tenantUsername || !tenantPassword) {
