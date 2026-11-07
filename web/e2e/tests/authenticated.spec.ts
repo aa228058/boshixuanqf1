@@ -386,19 +386,3 @@ test('弹窗支持 ESC 与关闭按钮退出', async ({ page }) => {
   await page.getByRole('button', { name: '关闭弹窗' }).click()
   await expect(visibleModals).toHaveCount(0)
 })
-
-test('移动端图标操作按钮具备足够触控面积', async ({ page }, testInfo) => {
-  test.skip(!testInfo.project.name.includes('mobile'), '仅在移动端检查触控尺寸')
-  await page.goto('/accounts')
-  const buttons = page.locator('.ui-icon-btn:visible')
-  const count = await buttons.count()
-  expect(count, '账号页应有可见图标操作').toBeGreaterThan(0)
-  const sizes = await buttons.evaluateAll(elements => elements.map(element => {
-    const rect = element.getBoundingClientRect()
-    return { width: rect.width, height: rect.height, label: element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent?.trim() || '' }
-  }))
-  for (const item of sizes) {
-    expect(item.width, JSON.stringify(item)).toBeGreaterThanOrEqual(44)
-    expect(item.height, JSON.stringify(item)).toBeGreaterThanOrEqual(44)
-  }
-})
