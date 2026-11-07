@@ -1,23 +1,23 @@
 <template>
-  <div class="space-y-4 p-3 md:p-6 max-w-6xl mx-auto">
+  <div class="ui-page-shell p-3 md:p-6 max-w-6xl mx-auto">
     <!-- 头部 -->
-    <div class="flex flex-wrap items-center gap-2">
-      <h1 class="text-lg md:text-xl font-bold flex items-center gap-2">
-        <KeyRound class="w-5 h-5" /> 协议号管理
-      </h1>
-      <span class="text-xs text-text-secondary hidden md:inline">导入外部会话直接可用，无需短信验证</span>
-      <div class="flex-1"></div>
-      <t-button v-if="selected.size" size="small" theme="danger" variant="outline" class="ui-t-button--danger ui-t-button whitespace-nowrap shrink-0" @click="batchDelete">删除({{ selected.size }})</t-button>
-      <t-button size="small" theme="primary" class="ui-t-button--primary ui-t-button" @click="showImport = true"> 导入协议号
-      </t-button>
-      <t-button size="small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="refresh">刷新</t-button>
-    </div>
+    <header class="ui-page-header">
+      <div class="ui-page-heading">
+        <h1 class="ui-page-title flex items-center gap-2">
+          <KeyRound class="w-5 h-5" /> 协议号管理
+        </h1>
+        <p class="ui-page-description">导入外部会话直接可用，无需短信验证</p>
+      </div>
+      <div class="ui-page-actions">
+        <t-button v-if="selected.size" size="small" theme="danger" variant="outline" class="ui-t-button--danger ui-t-button whitespace-nowrap shrink-0 w-full sm:w-auto" @click="batchDelete">删除({{ selected.size }})</t-button>
+        <t-button size="small" theme="primary" class="ui-t-button--primary ui-t-button w-full sm:w-auto" @click="showImport = true">导入协议号</t-button>
+        <t-button size="small" variant="outline" class="ui-t-button--secondary ui-t-button w-full sm:w-auto" @click="refresh">刷新</t-button>
+      </div>
+    </header>
 
     <!-- 状态筛选 -->
-    <div class="flex gap-2 flex-wrap">
-      <button type="button" v-for="t in tabs" :key="t.key" class="ui-segmented__item px-3 py-1 rounded-full text-xs transition-colors" @click="filterTab = t.key"
-        :class="filterTab === t.key ? 'bg-[var(--t-brand)] text-white' : 'text-text-secondary'"
-        :style="filterTab === t.key ? '' : 'background: var(--t-surface-2);'">
+    <div class="ui-segmented w-fit max-w-full flex-wrap" role="tablist" aria-label="协议号状态筛选">
+      <button type="button" role="tab" v-for="t in tabs" :key="t.key" class="ui-segmented__item" :class="{ 'is-active': filterTab === t.key }" :aria-selected="filterTab === t.key" @click="filterTab = t.key">
         {{ t.label }} · {{ t.count }}
       </button>
     </div>
@@ -42,7 +42,7 @@
     <EmptyState v-if="!loading && accounts.length === 0" title="还没有协议号" description="点右上角「导入协议号」开始" />
 
     <!-- 桌面表格 / 移动卡片 -->
-    <div v-else class="rounded-[var(--t-r-md)] bg-surface/80 overflow-hidden">
+    <div v-else class="ui-data-surface">
       <!-- 桌面端 -->
       <table class="w-full text-sm hidden md:table">
         <thead>
