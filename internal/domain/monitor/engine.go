@@ -418,6 +418,7 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			e.msgPushMu.Unlock()
 			// Forward to tenant SSE
 			e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
+				"account_id": accountID.String(),
 				"chat_id":    msg.ChatID,
 				"message_id": msg.ID,
 				"text":       msg.Text,
