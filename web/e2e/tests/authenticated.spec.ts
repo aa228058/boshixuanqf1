@@ -116,14 +116,22 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
-  await expect(page.getByText('产品交流与资源分享').first()).toBeVisible()
-  await expect(page.getByText('跨境电商运营讨论').first()).toBeVisible()
-  await expect(page.getByText('运营素材与案例库').first()).toBeVisible()
+  const visibleGroupTitle = (title: string) =>
+    page.locator('span:visible').filter({ hasText: title }).first()
+  await expect(visibleGroupTitle('产品交流与资源分享')).toBeVisible()
+  await expect(visibleGroupTitle('跨境电商运营讨论')).toBeVisible()
+  await expect(visibleGroupTitle('运营素材与案例库')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
   await expect(joinButton).toBeDisabled()
-  await page.getByRole('checkbox', { name: /选择群组 产品交流与资源分享/ }).check()
+  if (testInfo.project.name.includes('mobile')) {
+    const groupCard = page.locator('.md\\:hidden .ui-card').filter({ hasText: '产品交流与资源分享' })
+    await groupCard.locator('input[type="checkbox"]').check()
+  } else {
+    const groupRow = page.getByRole('row').filter({ hasText: '产品交流与资源分享' })
+    await groupRow.getByRole('checkbox').check()
+  }
   await expect(joinButton).toBeEnabled()
   await expect(joinButton).toContainText('1')
   await page.screenshot({ path: testInfo.outputPath('groups-discover-selected.png'), fullPage: true })
