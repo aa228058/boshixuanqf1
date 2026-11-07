@@ -44,7 +44,7 @@ func filterImportLinks(payload string) importFilterResult {
 			next := token[loc[1]]
 			if (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
 				(next >= '0' && next <= '9') || next == '_' || next == '-' || next == '.' || next == '%' ||
-				next == '&' || next == '#' || next == '?' {
+				next == '&' || next == '#' || next == '?' || next == '/' {
 				continue
 			}
 		}
