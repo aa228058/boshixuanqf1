@@ -199,7 +199,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				return "", 0, "", 0, fmt.Errorf("MTProto: %v; 网页预览: %w", mtErr, webErr)
 			}
 			if client != nil && !bulkMode {
-				if err := waitForMTProtoImportPermit(ctx, accountID); err != nil {
+				if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 					return "", 0, "", 0, err
 				}
 				return resolveGroupInfo(ctx, client, en.username)
@@ -214,7 +214,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 				return "", 0, "", 0, webErr
 			}
 			// 网页预览不可用/信息不完整时，用用户明确选择的在线账号补充 MTProto 解析。
-			if err := waitForMTProtoImportPermit(ctx, accountID); err != nil {
+			if err := e.waitForMTProtoImportPermit(ctx, accountID); err != nil {
 				return "", 0, "", 0, err
 			}
 			return resolveGroupInfo(ctx, client, en.username)
