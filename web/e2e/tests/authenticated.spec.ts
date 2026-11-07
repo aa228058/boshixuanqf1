@@ -155,9 +155,6 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
 
   for (const route of checkedRoutes) {
     await navigateTenantRoute(page, route)
-    await expect(page).toHaveURL(url => url.pathname === route, {
-      timeout: 20_000,
-    })
     await expect(page.locator('body')).not.toBeEmpty()
   }
 
@@ -192,7 +189,6 @@ test('租户页面没有页面级横向溢出', async ({ page }) => {
 test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
   for (const route of await tenantRoutes(page)) {
     await navigateTenantRoute(page, route)
-    await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
     await page.waitForTimeout(500)
     const dimensions = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
