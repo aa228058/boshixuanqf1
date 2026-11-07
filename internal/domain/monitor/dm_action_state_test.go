@@ -47,14 +47,42 @@ func TestDMActionsAreIndependentAndScoped(t *testing.T) {
 	}
 }
 
-func TestDMActionTerminalStateIsNotRetried(t *testing.T) {
+func TestDMActionTerminalStatesAreNotRetried(t *testing.T) {
+	for _, status := range []dmActionStatus{
+		dmActionSucceeded,
+		dmActionFailedDefinite,
+		dmActionOutcomeUnknown,
+	} {
+		t.Run(map[dmActionStatus]string{
+			dmActionSucceeded:      "succeeded",
+			dmActionFailedDefinite: "failed_definite",
+			dmActionOutcomeUnknown: "outcome_unknown",
+		}[status], func(t *testing.T) {
+			e := &Engine{dmActions: make(map[dmActionKey]dmActionStatus)}
+			key := dmActionKey{tenantID: uuid.New(), accountID: uuid.New(), ruleID: uuid.New(), targetID: 123, action: "text"}
+			if !e.claimDMAction(key) {
+				t.Fatal("initial claim should succeed")
+			}
+			e.finishDMAction(key, status)
+			if e.claimDMAction(key) {
+				t.Fatalf("%s state must not be retried automatically", status)
+			}
+			if got := e.dmActions[key]; got != status {
+				t.Fatalf("terminal state changed: got %v, want %v", got, status)
+			}
+		})
+	}
+}
+
+func TestDMActionFinishDoesNotOverwriteTerminalState(t *testing.T) {
 	e := &Engine{dmActions: make(map[dmActionKey]dmActionStatus)}
-	key := dmActionKey{tenantID: uuid.New(), accountID: uuid.New(), ruleID: uuid.New(), targetID: 123, action: "text"}
+	key := dmActionKey{tenantID: uuid.New(), accountID: uuid.New(), ruleID: uuid.New(), targetID: 123, action: "contact"}
 	if !e.claimDMAction(key) {
 		t.Fatal("initial claim should succeed")
 	}
+	e.finishDMAction(key, dmActionSucceeded)
 	e.finishDMAction(key, dmActionOutcomeUnknown)
-	if e.claimDMAction(key) {
-		t.Fatal("unknown outcome must not be retried automatically")
+	if got := e.dmActions[key]; got != dmActionSucceeded {
+		t.Fatalf("terminal state overwritten: got %v, want %v", got, dmActionSucceeded)
 	}
 }
