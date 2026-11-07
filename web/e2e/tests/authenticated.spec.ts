@@ -288,6 +288,32 @@ test('移动端租户页面没有页面级横向溢出', async ({ page }, testIn
   }
 })
 
+test('移动端账号卡片操作区不超出可视宽度', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), '仅在移动端视口检查账号卡片操作区')
+  await page.goto('/accounts')
+  const rows = page.locator('.acc-row')
+  await expect(rows.first()).toBeVisible()
+  const diagnostics = await rows.evaluateAll(elements => elements.map(row => {
+    const action = row.querySelector('.acc-actions')
+    const rowRect = row.getBoundingClientRect()
+    const actionRect = action?.getBoundingClientRect()
+    return {
+      row: { left: rowRect.left, right: rowRect.right },
+      action: actionRect ? { left: actionRect.left, right: actionRect.right } : null,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  }))
+  expect(diagnostics.length).toBeGreaterThan(0)
+  for (const item of diagnostics) {
+    expect(item.action, '账号卡片应渲染操作区').not.toBeNull()
+    if (item.action) {
+      expect(item.action.left, JSON.stringify(item)).toBeGreaterThanOrEqual(item.row.left - 1)
+      expect(item.action.right, JSON.stringify(item)).toBeLessThanOrEqual(item.row.right + 1)
+      expect(item.action.right, JSON.stringify(item)).toBeLessThanOrEqual(item.viewportWidth + 1)
+    }
+  }
+})
+
 test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ page }, testInfo) => {
   await page.goto('/accounts')
   const addButton = page.getByRole('button', { name: '添加账号' }).first()
