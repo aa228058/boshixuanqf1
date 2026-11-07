@@ -516,13 +516,13 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 							}
 						}
 					default:
-						log.Printf("[monitor] 规则 %s 不支持匹配类型 %s", rule.MatchType, rule.RuleID)
+						log.Printf("[monitor] 规则 %s 不支持匹配类型 %s", rule.RuleID, rule.MatchType)
 					}
 					if !matched {
 						continue
 					}
 
-					log.Printf("[monitor] 规则命中: rule=%s type=%s chat=%d text=%q", rule.Name, rule.Type, msg.ChatID, func() string {
+					log.Printf("[monitor] 规则命中: rule=%s type=%s chat=%d text=%q", rule.Name, rule.Type, msgChatID2, func() string {
 						t := msgText2
 						if len(t) > 30 {
 							t = t[:30] + "..."
