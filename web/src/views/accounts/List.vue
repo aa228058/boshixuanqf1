@@ -635,7 +635,7 @@
         <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
           <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary w-full sm:w-auto min-h-[44px]" @click="showBatchProfile = false">取消</t-button>
           <t-button theme="primary" size="sm" @click="runBatchProfile" :disabled="batchingProfile"
-                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto min-h-[44px] disabled:opacity-50">
             {{ batchingProfile ? '执行中…' : '开始批量修改' }}
           </t-button>
         </div>
@@ -655,7 +655,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-text-muted">
           <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
           <t-button theme="primary" size="sm" @click="runClone" :disabled="cloning"
-                  class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
+                  class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto min-h-[44px] disabled:opacity-50">
             {{ cloning ? '克隆中…' : '开始克隆' }}
           </t-button>
         </div>
