@@ -65,16 +65,25 @@
     width: 100% !important;
     max-width: 100% !important;
     min-height: 0 !important;
+    /* 仅设置 max-height 对内部 flex 内容的固有高度约束不够稳定：
+       显式给内容容器一个视口内的可用高度，长内容由 .modal-body 自己滚动。 */
+    height: min(88vh, 900px) !important;
+    height: min(88dvh, 900px) !important;
     max-height: 100vh !important;
     max-height: 100dvh !important;
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
     overflow: hidden !important;
   }
   /* 移动端长表单必须在视口内收敛；滚动发生在 .modal-body，而不是把整张抽屉推到屏幕外。 */
   .modal-card {
+    box-sizing: border-box !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: 100% !important;
     min-height: 0 !important;
-    max-height: 100vh !important;
-    max-height: 100dvh !important;
+    max-height: 100% !important;
     overflow: hidden !important;
   }
 }
