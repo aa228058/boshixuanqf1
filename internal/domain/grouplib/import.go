@@ -143,7 +143,7 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		}
 		// MTProto results carry a real Chat ID; keep them separate from web previews.
 		if client != nil && (!bulkMode || en.private) {
-			cacheKey += ":mtproto"
+			cacheKey += ":mtproto:" + accountID.String()
 		} else {
 			cacheKey += ":web"
 		}
