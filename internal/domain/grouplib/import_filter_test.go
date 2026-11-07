@@ -117,3 +117,27 @@ func TestImportLinkRegexAndValidationSupportPreviewURLs(t *testing.T) {
 		t.Fatalf("username was not validated: %#v", matches[2])
 	}
 }
+
+func TestNormalizeImportCandidateRejectsMalformedTelegramDeepLinks(t *testing.T) {
+	invalid := []string{
+		"tg://resolve?domain=validgroup&phone=123",
+		"tg://resolve?domain=validgroup%2Fevil",
+		"tg://resolve?domain=validgroup#fragment",
+		"tg://join?invite=AbCdEf123&extra=1",
+		"tg://join?invite=bad%2Fhash",
+		"tg://join/path?invite=AbCdEf123",
+	}
+	for _, candidate := range invalid {
+		if normalized, _, ok := normalizeImportCandidate(candidate); ok {
+			t.Errorf("normalizeImportCandidate(%q) = %q, want rejection", candidate, normalized)
+		}
+	}
+}
+
+func TestFilterImportLinksRejectsMalformedDeepLinkParameters(t *testing.T) {
+	got := filterImportLinks("tg://resolve?domain=validgroup&phone=123\ntg://join?invite=AbCdEf123&extra=1\ntg://resolve?domain=ValidGroup")
+	want := []string{"https://t.me/ValidGroup"}
+	if !reflect.DeepEqual(got.Links, want) {
+		t.Fatalf("links = %#v, want %#v", got.Links, want)
+	}
+}
