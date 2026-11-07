@@ -16,6 +16,7 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/domain"
+	"tg-sender/internal/repository"
 )
 
 // importLinkRe 保留为兼容性测试用的候选识别规则；生产导入统一走 filterImportLinks。
