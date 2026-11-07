@@ -96,6 +96,34 @@ jobs:
           PGPASSWORD: e2e-postgres-password
         run: |
           set -euo pipefail
+          # 只修改本次 CI 的临时数据库，不触碰任何线上套餐或租户。
+          # Enterprise 的功能集合取当前套餐矩阵、历史兼容 key 与独立功能开关的并集，
+          # 确保前端视觉验收不会因测试租户套餐缺少某个功能而被路由守卫拦截。
+          psql -h 127.0.0.1 -U postgres -d tg_sender_e2e -v ON_ERROR_STOP=1 <<'SQL'
+          UPDATE plans
+          SET features = '["broadcast","loop_broadcast","scrape_members","scrape_links","join_groups","monitor","export","templates","scheduled_tasks","discover","search","proxy","invite","verifier","ai_verify","checkup","dict","api","raffle","notify"]'::jsonb,
+              can_broadcast = TRUE,
+              can_scrape_members = TRUE,
+              can_scrape_links = TRUE,
+              can_join_groups = TRUE,
+              can_monitor = TRUE,
+              can_export = TRUE,
+              can_use_templates = TRUE,
+              max_monitor_rules = 999,
+              max_daily_broadcasts = 0,
+              max_daily_scrapes = 999999
+          WHERE plan_id = 'enterprise';
+          DO $
+          DECLARE
+            feature_count integer;
+          BEGIN
+            SELECT jsonb_array_length(features) INTO feature_count
+            FROM plans WHERE plan_id = 'enterprise';
+            IF feature_count <> 20 THEN
+              RAISE EXCEPTION 'Enterprise E2E feature matrix incomplete: got % features', feature_count;
+            END IF;
+          END $;
+          SQL
           CODE="$(openssl rand -hex 16)"
           USERNAME="e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           PASSWORD="$(openssl rand -hex 20)"
@@ -116,7 +144,11 @@ jobs:
           echo "$LOGIN" | jq -e '(.data.plan_id // .plan_id) == "enterprise"' >/dev/null
           echo "$LOGIN" | jq -e '(.data.max_accounts // .max_accounts) == 100' >/dev/null
           echo "$LOGIN" | jq -e '(.data.max_concurrent_tasks // .max_concurrent_tasks) == 40' >/dev/null
-          echo "Enterprise plan, 100 account quota, and 40 concurrency quota verified."
+          echo "$LOGIN" | jq -e '((.data.plan_features // .plan_features) | keys | length) >= 20' >/dev/null
+          for FEATURE in broadcast loop_broadcast scrape_members scrape_links join_groups monitor export templates scheduled_tasks discover search proxy invite verifier ai_verify checkup dict api raffle notify; do
+            echo "$LOGIN" | jq -e --arg feature "$FEATURE" '(.data.plan_features // .plan_features)[$feature] == true' >/dev/null
+          done
+          echo "Enterprise E2E plan, quotas, and all 20 feature permissions verified."
       - name: Install frontend dependencies and run checks
         working-directory: web
         run: |
