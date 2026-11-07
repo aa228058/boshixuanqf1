@@ -262,6 +262,26 @@ test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
     }))
     expect(dimensions.document, `${route} 页面级横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
     expect(dimensions.body, `${route} body 横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
+
+    // 固定底栏不能盖住页面末尾：滚动到底后，内容容器的最后一个元素应停在 Tab 栏上方。
+    const bottomLayout = await page.locator('#main-content').evaluate((main) => {
+      const nav = document.querySelector('nav.fixed.bottom-3')
+      const content = main.lastElementChild
+      if (!nav || !content) return null
+      main.scrollTop = main.scrollHeight
+      const navRect = nav.getBoundingClientRect()
+      const contentRect = content.getBoundingClientRect()
+      return {
+        navTop: navRect.top,
+        contentBottom: contentRect.bottom,
+        paddingBottom: Number.parseFloat(getComputedStyle(main).paddingBottom),
+      }
+    })
+    expect(bottomLayout, `${route} 应存在主内容和移动端底栏`).not.toBeNull()
+    if (bottomLayout) {
+      expect(bottomLayout.paddingBottom, `${route} 底部应预留足够空间`).toBeGreaterThanOrEqual(112)
+      expect(bottomLayout.contentBottom, `${route} 页面末尾不能被底栏覆盖`).toBeLessThanOrEqual(bottomLayout.navTop + 1)
+    }
   }
 })
 
