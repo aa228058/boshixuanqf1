@@ -97,6 +97,54 @@ func (e *Engine) CancelImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 	job.ValidCount = job.TotalCount
 	return &job, nil
 }
+// RetryFailedImportJob creates a new job containing only failures that have not already been retried.
+func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*ImportJob, error) {
+	tx, err := e.pool.Begin(ctx)
+	if err != nil { return nil, err }
+	defer tx.Rollback(ctx)
+	var job ImportJob
+	err = tx.QueryRow(ctx, `
+		WITH failed AS (
+			SELECT string_agg(original_link, E'\\n' ORDER BY created_at) AS payload, COUNT(*)::int AS total
+			FROM group_library_import_job_failures WHERE job_id=$2 AND retry_job_id IS NULL
+		), source AS (
+			SELECT tenant_id, file_name FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2
+		)
+		INSERT INTO group_library_import_jobs (tenant_id,file_name,payload,status,total_count,raw_count)
+		SELECT source.tenant_id, source.file_name, failed.payload, 'pending', failed.total, failed.total
+		FROM source CROSS JOIN failed WHERE failed.total > 0
+		RETURNING job_id,file_name,status,total_count,processed_count,imported_count,failed_count,
+		          skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at
+	`, tenantID, jobID).Scan(
+		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
+		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
+	if err != nil { return nil, fmt.Errorf("没有可重试的失败链接或原任务不存在: %w", err) }
+	if _, err := tx.Exec(ctx, `UPDATE group_library_import_job_failures SET retry_job_id=$3, updated_at=NOW() WHERE job_id=$1 AND retry_job_id IS NULL AND EXISTS (SELECT 1 FROM group_library_import_jobs WHERE job_id=$3 AND tenant_id=$2)`, jobID, tenantID, job.JobID); err != nil { return nil, err }
+	if err := tx.Commit(ctx); err != nil { return nil, err }
+	job.ValidCount = job.TotalCount
+	return &job, nil
+}
+
+func importFailureLink(detail string) string {
+	closeBracket := strings.Index(detail, "] ")
+	if closeBracket < 0 { return "" }
+	value := detail[closeBracket+2:]
+	separator := strings.Index(value, ": ")
+	if separator < 0 { return "" }
+	link := strings.TrimSpace(value[:separator])
+	if strings.HasPrefix(link, "https://t.me/") || strings.HasPrefix(link, "http://t.me/") || strings.HasPrefix(link, "tg://") { return link }
+	return ""
+}
+
+func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, failures []string) error {
+	for _, detail := range failures {
+		link := importFailureLink(detail)
+		if link == "" { continue }
+		if _, err := e.pool.Exec(ctx, `INSERT INTO group_library_import_job_failures (job_id,original_link,error_text) VALUES ($1,$2,$3) ON CONFLICT (job_id,original_link) DO UPDATE SET error_text=EXCLUDED.error_text, updated_at=NOW()`, jobID, link, detail); err != nil { return err }
+	}
+	return nil
+}
 func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
 	// Keep the legacy one-step API on the same normalized payload path as the
 	// preview/confirm flow. Worker offsets are candidate-line offsets, so raw
@@ -320,6 +368,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(importErr, &rateLimitErr) {
 				progress := summarizeImportBatch(result, true)
+				if result != nil && progress.failed > 0 { if err := e.persistImportFailures(leaseCtx, jobID, result.Failed[:progress.failed]); err != nil { log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err); break } }
 				partialImported, partialFailed, partialSkipped := progress.imported, progress.failed, progress.skipped
 				processedPrefix, detail := progress.processed, progress.detail
 				if processedPrefix > 0 {
@@ -399,6 +448,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				break
 			}
 			progress := summarizeImportBatch(result, false)
+			if result != nil && progress.failed > 0 { if err := e.persistImportFailures(leaseCtx, jobID, result.Failed); err != nil { log.Printf("[grouplib] 保存失败链接失败 job=%s: %v", jobID, err); break } }
 			imported, failed, skipped := progress.imported, progress.failed, progress.skipped
 			lastError := progress.detail
 			if result == nil && importErr != nil {
