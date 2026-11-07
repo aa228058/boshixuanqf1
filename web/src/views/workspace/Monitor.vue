@@ -34,7 +34,7 @@
             <h3 class="text-sm font-semibold">实时消息</h3>
             <p class="text-xs text-text-muted mt-0.5">仅显示当前选择账号收到的新消息 · 最多保留 50 条</p>
           </div>
-          <button type="button" class="ui-button ui-button--secondary text-xs shrink-0" @click="liveMessages = []" :disabled="liveMessages.length === 0">清空</button>
+          <t-button size="small" variant="outline" @click="liveMessages = []" :disabled="liveMessages.length === 0">清空</t-button>
         </div>
         <div v-if="liveMessages.length === 0" class="px-4 py-7 text-center text-sm text-text-muted">
           暂无实时消息。确认监听会话已启动后，收到新消息时会显示在这里。
