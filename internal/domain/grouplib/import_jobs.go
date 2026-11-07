@@ -77,6 +77,26 @@ func (e *Engine) ConfirmImportJob(ctx context.Context, tenantID, jobID uuid.UUID
 	return &job, nil
 }
 
+// CancelImportJob requests cancellation while preserving the active worker's fencing token.
+// The worker observes cancelling, stops its resolver context, and finalizes the job.
+func (e *Engine) CancelImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*ImportJob, error) {
+	var job ImportJob
+	err := e.pool.QueryRow(ctx, `
+		UPDATE group_library_import_jobs
+		SET status=CASE WHEN status='processing' THEN 'cancelling' ELSE 'cancelled' END,
+		    finished_at=CASE WHEN status='processing' THEN finished_at ELSE NOW() END,
+		    updated_at=NOW()
+		WHERE tenant_id=$1 AND job_id=$2 AND status IN ('review','pending','processing')
+		RETURNING job_id,file_name,status,total_count,processed_count,imported_count,failed_count,
+		          skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at`,
+		tenantID, jobID).Scan(
+		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
+		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
+	if err != nil { return nil, err }
+	job.ValidCount = job.TotalCount
+	return &job, nil
+}
 func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
 	// Keep the legacy one-step API on the same normalized payload path as the
 	// preview/confirm flow. Worker offsets are candidate-line offsets, so raw
