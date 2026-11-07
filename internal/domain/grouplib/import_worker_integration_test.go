@@ -66,7 +66,7 @@ func createImportWorkerFixture(t *testing.T, pool *pgxpool.Pool, links int, stat
 		INSERT INTO group_library_import_jobs
 			(job_id, tenant_id, file_name, payload, status, total_count, processed_count, lease_expires_at)
 		VALUES ($1, $2, 'worker-test.txt', $3, $4, $5, $6,
-		        CASE WHEN $4='processing' THEN NOW()-INTERVAL '1 minute' ELSE NULL END)
+		        CASE WHEN $4::varchar='processing' THEN NOW()-INTERVAL '1 minute' ELSE NULL END)
 	`, jobID, tenantID, payload, status, links, processed)
 	if err != nil {
 		t.Fatalf("create import job fixture: %v", err)
