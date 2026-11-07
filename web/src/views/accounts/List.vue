@@ -1,6 +1,6 @@
 <template>
   <main class="ui-page-shell gap-4">
-    <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
+    <!-- 账号工具栏：常用操作在左，搜索框在右；窄屏自动换行 -->
     <div class="ui-toolbar">
       <div class="ui-page-actions flex-1">
 
@@ -19,7 +19,7 @@
     </div>
 
     <!-- 全选行(仅多选模式显示; 操作按钮在下方悬浮栏) -->
-    <div v-if="selecting && filteredAccounts.length" class="flex items-center gap-2 mb-2 px-1">
+    <div v-if="selecting && filteredAccounts.length" class="flex items-center gap-2 px-1">
       <label class="flex items-center gap-1.5 text-xs cursor-pointer select-none" style="color: var(--t-text-2);">
         <input ref="selectAllRef" type="checkbox" :checked="allSelected"
                class="accent-[var(--t-brand)] w-4 h-4" @change="toggleSelectAll" />
