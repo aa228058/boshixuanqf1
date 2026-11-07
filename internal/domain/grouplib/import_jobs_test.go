@@ -1,6 +1,10 @@
 package grouplib
 
-import "testing"
+import (
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestImportFailureLink(t *testing.T) {
 	tests := []struct {
@@ -18,6 +22,36 @@ func TestImportFailureLink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := importFailureLink(tt.detail); got != tt.want {
 				t.Fatalf("importFailureLink() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTelegramMTProtoRateLimit(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want time.Duration
+	}{
+		{name: "seconds", err: errors.New("rpc error: FLOOD_WAIT_37"), want: 37 * time.Second},
+		{name: "minimum", err: errors.New("FLOOD_WAIT_0"), want: time.Second},
+		{name: "not flood wait", err: errors.New("CHANNEL_PRIVATE")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := telegramMTProtoRateLimit(tt.err)
+			if tt.want == 0 {
+				if got != nil {
+					t.Fatalf("telegramMTProtoRateLimit() = %v, want nil", got)
+				}
+				return
+			}
+			var rateLimitErr *TelegramRateLimitError
+			if !errors.As(got, &rateLimitErr) {
+				t.Fatalf("telegramMTProtoRateLimit() = %v, want TelegramRateLimitError", got)
+			}
+			if rateLimitErr.RetryAfter != tt.want {
+				t.Fatalf("RetryAfter = %s, want %s", rateLimitErr.RetryAfter, tt.want)
 			}
 		})
 	}
