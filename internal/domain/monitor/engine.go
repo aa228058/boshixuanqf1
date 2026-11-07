@@ -768,7 +768,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
 				log.Printf("[monitor] 私聊文本发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
 			} else {
-				e.finishDMAction(key, dmActionSucceeded)
+				e.finishDMAction(ctx, key, dmActionSucceeded)
 			}
 		}
 	}
@@ -778,7 +778,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 	if rule.DMContact {
 		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "contact")
-		if e.claimDMAction(key) {
+		if e.claimDMAction(ctx, key) {
 			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			cleanPhone := strings.Map(func(r rune) rune {
 				if r >= '0' && r <= '9' {
@@ -794,7 +794,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 			lastName := rule.DMContactLast
 			peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
 			if perr != nil {
-				e.finishDMAction(key, dmActionFailedDefinite)
+				e.finishDMAction(ctx, key, dmActionFailedDefinite)
 				log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
 			} else {
 				// Sending an inputMediaContact does not require importing this
@@ -802,7 +802,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				// unrelated contacts.importContacts side effect here.
 				ridBytes := make([]byte, 8)
 				if _, rerr := crand.Read(ridBytes); rerr != nil {
-					e.finishDMAction(key, dmActionFailedDefinite)
+					e.finishDMAction(ctx, key, dmActionFailedDefinite)
 					log.Printf("[monitor] 名片发送失败(生成随机 ID) target=%d: %v", targetUser, rerr)
 				} else {
 					_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
@@ -814,10 +814,10 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 						RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
 					})
 					if merr != nil {
-						e.finishDMAction(key, dmActionOutcomeUnknown)
+						e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
 						log.Printf("[monitor] 联系人名片发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, merr)
 					} else {
-						e.finishDMAction(key, dmActionSucceeded)
+						e.finishDMAction(ctx, key, dmActionSucceeded)
 						log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
 					}
 				}
@@ -832,9 +832,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 	if rule.DMCall {
 		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "call")
-		if e.claimDMAction(key) {
+		if e.claimDMAction(ctx, key) {
 			if !e.callAllowed(tenantID, accountID, targetUser) {
-				e.finishDMAction(key, dmActionFailedDefinite)
+				e.finishDMAction(ctx, key, dmActionFailedDefinite)
 				log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
 				return
 			}
@@ -843,10 +843,10 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				secs = 5
 			}
 			if err := ringUser(ctx, c, targetUser, secs); err != nil {
-				e.finishDMAction(key, dmActionOutcomeUnknown)
+				e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
 				log.Printf("[monitor] 语音振铃失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
 			} else {
-				e.finishDMAction(key, dmActionSucceeded)
+				e.finishDMAction(ctx, key, dmActionSucceeded)
 			}
 		}
 	}
