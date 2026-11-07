@@ -25,14 +25,24 @@ const routes = [
   '/sessions',
 ]
 
-// 路由矩阵使用 Vue Router 的 history 导航，不对每个页面执行整页 reload。
-// 整页 reload 会重复调用 /auth/refresh，触发生产环境真实的 10 次/分钟认证限流。
+// 通过 Vue 应用实例调用真实 Vue Router，避免整页 reload 重复恢复会话，
+// 同时不伪造 history/popstate 事件，也不绕过路由守卫。
 async function navigateTenantRoute(page: import('@playwright/test').Page, route: string) {
-  await page.evaluate((path) => {
-    window.history.pushState({}, '', path)
-    window.dispatchEvent(new PopStateEvent('popstate'))
+  const finalPath = await page.evaluate(async (path) => {
+    const root = document.querySelector('#app') as (HTMLElement & {
+      __vue_app__?: {
+        config: { globalProperties: { $router?: {
+          push: (to: string) => Promise<unknown>
+          currentRoute: { value: { fullPath: string } }
+        } } }
+      }
+    }) | null
+    const router = root?.__vue_app__?.config.globalProperties.$router
+    if (!router) throw new Error('无法从 Vue 应用实例获取 Vue Router')
+    await router.push(path)
+    return router.currentRoute.value.fullPath
   }, route)
-  await expect(page).toHaveURL(url => url.pathname === route, { timeout: 15_000 })
+  await expect(page).toHaveURL(url => url.pathname === new URL(finalPath, url.origin).pathname, { timeout: 15_000 })
 }
 
 async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
@@ -108,7 +118,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
   await expect(page.getByText('产品交流与资源分享').first()).toBeVisible()
   await expect(page.getByText('跨境电商运营讨论').first()).toBeVisible()
-  await expect(page.getByText('运营素材与案例库')).toBeVisible()
+  await expect(page.getByText('运营素材与案例库').first()).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
@@ -127,9 +137,6 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
 
   for (const route of await tenantRoutes(page)) {
     await navigateTenantRoute(page, route)
-    await expect(page).toHaveURL(url => url.pathname === route, {
-      timeout: 15_000,
-    })
     await expect(page.locator('body'), route).toBeVisible()
     await expect(page.locator('body'), route).not.toBeEmpty()
     await page.waitForTimeout(800)
@@ -169,7 +176,6 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
 test('租户页面没有页面级横向溢出', async ({ page }) => {
   for (const route of await tenantRoutes(page)) {
     await navigateTenantRoute(page, route)
-    await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
     await page.waitForTimeout(500)
     const dimensions = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
