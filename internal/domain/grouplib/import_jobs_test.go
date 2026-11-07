@@ -4,9 +4,9 @@ import "testing"
 
 func TestImportFailureLink(t *testing.T) {
 	tests := []struct {
-		name string
+		name   string
 		detail string
-		want string
+		want   string
 	}{
 		{name: "public", detail: "[network] https://t.me/ExampleGroup: timeout", want: "https://t.me/ExampleGroup"},
 		{name: "private invite", detail: "[expired] https://t.me/+AbCdEf123: invite expired", want: "https://t.me/+AbCdEf123"},
