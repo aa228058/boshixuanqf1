@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,18 +51,28 @@ func (e *Engine) markMessageSeen(tenantID, accountID uuid.UUID, chatID int64, me
 		}
 	}
 
-	// Keep memory bounded even during a burst of unique messages. Evict the
-	// oldest entry only when the hard cap is exceeded.
+	// Keep memory bounded even during a burst of unique messages. Evict a
+	// batch of oldest entries at the cap, rather than scanning the full map
+	// for every subsequent message while it remains full.
 	if len(e.seenMessages) > messageDedupMaxEntries {
-		var oldestKey messageDedupKey
-		var oldestAt time.Time
-		for existingKey, seenAt := range e.seenMessages {
-			if oldestAt.IsZero() || seenAt.Before(oldestAt) {
-				oldestKey = existingKey
-				oldestAt = seenAt
-			}
+		type seenEntry struct {
+			key messageDedupKey
+			at  time.Time
 		}
-		delete(e.seenMessages, oldestKey)
+		entries := make([]seenEntry, 0, len(e.seenMessages))
+		for existingKey, seenAt := range e.seenMessages {
+			entries = append(entries, seenEntry{key: existingKey, at: seenAt})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].at.Before(entries[j].at)
+		})
+		evictCount := len(entries) / 10
+		if evictCount < 1 {
+			evictCount = 1
+		}
+		for _, entry := range entries[:evictCount] {
+			delete(e.seenMessages, entry.key)
+		}
 	}
 
 	return true
