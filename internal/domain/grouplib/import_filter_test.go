@@ -141,3 +141,14 @@ func TestFilterImportLinksRejectsMalformedDeepLinkParameters(t *testing.T) {
 		t.Fatalf("links = %#v, want %#v", got.Links, want)
 	}
 }
+
+func TestFilterImportLinksRejectsTruncatedPathAndQuery(t *testing.T) {
+	got := filterImportLinks("https://t.me/ValidGroup/extra\nhttps://t.me/ValidGroup?start=abc\nhttps://t.me/ValidGroup#fragment\nhttps://t.me/ValidGroup")
+	want := []string{"https://t.me/ValidGroup"}
+	if !reflect.DeepEqual(got.Links, want) {
+		t.Fatalf("links = %#v, want %#v", got.Links, want)
+	}
+	if got.Invalid != 3 {
+		t.Fatalf("invalid = %d, want 3", got.Invalid)
+	}
+}
