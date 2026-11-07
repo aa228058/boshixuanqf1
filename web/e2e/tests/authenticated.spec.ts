@@ -371,6 +371,55 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
   }
 })
 
+
+test('移动端账号代理编辑入口与表单控件可触达', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), '仅检查移动端账号操作菜单与代理表单')
+  await page.goto('/accounts')
+  const row = page.locator('.acc-row').first()
+  await expect(row).toBeVisible()
+  await row.getByRole('button', { name: '更多操作' }).click()
+
+  const actionSheet = page.locator('.acc-menu:visible')
+  await expect(actionSheet).toBeVisible()
+  const editAction = actionSheet.getByRole('button', { name: '备注·代理' })
+  await expect(editAction).toBeVisible()
+  const actionBounds = await editAction.boundingBox()
+  expect(actionBounds?.height ?? 0, '代理编辑菜单项触控高度至少 44px').toBeGreaterThanOrEqual(44)
+
+  await editAction.click()
+  const modal = page.locator('.modal-card:visible')
+  await expect(modal).toHaveCount(1)
+  await expect(modal.getByLabel('代理地址')).toBeVisible()
+  await expect(modal.getByRole('button', { name: '测试连通' })).toBeVisible()
+  await expect(modal.getByRole('button', { name: '保存' })).toBeVisible()
+
+  const dimensions = await modal.evaluate(element => {
+    const bounds = (node: Element) => {
+      const rect = node.getBoundingClientRect()
+      return { left: rect.left, right: rect.right, width: rect.width, height: rect.height }
+    }
+    const input = element.querySelector('#edit-remark')!
+    const proxy = element.querySelector('[aria-label="代理地址"]')!
+    const testButton = [...element.querySelectorAll('button')].find(node => node.textContent?.includes('测试连通'))!
+    const saveButton = [...element.querySelectorAll('button')].find(node => node.textContent?.trim() === '保存')!
+    return {
+      viewport: document.documentElement.clientWidth,
+      input: bounds(input),
+      proxy: bounds(proxy),
+      testButton: bounds(testButton),
+      saveButton: bounds(saveButton),
+    }
+  })
+  for (const [name, item] of Object.entries(dimensions).filter(([key]) => key !== 'viewport') as [string, {left:number;right:number;width:number;height:number}][]) {
+    expect(item.left, name + ' 左侧不能溢出弹窗视口').toBeGreaterThanOrEqual(-1)
+    expect(item.right, name + ' 右侧不能溢出视口').toBeLessThanOrEqual(dimensions.viewport + 1)
+  }
+  expect(dimensions.input.height, '备注输入框高度至少 44px').toBeGreaterThanOrEqual(44)
+  expect(dimensions.proxy.height, '代理输入框高度至少 44px').toBeGreaterThanOrEqual(44)
+  expect(dimensions.testButton.height, '测试连通按钮高度至少 44px').toBeGreaterThanOrEqual(44)
+  expect(dimensions.saveButton.height, '保存按钮高度至少 44px').toBeGreaterThanOrEqual(44)
+})
+
 test('弹窗支持 ESC 与关闭按钮退出', async ({ page }) => {
   await page.goto('/accounts')
   const addButton = page.getByRole('button', { name: '添加账号' }).first()
