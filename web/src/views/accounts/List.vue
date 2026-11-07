@@ -869,7 +869,7 @@ async function runBatchProfile() {
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号资料已修改` })
     } else {
-      toast({ type: 'warning', message: `成功 ${r.success}, 失败 ${r.failed} 个` })
+      toast({ type: 'warning', message: [`成功 ${r.success}, 失败 ${r.failed} 个`, ...(r.errors || []).slice(0, 3)].join('；') })
     }
     showBatchProfile.value = false
     selectedIds.value = new Set()
@@ -1028,10 +1028,10 @@ async function batchSetPool(status: 'active' | 'standby') {
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号已${label}` })
     } else {
-      toast({ type: 'warning', message: `${label}: 成功 ${r.success}, 失败 ${r.failed}(额度不足或状态异常)` })
+      toast({ type: 'warning', message: [`${label}: 成功 ${r.success}, 失败 ${r.failed} 个`, ...(r.errors || []).slice(0, 3)].join('；') })
     }
     selectedIds.value = new Set()
-    accountStore.fetchAccounts(true)
+    await accountStore.fetchAccounts(true)
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '批量操作失败' })
   } finally {
