@@ -56,7 +56,7 @@ jobs:
           TG_API_ID: '12345'
           TG_API_HASH: '0123456789abcdef0123456789abcdef'
           ENV: development
-        run: go build -o /tmp/tg-sender-e2e ./cmd/server
+        run: go build -o /tmp/tg-sender-e2e-bin ./cmd/server
       - name: Start isolated API and wait for migrations
         env:
           DB_HOST: 127.0.0.1
@@ -73,21 +73,21 @@ jobs:
           ENV: development
           LOG_LEVEL: warn
         run: |
-          mkdir -p /tmp/tg-sender-e2e
-          /tmp/tg-sender-e2e > /tmp/tg-sender-e2e/server.log 2>&1 &
-          echo $! > /tmp/tg-sender-e2e/server.pid
+          mkdir -p /tmp/tg-sender-e2e-runtime
+          /tmp/tg-sender-e2e-bin > /tmp/tg-sender-e2e-runtime/server.log 2>&1 &
+          echo $! > /tmp/tg-sender-e2e-runtime/server.pid
           for attempt in $(seq 1 90); do
             if curl --silent --fail http://127.0.0.1:8080/health >/dev/null; then
               echo "API ready; migrations and startup seeding completed."
               exit 0
             fi
-            if ! kill -0 "$(cat /tmp/tg-sender-e2e/server.pid)" 2>/dev/null; then
-              cat /tmp/tg-sender-e2e/server.log
+            if ! kill -0 "$(cat /tmp/tg-sender-e2e-runtime/server.pid)" 2>/dev/null; then
+              cat /tmp/tg-sender-e2e-runtime/server.log
               exit 1
             fi
             sleep 2
           done
-          cat /tmp/tg-sender-e2e/server.log
+          cat /tmp/tg-sender-e2e-runtime/server.log
           echo "API did not become healthy in time."
           exit 1
       - name: Create isolated enterprise tenant
@@ -160,6 +160,6 @@ jobs:
           path: |
             web/e2e/playwright-report/
             web/e2e/test-results/
-            /tmp/tg-sender-e2e/server.log
+            /tmp/tg-sender-e2e-runtime/server.log
           if-no-files-found: ignore
           retention-days: 14
