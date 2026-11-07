@@ -95,6 +95,9 @@
     max-height: 100vh !important;
     max-height: 100dvh !important;
     margin: 0 !important;
+    /* vue-final-modal 默认会给内容节点保留 12px 底部内边距；
+       抽屉卡片作为唯一可视面板时必须清零，否则卡片会比视口短 12px。 */
+    padding: 0 !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
