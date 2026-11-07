@@ -140,7 +140,7 @@
       <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
         <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
       </div>
-      <div ref="logContainer" class="max-h-[min(60vh,560px)] overflow-y-auto overscroll-contain space-y-1.5">
+      <div ref="logContainer" class="max-h-[60vh] sm:max-h-[560px] overflow-y-auto overscroll-contain space-y-1.5">
         <div
           v-for="(log, i) in filteredDisplayLogs"
           :key="log.log_id || `${log.executed_at}-${i}`"
