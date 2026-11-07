@@ -257,6 +257,33 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			}
 		}()
 
+		cancelWatchDone := make(chan struct{})
+		go func() {
+			defer close(cancelWatchDone)
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-leaseCtx.Done(): return
+				case <-ticker.C:
+					var status, token string
+					checkCtx, cancel := context.WithTimeout(leaseCtx, 3*time.Second)
+					err := e.pool.QueryRow(checkCtx, `SELECT status, COALESCE(lease_token::text,'') FROM group_library_import_jobs WHERE job_id=$1`, jobID).Scan(&status, &token)
+					if err == nil && status == "cancelling" && token == leaseToken.String() {
+						_, _ = e.pool.Exec(checkCtx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE job_id=$1 AND status='cancelling' AND lease_token=$2`, jobID, leaseToken)
+						cancel()
+						stopLease()
+						return
+					}
+					if err == nil && (status != "processing" || token != leaseToken.String()) {
+						cancel()
+						stopLease()
+						return
+					}
+					cancel()
+				}
+			}
+		}()
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
 			_, _ = e.pool.Exec(leaseCtx, `
@@ -267,6 +294,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				jobID, leaseToken, offset)
 			stopLease()
 			<-heartbeatDone
+			<-cancelWatchDone
 			continue
 		}
 
@@ -363,6 +391,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				}
 				stopLease()
 				<-heartbeatDone
+				<-cancelWatchDone
 				return
 			}
 
@@ -423,6 +452,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		}
 		stopLease()
 		<-heartbeatDone
+		<-cancelWatchDone
 	}
 }
 
