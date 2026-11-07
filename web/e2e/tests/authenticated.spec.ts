@@ -48,7 +48,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   // Playwright 每个测试使用独立 BrowserContext，但 storageState 里的 refresh token 是一次性轮换令牌。
   // 普通 UI 用例用稳定夹具恢复内存 access token，避免第一个测试消费 Cookie 后污染后续测试；
   // 专门的“硬刷新会话”用例会移除此拦截，真实验证 refresh Cookie 轮换。
-  await page.route(/\\/api\\/v1\\/auth\\/refresh(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/auth\/refresh(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'POST') return route.continue()
     return route.fulfill({
       status: 200, contentType: 'application/json',
@@ -353,7 +353,7 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
   }
 
   // 本用例专门验收真实 HttpOnly refresh Cookie；移除普通 UI 用例使用的稳定夹具。
-  await page.unroute(/\\/api\\/v1\\/auth\\/refresh(?:\\?.*)?$/)
+  await page.unroute(/\/api\/v1\/auth\/refresh(?:\?.*)?$/)
   await page.reload()
   await expect(page).toHaveURL(url => url.pathname === '/help', {
     timeout: 20_000,
