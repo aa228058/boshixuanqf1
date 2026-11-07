@@ -25,11 +25,34 @@ const routes = [
   '/sessions',
 ]
 
+async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
+  let accountId = process.env.E2E_ACCOUNT_ID
+  if (!accountId) {
+    await page.waitForFunction(
+      () => Boolean(localStorage.getItem('tg_current_account')),
+      null,
+      { timeout: 5_000 },
+    ).catch(() => undefined)
+    accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || '')
+  }
+
+  if (!accountId) return routes
+  return [
+    ...routes,
+    `/workspace/${accountId}/broadcast`,
+    `/workspace/${accountId}/join`,
+    `/workspace/${accountId}/scrape`,
+    `/workspace/${accountId}/scrape-links`,
+    `/workspace/${accountId}/monitor`,
+    `/workspace/${accountId}/tasks`,
+  ]
+}
+
 test('租户认证路由可渲染且没有浏览器运行时异常', async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on('pageerror', error => runtimeErrors.push(error.message))
 
-  for (const route of routes) {
+  for (const route of await tenantRoutes(page)) {
     await page.goto(route)
     await expect(page).toHaveURL(url => url.pathname === route, {
       timeout: 15_000,
@@ -71,7 +94,7 @@ test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
 })
 
 test('桌面端全部租户页面没有页面级横向溢出', async ({ page }) => {
-  for (const route of routes) {
+  for (const route of await tenantRoutes(page)) {
     await page.goto(route)
     await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
     await page.waitForTimeout(500)
@@ -88,7 +111,7 @@ test('桌面端全部租户页面没有页面级横向溢出', async ({ page }) 
 
 
 test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
-  for (const route of routes) {
+  for (const route of await tenantRoutes(page)) {
     await page.goto(route)
     await expect(page).toHaveURL(url => url.pathname === route, { timeout: 20_000 })
     await page.waitForTimeout(500)
@@ -99,5 +122,28 @@ test('移动端租户页面没有页面级横向溢出', async ({ page }) => {
     }))
     expect(dimensions.document, `${route} 页面级横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
     expect(dimensions.body, `${route} body 横向溢出: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport + 1)
+  }
+})
+
+test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ page }, testInfo) => {
+  await page.goto('/accounts')
+  const addButton = page.getByRole('button', { name: '添加账号' }).first()
+  await expect(addButton).toBeVisible()
+  await addButton.click()
+
+  const modal = page.locator('.modal-content').last()
+  await expect(modal).toBeVisible()
+  const bounds = await modal.boundingBox()
+  const viewport = page.viewportSize()
+  expect(bounds, '弹窗应有可见布局边界').not.toBeNull()
+  expect(viewport).not.toBeNull()
+  if (!bounds || !viewport) return
+
+  if (testInfo.project.name.includes('mobile')) {
+    expect(bounds.y + bounds.height, '移动端弹窗应贴合视口底部').toBeGreaterThanOrEqual(viewport.height - 4)
+    expect(bounds.y + bounds.height, '移动端弹窗不能溢出视口').toBeLessThanOrEqual(viewport.height + 1)
+  } else {
+    expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2), '桌面端弹窗应水平居中').toBeLessThanOrEqual(3)
+    expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2), '桌面端弹窗应垂直居中').toBeLessThanOrEqual(3)
   }
 })

@@ -46,10 +46,10 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <t-button v-if="task?.status === 'running'" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
+          <t-button v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
           <t-button v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</t-button>
-          <t-button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
-          <t-button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
+          <t-button v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
+          <t-button v-if="['completed','success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
@@ -124,12 +124,25 @@
           <t-button @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</t-button>
         </div>
       </div>
+      <div class="mb-2 flex flex-wrap gap-1" role="group" aria-label="筛选任务日志">
+        <button
+          v-for="pill in logPills"
+          :key="pill.value"
+          type="button"
+          class="ui-segmented__item"
+          :aria-pressed="logFilter === pill.value"
+          :class="{ 'is-active': logFilter === pill.value }"
+          @click="logFilter = pill.value"
+        >
+          {{ pill.label }}
+        </button>
+      </div>
       <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
         <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
       </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
         <div
-          v-for="(log, i) in displayLogs"
+          v-for="(log, i) in filteredDisplayLogs"
           :key="log.log_id || `${log.executed_at}-${i}`"
           class="flex items-start gap-2.5 py-1.5 px-2 rounded-lg text-xs"
           :class="logCardClass(log)"
@@ -165,7 +178,7 @@
             </div>
           </div>
         </div>
-        <div v-if="!filteredLogs.length" class="text-text-muted text-center py-10 text-sm">
+        <div v-if="!filteredDisplayLogs.length" class="text-text-muted text-center py-10 text-sm">
           <Clock class="w-8 h-8 mx-auto mb-2 opacity-30" />
           {{ logs.length ? '当前筛选条件下没有日志' : '暂无执行日志，任务运行后会在这里显示~' }}
         </div>
@@ -327,6 +340,11 @@ function taskLogKey(log: TaskLog): string {
   ].join('|')
 }
 
+const filteredDisplayLogs = computed(() => {
+  const visibleKeys = new Set(filteredLogs.value.map(taskLogKey))
+  return displayLogs.value.filter(log => visibleKeys.has(taskLogKey(log)))
+})
+
 // SSE 实时: 本任务的日志/进度/状态亚秒级推送, 打开详情页即可盯着日志滚动
 useTaskEvents((evt: any) => {
   if (evt.task_id !== taskId) return
@@ -369,14 +387,12 @@ async function loadMoreLogs() {
   }
 }
 
-async function clearLogs() {
-  try {
-    await taskApi.deleteTaskLogs((task.value as any).task_id)
-    logs.value = []
-    logsPage.value = 1
-    hasMoreLogs.value = false
-    toast({ type: 'success', title: '日志已清空' })
-  } catch { toast({ type: 'error', title: '清空失败' }) }
+function clearLogs() {
+  // “清除显示”只影响当前页面状态；绝不删除数据库中的审计/发送日志。
+  logs.value = []
+  logsPage.value = 1
+  hasMoreLogs.value = false
+  toast({ type: 'success', title: '已清除当前显示' })
 }
 // 2026-09-23 修复: 初始态是"连接中"而非"已断开"——换ticket+建连要1-2秒,
 // 原实现初始 false 直接显示"已断开", 用户每次打开详情都看到一次假断线
