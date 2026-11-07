@@ -28,6 +28,28 @@
         </p>
       </div>
 
+      <section class="rounded-lg border border-border bg-bg-card overflow-hidden">
+        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold">实时消息</h3>
+            <p class="text-xs text-text-muted mt-0.5">仅显示当前选择账号收到的新消息 · 最多保留 50 条</p>
+          </div>
+          <button type="button" class="ui-button ui-button--secondary text-xs shrink-0" @click="liveMessages = []" :disabled="liveMessages.length === 0">清空</button>
+        </div>
+        <div v-if="liveMessages.length === 0" class="px-4 py-7 text-center text-sm text-text-muted">
+          暂无实时消息。确认监听会话已启动后，收到新消息时会显示在这里。
+        </div>
+        <div v-else class="divide-y divide-border max-h-96 overflow-y-auto">
+          <article v-for="message in liveMessages" :key="message.key" class="px-4 py-3 min-w-0">
+            <div class="flex items-center justify-between gap-3 text-xs text-text-muted">
+              <span class="truncate">群组 {{ message.chat_id }} · 用户 {{ message.from_id }}</span>
+              <time class="shrink-0">{{ formatMonitorMessageTime(message.date) }}</time>
+            </div>
+            <p class="mt-1.5 text-sm text-text-primary whitespace-pre-wrap break-words">{{ message.text || '（非文本消息）' }}</p>
+          </article>
+        </div>
+      </section>
+
       <!-- 规则列表 -->
       <div>
         <div class="flex items-center justify-between mb-4">
@@ -243,6 +265,7 @@ import GroupSelector from '@/components/selectors/GroupSelector.vue'
 import type { Group } from '@/types'
 import LiveTaskFeed from '@/components/LiveTaskFeed.vue'
 import { ask } from '@/utils/confirm'
+import { useTaskEvents } from '@/composables/useTaskEvents'
 
 const route = useRoute()
 const router = useRouter()
@@ -253,7 +276,7 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 // R109: 监控按账号管理, 下拉选择管理哪个号
 const monAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !monAccId.value) monAccId.value = acc.account_id }, { immediate: true })
-watch(monAccId, () => { monitorStatus.value = null; fetchGroups(); fetchRules(); fetchMonitorStatus() })
+watch(monAccId, () => { monitorStatus.value = null; liveMessages.value = []; fetchGroups(); fetchRules(); fetchMonitorStatus() })
 const groups = ref<Group[]>([])
 const showSourceSelector = ref(false)
 const showTargetSelector = ref(false)
@@ -275,6 +298,39 @@ const monitorStatus = ref<{ account_id: string; active_rules: number; session_ac
 const monitorStatusLoading = ref(false)
 let monitorStatusTimer: ReturnType<typeof setInterval> | null = null
 const monitorStatusError = ref('')
+
+interface LiveMonitorMessage {
+  key: string
+  account_id: string
+  chat_id: number | string
+  message_id: number | string
+  from_id: number | string
+  text: string
+  date: number | string
+}
+const liveMessages = ref<LiveMonitorMessage[]>([])
+function handleMonitorEvent(evt: any) {
+  if (evt?.type !== 'new_message') return
+  const payload = evt.payload || evt
+  if (!payload.account_id || payload.account_id !== monAccId.value) return
+  const key = `${payload.account_id}:${payload.chat_id}:${payload.message_id}`
+  if (liveMessages.value.some(message => message.key === key)) return
+  liveMessages.value = [{
+    key,
+    account_id: payload.account_id,
+    chat_id: payload.chat_id,
+    message_id: payload.message_id,
+    from_id: payload.from_id,
+    text: typeof payload.text === 'string' ? payload.text : '',
+    date: payload.date,
+  }, ...liveMessages.value].slice(0, 50)
+}
+useTaskEvents(handleMonitorEvent)
+function formatMonitorMessageTime(value: number | string) {
+  const numeric = Number(value)
+  const date = new Date(Number.isFinite(numeric) && numeric > 0 ? (numeric < 1e12 ? numeric * 1000 : numeric) : value)
+  return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString()
+}
 
 async function fetchMonitorStatus() {
   const accountId = monAccId.value
