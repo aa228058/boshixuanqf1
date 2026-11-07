@@ -50,6 +50,65 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
   ]
 }
 
+// 仅拦截群库只读 API 的确定性演示数据；不写数据库、不执行 Telegram 操作。
+test('群组发现页演示数据视觉回归（内容态与已选态）', async ({ page }, testInfo) => {
+  const demoGroups = [
+    ['e2e-01', '产品交流与资源分享', 'product_hub_cn', 'supergroup', 12840, 'allowed', 'valid', 'scraped'],
+    ['e2e-02', '跨境电商运营讨论', 'crossborder_ops', 'group', 5630, 'restricted', 'valid', 'search'],
+    ['e2e-03', 'Telegram 自动化开发', 'tg_dev_lab', 'channel', 42100, 'unknown', 'pending', 'bio'],
+    ['e2e-04', '独立站卖家互助群', 'indie_sellers', 'supergroup', 2860, 'allowed', 'valid', 'import'],
+    ['e2e-05', '运营素材与案例库', 'ops_cases', 'channel', 97500, 'unknown', 'invalid', 'scraped'],
+    ['e2e-06', 'SaaS 产品增长交流', 'saas_growth_cn', 'supergroup', 7340, 'allowed', 'valid', 'search'],
+    ['e2e-07', '海外营销观察', 'global_marketing', 'channel', 18300, 'unknown', 'pending', 'bio'],
+    ['e2e-08', '开发者闲聊群', 'dev_chat_room', 'group', 1180, 'restricted', 'valid', 'joined'],
+    ['e2e-09', '电报工具测评频道', 'telegram_tools_review', 'channel', 65200, 'unknown', 'valid', 'import'],
+    ['e2e-10', '本地商家交流圈', 'local_business_cn', 'supergroup', 3420, 'allowed', 'pending', 'scraped'],
+  ].map(([id, title, username, gtype, member_count, free_speech_status, status, source], i) => ({
+    sg_id: id as string, title: title as string, username: username as string,
+    tme_link: 'https://t.me/' + username, gtype: gtype as string,
+    member_count: member_count as number, free_speech_status: free_speech_status as string,
+    status: status as string, source: source as string, ref_count: i + 1,
+    entry_count: i === 0 ? 2 : 1,
+    entries: i === 0 ? [
+      { sg_id: id as string, tme_link: 'https://t.me/' + username, username: username as string, source: source as string, status: status as string },
+      { sg_id: 'e2e-01b', tme_link: 'https://t.me/+DemoInvite001', source: 'import', status: 'valid' },
+    ] : undefined,
+    last_seen_at: new Date(Date.UTC(2026, 10, 6 - i, 9, 30)).toISOString(),
+  }))
+  await page.route(/\\/api\\/v1\\/group-library(?:\\?.*)?$/, async route => {
+    if (route.request().method() !== 'GET') return route.continue()
+    const url = new URL(route.request().url())
+    const keyword = (url.searchParams.get('keyword') || '').toLowerCase()
+    const gtype = url.searchParams.get('gtype') || ''
+    const status = url.searchParams.get('status') || ''
+    const source = url.searchParams.get('source') || ''
+    const rows = demoGroups.filter(group =>
+      (!keyword || group.title.toLowerCase().includes(keyword) || group.username.includes(keyword)) &&
+      (!gtype || group.gtype === gtype) &&
+      (!status || (status === 'active' ? group.status !== 'invalid' : group.status === status)) &&
+      (!source || group.source === source),
+    )
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: rows, total: rows.length, page: 1, page_size: 20 }),
+    })
+  })
+
+  await page.goto('/groups/discover')
+  await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
+  await expect(page.getByText('产品交流与资源分享')).toBeVisible()
+  await expect(page.getByText('跨境电商运营讨论')).toBeVisible()
+  await expect(page.getByText('运营素材与案例库')).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
+
+  const joinButton = page.getByRole('button', { name: /加入所选/ })
+  await expect(joinButton).toBeDisabled()
+  await page.getByRole('checkbox', { name: /选择群组 产品交流与资源分享/ }).check()
+  await expect(joinButton).toBeEnabled()
+  await expect(joinButton).toContainText('1')
+  await page.screenshot({ path: testInfo.outputPath('groups-discover-selected.png'), fullPage: true })
+})
+
 test('租户认证路由可渲染且没有浏览器运行时异常', async ({ page }, testInfo) => {
   // 移动端逐页截图比桌面慢；给完整路由矩阵留出合理时间，避免误报超时。
   test.setTimeout(120_000)
