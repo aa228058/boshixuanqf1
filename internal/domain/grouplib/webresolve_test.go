@@ -140,6 +140,8 @@ func TestTelegramHTTPStatusErrorRateLimit(t *testing.T) {
 		t.Fatalf("Endpoint=%q, want test", rateLimitErr.Endpoint)
 	}
 
+}
+
 func TestTelegramResolverRejectsMalformedTargets(t *testing.T) {
 	for _, username := range []string{"", "abcd", "bad/name", "bad?name", "bad.name", "bad-name"} {
 		if telegramUsernameRe.MatchString(username) {
@@ -183,6 +185,4 @@ func TestTelegramRedirectRequiresSecureTelegramOrigin(t *testing.T) {
 			t.Errorf("redirect to %q should be allowed: %v", target, err)
 		}
 	}
-}
-
 }
