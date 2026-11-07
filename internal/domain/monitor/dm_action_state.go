@@ -54,6 +54,10 @@ func (e *Engine) finishDMAction(key dmActionKey, status dmActionStatus) {
 	}
 }
 
-func (e *Engine) dmActionKey(tenantID, accountID uuid.UUID, ruleID uuid.UUID, targetID int64, action string) dmActionKey {
-	return dmActionKey{tenantID: tenantID, accountID: accountID, ruleID: ruleID, targetID: targetID, action: action}
+func (e *Engine) dmActionKey(tenantID, accountID, ruleID uuid.UUID, targetID, sourceChatID int64, sourceMessageID int, action string) dmActionKey {
+	return dmActionKey{
+		tenantID: tenantID, accountID: accountID, ruleID: ruleID,
+		targetID: targetID, sourceChatID: sourceChatID, sourceMessageID: sourceMessageID,
+		action: action,
+	}
 }
