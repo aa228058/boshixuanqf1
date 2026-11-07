@@ -758,80 +758,81 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		return
 	}
 	if rule.DMContent != "" {
-		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		if _, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{}); err != nil {
-			log.Printf("[monitor] 私聊文本发送失败 target=%d: %v", targetUser, err)
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, "text")
+		if e.claimDMAction(key) {
+			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			_, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{})
+			cancel()
+			if err != nil {
+				e.finishDMAction(key, dmActionOutcomeUnknown)
+				log.Printf("[monitor] 私聊文本发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
+			} else {
+				e.finishDMAction(key, dmActionSucceeded)
+			}
 		}
-		cancel()
 	}
 	// ② 联系人名片(即客户端回形针→联系人生成的绿色卡片: inputMediaContact)
 	if ctx.Err() != nil {
 		return
 	}
 	if rule.DMContact {
-		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-
-		cleanPhone := strings.Map(func(r rune) rune {
-			if r >= '0' && r <= '9' {
-				return r
-			}
-			return -1
-		}, rule.DMContactPhone)
-
-		firstName := rule.DMContactFirst
-		if firstName == "" {
-			firstName = "User"
-		}
-		lastName := rule.DMContactLast
-
-		peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
-		if perr != nil {
-			log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
-		} else {
-			// 1. 尝试把号码导入到监控号的通讯录（已存在则秒过，不删除）
-			imported, ierr := c.Raw().ContactsImportContacts(dmCtx, &tg.ContactsImportContactsRequest{
-				Contacts: []*tg.InputPhoneContact{
-					{
-						ClientID:  time.Now().UnixNano(),
-						Phone:     cleanPhone,
-						FirstName: firstName,
-						LastName:  lastName,
-					},
-				},
-			})
-
-			if ierr == nil && len(imported.Users) > 0 {
-				if u, ok := imported.Users[0].(*tg.User); ok {
-					log.Printf("[monitor] 确认联系人(复用): %s (TG ID: %d)", firstName, u.ID)
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, "contact")
+		if e.claimDMAction(key) {
+			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			cleanPhone := strings.Map(func(r rune) rune {
+				if r >= '0' && r <= '9' {
+					return r
 				}
-			} else if ierr != nil {
-				log.Printf("[monitor] 导入联系人失败: %v", ierr)
+				return -1
+			}, rule.DMContactPhone)
+
+			firstName := rule.DMContactFirst
+			if firstName == "" {
+				firstName = "User"
 			}
-
-			// 2. 发送联系人名片
-			ridBytes := make([]byte, 8)
-			if _, rerr := crand.Read(ridBytes); rerr == nil {
-				mediaContact := &tg.InputMediaContact{
-					PhoneNumber: cleanPhone,
-					FirstName:   firstName,
-					LastName:    lastName,
-					Vcard:       "",
-				}
-
-				_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
-					Peer:     peer,
-					Media:    mediaContact,
-					RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
+			lastName := rule.DMContactLast
+			peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
+			if perr != nil {
+				e.finishDMAction(key, dmActionFailedDefinite)
+				log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
+			} else {
+				imported, ierr := c.Raw().ContactsImportContacts(dmCtx, &tg.ContactsImportContactsRequest{
+					Contacts: []*tg.InputPhoneContact{{
+						ClientID: time.Now().UnixNano(), Phone: cleanPhone,
+						FirstName: firstName, LastName: lastName,
+					}},
 				})
-
-				if merr != nil {
-					log.Printf("[monitor] 联系人名片发送失败 target=%d: %v", targetUser, merr)
+				if ierr != nil {
+					log.Printf("[monitor] 导入联系人失败: %v", ierr)
+				} else if len(imported.Users) > 0 {
+					if u, ok := imported.Users[0].(*tg.User); ok {
+						log.Printf("[monitor] 确认联系人(复用): %s (TG ID: %d)", firstName, u.ID)
+					}
+				}
+				ridBytes := make([]byte, 8)
+				if _, rerr := crand.Read(ridBytes); rerr != nil {
+					e.finishDMAction(key, dmActionFailedDefinite)
+					log.Printf("[monitor] 名片发送失败(生成随机 ID) target=%d: %v", targetUser, rerr)
 				} else {
-					log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
+					_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
+						Peer: peer,
+						Media: &tg.InputMediaContact{
+							PhoneNumber: cleanPhone, FirstName: firstName,
+							LastName: lastName, Vcard: "",
+						},
+						RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
+					})
+					if merr != nil {
+						e.finishDMAction(key, dmActionOutcomeUnknown)
+						log.Printf("[monitor] 联系人名片发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, merr)
+					} else {
+						e.finishDMAction(key, dmActionSucceeded)
+						log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
+					}
 				}
 			}
+			cancel()
 		}
-		cancel()
 	}
 
 	// ③ 语音振铃(只振铃不接通, 走通话信令: requestCall→响 N 秒→discardCall)
@@ -839,17 +840,23 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		return
 	}
 	if rule.DMCall {
-		if !e.callAllowed(tenantID, accountID, targetUser) {
-			log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
-			return
-		}
-		secs := rule.DMCallSeconds
-		if secs <= 0 {
-			secs = 5
-		}
-		if err := ringUser(ctx, c, targetUser, secs); err != nil {
-			// USER_PRIVACY_RESTRICTED = 触发人在隐私设置里禁止陌生人来电, 服务端拒绝, 代码无解
-			log.Printf("[monitor] 语音振铃失败 target=%d: %v", targetUser, err)
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, "call")
+		if e.claimDMAction(key) {
+			if !e.callAllowed(tenantID, accountID, targetUser) {
+				e.finishDMAction(key, dmActionFailedDefinite)
+				log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
+				return
+			}
+			secs := rule.DMCallSeconds
+			if secs <= 0 {
+				secs = 5
+			}
+			if err := ringUser(ctx, c, targetUser, secs); err != nil {
+				e.finishDMAction(key, dmActionOutcomeUnknown)
+				log.Printf("[monitor] 语音振铃失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
+			} else {
+				e.finishDMAction(key, dmActionSucceeded)
+			}
 		}
 	}
 }
