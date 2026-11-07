@@ -22,7 +22,7 @@ import (
 
 // importLinkRe 保留为兼容性测试用的候选识别规则；生产导入统一走 filterImportLinks。
 // 与 engine.go 的 tmeRe 同款口径, 避免两种采集规则不一致。
-var telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\\d+)`)
+var telegramFloodWaitRe = regexp.MustCompile(`(?i)FLOOD_WAIT_(\d+)`)
 
 func telegramMTProtoRateLimit(err error) error {
 	if err == nil {
