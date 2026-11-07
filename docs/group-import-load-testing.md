@@ -26,3 +26,24 @@ MTProto invite resolution must be reported as separate scenarios. Never run
 high-volume tests against production accounts or production group libraries.
 
 The pull-request CI workflow runs the three local parser benchmark sizes after database migrations and archives the output as `group-import-parser-benchmark`.
+
+## Real PostgreSQL batch-persistence load test
+
+The build CI job applies all migrations to its isolated PostgreSQL 16 service,
+then runs the opt-in `importbench` test tag:
+
+```sh
+DB_HOST=localhost DB_PORT=5432 DB_USER=postgres DB_PASSWORD=postgres \
+DB_NAME=tg_sender_test DB_SSLMODE=disable \
+go test -tags=importbench ./internal/domain/grouplib \
+  -run '^TestPersistImportFailuresLoad$' -v -count=1
+```
+
+This test creates an isolated tenant and import jobs, sends 10k/30k/50k
+failure records through the production `persistImportFailures` implementation,
+and verifies the exact number of rows persisted in PostgreSQL. Its report
+includes measured DB-call duration, rows/second, and Go heap/allocation deltas.
+The CI artifact combines this output with the parser benchmark.
+
+This measures the batch failure-write path against real PostgreSQL, not
+Telegram link resolution or the entire worker pipeline.
