@@ -57,4 +57,3 @@ func (e *Engine) finishDMAction(key dmActionKey, status dmActionStatus) {
 func (e *Engine) dmActionKey(tenantID, accountID uuid.UUID, ruleID uuid.UUID, targetID int64, action string) dmActionKey {
 	return dmActionKey{tenantID: tenantID, accountID: accountID, ruleID: ruleID, targetID: targetID, action: action}
 }
-
