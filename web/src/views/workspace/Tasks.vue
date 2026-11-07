@@ -136,9 +136,9 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(row.task_id)">暂停</t-button>
+              <t-button v-if="['running','queued','scheduled','pending'].includes(row.status)" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(row.task_id)">暂停</t-button>
               <t-button v-if="row.status === 'paused'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="resumeTask(row.task_id)">继续</t-button>
-              <t-button v-if="row.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
+              <t-button v-if="['running','queued','scheduled','pending','paused'].includes(row.status)" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
               <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
                          class="ui-t-button" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
@@ -172,7 +172,8 @@
           </div>
           <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
             <span class="whitespace-nowrap text-text-secondary">{{ formatDate(task.created_at) }}</span>
-            <span v-if="task.status === 'queued'" class="whitespace-nowrap text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
+            <span v-if="task.status === 'scheduled' && task.scheduled_at" class="whitespace-nowrap text-[var(--t-warn)]">计划启动 {{ formatDate(task.scheduled_at) }}</span>
+            <span v-else-if="task.status === 'queued'" class="whitespace-nowrap text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
             <span v-else-if="task.status === 'running'" class="whitespace-nowrap text-[var(--t-brand)]">已运行 {{ elapsed(task.created_at) }}</span>
           </div>
         </div>
@@ -193,9 +194,9 @@
           </div>
         </div>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(task.task_id)">暂停</t-button>
+          <t-button v-if="['running','queued','scheduled','pending'].includes(task.status)" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(task.task_id)">暂停</t-button>
           <t-button v-if="task.status === 'paused'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="resumeTask(task.task_id)">继续</t-button>
-          <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
+          <t-button v-if="['running','queued','scheduled','pending','paused'].includes(task.status)" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
           <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                      size="small" theme="warning" class="ui-t-button" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
@@ -448,7 +449,7 @@ async function resumeTask(id: string) {
 async function cancelTask(id: string) {
   try {
     await taskApi.cancel(id)
-    fetchTasks()
+    await fetchTasks()
     toast({ type: 'success', title: '任务已取消' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '取消失败', message: (e instanceof Error ? e.message : '请稍后重试') })
@@ -500,7 +501,7 @@ function statusClass(s: string) {
     running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
     completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]', failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]',
     cancelled: 'bg-text-muted/15 text-text-muted', paused: 'bg-text-muted/15 text-text-muted',
-    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'
+    pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', scheduled: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'
   }
   return map[s] || 'bg-text-muted/15 text-text-muted'
 }
@@ -508,7 +509,7 @@ function statusClass(s: string) {
 function statusLabel(s: string) {
   const map: Record<string, string> = {
     running: '运行中', queued: '排队中', completed: '已完成',
-    failed: '失败', cancelled: '已取消', paused: '已暂停', pending: '待执行'
+    failed: '失败', cancelled: '已取消', paused: '已暂停', pending: '待执行', scheduled: '定时待启动'
   }
   return map[s] || s
 }
