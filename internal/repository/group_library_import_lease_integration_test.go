@@ -92,3 +92,47 @@ func TestGroupLibraryImportLeaseFencingAndProgressCAS(t *testing.T) {
 		t.Fatalf("lease was not renewed: expires in %s", time.Until(expires))
 	}
 }
+
+func TestSystemGroupResolvedInfoDoesNotDowngradeMetadata(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	repo := NewSystemGroupRepository(pool)
+
+	preservedID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO system_groups (sg_id, dedup_key, title, username, tme_link, gtype, member_count)
+		VALUES ($1, $2, 'Trusted Group Title', 'trustedgroup', 'https://t.me/trustedgroup', 'channel', 120)
+	`, preservedID, "u:trustedgroup")
+	if err != nil {
+		t.Fatalf("seed existing system group: %v", err)
+	}
+	if err := repo.UpdateResolvedInfo(ctx, preservedID, "Unverified Replacement", 145, "unknown", 0); err != nil {
+		t.Fatalf("update resolved info: %v", err)
+	}
+	var title, gtype string
+	var members int
+	if err := pool.QueryRow(ctx, "SELECT title, gtype, member_count FROM system_groups WHERE sg_id=$1", preservedID).Scan(&title, &gtype, &members); err != nil {
+		t.Fatalf("read preserved system group: %v", err)
+	}
+	if title != "Trusted Group Title" || gtype != "channel" || members != 145 {
+		t.Fatalf("metadata downgraded or count not refreshed: title=%q type=%q members=%d", title, gtype, members)
+	}
+
+	placeholderID := uuid.New()
+	_, err = pool.Exec(ctx, `
+		INSERT INTO system_groups (sg_id, dedup_key, title, username, tme_link, gtype, member_count)
+		VALUES ($1, $2, 'https://t.me/placeholder', 'placeholder', 'https://t.me/placeholder', 'unknown', 0)
+	`, placeholderID, "u:placeholder")
+	if err != nil {
+		t.Fatalf("seed placeholder system group: %v", err)
+	}
+	if err := repo.UpdateResolvedInfo(ctx, placeholderID, "Resolved Title", 0, "supergroup", 0); err != nil {
+		t.Fatalf("resolve placeholder metadata: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT title, gtype FROM system_groups WHERE sg_id=$1", placeholderID).Scan(&title, &gtype); err != nil {
+		t.Fatalf("read resolved placeholder: %v", err)
+	}
+	if title != "Resolved Title" || gtype != "supergroup" {
+		t.Fatalf("placeholder was not upgraded: title=%q type=%q", title, gtype)
+	}
+}
