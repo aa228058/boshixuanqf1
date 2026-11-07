@@ -116,8 +116,6 @@ jobs:
           SQL
           FEATURE_COUNT="$(psql -h 127.0.0.1 -U postgres -d tg_sender_e2e -Atc "SELECT jsonb_array_length(features) FROM plans WHERE plan_id = 'enterprise'")"
           test "$FEATURE_COUNT" -eq 20
-          psql -h 127.0.0.1 -U postgres -d tg_sender_e2e -v ON_ERROR_STOP=1 <<'SQL'
-          SQL
           CODE="$(openssl rand -hex 16)"
           USERNAME="e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           PASSWORD="$(openssl rand -hex 20)"
