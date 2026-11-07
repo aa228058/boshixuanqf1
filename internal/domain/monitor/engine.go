@@ -321,7 +321,19 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 		}
 	}()
 	// 通知 StartMonitoring/StopMonitoring 本 goroutine 已完全退出。
-	defer close(done)
+	defer func() {
+		e.mu.Lock()
+		if tenantSessions := e.sessions[tenantID]; tenantSessions != nil {
+			if current := tenantSessions[accountID]; current != nil && current.done == done {
+				delete(tenantSessions, accountID)
+				if len(tenantSessions) == 0 {
+					delete(e.sessions, tenantID)
+				}
+			}
+		}
+		e.mu.Unlock()
+		close(done)
+	}()
 
 	clientKey := tenantID.String() + ":" + accountID.String()
 
@@ -560,9 +572,8 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			// 对不存在的会话反复重连, 刷 401 AUTH_KEY_UNREGISTERED)
 			if e.accountExists != nil && !e.accountExists(tenantID, accountID) {
 				log.Printf("[monitor] 账号 %s 已删除, 停止监控会话", accountID)
-				// Do not synchronously call StopMonitoring from this loop: it waits
-				// for done, which is closed only after this loop returns.
-				safego.Go(func() { e.StopMonitoring(tenantID, accountID) })
+				// Let this loop exit; its deferred cleanup removes only its own
+				// session (never a newer replacement session).
 				return false
 			}
 			cl, _, err := e.accEngine.GetClientByAccount(ctx, tenantID, accountID)
