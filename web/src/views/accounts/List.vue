@@ -1939,6 +1939,14 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   gap: var(--t-space-2);
   padding: var(--t-space-3) var(--t-space-4);
   position: relative;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease;
+}
+.acc-row:hover { background: var(--t-surface-2); }
+.acc-row:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--t-brand);
+  outline-offset: -2px;
 }
 .acc-row + .acc-row { border-top: 1px solid var(--t-line-light); }
 .acc-row.standby { background: var(--t-surface-2); }
@@ -1992,6 +2000,15 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   scroll-snap-type: x mandatory;
 }
 .stat-strip > * { flex-shrink: 0; width: 128px; scroll-snap-align: start; }
+@media (min-width: 769px) {
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .stat-strip > * { width: auto; min-width: 0; }
+}
 
 /* 风控轻提示(弱化) */
 .risk-hint {
