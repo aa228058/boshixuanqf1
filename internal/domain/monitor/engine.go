@@ -113,8 +113,9 @@ type Engine struct {
 	lastCall map[string]time.Time
 
 	// DM 子动作状态按租户/账号/规则/目标/动作隔离，避免部分成功被整体去重吞掉。
-	dmActionMu sync.Mutex
-	dmActions  map[dmActionKey]dmActionStatus
+	dmActionMu    sync.Mutex
+	dmActions     map[dmActionKey]dmActionStatus
+	dmActionStore DMActionStore
 }
 
 // monitorSession tracks one account's monitoring goroutine.
