@@ -370,3 +370,19 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
     expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2), '桌面端弹窗应垂直居中').toBeLessThanOrEqual(5)
   }
 })
+
+test('弹窗支持 ESC 与关闭按钮退出', async ({ page }) => {
+  await page.goto('/accounts')
+  const addButton = page.getByRole('button', { name: '添加账号' }).first()
+  const visibleModals = page.locator('.modal-card:visible')
+
+  await addButton.click()
+  await expect(visibleModals).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(visibleModals).toHaveCount(0)
+
+  await addButton.click()
+  await expect(visibleModals).toHaveCount(1)
+  await page.getByRole('button', { name: '关闭弹窗' }).click()
+  await expect(visibleModals).toHaveCount(0)
+})
