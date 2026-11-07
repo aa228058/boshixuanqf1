@@ -31,7 +31,7 @@
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
       <div v-else class="space-y-3 mb-4">
         <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
-        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
+        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['ui-task-card p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="px-2 py-0.5 rounded text-xs shrink-0 inline-flex items-center gap-1.5" :class="statusClass(t.status)">
