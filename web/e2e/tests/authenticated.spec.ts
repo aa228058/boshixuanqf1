@@ -49,42 +49,42 @@ test.beforeEach(async ({ page }, testInfo) => {
         name: '本周产品更新通知', created_at: '2026-11-07T09:58:00.000Z',
         account_ids: ['e2e00000-0000-4000-8000-000000000002'],
         progress: { total: 30, done: 16, failed: 2 },
-        config: { message: '本周产品更新与运营活动通知', target_count: 30 },
+        payload: { message: '本周产品更新与运营活动通知' }, config: { target_count: 30 },
       },
       {
         task_id: 'e2e00000-0000-4000-8000-000000000006', type: 'scrape_members', status: 'queued',
         name: '潜在客户名单采集', created_at: '2026-11-07T09:42:00.000Z',
         account_ids: ['e2e00000-0000-4000-8000-000000000003'],
         progress: { total: 1200, done: 0, failed: 0 },
-        config: { target_count: 1200 },
+        payload: { target_count: 1200 }, config: { target_count: 1200 },
       },
       {
         task_id: 'e2e00000-0000-4000-8000-000000000007', type: 'join_groups', status: 'completed',
         name: '行业社群加入', created_at: '2026-11-07T08:35:00.000Z',
         account_ids: ['e2e00000-0000-4000-8000-000000000004'],
         progress: { total: 18, done: 17, failed: 1 },
-        config: { target_count: 18 },
+        payload: { target_count: 18 }, config: { target_count: 18 },
       },
       {
         task_id: 'e2e00000-0000-4000-8000-000000000008', type: 'broadcast', status: 'failed',
         name: '活动预热消息', created_at: '2026-11-07T07:50:00.000Z',
         account_ids: ['e2e00000-0000-4000-8000-000000000005'],
         progress: { total: 50, done: 12, failed: 8 },
-        config: { message: '限时活动预热与报名提醒', target_count: 50 },
+        payload: { message: '限时活动预热与报名提醒' }, config: { target_count: 50 },
       },
       {
         task_id: 'e2e00000-0000-4000-8000-000000000009', type: 'monitor_scrape', status: 'running',
         name: '关键词监控采集', created_at: '2026-11-07T07:15:00.000Z',
         account_ids: ['e2e00000-0000-4000-8000-000000000003'],
         progress: { total: 80, done: 31, failed: 3 },
-        config: { target_count: 80 },
+        payload: { target_count: 80 }, config: { target_count: 80 },
       },
       {
         task_id: 'e2e00000-0000-4000-8000-000000000010', type: 'broadcast', status: 'cancelled',
         name: '上新提醒补发', created_at: '2026-11-07T06:20:00.000Z',
         account_ids: ['e2e00000-0000-4000-8000-000000000004'],
         progress: { total: 25, done: 9, failed: 0 },
-        config: { message: '新品上架提醒', target_count: 25 },
+        payload: { message: '新品上架提醒' }, config: { target_count: 25 },
       },
     ]
     const url = new URL(route.request().url())
@@ -164,13 +164,16 @@ async function navigateTenantRoute(page: import('@playwright/test').Page, route:
 test('任务列表展示多状态演示数据并可按类型筛选', async ({ page }, testInfo) => {
   await navigateTenantRoute(page, '/workspace/e2e00000-0000-4000-8000-000000000002/tasks')
   await expect(page.getByRole('heading', { name: '任务列表' })).toBeVisible()
-  await expect(page.getByText('本周产品更新通知')).toBeVisible()
-  await expect(page.getByText('潜在客户名单采集')).toBeVisible()
-  await expect(page.getByText('活动预热消息')).toBeVisible()
+  await expect(page.getByText('群发消息').first()).toBeVisible()
+  await expect(page.getByText('成员采集').first()).toBeVisible()
+  await expect(page.getByText('运行中').first()).toBeVisible()
+  await expect(page.getByText('排队中').first()).toBeVisible()
+  await expect(page.getByText('已完成').first()).toBeVisible()
+  await expect(page.getByText('失败').first()).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('tasks-list-populated.png'), fullPage: true })
   await page.getByRole('group', { name: '按任务类型筛选' }).getByRole('button', { name: '群发' }).click()
-  await expect(page.getByText('本周产品更新通知')).toBeVisible()
-  await expect(page.getByText('潜在客户名单采集')).toHaveCount(0)
+  await expect(page.getByText('群发消息').first()).toBeVisible()
+  await expect(page.getByText('成员采集')).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('tasks-list-filtered.png'), fullPage: true })
 })
 
