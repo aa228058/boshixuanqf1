@@ -668,10 +668,18 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 // 动作是联网调用，若在消息回调里同步执行，高频群消息会互相阻塞、拖垮整个监听会话。
 // 参数只传标量副本（msg 指针生命周期由 mtgo 库管理，不可跨 goroutine 捕获）。
 func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, msgChatID, msgFromID int64, msgID int, msgText string, msgHasMedia bool) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 	switch rule.Type {
 	case "forward":
 		// Forward message to target chats
 		for _, targetChatID := range rule.TargetChatIDs {
+			if ctx.Err() != nil {
+				return
+			}
 			fwdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			var tgtID int64
 			if parsed, err := strconv.ParseInt(targetChatID, 10, 64); err == nil {
@@ -738,6 +746,9 @@ const anonymousSenderID = 1087968824
 
 // executeDM 执行 type=dm 规则的三个子动作。
 func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, targetUser int64) {
+	if ctx.Err() != nil {
+		return
+	}
 	if targetUser <= 0 || targetUser == anonymousSenderID {
 		log.Printf("[monitor] dm 动作跳过: 触发人不可触达(from=%d)", targetUser)
 		return
@@ -773,6 +784,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 	e.dmFiredMu.Unlock()
 	// ① 私聊文本
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMContent != "" {
 		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		if _, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{}); err != nil {
@@ -781,6 +795,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 		cancel()
 	}
 	// ② 联系人名片(即客户端回形针→联系人生成的绿色卡片: inputMediaContact)
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMContact {
 		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
@@ -848,6 +865,9 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	}
 
 	// ③ 语音振铃(只振铃不接通, 走通话信令: requestCall→响 N 秒→discardCall)
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMCall {
 		if !e.callAllowed(tenantID, accountID, targetUser) {
 			log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
