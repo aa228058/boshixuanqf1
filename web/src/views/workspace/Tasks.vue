@@ -306,12 +306,12 @@ const typeFilter = ref(query.type || '')
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
 // 清空已结束任务: 复用现有 batch/delete 接口, 零后端改动
-// 跨页拉全量(每状态最多 500 条), 避免只清当前页漏其他页
+// 按后端允许的 page_size=100 分页拉取全部已结束任务，避免漏删
 // R109: 任务列表全租户化 —— 移除 account_id 过滤(原绑全局切换器, 已删除;
 // 页头文案已是"全部账号的任务汇总")
 async function clearFinished() {
   const ids = new Set<string>()
-  const pageSizeForCleanup = 500
+  const pageSizeForCleanup = 100
   try {
     for (const status of ['completed', 'failed', 'cancelled']) {
       let cleanupPage = 1
