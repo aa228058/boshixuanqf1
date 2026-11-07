@@ -30,6 +30,7 @@
                 style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);">
           <option value="">全部状态</option>
           <option value="running">运行中</option>
+          <option value="paused">已暂停</option>
           <option value="queued">排队中</option>
           <option value="completed">已完成</option>
           <option value="failed">失败</option>
@@ -135,6 +136,8 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
+              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(row.task_id)">暂停</t-button>
+              <t-button v-if="row.status === 'paused'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="resumeTask(row.task_id)">继续</t-button>
               <t-button v-if="row.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
               <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
@@ -190,6 +193,8 @@
           </div>
         </div>
         <div class="mt-2 flex items-center gap-2">
+          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--secondary" size="small" theme="default" @click.stop="pauseTask(task.task_id)">暂停</t-button>
+          <t-button v-if="task.status === 'paused'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="resumeTask(task.task_id)">继续</t-button>
           <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
           <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
@@ -399,6 +404,26 @@ watch([page, range, statusFilter, typeFilter], () => {
     },
   })
 })
+
+async function pauseTask(id: string) {
+  try {
+    await taskApi.pause(id)
+    await fetchTasks()
+    toast({ type: 'success', title: '任务已暂停' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '暂停失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  }
+}
+
+async function resumeTask(id: string) {
+  try {
+    await taskApi.resume(id)
+    await fetchTasks()
+    toast({ type: 'success', title: '任务已继续' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '继续失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  }
+}
 
 async function cancelTask(id: string) {
   try {
