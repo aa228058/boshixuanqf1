@@ -111,6 +111,7 @@ type Engine struct {
 	// 通话是强打扰动作, 同一监控号对同一目标 10 分钟内最多拨一次, 防风控封号和恶意骚扰。
 	callMu   sync.Mutex
 	lastCall map[string]time.Time
+	callCooldownStore CallCooldownStore
 
 	// DM 子动作状态按租户/账号/规则/目标/动作隔离，避免部分成功被整体去重吞掉。
 	dmActionMu    sync.Mutex
@@ -833,7 +834,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 	if rule.DMCall {
 		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "call")
 		if e.claimDMAction(ctx, key) {
-			if !e.callAllowed(tenantID, accountID, targetUser) {
+			if !e.callAllowed(ctx, tenantID, accountID, targetUser) {
 				e.finishDMAction(ctx, key, dmActionFailedDefinite)
 				log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
 				return
@@ -854,7 +855,17 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 
 // callAllowed 语音振铃冷却: 同一(租户,监控号,被叫) 10 分钟内只允许拨一次。
 // 通话是强打扰动作, 不加冷却高频触发极易被风控封号或遭对方举报。
-func (e *Engine) callAllowed(tenantID, accountID uuid.UUID, callee int64) bool {
+func (e *Engine) callAllowed(ctx context.Context, tenantID, accountID uuid.UUID, callee int64) bool {
+	if e.callCooldownStore != nil {
+		allowed, err := e.callCooldownStore.Claim(ctx, tenantID, accountID, callee)
+		if err != nil {
+			log.Printf("[monitor] 语音振铃冷却领取失败，安全跳过拨号 tenant=%s account=%s callee=%d: %v", tenantID, accountID, callee, err)
+			return false
+		}
+		return allowed
+	}
+
+	// In-memory fallback is retained for isolated unit tests. Production always injects PostgreSQL.
 	key := tenantID.String() + ":" + accountID.String() + ":" + strconv.FormatInt(callee, 10)
 	e.callMu.Lock()
 	defer e.callMu.Unlock()
@@ -862,7 +873,6 @@ func (e *Engine) callAllowed(tenantID, accountID uuid.UUID, callee int64) bool {
 		return false
 	}
 	e.lastCall[key] = time.Now()
-	// 防内存泄漏: 超限重建, 仅保留冷却期内的条目(与 lastMsgPush 同款思路)
 	if len(e.lastCall) > 10000 {
 		fresh := make(map[string]time.Time, len(e.lastCall))
 		cutoff := time.Now().Add(-10 * time.Minute)
