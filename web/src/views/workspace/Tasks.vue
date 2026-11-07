@@ -155,21 +155,23 @@
       <div v-for="(task, ti) in tasks" :key="task.task_id" :style="{ '--i': ti }"
            :class="['ui-task-card p-4 transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : '']"
            @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.enter.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.space.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap" :class="statusClass(task.status)">
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <span class="inline-flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap" :class="statusClass(task.status)">
               <i class="w-1.5 h-1.5 rounded-full bg-current opacity-80"></i>{{ statusLabel(task.status) }}
             </span>
-            <span class="text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
+            <span class="shrink-0 whitespace-nowrap text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
             <!-- R112: 执行账号列 —— 全租户汇总后标识每条任务属于哪个号 -->
-            <span v-if="accountNameOf(task)" class="text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
+            <span v-if="accountNameOf(task)" class="max-w-full truncate text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]"
                   :title="'执行账号: ' + accountNameOf(task)">
               {{ accountNameOf(task) }}
             </span>
           </div>
-          <span class="text-xs text-text-secondary">{{ formatDate(task.created_at) }}</span>
-          <span v-if="task.status === 'queued'" class="text-xs text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
-          <span v-else-if="task.status === 'running'" class="text-xs text-[var(--t-brand)]">已运行 {{ elapsed(task.created_at) }}</span>
+          <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
+            <span class="whitespace-nowrap text-text-secondary">{{ formatDate(task.created_at) }}</span>
+            <span v-if="task.status === 'queued'" class="whitespace-nowrap text-[var(--t-warn)]">已等待 {{ elapsed(task.created_at) }}</span>
+            <span v-else-if="task.status === 'running'" class="whitespace-nowrap text-[var(--t-brand)]">已运行 {{ elapsed(task.created_at) }}</span>
+          </div>
         </div>
         <div class="mt-2">
           <div class="flex items-center justify-between text-xs text-text-secondary mb-1">
