@@ -63,7 +63,7 @@ func TestSummarizeImportBatchRateLimitPreservesCompletedPrefix(t *testing.T) {
 	result := &ImportResult{
 		Processed: 3,
 		Imported:  []domain.SystemGroup{{Title: "one"}},
-		Failed:    []string{
+		Failed: []string{
 			"[not_found] https://t.me/missinggroup: not found",
 			"[rate_limited] https://t.me/currentgroup: FLOOD_WAIT_37",
 		},
@@ -81,8 +81,8 @@ func TestSummarizeImportBatchRateLimitPreservesCompletedPrefix(t *testing.T) {
 func TestSummarizeImportBatchNormalProgress(t *testing.T) {
 	result := &ImportResult{
 		Processed: 5,
-		Imported: []domain.SystemGroup{{Title: "one"}, {Title: "two"}},
-		Failed: []string{"[not_found] https://t.me/missinggroup: not found"},
+		Imported:  []domain.SystemGroup{{Title: "one"}, {Title: "two"}},
+		Failed:    []string{"[not_found] https://t.me/missinggroup: not found"},
 		Skipped:   2,
 	}
 	got := summarizeImportBatch(result, false)
