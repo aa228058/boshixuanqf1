@@ -44,6 +44,7 @@
             <div class="h-full rounded-full bg-[var(--t-brand)]" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }" />
           </div>
           <div class="text-[11px] text-text-muted mt-1">入库 {{ job.imported_count || 0 }} · 失败 {{ job.failed_count || 0 }} · 跳过 {{ job.skipped_count || 0 }}</div>
+          <div v-if="job.last_error" class="text-[11px] text-[var(--t-err)] mt-1 break-words">{{ job.last_error }}</div>
         </div>
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-else-if="job.status === 'failed'" class="text-xs text-[var(--t-err)]">可查看失败原因</span>
@@ -418,7 +419,7 @@ async function loadImportJobs() {
     const res = await listGroupLibraryImportJobs()
     importJobs.value = (res.list || []).slice(0, 8)
     for (const job of importJobs.value) {
-      if (['queued', 'running', 'processing'].includes(job.status)) void pollImportJob(job.job_id)
+      if (['pending', 'queued', 'running', 'processing'].includes(job.status)) void pollImportJob(job.job_id)
     }
   } catch {
     // 列表恢复失败不影响群库浏览；下次手动刷新可重试。
@@ -488,6 +489,7 @@ async function doImport() {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     if (importPageUnmounted) return
     importJob.value = job
+    importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
     toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，格式有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
   } catch (err: any) {
     toast({ type: 'error', title: '筛选失败', message: err?.message || '筛选导入内容失败' })
