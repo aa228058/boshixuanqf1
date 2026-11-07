@@ -177,7 +177,8 @@ func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, fai
 		}
 		links = append(links, link)
 		details = append(details, detail)
-	}	if len(links) == 0 {
+	}
+	if len(links) == 0 {
 		return nil
 	}
 	// Persist a whole worker chunk in one round trip instead of issuing one
@@ -363,7 +364,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 
 		cancelWatchDone := make(chan struct{})
 		go func() {
-			defer close(cancelWatchDone)			ticker := time.NewTicker(time.Second)
+			defer close(cancelWatchDone)
+			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 			for {
 				select {
@@ -542,7 +544,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			if len(lastError) > 4000 {
 				lastError = lastError[:4000] + "…（错误明细已截断）"
 			}
-			if importErr != nil {				lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
+			if importErr != nil {
+				lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
 				if len(lastError) > 4000 {
 					lastError = lastError[:4000] + "…（错误明细已截断）"
 				}
