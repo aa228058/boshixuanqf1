@@ -117,9 +117,9 @@ func (r *TaskLogRepository) StatsByAccountForTask(ctx context.Context, tenantID,
 // ListByTask retrieves logs for a task.
 func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uuid.UUID, limit, offset int) ([]*domain.TaskLog, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, executed_at
+		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, tg_message_id, executed_at
 		FROM task_logs WHERE tenant_id = $1 AND task_id = $2
-		ORDER BY executed_at DESC LIMIT $3 OFFSET $4`, tenantID, taskID, limit, offset)
+		ORDER BY executed_at DESC, log_id DESC LIMIT $3 OFFSET $4`, tenantID, taskID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list task logs: %w", err)
 	}
@@ -131,7 +131,7 @@ func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uui
 		// 2026-10-22 审计修复(P0-17): account_id 可空(批量日志无账号), Scan 到 uuid.UUID
 		// 遇 NULL 直接报错 500——改 Scan 到 *uuid.UUID, NULL 落 nil
 		var accountID *uuid.UUID
-		err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.ExecutedAt)
+		err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.TGMessageID, &l.ExecutedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (r *TaskLogRepository) ListByAccount(ctx context.Context, tenantID, account
 		return nil, 0, err
 	}
 
-	query += fmt.Sprintf(" ORDER BY executed_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	query += fmt.Sprintf(" ORDER BY executed_at DESC, log_id DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 	args = append(args, pageSize, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -292,6 +292,36 @@ func (r *TaskLogRepository) HasSuccessForTargets(ctx context.Context, tenantID, 
 	return result, rows.Err()
 }
 
+// ListCompletedJoinTargets returns targets whose join operation already completed or
+// whose join request is durably waiting for approval. Failed targets are intentionally
+// excluded so a resumed task can retry them.
+func (r *TaskLogRepository) ListCompletedJoinTargets(ctx context.Context, tenantID, taskID, accountID uuid.UUID, targetIDs []string) (map[string]bool, error) {
+	result := make(map[string]bool)
+	if len(targetIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT target_id, status
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2 AND account_id = $3
+		  AND action = 'join_group' AND target_id = ANY($4::text[])
+		  AND status IN ('success', 'pending_approval')
+	`, tenantID, taskID, accountID, targetIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list completed join targets: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var targetID, status string
+		if err := rows.Scan(&targetID, &status); err != nil {
+			return nil, err
+		}
+		// SQL already limits results to the durable success states.
+		result[targetID] = true
+	}
+	return result, rows.Err()
+}
+
 // ListFailedTargets 返回任务日志中标记为失败的去重目标列表, 用于断点续发(只重试失败目标)
 func (r *TaskLogRepository) ListFailedTargets(ctx context.Context, tenantID, taskID uuid.UUID) ([]string, error) {
 	rows, err := r.db.Query(ctx, `
@@ -311,4 +341,52 @@ func (r *TaskLogRepository) ListFailedTargets(ctx context.Context, tenantID, tas
 		targets = append(targets, t)
 	}
 	return targets, rows.Err()
+}
+
+// ListFailedTargetsByAccount returns failed broadcast targets grouped by account.
+// The composite account-target identity is required for safe retries in both
+// cartesian and explicit mapping modes.
+func (r *TaskLogRepository) ListFailedTargetsByAccount(ctx context.Context, tenantID, taskID uuid.UUID) (map[uuid.UUID][]string, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT account_id, target_id
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND action = 'send_message' AND status = 'failed'
+		  AND account_id IS NOT NULL AND target_id <> ''
+		ORDER BY account_id, target_id
+	`, tenantID, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("list failed targets by account: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]string)
+	for rows.Next() {
+		var accountID uuid.UUID
+		var targetID string
+		if err := rows.Scan(&accountID, &targetID); err != nil {
+			return nil, err
+		}
+		result[accountID] = append(result[accountID], targetID)
+	}
+	return result, rows.Err()
+}
+
+// HasUncertainBroadcastTargets reports whether any send may have succeeded
+// remotely but failed to persist its durable checkpoint. Such targets must
+// never be included in automatic failed-target retries.
+func (r *TaskLogRepository) HasUncertainBroadcastTargets(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM task_logs
+			WHERE tenant_id = $1 AND task_id = $2
+			  AND action = 'send_message'
+			  AND error_code = 'checkpoint_persist_failed'
+		)
+	`, tenantID, taskID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check uncertain broadcast targets: %w", err)
+	}
+	return exists, nil
 }

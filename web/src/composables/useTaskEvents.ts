@@ -82,6 +82,7 @@ async function ensureConnected() {
     }, 45000)
   }
 
+  es.addEventListener('heartbeat', () => resetSseWatchdog())
   es.addEventListener('events', (m: any) => {
     try {
       resetSseWatchdog()

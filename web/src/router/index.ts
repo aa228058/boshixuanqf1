@@ -36,9 +36,8 @@ const router = createRouter({
         { path: 'updates', name: 'Updates', component: () => import('@/views/updates/Index.vue'), meta: { title: '更新日志', overlay: true } },
         { path: 'help', name: 'HelpCenter', component: () => import('@/views/help/Index.vue'), meta: { title: '帮助中心', overlay: true } },
         { path: 'raffle', name: 'Raffle', component: () => import('@/views/raffle/Index.vue'), meta: { title: '抽奖助手', overlay: true } },
-        // R113: 旧协议协同系统(protocol/* 三页)已整建制删除 —— 与主系统功能完全重复
-        // (无入口的活死人路由), 统一由 workspace/ 下各页承载所有账号类型。
-        { path: 'sessions', name: 'Sessions', component: () => import('@/views/sessions/Index.vue'), meta: { title: '会话管理', overlay: true } },
+        // 协议号导入/管理已并入「账号管理」；旧地址统一回到账号列表，禁止再加载独立旧页面。
+        { path: 'sessions', redirect: '/accounts' },
 
         // 账号工作区 - 选中账号后的功能页面（数据隔离）
         {

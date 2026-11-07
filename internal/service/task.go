@@ -808,7 +808,28 @@ func (s *TaskService) Pause(ctx context.Context, tenantID, taskID uuid.UUID) err
 	if !validTransitions[task.Status][domain.TaskStatusPaused] {
 		return fmt.Errorf("cannot pause task with status %s", task.Status)
 	}
-	return s.repo.UpdateStatus(ctx, tenantID, taskID, domain.TaskStatusPaused)
+	// Compare-and-set the pause and clear the worker lease in one statement.
+	// The initial read above is only for user-facing transition validation; a worker
+	// may finish between that read and this update.
+	paused, err := s.repo.PauseIfActive(ctx, tenantID, taskID)
+	if err != nil {
+		return err
+	}
+	if !paused {
+		fresh, getErr := s.repo.GetByID(ctx, tenantID, taskID)
+		if getErr != nil {
+			return getErr
+		}
+		if fresh.Status == domain.TaskStatusPaused {
+			return nil
+		}
+		return fmt.Errorf("cannot pause task with status %s", fresh.Status)
+	}
+	// The atomic DB update invalidates the worker lease. Cancel execution immediately.
+	if pauser, ok := s.engine.(interface{ PauseTask(uuid.UUID) }); ok {
+		pauser.PauseTask(taskID)
+	}
+	return nil
 }
 
 // Resume resumes a paused task.
@@ -867,6 +888,59 @@ func (s *TaskService) Retry(ctx context.Context, tenantID, taskID uuid.UUID, sco
 		if task.Status != domain.TaskStatusCompleted && task.Status != domain.TaskStatusFailed {
 			return fmt.Errorf("cannot retry failed targets while task status is %s", task.Status)
 		}
+		// Broadcast retries must be keyed by (account, target), not target alone.
+		// Otherwise one account's failed target can cause another account to resend
+		// a message that it had already delivered successfully.
+		if task.Type == domain.TaskTypeBroadcast || task.Type == domain.TaskTypeScheduledBroadcast {
+			uncertain, err := s.logRepo.HasUncertainBroadcastTargets(ctx, tenantID, taskID)
+			if err != nil {
+				return fmt.Errorf("检查发送结果待核实目标失败: %w", err)
+			}
+			if uncertain {
+				return fmt.Errorf("该任务存在发送结果待核实的目标；为避免重复发送，系统已禁止自动续发，请先人工核对 Telegram 目标消息")
+			}
+			failedByAccount, err := s.logRepo.ListFailedTargetsByAccount(ctx, tenantID, taskID)
+			if err != nil {
+				return fmt.Errorf("获取失败账号目标失败: %w", err)
+			}
+			var mappings []domain.AccountTargetMapping
+			for accountID, targets := range failedByAccount {
+				if len(targets) == 0 {
+					continue
+				}
+				accountTargets := make([]string, 0, len(targets))
+				for _, targetID := range targets {
+					accountTargets = append(accountTargets, targetID)
+				}
+				mappings = append(mappings, domain.AccountTargetMapping{AccountID: accountID, Targets: accountTargets})
+			}
+			if len(mappings) == 0 {
+				return fmt.Errorf("该任务没有失败目标, 无需续发")
+			}
+			message, _ := task.Payload["message"].(string)
+			intervalMin, _ := task.Payload["interval_min"].(float64)
+			intervalMax, _ := task.Payload["interval_max"].(float64)
+			extra := make(map[string]any)
+			for key, value := range task.Payload {
+				switch key {
+				case "message", "mode", "mappings", "interval_min", "interval_max":
+					continue
+				default:
+					extra[key] = value
+				}
+			}
+			created, err := s.CreateBroadcastWithMapping(ctx, tenantID, mappings, nil, nil, message, nil, int(intervalMin), int(intervalMax), extra)
+			if err != nil {
+				return fmt.Errorf("创建续发任务失败: %w", err)
+			}
+			if task.Type == domain.TaskTypeScheduledBroadcast {
+				if err := s.repo.SetLoopConfig(ctx, tenantID, created.TaskID, task.IsLoop, task.LoopIntervalMinutes, int(intervalMin), int(intervalMax), domain.TaskTypeScheduledBroadcast); err != nil {
+					return fmt.Errorf("恢复循环任务配置失败: %w", err)
+				}
+			}
+			return nil
+		}
+
 		failed, err := s.logRepo.ListFailedTargets(ctx, tenantID, taskID)
 		if err != nil {
 			return fmt.Errorf("获取失败目标失败: %w", err)
@@ -874,54 +948,6 @@ func (s *TaskService) Retry(ctx context.Context, tenantID, taskID uuid.UUID, sco
 		if len(failed) == 0 {
 			return fmt.Errorf("该任务没有失败目标, 无需续发")
 		}
-		// P1-15 审计修复: mapping 模式的续发任务必须保留原定向映射。
-		// 原来直接走 Create → CreateBroadcast(mapping=nil) → cartesian,
-		// 把"账号A只发群1"退化成"所有账号×所有失败目标", 既发错群又浪费额度。
-		// 现在从原 payload 取出 mappings, 按失败目标过滤后走 CreateBroadcastWithMapping。
-		if raw, ok := task.Payload["mappings"].([]any); ok && len(raw) > 0 {
-			failedSet := make(map[string]bool, len(failed))
-			for _, t := range failed {
-				failedSet[t] = true
-			}
-			message, _ := task.Payload["message"].(string)
-			intervalMin, _ := task.Payload["interval_min"].(float64)
-			intervalMax, _ := task.Payload["interval_max"].(float64)
-			extra := map[string]any{}
-			if p, ok := task.Payload["priority"].(float64); ok && p >= 1 && p <= 10 {
-				extra["priority"] = p
-			}
-			var filtered []domain.AccountTargetMapping
-			for _, item := range raw {
-				m, ok := item.(map[string]any)
-				if !ok {
-					continue
-				}
-				accStr, _ := m["account_id"].(string)
-				accID, err := uuid.Parse(accStr)
-				if err != nil {
-					continue
-				}
-				tlist, _ := m["targets"].([]any)
-				var kept []string
-				for _, t := range tlist {
-					ts, _ := t.(string)
-					if failedSet[ts] {
-						kept = append(kept, ts)
-					}
-				}
-				if len(kept) > 0 {
-					filtered = append(filtered, domain.AccountTargetMapping{AccountID: accID, Targets: kept})
-				}
-			}
-			if len(filtered) == 0 {
-				return fmt.Errorf("失败目标不在原定向映射内，无法按定向续发")
-			}
-			if _, err := s.CreateBroadcastWithMapping(ctx, tenantID, filtered, nil, failed, message, nil, int(intervalMin), int(intervalMax), extra); err != nil {
-				return fmt.Errorf("创建续发任务失败: %w", err)
-			}
-			return nil
-		}
-		// 优先级透传已在 Create 的 broadcast 分支内从 payload 读取，这里直接重建即可
 		if _, err := s.Create(ctx, tenantID, task.Type, task.AccountIDs, failed, task.Payload, nil); err != nil {
 			return fmt.Errorf("创建续发任务失败: %w", err)
 		}

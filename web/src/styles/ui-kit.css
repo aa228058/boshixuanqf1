@@ -354,3 +354,43 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   }
 }
 
+
+
+/* Native action buttons share the same geometry and interaction states as TDesign buttons.
+   Use this only where a native button is required by the component structure. */
+.ui-native-button {
+  display: inline-flex;
+  min-height: var(--t-control-height-md);
+  align-items: center;
+  justify-content: center;
+  gap: var(--t-space-2);
+  padding: 0 var(--t-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--t-control-radius);
+  font-family: inherit;
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-semibold);
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
+}
+.ui-native-button--sm {
+  min-height: var(--t-control-height-sm);
+  padding-inline: var(--t-space-3);
+  font-size: var(--t-font-xs);
+}
+.ui-native-button--danger {
+  color: var(--t-err);
+  background: var(--t-err-dim);
+  border-color: color-mix(in srgb, var(--t-err) 28%, transparent);
+}
+.ui-native-button--danger:hover {
+  color: var(--t-err);
+  background: color-mix(in srgb, var(--t-err) 14%, var(--t-card));
+  border-color: color-mix(in srgb, var(--t-err) 42%, transparent);
+}
+.ui-native-button:active { transform: translateY(1px); }
+.ui-native-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+@media (max-width: 768px) {
+  .ui-native-button--sm { min-height: 40px; }
+}

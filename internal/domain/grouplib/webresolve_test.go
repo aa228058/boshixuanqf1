@@ -3,6 +3,7 @@ package grouplib
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -21,6 +22,10 @@ func TestParseWebMemberCount(t *testing.T) {
 	}{
 		{"12 345 members", 12345},
 		{"1,234 subscribers", 1234},
+		{"1.2K members", 1200},
+		{"3,4M subscribers", 3400000},
+		{"850 members", 850},
+		{"1.2K 成员", 1200},
 		{"2 001 участников", 2001},
 		{"42 online", 0},
 		{"no preview", 0},
@@ -28,6 +33,35 @@ func TestParseWebMemberCount(t *testing.T) {
 	for _, tc := range cases {
 		if got := parseWebMemberCount(tc.input); got != tc.want {
 			t.Errorf("parseWebMemberCount(%q)=%d, want %d", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestIsInvalidInvitePage(t *testing.T) {
+	if !isInvalidInvitePage("<div>This invite link is invalid or has expired</div>") {
+		t.Fatal("expected expired invite page to be rejected")
+	}
+	if isInvalidInvitePage("<a>Join Group</a><span>120 members</span>") {
+		t.Fatal("valid invite preview must not be rejected")
+	}
+}
+
+func TestDetectTelegramPageTypeRequiresExplicitActionLabel(t *testing.T) {
+	cases := []struct {
+		page string
+		want string
+	}{
+		{page: "<a>Join Group</a>", want: "group"},
+		{page: "<a>View in Telegram</a>", want: "group"},
+		{page: "<a>Join Channel</a>", want: "channel"},
+		{page: "<a>Preview channel</a>", want: "channel"},
+		{page: "<a>Send Message</a>", want: "user"},
+		{page: "<a>Start Bot</a>", want: "user"},
+		{page: "<title>Telegram: Some Place</title>", want: "unknown"},
+	}
+	for _, tc := range cases {
+		if got := detectTelegramPageType(tc.page); got != tc.want {
+			t.Errorf("detectTelegramPageType(%q)=%q, want %q", tc.page, got, tc.want)
 		}
 	}
 }
@@ -51,23 +85,17 @@ func TestApplyTelegramWebHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyTelegramWebHeaders(req)
-	if req.Header.Get("User-Agent") != telegramMobileUA {
+	if req.Header.Get("User-Agent") != telegramWebUserAgent {
 		t.Fatal("expected the configured stable User-Agent")
 	}
 	if req.Header.Get("Accept-Language") == "" || req.Header.Get("Accept") == "" {
 		t.Fatal("expected Accept and Accept-Language headers")
 	}
+	if strings.Contains(req.Header.Get("User-Agent"), "iPhone") || strings.Contains(req.Header.Get("User-Agent"), "Safari") {
+		t.Fatal("User-Agent must identify this application, not impersonate a device or browser")
+	}
 	if req.Header.Get("Referer") != "" {
 		t.Fatal("Referer should not be fabricated")
-	}
-}
-
-func TestRandomResolveDelayBounds(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		delay := randomResolveDelay()
-		if delay < 5*time.Second || delay > 15*time.Second {
-			t.Fatalf("randomResolveDelay()=%s, want range [5s,15s]", delay)
-		}
 	}
 }
 

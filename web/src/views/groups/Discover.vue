@@ -1,28 +1,33 @@
 <template>
   <div class="space-y-4">
-    <!-- 页头 -->
-    <div class="flex items-center justify-between flex-wrap gap-3">
+    <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
+    <section class="space-y-3">
       <div>
         <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
         <p class="text-xs text-text-secondary mt-1">
           所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
       </div>
-      <div class="flex flex-wrap items-center justify-end gap-2 min-w-0">
-        <span class="w-full sm:w-auto text-right text-xs text-text-secondary">共 {{ total }} 条 · 已跨页选中 {{ selected.size }} 条</span>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">{{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}</t-button>
-        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" v-if="selected.size > 0" size="small" variant="text" @click="selected.clear()" title="清空所有勾选(含其他页)">
-          清空
+      <div class="flex items-center justify-between gap-2 text-xs text-text-secondary">
+        <span>共 {{ total }} 条</span>
+        <span>已跨页选中 <strong class="font-semibold text-text-primary tabular-nums">{{ selected.size }}</strong> 条</span>
+      </div>
+      <div class="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">
+          {{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}
         </t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名, 自动解析群名">
-          导入
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名，自动解析群名">
+          导入链接
         </t-button>
-        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="selected.size === 0 || joining" @click="joinModalVisible = true">
+        <t-button v-if="selected.size > 0" class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1" size="small" variant="text" @click="selected.clear()" title="清空所有勾选（含其他页）">
+          清空已选
+        </t-button>
+        <t-button class="ui-t-button ui-t-button--primary col-span-2 sm:col-span-1 sm:ml-auto w-full sm:w-auto" theme="primary" :disabled="selected.size === 0 || joining" :loading="joining" @click="joinModalVisible = true">
           <CheckSquare class="w-4 h-4 mr-1" />
-          加入所选 ({{ selected.size }})
+          加入所选（{{ selected.size }}）
         </t-button>
       </div>
-    </div>
+    </section>
 
     <!-- R128 统一示例2 seg 语言(与进群邀请/链接采集同款) -->
     <div class="ui-segmented" role="tablist" aria-label="群组来源">
@@ -32,31 +37,19 @@
 
     <!-- 系统群库 -->
     <template v-if="tab === 'library'">
-      <section class="ui-card p-3 space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-sm font-semibold text-text-primary">导入任务记录</span>
-          <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="loadImportJobs">刷新任务</t-button>
-        </div>
-        <p v-if="!importJobs.length" class="text-xs text-text-muted">暂无导入记录。提交导入后，即使关闭弹窗，也可以在这里继续查看进度。</p>
-        <div v-for="job in importJobs" :key="job.job_id" class="rounded-lg p-2 space-y-1" style="background: color-mix(in srgb, var(--t-text-1) 5%, transparent);">
-          <div class="flex justify-between text-xs gap-2"><span class="font-medium">{{ job.file_name || '文本导入' }} · {{ job.status === 'completed' ? '已完成' : job.status === 'failed' ? '失败' : job.status === 'pending' ? '等待处理' : job.status === 'review' ? '待确认筛选结果' : '处理中' }}</span><span>{{ job.processed_count }}/{{ job.total_count }}</span></div>
-          <div class="h-1.5 rounded-full overflow-hidden" style="background: var(--t-line-light)"><div class="h-full" style="background: var(--t-brand)" :style="{ width: (job.total_count ? Math.min(100, job.processed_count / job.total_count * 100) : 0) + '%' }"></div></div>
-          <div class="text-[11px] text-text-muted">格式有效 {{ job.valid_count || job.total_count }} · 重复 {{ job.duplicate_count || 0 }} · 无效 {{ job.invalid_count || 0 }} · 已处理 {{ job.processed_count }} · 入库 {{ job.imported_count }} · 失败 {{ job.failed_count }} · {{ fmtTime(job.created_at) }}</div>
-          <div v-if="job.last_error" class="text-[11px] text-text-muted break-words">{{ job.last_error }}</div>
-          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" v-if="job.status === 'review'" size="small" theme="primary" @click="confirmImportJob(job.job_id)">确认有效链接并开始解析</t-button>
-        </div>
-      </section>
       <!-- 筛选条 -->
-      <div class="ui-card p-3 flex flex-wrap items-center gap-2 lift">
-        <div class="relative w-full sm:w-56">
+      <div class="ui-card p-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 lift">
+        <div class="relative w-full col-span-2 sm:col-span-1 sm:w-56">
           <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input v-model="filters.keyword" class="ui-input !pl-9 !pr-3 !py-1.5 !min-h-[36px] !text-sm !w-full" aria-label="搜索群名称、用户名或链接" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
         </div>
         <select v-model="filters.gtype" aria-label="按群组类型筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部类型</option>
-          <option value="public">公开群</option>
-          <option value="private">私密群</option>
+          <option value="group">普通群</option>
+          <option value="supergroup">超级群</option>
           <option value="channel">频道</option>
+          <option value="public">旧版公开群</option>
+          <option value="private">旧版私密群</option>
         </select>
         <select v-model="filters.status" aria-label="按群组状态筛选" class="ui-input !min-h-[36px] !py-1.5 !text-sm !w-full sm:!w-auto" @change="search">
           <option value="">全部状态</option>
@@ -71,13 +64,13 @@
           <option value="search">Telegram 搜索</option>
         </select>
         <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="search">群库内搜索</t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
           <Loader2 v-if="kwSearching" class="w-3.5 h-3.5 animate-spin mr-1" />
           TG全网搜
         </t-button>
-        <span class="flex-1" />
-        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="load">刷新</t-button>
+        <span class="hidden sm:block flex-1" />
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
       </div>
 
       <!-- 群列表: 窄屏可横向滑动, 不再挤压变形 -->
@@ -91,18 +84,24 @@
                    :aria-label="`选择群组 ${row.title || row.username || row.sg_id}`"
                    class="w-4 h-4 accent-[var(--t-brand)] shrink-0" />
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-text-primary truncate">{{ row.title }}</span>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-sm font-medium text-text-primary truncate">{{ row.title || row.username || '未命名群组' }}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"
                       :class="row.gtype === 'private' ? 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]' : row.gtype === 'channel' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]'">
-                  {{ row.gtype === 'private' ? '私密群' : row.gtype === 'channel' ? '频道' : '公开群' }}
+                  {{ gtypeLabel(row.gtype) }}
+                </span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"
+                      :class="row.status === 'invalid' ? 'bg-[color:var(--t-danger-dim)] text-[var(--t-danger)]' : row.status === 'valid' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'">
+                  {{ statusLabel(row.status) }}
                 </span>
               </div>
-              <div class="text-[10.5px] text-text-muted truncate mt-0.5">{{ row.tme_link || row.username }}</div>
-              <div class="text-[10.5px] text-text-muted mt-0.5">{{ Number(row.member_count).toLocaleString() }} 成员</div>
-              <div v-if="row.contributor_name" class="text-[10.5px] text-text-muted mt-0.5">贡献者：{{ row.contributor_name }}</div>
+              <div class="text-[10.5px] text-text-muted mt-1">{{ Number(row.member_count || 0).toLocaleString() }} 成员 · {{ freeSpeechLabel(row.free_speech_status) }} · 最近收录 {{ fmtTime(row.last_seen_at) }}</div>
+              <div class="flex items-center gap-2 min-w-0 mt-1">
+                <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer" class="text-[10.5px] text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
+                <span v-else class="text-[10.5px] text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
+                <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接" @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
+              </div>
             </div>
-            <span v-if="row.source" class="text-[10px] text-text-muted/70 shrink-0 whitespace-nowrap">{{ sourceLabel(row.source) }}</span>
           </div>
           <div v-if="!aggregatedList.length && !loading" class="text-center text-xs text-text-muted py-8">暂无数据</div>
         </div>
@@ -134,6 +133,27 @@
                   <button type="button" class="ui-icon-btn" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
                 </div>
               </div>
+            </div>
+          </template>
+          <template #status="{ row }">
+            <span class="text-xs whitespace-nowrap"
+              :class="row.status === 'invalid' ? 'text-text-muted line-through' : row.status === 'valid' ? 'text-[var(--t-ok)]' : 'text-[var(--t-warn)]'">
+              {{ statusLabel(row.status) }}
+            </span>
+          </template>
+          <template #member_count="{ row }">
+            <span class="text-xs tabular-nums">{{ Number(row.member_count || 0).toLocaleString() }}</span>
+          </template>
+          <template #free_speech_status="{ row }">
+            <span class="text-xs whitespace-nowrap" :class="row.free_speech_status === 'allowed' ? 'text-[var(--t-ok)]' : row.free_speech_status === 'restricted' ? 'text-[var(--t-warn)]' : 'text-text-muted'">{{ freeSpeechLabel(row.free_speech_status) }}</span>
+          </template>
+          <template #link="{ row }">
+            <div class="flex items-center gap-2 min-w-0">
+              <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer"
+                 class="text-xs text-[var(--t-brand)] hover:underline truncate min-w-0">{{ row.tme_link }}</a>
+              <span v-else class="text-xs text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
+              <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接"
+                @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
             </div>
           </template>
           <template #gtype="{ row }">
@@ -267,7 +287,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -331,7 +351,6 @@ const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
 const importJob = ref<any>(null)
-const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
 const activeImportPolls = new Set<string>()
 const importPollTimers = new Map<string, number>()
@@ -351,17 +370,6 @@ onUnmounted(() => {
   for (const timer of importPollTimers.values()) window.clearTimeout(timer)
   importPollTimers.clear()
 })
-
-async function loadImportJobs() {
-  try {
-    const res = await listGroupLibraryImportJobs()
-    if (importPageUnmounted) return
-    importJobs.value = res.list || []
-    for (const job of importJobs.value) {
-      if (job.status === 'pending' || job.status === 'processing') pollImportJob(job.job_id)
-    }
-  } catch { /* history can be refreshed manually if temporarily unavailable */ }
-}
 
 watch(importText, () => {
   if (importJob.value?.status === 'review') importJob.value = null
@@ -397,9 +405,6 @@ async function pollImportJob(jobId: string) {
     if (importPageUnmounted) return
     // 后台历史任务的轮询不能覆盖当前弹窗正在处理的另一笔导入。
     if (importJob.value?.job_id === job.job_id) importJob.value = job
-    const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
-    if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
-    else importJobs.value.unshift(job)
     if (job.status === 'completed' || job.status === 'failed') {
       terminal = true
       load()
@@ -419,8 +424,6 @@ async function confirmImportJob(jobId: string) {
     const job = await confirmImportLibraryGroups(jobId)
     if (importPageUnmounted) return
     importJob.value = job
-    const idx = importJobs.value.findIndex((x: any) => x.job_id === job.job_id)
-    if (idx >= 0) importJobs.value[idx] = { ...importJobs.value[idx], ...job }
     toast({ type: 'success', title: '已开始解析', message: `已确认 ${job.valid_count} 条格式有效链接，进入后台群组解析队列` })
     pollImportJob(job.job_id)
   } catch (err: any) {
@@ -443,7 +446,6 @@ async function doImport() {
     const job = await importLibraryGroups(importText.value, importFileName.value)
     if (importPageUnmounted) return
     importJob.value = job
-    importJobs.value.unshift(job)
     toast({ type: 'success', title: '筛选完成', message: `原始 ${job.raw_count} 条，格式有效 ${job.valid_count} 条，重复 ${job.duplicate_count} 条，无效 ${job.invalid_count} 条。请确认后开始解析。` })
   } catch (err: any) {
     toast({ type: 'error', title: '筛选失败', message: err?.message || '筛选导入内容失败' })
@@ -474,13 +476,13 @@ async function doSearch() {
 
 const tableCols = [
   { colKey: 'checked', title: '', width: 44 },
-  { colKey: 'title', title: '群组', ellipsis: true },
-  { colKey: 'gtype', title: '类型', width: 80 },
-  { colKey: 'member_count', title: '成员', width: 70 },
-  // R87-M8: 删除"状态"列(已加入标识对租户是误导, 切账号后不跟随)
-  { colKey: 'source', title: '来源', width: 110 },
-  { colKey: 'contributor_name', title: '最早贡献者', width: 120 },
-  { colKey: 'last_seen_at', title: '最近收录', width: 132 },
+  { colKey: 'title', title: '群组资源', minWidth: 220, ellipsis: true },
+  { colKey: 'gtype', title: '类型', width: 88 },
+  { colKey: 'status', title: '状态', width: 96 },
+  { colKey: 'member_count', title: '成员', width: 88 },
+  { colKey: 'free_speech_status', title: '自由发言', width: 104 },
+  { colKey: 'last_seen_at', title: '最近收录', width: 140 },
+  { colKey: 'link', title: '链接', minWidth: 220, ellipsis: true },
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
@@ -489,7 +491,10 @@ const joinableAccounts = computed(() =>
 )
 
 function gtypeLabel(t: string) {
-  return t === 'private' ? '私密群' : t === 'channel' ? '频道' : t === 'public' ? '公开群' : '未知'
+  return t === 'group' ? '普通群' : t === 'supergroup' ? '超级群' : t === 'channel' ? '频道' : t === 'private' ? '旧版私密群' : t === 'public' ? '旧版公开群' : '未知'
+}
+function freeSpeechLabel(s: string) {
+  return s === 'allowed' ? '支持自由发言' : s === 'restricted' ? '禁止自由发言' : '未知'
 }
 function statusLabel(s: string) {
   return s === 'valid' ? '链接有效' : s === 'invalid' ? '链接无效' : '待验证'
@@ -568,7 +573,6 @@ function goDiy() {
 
 onMounted(() => {
   load()
-  loadImportJobs()
   if (!accountStore.accounts?.length) accountStore.fetchAccounts(true)
 })
 </script>

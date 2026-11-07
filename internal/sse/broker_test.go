@@ -1,11 +1,17 @@
 package sse
 
 import (
+	"bufio"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"tg-sender/internal/config"
+	"tg-sender/internal/middleware"
 )
 
 func newTestBroker() *Broker {
@@ -104,4 +110,109 @@ func TestBroadcastGlobal_ReachesGlobalTopicNotTenantTopics(t *testing.T) {
 	}
 
 	assertNoEvent(t, chOther, 50*time.Millisecond)
+}
+
+func TestHandlerEmitsNamedHeartbeatEvent(t *testing.T) {
+	b := NewBroker(&config.Config{SSEChannelBuffer: 16, SSEHeartbeat: 10 * time.Millisecond})
+	defer b.Close()
+
+	tenantID := uuid.New()
+	e := echo.New()
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set(middleware.TenantContextKey, tenantID.String())
+			return next(c)
+		}
+	})
+	e.GET("/events", b.Handler("events"))
+	server := httptest.NewServer(e)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/events")
+	if err != nil {
+		t.Fatalf("open SSE stream: %v", err)
+	}
+	defer resp.Body.Close()
+
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("SSE stream ended before heartbeat")
+			}
+			if line == "event: heartbeat" {
+				return
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for named heartbeat event")
+		}
+	}
+}
+
+func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
+	b := newTestBroker()
+	defer b.Close()
+
+	tenantID := uuid.New()
+	e := echo.New()
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set(middleware.TenantContextKey, tenantID.String())
+			return next(c)
+		}
+	})
+	e.GET("/events", b.Handler("events"))
+	server := httptest.NewServer(e)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/events")
+	if err != nil {
+		t.Fatalf("open SSE stream: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	lines := make(chan string, 16)
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		close(lines)
+	}()
+	readLine := func() string {
+		t.Helper()
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("SSE stream ended unexpectedly")
+			}
+			return line
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for SSE frame")
+			return ""
+		}
+	}
+	for readLine() != "event: connected" {
+	}
+	b.BroadcastToTenant(tenantID, "events", map[string]any{"task_id": "task-1"})
+	for {
+		line := readLine()
+		if strings.HasPrefix(line, "event: tenant:") {
+			t.Fatalf("internal tenant topic leaked: %s", line)
+		}
+		if line == "event: events" {
+			break
+		}
+	}
 }
