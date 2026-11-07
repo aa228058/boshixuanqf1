@@ -4,10 +4,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestGroupLibraryImportLeaseFencingAndProgressCAS(t *testing.T) {
@@ -22,6 +24,26 @@ func TestGroupLibraryImportLeaseFencingAndProgressCAS(t *testing.T) {
 	_, err = pool.Exec(ctx, `INSERT INTO group_library_import_jobs (job_id, tenant_id, file_name, payload, status, total_count) VALUES ($1, $2, 'groups.txt', 'one\ntwo\nthree', 'pending', 3)`, jobID, tenantID)
 	if err != nil {
 		t.Fatalf("seed import job: %v", err)
+	}
+
+	// Hold the candidate row lock as worker A. A second independent pool
+	// operation must skip that row rather than block or claim the same job.
+	workerA, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin worker A: %v", err)
+	}
+	defer workerA.Rollback(ctx)
+	var lockedJob uuid.UUID
+	if err := workerA.QueryRow(ctx, `SELECT job_id FROM group_library_import_jobs WHERE job_id=$1 AND status='pending' FOR UPDATE SKIP LOCKED`, jobID).Scan(&lockedJob); err != nil {
+		t.Fatalf("worker A lock candidate: %v", err)
+	}
+	var competingToken uuid.UUID
+	competingErr := pool.QueryRow(ctx, `UPDATE group_library_import_jobs SET status='processing', lease_token=gen_random_uuid(), lease_expires_at=NOW()+INTERVAL '2 minutes' WHERE job_id=(SELECT job_id FROM group_library_import_jobs WHERE status='pending' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING lease_token`).Scan(&competingToken)
+	if !errors.Is(competingErr, pgx.ErrNoRows) {
+		t.Fatalf("competing worker claim error=%v, want no row while worker A holds lock", competingErr)
+	}
+	if err := workerA.Commit(ctx); err != nil {
+		t.Fatalf("commit worker A: %v", err)
 	}
 
 	claim := func() (uuid.UUID, bool) {
