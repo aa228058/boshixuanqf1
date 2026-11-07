@@ -1,7 +1,7 @@
 <template>
-  <main class="ui-page-shell">
+  <main class="ui-page-shell gap-4">
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
-    <div class="ui-toolbar mb-3.5">
+    <div class="ui-toolbar">
       <div class="ui-page-actions flex-1">
 
         <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
@@ -72,7 +72,7 @@
     </div>
     <template v-else>
       <!-- 统计瓦片(R141 新皮肤适配): 横向滑动条(移动端不再折行挤瘪), 实底卡 + 令牌字号/状态色 -->
-      <div class="stat-strip scrollbar-hide mb-3">
+      <div class="stat-strip scrollbar-hide">
         <div class="ui-card px-4 py-3">
           <div class="flex items-center gap-1.5 text-[11px] font-medium" style="color: var(--t-text-3);"><span class="w-1.5 h-1.5 rounded-full" style="background: var(--t-text-3);" />已绑定账号</div>
           <div class="mt-1.5 leading-none font-extrabold tabular-nums" style="font-size: var(--t-fs-display); color: var(--t-text-1);" v-countup="(accountStore.accounts || []).length">0</div>
@@ -2015,7 +2015,6 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   display: flex;
   align-items: center;
   gap: var(--t-space-1-5);
-  margin-bottom: var(--t-space-4);
   padding: 0 var(--t-space-1);
   font-size: var(--t-fs-caption);
   color: var(--t-warn);
