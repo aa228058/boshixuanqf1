@@ -109,7 +109,7 @@ func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.
 	defer tx.Rollback(ctx)
 	// Serialize retries for the same source job so concurrent clicks cannot enqueue duplicate retry batches.
 	var sourceJobID uuid.UUID
-	if err := tx.QueryRow(ctx, `SELECT job_id FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2 FOR UPDATE`, tenantID, jobID).Scan(&sourceJobID); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT job_id FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2 AND status IN ('completed','failed','cancelled') FOR UPDATE`, tenantID, jobID).Scan(&sourceJobID); err != nil {
 		return nil, fmt.Errorf("原导入任务不存在: %w", err)
 	}
 	var job ImportJob
