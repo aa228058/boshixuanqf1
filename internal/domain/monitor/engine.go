@@ -380,8 +380,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			}
 			e.tapVerification(ctx, cl, tenantID, accountID, msg.ChatID, "", fmt.Sprint(msg.FromID), msg.Text, rawTG(msg))
 			// 抽奖助手: 命中抽奖公告自动参与(raffle.go)。
-			// 多号抢答并行: 各账号 OnMessage 天然独立; 发送丢 goroutine 不阻塞消息循环(第一时间)
-			safego.Go(func() { e.tapRaffle(ctx, cl, tenantID, accountID, msg) })
+			// 消息包装对象由 Telegram 客户端管理，不跨 goroutine 捕获原指针；
+			// 复制包装结构后再异步处理，避免回调返回后对象被复用导致字段错乱。
+			msgSnapshot := *msg
+			safego.Go(func() { e.tapRaffle(ctx, cl, tenantID, accountID, &msgSnapshot) })
 			// 抽奖结果追踪: 开奖解析(text_mention实体) + 参与回执确认(2026-10-20)
 			// + 中奖自动回复(060, 需 cl 发送)
 			e.watchRaffleMessage(tenantID, accountID, msg.ChatID, msg, cl)
