@@ -254,3 +254,31 @@ func TestImportWorkerFailedLinksRetryExactlyOnce(t *testing.T) {
 		t.Fatal("second retry should not duplicate already retried failures")
 	}
 }
+
+func TestImportWorkerConcurrentWorkersClaimJobOnlyOnce(t *testing.T) {
+	pool := importWorkerTestPool(t)
+	_, jobID, _ := createImportWorkerFixture(t, pool, 1, "pending", 0)
+	var calls atomic.Int32
+	resolver := func(_ context.Context, _, _ uuid.UUID, batch []string) (*ImportResult, error) {
+		calls.Add(1)
+		time.Sleep(250 * time.Millisecond)
+		return &ImportResult{Processed: len(batch)}, nil
+	}
+	first, second := &Engine{pool: pool}, &Engine{pool: pool}
+	first.workerImportOverride = resolver
+	second.workerImportOverride = resolver
+	done := make(chan struct{}, 2)
+	go func() { first.processImportJobs(context.Background()); done <- struct{}{} }()
+	go func() { second.processImportJobs(context.Background()); done <- struct{}{} }()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-done:
+		case <-time.After(8 * time.Second):
+			t.Fatal("concurrent worker did not finish")
+		}
+	}
+	status, processed, _, _, _, _ := readImportWorkerState(t, pool, jobID)
+	if calls.Load() != 1 || status != "completed" || processed != 1 {
+		t.Fatalf("concurrent claim calls=%d status=%s processed=%d; want 1/completed/1", calls.Load(), status, processed)
+	}
+}
