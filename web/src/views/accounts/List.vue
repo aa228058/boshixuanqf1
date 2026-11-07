@@ -1,7 +1,7 @@
 <template>
-  <main class="ui-page-shell space-y-4">
+  <main class="ui-page-shell">
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
-    <div class="ui-toolbar grid gap-2 mb-3.5">
+    <div class="grid gap-2 mb-3.5">
       <div class="flex gap-2">
         <t-button theme="primary" class="flex-1 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
