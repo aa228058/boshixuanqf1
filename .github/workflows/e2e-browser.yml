@@ -129,7 +129,7 @@ jobs:
             root ${GITHUB_WORKSPACE}/web/dist;
             index index.html;
             location /api/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host \$host; }
-            location /admin/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; }
+            location /admin/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host \$host; }
             location / { try_files \$uri \$uri/ /index.html; }
           }
           NGINX
