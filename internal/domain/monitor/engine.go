@@ -952,10 +952,16 @@ func ringUser(ctx context.Context, c *telegram.Client, userID int64, ringSeconds
 			}
 		}
 	}
-	ringDuration := int32(time.Since(ringStarted) / time.Second)
-	if ringDuration < 0 {
-		ringDuration = 0
+	elapsedSeconds := int64(time.Since(ringStarted) / time.Second)
+	const maxPhoneDurationSeconds int64 = 1<<31 - 1
+	if elapsedSeconds < 0 {
+		elapsedSeconds = 0
 	}
+	if elapsedSeconds > maxPhoneDurationSeconds {
+		elapsedSeconds = maxPhoneDurationSeconds
+	}
+	// The explicit bounds above make this narrowing conversion safe for Telegram's int32 field.
+	ringDuration := int32(elapsedSeconds)
 
 	// 挂断 → 对端收到未接来电。保留上下文 values，但忽略会话取消，
 	// 给挂机请求独立的 15 秒窗口，避免停止监控时跳过挂机。
