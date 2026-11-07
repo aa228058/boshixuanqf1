@@ -27,7 +27,7 @@
 
       <!-- 导航 -->
       <nav class="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
-        <!-- 全局菜单（分区可折叠；协议号系统按套餐过滤） -->
+        <!-- 全局菜单（主导航与系统设置分区） -->
         <template v-for="sec in menuSections" :key="sec.label || 'main'">
           <div
             v-if="sec.label"
