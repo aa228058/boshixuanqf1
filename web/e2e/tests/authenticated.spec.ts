@@ -96,14 +96,11 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
-  // 桌面端渲染表格、移动端渲染卡片；只在当前断点的可见列表中断言，
-  // 避免同时挂载的响应式 DOM 让 locator 命中隐藏节点或产生严格定位冲突。
-  const visibleGroupList = testInfo.project.name.includes('mobile')
-    ? page.locator('[class~="md:hidden"]')
-    : page.locator('tbody')
-  await expect(visibleGroupList.getByText('产品交流与资源分享', { exact: true })).toBeVisible()
-  await expect(visibleGroupList.getByText('跨境电商运营讨论', { exact: true })).toBeVisible()
-  await expect(visibleGroupList.getByText('运营素材与案例库', { exact: true })).toBeVisible()
+  // 响应式表格由 TDesign 自定义渲染，不保证使用原生 tbody；
+  // 精确文本定位到标题文本节点，避免父级附加入口徽标导致重复匹配。
+  await expect(page.getByText('产品交流与资源分享', { exact: true })).toBeVisible()
+  await expect(page.getByText('跨境电商运营讨论', { exact: true })).toBeVisible()
+  await expect(page.getByText('运营素材与案例库', { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
