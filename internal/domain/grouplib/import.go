@@ -87,17 +87,21 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		var gtype string
 		var chatID int64
 		var rerr error
-		if client != nil && !bulkMode {
-			if en.private {
-				title, count, gtype, chatID, rerr = resolveInviteInfo(ctx, client, en.hash)
-			} else {
-				title, count, gtype, chatID, rerr = resolveGroupInfo(ctx, client, en.username)
-			}
-		} else {
-			// 无账号或大批量分片时走复用连接池的 HTTP 解析器。
-			// 仅对网络抖动和 408/425/5xx 做有限重试；无效链接、404 和 429 不在这里重试。
-			title, count, gtype, rerr = resolveWebEntryWithRetry(ctx, en.private, en.username, en.hash)
+		cacheKey := "u:" + strings.ToLower(en.username)
+		if en.private {
+			cacheKey = "p:" + en.hash // Telegram invite hashes are case-sensitive.
 		}
+		title, count, gtype, chatID, rerr = e.resolveCachedImportTarget(ctx, cacheKey, func() (string, int, string, int64, error) {
+			if client != nil && !bulkMode {
+				if en.private {
+					return resolveInviteInfo(ctx, client, en.hash)
+				}
+				return resolveGroupInfo(ctx, client, en.username)
+			}
+			// 仅对网络抖动和 408/425/5xx 做有限重试；无效链接、404 和 429 不在这里重试。
+			title, count, gtype, err := resolveWebEntryWithRetry(ctx, en.private, en.username, en.hash)
+			return title, count, gtype, 0, err
+		})
 		if ctx.Err() != nil {
 			return res, ctx.Err()
 		}
@@ -108,7 +112,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			if rerr == nil {
 				rerr = fmt.Errorf("解析结果缺少群组名称，暂不入库")
 			}
-			res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
+			res.Failed = append(res.Failed, fmt.Sprintf("[%s] %s: %v", classifyImportFailure(rerr), en.link, rerr))
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(rerr, &rateLimitErr) {
 				return res, rateLimitErr
@@ -121,7 +125,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
-			res.Failed = append(res.Failed, fmt.Sprintf("%s: 入库失败 %v", en.link, err))
+			res.Failed = append(res.Failed, fmt.Sprintf("[database] %s: 入库失败 %v", en.link, err))
 			res.Processed++
 			continue
 		}
@@ -137,6 +141,114 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		}
 	}
 	return res, nil
+}
+
+const importResolutionCacheTTL = 10 * time.Minute
+const importResolutionCacheLimit = 5000
+
+type cachedImportResolution struct {
+	title     string
+	count     int
+	gtype     string
+	chatID    int64
+	expiresAt time.Time
+}
+
+type importResolveCall struct {
+	done chan struct{}
+}
+
+func (e *Engine) resolveCachedImportTarget(ctx context.Context, key string, resolve func() (string, int, string, int64, error)) (string, int, string, int64, error) {
+	for {
+		e.mu.Lock()
+		now := time.Now()
+		if cached, ok := e.resolveCache[key]; ok {
+			if now.Before(cached.expiresAt) {
+				e.mu.Unlock()
+				return cached.title, cached.count, cached.gtype, cached.chatID, nil
+			}
+			delete(e.resolveCache, key)
+		}
+		if e.resolveFlights == nil {
+			e.resolveFlights = make(map[string]*importResolveCall)
+		}
+		if call := e.resolveFlights[key]; call != nil {
+			done := call.done
+			e.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return "", 0, "unknown", 0, ctx.Err()
+			case <-done:
+				continue
+			}
+		}
+		call := &importResolveCall{done: make(chan struct{})}
+		e.resolveFlights[key] = call
+		e.mu.Unlock()
+
+		title, count, gtype, chatID, err := resolve()
+		e.mu.Lock()
+		if err == nil && strings.TrimSpace(title) != "" {
+			if e.resolveCache == nil {
+				e.resolveCache = make(map[string]cachedImportResolution)
+			}
+			for cacheKey, value := range e.resolveCache {
+				if !time.Now().Before(value.expiresAt) {
+					delete(e.resolveCache, cacheKey)
+				}
+			}
+			if len(e.resolveCache) >= importResolutionCacheLimit {
+				for cacheKey := range e.resolveCache {
+					delete(e.resolveCache, cacheKey)
+					break
+				}
+			}
+			e.resolveCache[key] = cachedImportResolution{
+				title: title, count: count, gtype: gtype, chatID: chatID,
+				expiresAt: time.Now().Add(importResolutionCacheTTL),
+			}
+		}
+		delete(e.resolveFlights, key)
+		close(call.done)
+		e.mu.Unlock()
+		return title, count, gtype, chatID, err
+	}
+}
+
+func classifyImportFailure(err error) string {
+	if err == nil {
+		return "unknown"
+	}
+	var rateLimitErr *TelegramRateLimitError
+	if errors.As(err, &rateLimitErr) {
+		return "rate_limited"
+	}
+	var statusErr *TelegramHTTPStatusError
+	if errors.As(err, &statusErr) {
+		switch statusErr.StatusCode {
+		case 404, 410:
+			return "not_found"
+		case 401, 403:
+			return "forbidden"
+		default:
+			if statusErr.Retryable() {
+				return "transient"
+			}
+		}
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "invite_hash_expired"), strings.Contains(message, "邀请已过期"), strings.Contains(message, "已过期"):
+		return "expired"
+	case strings.Contains(message, "invite_hash_invalid"), strings.Contains(message, "邀请无效"), strings.Contains(message, "格式无效"):
+		return "invalid"
+	case strings.Contains(message, "不存在"), strings.Contains(message, "not found"), strings.Contains(message, "username not occupied"):
+		return "not_found"
+	case isTransientResolveError(err):
+		return "network"
+	default:
+		return "unknown"
+	}
 }
 
 const importResolveRetryAttempts = 3
