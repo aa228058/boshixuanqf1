@@ -23,6 +23,16 @@
       </span>
     </div>
 
+    <div v-if="task?.scheduled_at && task.status === 'scheduled'" class="rounded-lg border border-[var(--t-warn)]/30 bg-[var(--t-warn)]/5 px-3 py-2 text-sm text-[var(--t-warn)]">
+      计划启动时间：{{ formatDateTime(task.scheduled_at) }}
+    </div>
+    <div v-if="task?.error && ['failed','cancelled'].includes(task.status)" class="rounded-lg border border-[var(--t-err)]/25 bg-[var(--t-err)]/5 px-3 py-3">
+      <div class="flex items-center gap-2 text-sm font-semibold text-[var(--t-err)]">
+        <AlertCircle class="w-4 h-4 shrink-0" />任务结束原因
+      </div>
+      <p class="mt-1 text-sm text-text-secondary whitespace-pre-wrap break-words">{{ task.error }}</p>
+    </div>
+
     <!-- R106: 桌面端两栏 —— 左列进度卡(固定宽), 右列实时日志(自适应); 移动端保持单列堆叠 -->
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-4 items-start">
     <div class="space-y-4 min-w-0">
@@ -368,12 +378,14 @@ useTaskEvents((evt: any) => {
     }
     return
   }
-  if (evt.progress && task.value) {
-    task.value = { ...task.value, progress: evt.progress }
-    return
-  }
+  // 状态事件优先处理：某些 task_status 同时携带 progress，
+  // 不能先被 progress 分支 return，否则详情页会一直停留在旧状态。
   if (evt.type === 'task_status') {
     fetchTask()
+    return
+  }
+  if (evt.progress && task.value) {
+    task.value = { ...task.value, progress: evt.progress }
   }
 })
 
