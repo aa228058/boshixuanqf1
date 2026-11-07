@@ -1,28 +1,33 @@
 <template>
   <div class="space-y-4">
-    <!-- 页头 -->
-    <div class="flex items-center justify-between flex-wrap gap-3">
+    <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
+    <section class="space-y-3">
       <div>
         <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
         <p class="text-xs text-text-secondary mt-1">
           所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
       </div>
-      <div class="flex flex-wrap items-center justify-end gap-2 min-w-0">
-        <span class="w-full sm:w-auto text-right text-xs text-text-secondary">共 {{ total }} 条 · 已跨页选中 {{ selected.size }} 条</span>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">{{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}</t-button>
-        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" v-if="selected.size > 0" size="small" variant="text" @click="selected.clear()" title="清空所有勾选(含其他页)">
-          清空
+      <div class="flex items-center justify-between gap-2 text-xs text-text-secondary">
+        <span>共 {{ total }} 条</span>
+        <span>已跨页选中 <strong class="font-semibold text-text-primary tabular-nums">{{ selected.size }}</strong> 条</span>
+      </div>
+      <div class="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">
+          {{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}
         </t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名, 自动解析群名">
-          导入
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名，自动解析群名">
+          导入链接
         </t-button>
-        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="selected.size === 0 || joining" @click="joinModalVisible = true">
+        <t-button v-if="selected.size > 0" class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1" size="small" variant="text" @click="selected.clear()" title="清空所有勾选（含其他页）">
+          清空已选
+        </t-button>
+        <t-button class="ui-t-button ui-t-button--primary col-span-2 sm:col-span-1 sm:ml-auto w-full sm:w-auto" theme="primary" :disabled="selected.size === 0 || joining" :loading="joining" @click="joinModalVisible = true">
           <CheckSquare class="w-4 h-4 mr-1" />
-          加入所选 ({{ selected.size }})
+          加入所选（{{ selected.size }}）
         </t-button>
       </div>
-    </div>
+    </section>
 
     <!-- R128 统一示例2 seg 语言(与进群邀请/链接采集同款) -->
     <div class="ui-segmented" role="tablist" aria-label="群组来源">
@@ -33,8 +38,8 @@
     <!-- 系统群库 -->
     <template v-if="tab === 'library'">
       <!-- 筛选条 -->
-      <div class="ui-card p-3 flex flex-wrap items-center gap-2 lift">
-        <div class="relative w-full sm:w-56">
+      <div class="ui-card p-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 lift">
+        <div class="relative w-full col-span-2 sm:col-span-1 sm:w-56">
           <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input v-model="filters.keyword" class="ui-input !pl-9 !pr-3 !py-1.5 !min-h-[36px] !text-sm !w-full" aria-label="搜索群名称、用户名或链接" placeholder="群名称 / 用户名 / 链接" @keyup.enter="search" />
         </div>
@@ -59,13 +64,13 @@
           <option value="search">Telegram 搜索</option>
         </select>
         <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="search">群库内搜索</t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
           <Loader2 v-if="kwSearching" class="w-3.5 h-3.5 animate-spin mr-1" />
           TG全网搜
         </t-button>
-        <span class="flex-1" />
-        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="load">刷新</t-button>
+        <span class="hidden sm:block flex-1" />
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
       </div>
 
       <!-- 群列表: 窄屏可横向滑动, 不再挤压变形 -->
