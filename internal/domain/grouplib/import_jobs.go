@@ -93,7 +93,7 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING job_id, file_name, status, total_count, processed_count, imported_count,
 		          failed_count, skipped_count, raw_count, duplicate_count, invalid_count, created_at, finished_at`,
-		tenantID, fileName, strings.Join(filtered.Links, "\\n"), len(filtered.Links), skipped,
+		tenantID, fileName, strings.Join(filtered.Links, "\n"), len(filtered.Links), skipped,
 		filtered.RawCount, filtered.Duplicate, filtered.Invalid).Scan(
 		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
