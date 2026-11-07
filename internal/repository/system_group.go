@@ -50,7 +50,9 @@ func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domai
 		return nil
 	}
 	tx, err := r.db.Begin(ctx)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer tx.Rollback(ctx)
 	for _, sg := range groups {
 		if sg == nil {
