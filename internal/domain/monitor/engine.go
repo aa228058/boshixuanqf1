@@ -937,18 +937,33 @@ func ringUser(ctx context.Context, c *telegram.Client, userID int64, ringSeconds
 		return fmt.Errorf("requestCall 响应缺少通话句柄: %T", res)
 	}
 
-	// 振铃 ringSeconds 秒; 监控会话被停止时立即挂断, 不留悬挂呼叫
+	// 振铃 ringSeconds 秒; 监控会话被停止时立即挂断, 不留悬挂呼叫。
+	// requestCall 一旦超时或响应缺少句柄，无法安全地猜测 callID 并挂机；
+	// 上层必须将其记为 outcome_unknown，且禁止自动重试。
+	ringStarted := time.Now()
+	ringTimer := time.NewTimer(time.Duration(ringSeconds) * time.Second)
 	select {
-	case <-time.After(time.Duration(ringSeconds) * time.Second):
+	case <-ringTimer.C:
 	case <-ctx.Done():
+		if !ringTimer.Stop() {
+			select {
+			case <-ringTimer.C:
+			default:
+			}
+		}
+	}
+	ringDuration := int32(time.Since(ringStarted) / time.Second)
+	if ringDuration < 0 {
+		ringDuration = 0
 	}
 
-	// 挂断 → 对端收到未接来电。用 Background 派生, 避免监控停止导致电话挂不掉
-	disCtx, disCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// 挂断 → 对端收到未接来电。保留上下文 values，但忽略会话取消，
+	// 给挂机请求独立的 15 秒窗口，避免停止监控时跳过挂机。
+	disCtx, disCancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer disCancel()
 	if _, err := c.Raw().PhoneDiscardCall(disCtx, &tg.PhoneDiscardCallRequest{
 		Peer:         &tg.InputPhoneCall{ID: callID, AccessHash: callAccess},
-		Duration:     int32(ringSeconds),
+		Duration:     ringDuration,
 		Reason:       &tg.PhoneCallDiscardReasonHangup{},
 		ConnectionID: 0,
 	}); err != nil {
