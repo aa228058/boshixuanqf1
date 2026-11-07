@@ -395,3 +395,179 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   .ui-native-button--sm { min-height: 40px; }
 }
 
+
+
+/* ══════════════════════════════════════════════════════════════
+   Page composition primitives — shared structure for feature views.
+   These classes standardize hierarchy and spacing without changing
+   existing business markup or imposing one layout on every page.
+   ══════════════════════════════════════════════════════════════ */
+.ui-page-shell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--t-space-6);
+}
+
+.ui-page-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--t-space-4);
+}
+
+.ui-page-heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--t-space-1);
+}
+
+.ui-page-title {
+  margin: 0;
+  color: var(--t-text-1);
+  font-size: var(--t-font-2xl);
+  font-weight: var(--t-weight-bold);
+  line-height: var(--t-leading-tight);
+  letter-spacing: -0.025em;
+}
+
+.ui-page-description {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--t-text-2);
+  font-size: var(--t-font-sm);
+  line-height: var(--t-leading-normal);
+}
+
+.ui-page-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--t-space-2);
+}
+
+.ui-page-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--t-space-3);
+}
+
+.ui-section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--t-space-3);
+}
+
+.ui-section-title {
+  margin: 0;
+  color: var(--t-text-1);
+  font-size: var(--t-font-lg);
+  font-weight: var(--t-weight-semibold);
+  line-height: var(--t-leading-tight);
+}
+
+.ui-toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--t-space-3);
+  padding: var(--t-space-3);
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius-md);
+  background: var(--t-card);
+}
+
+.ui-filter-bar {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t-space-2);
+}
+
+.ui-data-surface {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--t-line-strong);
+  border-radius: var(--t-radius-lg);
+  background: var(--t-card);
+  box-shadow: var(--t-shadow-xs);
+}
+
+.ui-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ui-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--t-space-4);
+}
+
+.ui-form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--t-space-2);
+}
+
+.ui-form-label {
+  color: var(--t-text-1);
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-medium);
+}
+
+.ui-form-help {
+  margin: 0;
+  color: var(--t-text-3);
+  font-size: var(--t-font-xs);
+  line-height: var(--t-leading-normal);
+}
+
+.ui-empty-panel {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--t-space-2);
+  padding: var(--t-space-8) var(--t-space-4);
+  border: 1px dashed var(--t-line-strong);
+  border-radius: var(--t-radius-lg);
+  background: var(--t-surface-2);
+  color: var(--t-text-2);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .ui-page-shell { gap: var(--t-space-4); }
+  .ui-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--t-space-3);
+  }
+  .ui-page-title { font-size: var(--t-font-xl); }
+  .ui-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .ui-page-actions > .t-button,
+  .ui-page-actions > .ui-native-button {
+    min-height: var(--t-control-height-lg);
+  }
+  .ui-form-grid { grid-template-columns: minmax(0, 1fr); }
+}
