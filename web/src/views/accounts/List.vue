@@ -516,12 +516,12 @@
           <label class="block text-sm text-text-secondary mb-1.5">代理（SOCKS5，留空 = 直连）</label>
           <input v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
             class="ui-input !min-h-[44px] !text-sm font-mono" aria-label="代理地址" />
-          <div class="flex items-center gap-2 mt-2">
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
+          <div class="flex flex-wrap items-start gap-2 mt-2">
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm min-h-[44px]" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
               <Loader2 v-if="proxyTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
               测试连通
             </t-button>
-            <span v-if="proxyTestResult" class="text-xs" :class="proxyTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
+            <span v-if="proxyTestResult" class="text-xs min-w-0 flex-1 basis-full sm:basis-auto break-words" :class="proxyTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
               {{ proxyTestResult.ok ? `连通正常 · 延迟 ${proxyTestResult.latency_ms}ms` : (proxyTestResult.error || '连接失败') }}
             </span>
           </div>
