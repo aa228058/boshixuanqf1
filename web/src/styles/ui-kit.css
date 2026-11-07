@@ -495,6 +495,17 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   gap: var(--t-space-2);
 }
 
+/* Task cards use one shared surface across broadcast, joining and scraping queues. */
+.ui-task-card {
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius-lg);
+  background: var(--t-card);
+  box-shadow: var(--t-shadow-xs);
+  transition: border-color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease, box-shadow var(--t-duration-normal) ease;
+}
+
 .ui-data-surface {
   min-width: 0;
   overflow: hidden;
