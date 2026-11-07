@@ -105,7 +105,7 @@ func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.
 	var job ImportJob
 	err = tx.QueryRow(ctx, `
 		WITH failed AS (
-			SELECT string_agg(original_link, E'\\n' ORDER BY created_at) AS payload, COUNT(*)::int AS total
+			SELECT string_agg(original_link, E'\n' ORDER BY created_at) AS payload, COUNT(*)::int AS total
 			FROM group_library_import_job_failures WHERE job_id=$2 AND retry_job_id IS NULL
 		), source AS (
 			SELECT tenant_id, file_name FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2
