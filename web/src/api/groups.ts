@@ -59,8 +59,8 @@ export interface GroupLibraryImportJob {
 }
 
 // 文本或 txt/csv 文件先做链接预筛选，返回预览任务；确认后才进入后台解析。
-export function importLibraryGroups(text: string, fileName = ''): Promise<GroupLibraryImportJob> {
-  return api.post('/group-library/import', { text, file_name: fileName })
+export function importLibraryGroups(text: string, fileName = '', accountId?: string): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import', { text, file_name: fileName, account_id: accountId || undefined })
 }
 
 export function confirmImportLibraryGroups(jobId: string): Promise<GroupLibraryImportJob> {
