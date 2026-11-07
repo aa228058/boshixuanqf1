@@ -399,6 +399,10 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			}
 			// 公开链接优先共享网页解析；选择账号时，私密邀请及网页失败项由 MTProto 补充解析。
 			result, importErr := e.importByLinks(leaseCtx, tenantID, accountID, lines[offset:end], true)
+			if importErr != nil && accountID != uuid.Nil && strings.Contains(importErr.Error(), "取账号连接失败") && leaseCtx.Err() == nil {
+				log.Printf("[grouplib] 导入账号暂不可用，任务 %s 本批降级为网页解析: %v", jobID, importErr)
+				result, importErr = e.importByLinks(leaseCtx, tenantID, uuid.Nil, lines[offset:end], true)
+			}
 
 			var rateLimitErr *TelegramRateLimitError
 			if errors.As(importErr, &rateLimitErr) {
