@@ -161,6 +161,95 @@ jobs:
           go install github.com/pressly/goose/v3/cmd/goose@latest
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
 
+      - name: Benchmark group import parser (10k/30k/50k)
+        env:
+          GOMAXPROCS: 2
+        run: |
+          go test ./internal/domain/grouplib -run '^
+      - name: Enforce gosec result
+        if: always() && steps.gosec.outcome == 'failure'
+        run: |
+          echo "gosec reported security findings; review the Run gosec step before merging."
+          exit 1
+
+  # Phase 10: 前端 typecheck + 单测门禁——此前 CI 只跑 Go, 前端类型失效无人发现
+  # (ListResponse/SystemMetrics 等 4 类型缺失曾静默存在, 本仓修复后立此门禁)
+  frontend-check:
+    name: Frontend Typecheck + Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Design token guard
+        run: npm run check:design-tokens
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+ -bench '^BenchmarkFilterImportLinks
+      - name: Enforce gosec result
+        if: always() && steps.gosec.outcome == 'failure'
+        run: |
+          echo "gosec reported security findings; review the Run gosec step before merging."
+          exit 1
+
+  # Phase 10: 前端 typecheck + 单测门禁——此前 CI 只跑 Go, 前端类型失效无人发现
+  # (ListResponse/SystemMetrics 等 4 类型缺失曾静默存在, 本仓修复后立此门禁)
+  frontend-check:
+    name: Frontend Typecheck + Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Design token guard
+        run: npm run check:design-tokens
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+ -benchmem -benchtime=1x -count=1 | tee import-filter-bench.txt
+
+      - name: Upload import benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: group-import-parser-benchmark
+          path: import-filter-bench.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Enforce gosec result
         if: always() && steps.gosec.outcome == 'failure'
         run: |
