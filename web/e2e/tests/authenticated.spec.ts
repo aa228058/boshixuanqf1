@@ -139,6 +139,17 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
   await expect(visibleModals).toHaveCount(1)
   const modal = visibleModals.first()
   await expect(modal).toBeVisible()
+  // 等待 Vue Final Modal 的进入动画完成后再测量最终布局，避免把 translateY(100%) 过渡帧误判为溢出。
+  await modal.evaluate(async (element) => {
+    const ancestors: Element[] = []
+    let current: Element | null = element
+    for (let depth = 0; current && depth < 4; depth += 1, current = current.parentElement) {
+      ancestors.push(current)
+    }
+    await Promise.all(ancestors.flatMap(node =>
+      node.getAnimations().map(animation => animation.finished.catch(() => undefined)),
+    ))
+  })
   const bounds = await modal.boundingBox()
   const viewport = page.viewportSize()
   expect(bounds, '弹窗应有可见布局边界').not.toBeNull()
