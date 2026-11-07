@@ -437,16 +437,16 @@
         <div v-if="!accountGroups.length" class="text-center text-sm text-text-secondary py-4">
           暂无分组，点击下方按钮添加~
         </div>
-        <div class="flex gap-2 mt-3">
+        <div class="flex flex-col sm:flex-row gap-2 mt-3">
           <input
             id="group-name" v-model="newGroupName"
             placeholder="新分组名称..."
-            class="ui-input !w-auto flex-1 !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="新分组名称..." />
+            class="ui-input !w-full sm:!w-auto flex-1 !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="新分组名称..." />
           <input
             id="group-color" v-model="newGroupColor"
             type="color"
             class="w-10 h-9 rounded cursor-pointer" aria-label="选择颜色" />
-          <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="createGroup">添加</t-button>
+          <t-button class="ui-t-button ui-t-button--primary w-full sm:w-auto" theme="primary" @click="createGroup">添加</t-button>
         </div>
       </div>
     </Modal>
@@ -454,12 +454,12 @@
     <!-- 编辑分组弹窗 -->
     <Modal v-model="showEditGroup" title="编辑分组">
       <div class="space-y-3">
-        <div>
-          <label for="group-name" class="block text-sm text-text-secondary mb-1">分组名称</label>
+        <div class="ui-form-field">
+          <label for="group-name" class="ui-form-label">分组名称</label>
           <input id="group-name" v-model="editGroupName" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="群组名称" />
         </div>
-        <div>
-          <label for="group-color" class="block text-sm text-text-secondary mb-1">颜色</label>
+        <div class="ui-form-field">
+          <label for="group-color" class="ui-form-label">颜色</label>
           <input id="group-color" v-model="editGroupColor" type="color" class="w-full h-10 rounded cursor-pointer" aria-label="选择颜色" />
         </div>
       </div>
