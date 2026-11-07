@@ -36,6 +36,11 @@ type ImportResult struct {
 // 解析规则：只有成功取得群组身份信息后才允许写入正式群组库。
 // 私密邀请链接如果 Telegram 不提供预览信息，保留为失败/待补充，不创建占位群组。
 func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUID, lines []string) (*ImportResult, error) {
+	return e.importByLinks(ctx, tenantID, accountID, lines, false)
+}
+
+// importByLinks optionally prefers the shared web resolver for large background jobs, using MTProto for private invites and web fallbacks.
+func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUID, lines []string, preferWeb bool) (*ImportResult, error) {
 	// Direct callers and queued jobs must share the exact same strict parser.
 	// This prevents bypassing token-boundary, bot, and URL validation checks.
 	type entry struct {
@@ -94,7 +99,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		pendingGroups = pendingGroups[:0]
 	}
 	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
-	bulkMode := len(entries) > 200 || client == nil
+	bulkMode := preferWeb || len(entries) > 200 || client == nil
 	for _, en := range entries {
 		if err := ctx.Err(); err != nil {
 			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -125,15 +130,25 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			cacheKey += ":web"
 		}
 		title, count, gtype, chatID, rerr = e.resolveCachedImportTarget(ctx, cacheKey, func() (string, int, string, int64, error) {
+			// 私密邀请链接优先使用 MTProto：checkChatInvite 可读取 Telegram 提供的预览，
+			// 不要求账号加入群组。未选择账号时才退回网页预览。
+			if client != nil && en.private {
+				return resolveInviteInfo(ctx, client, en.hash)
+			}
 			if client != nil && !bulkMode {
-				if en.private {
-					return resolveInviteInfo(ctx, client, en.hash)
-				}
 				return resolveGroupInfo(ctx, client, en.username)
 			}
-			// 仅对网络抖动和 408/425/5xx 做有限重试；无效链接、404 和 429 不在这里重试。
-			title, count, gtype, err := resolveWebEntryWithRetry(ctx, en.private, en.username, en.hash)
-			return title, count, gtype, 0, err
+			// 大批量公开链接优先走共享网页调度器，避免把一个账号压成逐条串行瓶颈。
+			title, count, gtype, webErr := resolveWebEntryWithRetry(ctx, en.private, en.username, en.hash)
+			if webErr == nil || client == nil {
+				return title, count, gtype, 0, webErr
+			}
+			var rateLimitErr *TelegramRateLimitError
+			if errors.As(webErr, &rateLimitErr) || ctx.Err() != nil {
+				return "", 0, "", 0, webErr
+			}
+			// 网页预览不可用/信息不完整时，用用户明确选择的在线账号补充 MTProto 解析。
+			return resolveGroupInfo(ctx, client, en.username)
 		})
 		if ctx.Err() != nil {
 			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
@@ -161,7 +176,7 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		pendingGroups = append(pendingGroups, &sg)
 		res.Processed++
 		// MTProto 请求保守限速；HTTP 解析由连接池与 Worker 调度统一控制。
-		if client != nil && !bulkMode {
+		if client != nil && (!bulkMode || en.private || rerr != nil) {
 			select {
 			case <-ctx.Done():
 				writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
