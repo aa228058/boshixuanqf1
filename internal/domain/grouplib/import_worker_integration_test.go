@@ -184,7 +184,7 @@ func TestImportWorkerRateLimitSavesPrefixAndRequeues(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	engine := &Engine{pool: pool}
-	engine.workerImportOverride = func(context.Context, _, _ uuid.UUID, _ []string) (*ImportResult, error) {
+	engine.workerImportOverride = func(_ context.Context, _, _ uuid.UUID, _ []string) (*ImportResult, error) {
 		close(started)
 		return &ImportResult{
 			Processed: 1,
