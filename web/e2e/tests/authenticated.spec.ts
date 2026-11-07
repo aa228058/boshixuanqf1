@@ -45,6 +45,20 @@ test.beforeEach(async ({ page }, testInfo) => {
       ] }),
     })
   })
+  // 路由守卫每次导航都会静默刷新 /auth/me。用只读租户夹具隔离该请求，避免在页面矩阵中触发后端限流；登录/refresh 本身仍走真实 API。
+  await page.route(/\\/api\\/v1\\/auth\\/me(?:\\?.*)?$/, async route => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: {
+        tenant_id: 'e2e-tenant', tenant_name: 'Playwright Enterprise', username: 'e2e-audit',
+        name: 'Playwright Enterprise', plan_id: 'enterprise', status: 'active',
+        max_accounts: 100, max_concurrent_tasks: 40,
+        plan_features: Object.fromEntries(['broadcast','loop_broadcast','scrape_members','scrape_links','join_groups','monitor','export','templates','scheduled_tasks','discover','search','proxy','invite','verifier','ai_verify','checkup','dict','api','raffle','notify'].map(key => [key, true])),
+        created_at: '2026-11-01T00:00:00.000Z', expires_at: '2027-11-01T00:00:00.000Z',
+      } }),
+    })
+  })
   // 任务列表使用多状态、跨账号的只读演示数据，确保桌面表格与移动卡片都不是空状态。
   await page.route(/\/api\/v1\/tasks(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
@@ -257,7 +271,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
     })
   })
 
-  await page.goto('/groups/discover')
+  await navigateTenantRoute(page, '/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
   // 桌面端群名位于表格单元格中（并非 span）；移动端则位于响应式卡片。
   // 用可见的语义容器断言，避免依赖组件内部标签结构。
