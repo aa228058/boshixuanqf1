@@ -265,8 +265,8 @@ func (b *Broker) Handler(topic string) echo.HandlerFunc {
 				}
 				writeEvent(event)
 			case <-heartbeat.C:
-				// SSE comment heartbeat (ignored by EventSource but keeps TCP alive)
-				fmt.Fprint(c.Response(), ":heartbeat\n\n")
+				// A named heartbeat event keeps both intermediaries and the client watchdog alive.
+				fmt.Fprint(c.Response(), "event: heartbeat\\ndata: {}\\n\\n")
 				flusher.Flush()
 			case <-c.Request().Context().Done():
 				return nil
