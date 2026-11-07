@@ -8,8 +8,10 @@ type dmActionKey struct {
 	tenantID  uuid.UUID
 	accountID uuid.UUID
 	ruleID    uuid.UUID
-	targetID  int64
-	action    string
+	targetID        int64
+	sourceChatID    int64
+	sourceMessageID int
+	action           string
 }
 
 type dmActionStatus uint8
