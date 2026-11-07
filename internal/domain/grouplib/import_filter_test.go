@@ -88,3 +88,32 @@ func TestSummarizeImportBatchKeepsSkippedForCompletedBatch(t *testing.T) {
 		t.Fatalf("detail = %q, want both completed failures", got.detail)
 	}
 }
+
+func TestFilterImportLinksRejectsPartialUsernameMatches(t *testing.T) {
+	input := "https://t.me/ValidGroup.evil\nhttps://t.me/ValidGroup%2Fother\nhttps://t.me/ValidGroup\nhttps://t.me/s/ChannelName"
+	got := filterImportLinks(input)
+	want := []string{"https://t.me/ValidGroup", "https://t.me/ChannelName"}
+	if !reflect.DeepEqual(got.Links, want) {
+		t.Fatalf("links = %#v, want %#v", got.Links, want)
+	}
+	if got.RawCount != 4 || got.Invalid != 2 || got.Duplicate != 0 {
+		t.Fatalf("counts = raw:%d duplicate:%d invalid:%d, want raw:4 duplicate:0 invalid:2",
+			got.RawCount, got.Duplicate, got.Invalid)
+	}
+}
+
+func TestImportLinkRegexAndValidationSupportPreviewURLs(t *testing.T) {
+	matches := importLinkRe.FindAllStringSubmatch("https://t.me/s/ChannelName https://t.me/+AbCdEf123 @ValidGroup", -1)
+	if len(matches) != 3 {
+		t.Fatalf("matches = %#v, want 3 Telegram targets", matches)
+	}
+	if matches[0][1] != "s/" || !telegramUsernameRe.MatchString(matches[0][2]) {
+		t.Fatalf("preview URL was not recognized as a public username: %#v", matches[0])
+	}
+	if matches[1][1] != "+" || !telegramInviteHashRe.MatchString(matches[1][2]) {
+		t.Fatalf("invite URL was not recognized: %#v", matches[1])
+	}
+	if !telegramUsernameRe.MatchString(matches[2][2]) {
+		t.Fatalf("username was not validated: %#v", matches[2])
+	}
+}
