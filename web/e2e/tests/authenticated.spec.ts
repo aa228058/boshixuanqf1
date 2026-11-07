@@ -5,6 +5,45 @@ const tenantPassword = process.env.E2E_TENANT_PASSWORD
 
 test.beforeEach(async ({ page }) => {
   if (!tenantUsername || !tenantPassword) return // 使用项目配置加载的 .auth/user.json
+  // 所有认证页面共用一组只读演示账号；不依赖租户真实账号数据，也不触发 Telegram 操作。
+  await page.route(/\\/api\\/v1\\/accounts(?:\\?.*)?$/, async route => {
+    if (route.request().method() !== 'GET') return route.continue()
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: [{
+        account_id: 'e2e-demo-account', phone: '+8613800000001',
+        first_name: '演示运营号', last_name: '', username: 'demo_operator',
+        status: 'online', source: 'phone', remark: 'Playwright 视觉验收专用',
+        created_at: '2026-11-01T08:00:00.000Z',
+      }] }),
+    })
+  })
+  await page.route(/\\/api\\/v1\\/tasks\\/e2e-demo-task(?:\\/.*)?(?:\\?.*)?$/, async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/logs')) {
+      return route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ code: 0, data: [
+          { log_id: 'log-01', action: 'task_started', status: 'success', message: '任务已启动，开始处理目标群组', executed_at: '2026-11-07T10:00:00.000Z' },
+          { log_id: 'log-02', action: 'target_success', status: 'success', message: '已成功发送至「产品交流与资源分享」', executed_at: '2026-11-07T10:00:18.000Z' },
+          { log_id: 'log-03', action: 'target_failed', status: 'failed', message: '目标「跨境电商运营讨论」发送失败：FloodWait 需等待 12 秒', executed_at: '2026-11-07T10:00:31.000Z' },
+          { log_id: 'log-04', action: 'target_success', status: 'success', message: '已成功发送至「SaaS 产品增长交流」', executed_at: '2026-11-07T10:00:49.000Z' },
+          { log_id: 'log-05', action: 'task_progress', status: 'success', message: '当前进度 18/30，成功 16，失败 2', executed_at: '2026-11-07T10:01:02.000Z' },
+        ] }),
+      })
+    }
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ code: 0, data: {
+        task_id: 'e2e-demo-task', type: 'broadcast', status: 'running',
+        created_at: '2026-11-07T09:58:00.000Z', started_at: '2026-11-07T10:00:00.000Z',
+        account_id: 'e2e-demo-account', account_name: '演示运营号',
+        progress: { total: 30, done: 16, failed: 2 },
+        config: { message: '本周产品更新与运营活动通知', target_count: 30 },
+      } }),
+    })
+  })
+  await page.addInitScript(() => localStorage.setItem('tg_current_account', 'e2e-demo-account'))
   await page.goto('/login')
   await page.locator('input[autocomplete="username"]').fill(tenantUsername)
   await page.locator('input[autocomplete="current-password"]').fill(tenantPassword)
@@ -67,6 +106,7 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
     `/workspace/${accountId}/scrape-links`,
     `/workspace/${accountId}/monitor`,
     `/workspace/${accountId}/tasks`,
+    `/workspace/${accountId}/tasks/e2e-demo-task`,
   ]
 }
 
