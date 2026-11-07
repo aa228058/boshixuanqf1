@@ -33,17 +33,37 @@ func TestDMActionClaimIsAtomic(t *testing.T) {
 func TestDMActionsAreIndependentAndScoped(t *testing.T) {
 	e := &Engine{dmActions: make(map[dmActionKey]dmActionStatus)}
 	tenantID, accountID, ruleID := uuid.New(), uuid.New(), uuid.New()
-	textKey := e.dmActionKey(tenantID, accountID, ruleID, 123, "text")
-	contactKey := e.dmActionKey(tenantID, accountID, ruleID, 123, "contact")
+	textKey := e.dmActionKey(tenantID, accountID, ruleID, 123, -1001, 55, "text")
+	contactKey := e.dmActionKey(tenantID, accountID, ruleID, 123, -1001, 55, "contact")
 	if !e.claimDMAction(textKey) || !e.claimDMAction(contactKey) {
 		t.Fatal("different actions should be independently claimable")
 	}
 	if e.claimDMAction(textKey) {
 		t.Fatal("same action must not be claimed twice")
 	}
-	otherTenant := e.dmActionKey(uuid.New(), accountID, ruleID, 123, "text")
+	otherTenant := e.dmActionKey(uuid.New(), accountID, ruleID, 123, -1001, 55, "text")
 	if !e.claimDMAction(otherTenant) {
 		t.Fatal("another tenant must have an independent action key")
+	}
+}
+
+func TestDMActionsAreScopedToTriggeringMessage(t *testing.T) {
+	e := &Engine{dmActions: make(map[dmActionKey]dmActionStatus)}
+	tenantID, accountID, ruleID := uuid.New(), uuid.New(), uuid.New()
+	first := e.dmActionKey(tenantID, accountID, ruleID, 123, -1001, 55, "text")
+	second := e.dmActionKey(tenantID, accountID, ruleID, 123, -1001, 56, "text")
+	otherChat := e.dmActionKey(tenantID, accountID, ruleID, 123, -1002, 55, "text")
+	if !e.claimDMAction(first) {
+		t.Fatal("first triggering message should be claimable")
+	}
+	if e.claimDMAction(first) {
+		t.Fatal("duplicate delivery of the same message must be suppressed")
+	}
+	if !e.claimDMAction(second) {
+		t.Fatal("a later message from the same user should trigger independently")
+	}
+	if !e.claimDMAction(otherChat) {
+		t.Fatal("the same message ID in another chat should be independent")
 	}
 }
 
