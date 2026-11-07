@@ -130,11 +130,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y nginx
+          # GitHub-hosted runners keep the workspace under /home/runner, which is
+          # not necessarily traversable by nginx's www-data worker. Serve a
+          # readable copy from /tmp instead of exposing the private workspace.
+          sudo rm -rf /tmp/tg-sender-e2e-web
+          sudo mkdir -p /tmp/tg-sender-e2e-web
+          sudo cp -a web/dist/. /tmp/tg-sender-e2e-web/
+          sudo chmod -R a+rX /tmp/tg-sender-e2e-web
           sudo tee /etc/nginx/sites-available/default >/dev/null <<NGINX
           server {
             listen 4173;
             server_name _;
-            root ${GITHUB_WORKSPACE}/web/dist;
+            root /tmp/tg-sender-e2e-web;
             index index.html;
             location /api/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host \$host; }
             location /admin/ { proxy_pass http://127.0.0.1:8080; proxy_set_header Host \$host; }
@@ -143,6 +150,13 @@ jobs:
           NGINX
           sudo nginx -t
           sudo systemctl restart nginx
+          # Fail here with actionable diagnostics if nginx cannot read the SPA.
+          curl --fail --silent --show-error http://127.0.0.1:4173/login -o /tmp/tg-sender-e2e-runtime/login.html
+          grep -q '<div id="app"></div>' /tmp/tg-sender-e2e-runtime/login.html
+          ASSET="$(grep -oE 'src="/assets/[^"]+' /tmp/tg-sender-e2e-runtime/login.html | head -1 | cut -d '"' -f 2)"
+          test -n "$ASSET"
+          curl --fail --silent --show-error "http://127.0.0.1:4173$ASSET" -o /dev/null
+          echo "Nginx serves the SPA shell and its built JavaScript bundle."
       - name: Install Playwright
         working-directory: web/e2e
         run: |
