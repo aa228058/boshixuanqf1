@@ -79,6 +79,10 @@ export function cancelGroupLibraryImportJob(jobId: string): Promise<GroupLibrary
   return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/cancel')
 }
 
+export function retryFailedGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/retry')
+}
+
 // 关键词搜群: 借本租户在线账号做 TG 全局搜索, 结果直接入库并返回
 export function searchLibraryGroups(keyword: string, accountId?: string): Promise<{ list: SystemGroup[]; count: number }> {
   return api.post('/group-library/search', { keyword, account_id: accountId || undefined })
