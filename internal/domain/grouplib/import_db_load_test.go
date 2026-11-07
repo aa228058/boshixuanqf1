@@ -85,14 +85,14 @@ func TestPersistImportFailuresLoad(t *testing.T) {
 		}
 
 		report := map[string]any{
-			"scenario": "postgres_batch_failure_upsert",
-			"rows": size,
-			"elapsed_ms": float64(elapsed.Microseconds()) / 1000,
-			"rows_per_second": float64(size) / elapsed.Seconds(),
-			"heap_alloc_delta_bytes": int64(after.HeapAlloc) - int64(before.HeapAlloc),
+			"scenario":                "postgres_batch_failure_upsert",
+			"rows":                    size,
+			"elapsed_ms":              float64(elapsed.Microseconds()) / 1000,
+			"rows_per_second":         float64(size) / elapsed.Seconds(),
+			"heap_alloc_delta_bytes":  int64(after.HeapAlloc) - int64(before.HeapAlloc),
 			"total_alloc_delta_bytes": int64(after.TotalAlloc) - int64(before.TotalAlloc),
-			"verified_rows": persisted,
-			"database": "PostgreSQL",
+			"verified_rows":           persisted,
+			"database":                "PostgreSQL",
 		}
 		encoded, _ := json.Marshal(report)
 		t.Logf("IMPORT_DB_BENCH %s", encoded)
