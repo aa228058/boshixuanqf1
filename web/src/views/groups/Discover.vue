@@ -1,10 +1,10 @@
 <template>
-  <div class="space-y-4">
+  <div class="ui-page-shell space-y-4">
     <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
-    <section class="space-y-3">
-      <div>
-        <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
-        <p class="text-xs text-text-secondary mt-1">
+    <section class="ui-page-section space-y-3">
+      <div class="ui-page-heading">
+        <h2 class="ui-page-title">发现群组</h2>
+        <p class="ui-page-description mt-1">
           所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
       </div>
