@@ -562,6 +562,9 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	case *tg.InputPeerChat:
 		fullRes, err := client.Invoke(rctx, &tg.MessagesGetFullChatRequest{ChatID: p.ChatID})
 		if err != nil {
+			if rateLimitErr := telegramMTProtoRateLimit(err); rateLimitErr != nil {
+				return "", 0, "", 0, rateLimitErr
+			}
 			return "", 0, "", 0, fmt.Errorf("读取群信息失败")
 		}
 		if full, ok := fullRes.(*tg.MessagesChatFull); ok {
