@@ -253,6 +253,8 @@ const importJobHeartbeatInterval = 30 * time.Second
 // processImportJobs 使用数据库租约领取任务。租约令牌同时作为 fencing token，
 // 所有进度/统计写入都必须匹配当前令牌和预期 offset，防止过期 Worker 覆盖新 Worker。
 func (e *Engine) processImportJobs(ctx context.Context) {
+	// A worker may die after a cancellation request. Finalize abandoned cancelling leases after expiry.
+	_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE status='cancelling' AND (lease_expires_at IS NULL OR lease_expires_at < NOW())`)
 	for jobBatch := 0; jobBatch < 10; jobBatch++ {
 		var jobID, tenantID, leaseToken uuid.UUID
 		var payload string
@@ -422,6 +424,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				progress := summarizeImportBatch(result, false)
 				processed, imported, failed, skipped, detail := progress.processed, progress.imported, progress.failed, progress.skipped, progress.detail
 				persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				if result != nil && progress.failed > 0 { if err := e.persistImportFailures(persistCtx, jobID, result.Failed[:progress.failed]); err != nil { log.Printf("[grouplib] 保存中断任务失败链接失败 job=%s: %v", jobID, err) } }
 				_, persistErr := e.pool.Exec(persistCtx, `
 					UPDATE group_library_import_jobs
 					SET processed_count=processed_count+$3,
