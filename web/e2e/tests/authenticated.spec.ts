@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }, testInfo) => {
     })
   })
   // 路由守卫每次导航都会静默刷新 /auth/me。用只读租户夹具隔离该请求，避免在页面矩阵中触发后端限流；登录/refresh 本身仍走真实 API。
-  await page.route(/\\/api\\/v1\\/auth\\/me(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/auth\/me(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     return route.fulfill({
       status: 200, contentType: 'application/json',
