@@ -113,16 +113,10 @@ jobs:
               max_daily_broadcasts = 0,
               max_daily_scrapes = 999999
           WHERE plan_id = 'enterprise';
-          DO $
-          DECLARE
-            feature_count integer;
-          BEGIN
-            SELECT jsonb_array_length(features) INTO feature_count
-            FROM plans WHERE plan_id = 'enterprise';
-            IF feature_count <> 20 THEN
-              RAISE EXCEPTION 'Enterprise E2E feature matrix incomplete: got % features', feature_count;
-            END IF;
-          END $;
+          SQL
+          FEATURE_COUNT="$(psql -h 127.0.0.1 -U postgres -d tg_sender_e2e -Atc "SELECT jsonb_array_length(features) FROM plans WHERE plan_id = 'enterprise'")"
+          test "$FEATURE_COUNT" -eq 20
+          psql -h 127.0.0.1 -U postgres -d tg_sender_e2e -v ON_ERROR_STOP=1 <<'SQL'
           SQL
           CODE="$(openssl rand -hex 16)"
           USERNAME="e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
