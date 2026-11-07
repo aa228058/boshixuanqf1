@@ -8,7 +8,7 @@ import (
 	"log"
 	"regexp"
 	"runtime/debug"
-	"sort"
+
 	"strconv"
 	"strings"
 	"sync"
