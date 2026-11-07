@@ -112,10 +112,9 @@ type Engine struct {
 	callMu   sync.Mutex
 	lastCall map[string]time.Time
 
-	// dm 动作"同一用户同一规则只触发一次"去重表(规则重载/引擎重启后重新计数,
-	// 与 lastMsgPush 同款内存级语义; 通话另有 10 分钟冷却双保险)。
-	dmFiredMu sync.Mutex
-	dmFired   map[string]time.Time
+	// DM 子动作状态按租户/账号/规则/目标/动作隔离，避免部分成功被整体去重吞掉。
+	dmActionMu sync.Mutex
+	dmActions  map[dmActionKey]dmActionStatus
 }
 
 // monitorSession tracks one account's monitoring goroutine.
@@ -143,7 +142,7 @@ func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleReposit
 		done:         make(chan struct{}),
 		reloadChs:    make(map[string]chan struct{}),
 		lastCall:     make(map[string]time.Time),
-		dmFired:      make(map[string]time.Time),
+		dmActions:    make(map[dmActionKey]dmActionStatus),
 	}
 	// P1-35 审计修复(2026-10-22): 原实现每秒 ticker 调 rateLimiter.Reset()——把
 	// "每分钟 100 条"的限速计数每秒清零, 实际宽松 60 倍。RateLimiter 内部自带每分钟
