@@ -3,6 +3,7 @@ package grouplib
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -194,5 +195,40 @@ func TestTelegramResolversRejectMalformedInputBeforeNetwork(t *testing.T) {
 	}
 	if _, _, _, err := resolveInviteInfoViaWeb(context.Background(), "bad/hash"); err == nil {
 		t.Fatal("expected malformed invite hash to be rejected")
+	}
+}
+
+func TestTelegramHTTPStatusErrorRetryClassification(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		want   bool
+	}{
+		{http.StatusNotFound, false},
+		{http.StatusForbidden, false},
+		{http.StatusBadRequest, false},
+		{http.StatusRequestTimeout, true},
+		{http.StatusTooEarly, true},
+		{http.StatusBadGateway, true},
+		{http.StatusServiceUnavailable, true},
+	} {
+		err := &TelegramHTTPStatusError{StatusCode: tc.status, Endpoint: "test"}
+		if got := err.Retryable(); got != tc.want {
+			t.Errorf("status %d retryable=%v, want %v", tc.status, got, tc.want)
+		}
+	}
+}
+
+func TestIsTransientResolveError(t *testing.T) {
+	if !isTransientResolveError(&TelegramHTTPStatusError{StatusCode: http.StatusBadGateway}) {
+		t.Fatal("5xx should be transient")
+	}
+	if isTransientResolveError(&TelegramHTTPStatusError{StatusCode: http.StatusNotFound}) {
+		t.Fatal("404 should be permanent")
+	}
+	if isTransientResolveError(&TelegramRateLimitError{RetryAfter: time.Minute}) {
+		t.Fatal("429 is handled by the shared rate-limit path, not generic retries")
+	}
+	if !isTransientResolveError(&net.DNSError{Err: "timeout", IsTimeout: true}) {
+		t.Fatal("network timeout should be transient")
 	}
 }
