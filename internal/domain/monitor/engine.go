@@ -765,7 +765,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 			_, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{})
 			cancel()
 			if err != nil {
-				e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
+				e.finishDMAction(ctx, key, dmActionOutcomeUnknown, err.Error())
 				log.Printf("[monitor] 私聊文本发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
 			} else {
 				e.finishDMAction(ctx, key, dmActionSucceeded)
@@ -794,7 +794,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 			lastName := rule.DMContactLast
 			peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
 			if perr != nil {
-				e.finishDMAction(ctx, key, dmActionFailedDefinite)
+				e.finishDMAction(ctx, key, dmActionFailedDefinite, perr.Error())
 				log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
 			} else {
 				// Sending an inputMediaContact does not require importing this
@@ -802,7 +802,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				// unrelated contacts.importContacts side effect here.
 				ridBytes := make([]byte, 8)
 				if _, rerr := crand.Read(ridBytes); rerr != nil {
-					e.finishDMAction(ctx, key, dmActionFailedDefinite)
+					e.finishDMAction(ctx, key, dmActionFailedDefinite, rerr.Error())
 					log.Printf("[monitor] 名片发送失败(生成随机 ID) target=%d: %v", targetUser, rerr)
 				} else {
 					_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
@@ -814,7 +814,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 						RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
 					})
 					if merr != nil {
-						e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
+						e.finishDMAction(ctx, key, dmActionOutcomeUnknown, merr.Error())
 						log.Printf("[monitor] 联系人名片发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, merr)
 					} else {
 						e.finishDMAction(ctx, key, dmActionSucceeded)
@@ -843,7 +843,7 @@ func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, acc
 				secs = 5
 			}
 			if err := ringUser(ctx, c, targetUser, secs); err != nil {
-				e.finishDMAction(ctx, key, dmActionOutcomeUnknown)
+				e.finishDMAction(ctx, key, dmActionOutcomeUnknown, err.Error())
 				log.Printf("[monitor] 语音振铃失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
 			} else {
 				e.finishDMAction(ctx, key, dmActionSucceeded)
