@@ -101,7 +101,7 @@
       <EmptyState v-else-if="!tasks.length" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
-           class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
+           class="ui-task-card p-4 card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
         <div class="flex items-center justify-between gap-3 cursor-pointer" @click="toggleExpand(task.task_id)">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-[color:var(--t-warn-dim)] flex items-center justify-center shrink-0">
