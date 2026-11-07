@@ -92,6 +92,12 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		if en.private {
 			cacheKey = "p:" + en.hash // Telegram invite hashes are case-sensitive.
 		}
+		// MTProto results carry a real Chat ID; keep them separate from web previews.
+		if client != nil && !bulkMode {
+			cacheKey += ":mtproto"
+		} else {
+			cacheKey += ":web"
+		}
 		title, count, gtype, chatID, rerr = e.resolveCachedImportTarget(ctx, cacheKey, func() (string, int, string, int64, error) {
 			if client != nil && !bulkMode {
 				if en.private {
