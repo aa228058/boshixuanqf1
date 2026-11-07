@@ -124,7 +124,7 @@
           <t-button @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</t-button>
         </div>
       </div>
-      <div class="mb-2 flex flex-wrap gap-1" role="group" aria-label="筛选任务日志">
+      <div class="ui-segmented mb-2 flex-wrap" role="group" aria-label="筛选任务日志">
         <button
           v-for="pill in logPills"
           :key="pill.value"
