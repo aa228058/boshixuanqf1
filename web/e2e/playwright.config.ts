@@ -35,13 +35,13 @@ export default defineConfig({
     },
     ...(hasTenantCredentials ? [{
       name: 'tenant-auth-setup',
-      testMatch: /auth\\.setup\\.ts/,
+      testMatch: /auth\.setup\.ts/,
       use: { ...devices['Desktop Chrome'] },
     }] : []),
     ...(hasAuthState || hasTenantCredentials ? [
       {
         name: 'authenticated-desktop',
-        testMatch: /authenticated\\.spec\\.ts/,
+        testMatch: /authenticated\.spec\.ts/,
         dependencies: hasTenantCredentials ? ['tenant-auth-setup'] : [],
         use: { ...devices['Desktop Chrome'], storageState: authState },
       },
