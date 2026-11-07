@@ -5,7 +5,7 @@
         <h1 class="ui-page-title truncate">成员采集</h1>
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
       </div>
-      <div class="ui-page-actions shrink-0 ml-auto">
+      <div class="ui-page-actions">
         <t-button v-if="tasks.length" type="button" class="ui-t-button ui-t-button--danger ui-t-button--text flex items-center gap-2" @click="clearLogs" variant="text">
           <Trash2 class="w-4 h-4" />
           清空记录
