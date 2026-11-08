@@ -108,10 +108,10 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
   await expect(joinButton).toBeDisabled()
-  // 桌面端使用 TDesign 表格复选框，移动端卡片复选框带 aria-label；按当前视口选择可见行，避免把隐藏布局当成真实控件。
+  // TDesign 的原生 input 被视觉层遮罩，真实点击目标是 .t-checkbox__input。
   const desktopGroupRow = page.locator('tr').filter({ hasText: '产品交流与资源分享' })
   if (await desktopGroupRow.isVisible().catch(() => false)) {
-    await desktopGroupRow.getByRole('checkbox').check()
+    await desktopGroupRow.locator('.t-checkbox__input').click()
   } else {
     await page.getByRole('checkbox', { name: /选择群组 产品交流与资源分享/ }).check()
   }
