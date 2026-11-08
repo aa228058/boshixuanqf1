@@ -96,11 +96,14 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
-  // 响应式表格由 TDesign 自定义渲染，不保证使用原生 tbody；
-  // 精确文本定位到标题文本节点，避免父级附加入口徽标导致重复匹配。
-  await expect(page.getByText('产品交流与资源分享', { exact: true })).toBeVisible()
-  await expect(page.getByText('跨境电商运营讨论', { exact: true })).toBeVisible()
-  await expect(page.getByText('运营素材与案例库', { exact: true })).toBeVisible()
+  // 桌面表格和移动卡片会同时保留在 DOM 中；按当前视口限定容器，
+  // 避免隐藏布局参与可见性断言，也避免同一标题在表格/卡片中重复命中。
+  const groupContent = testInfo.project.name.includes('mobile')
+    ? page.locator('[class~="md:hidden"]').filter({ has: page.getByText('产品交流与资源分享', { exact: true }) })
+    : page.locator('[class~="hidden"][class~="md:block"]').filter({ has: page.getByText('产品交流与资源分享', { exact: true }) })
+  for (const title of ['产品交流与资源分享', '跨境电商运营讨论', '运营素材与案例库']) {
+    await expect(groupContent.getByText(title, { exact: true })).toBeVisible()
+  }
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
