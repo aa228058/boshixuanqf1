@@ -108,7 +108,13 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   const joinButton = page.getByRole('button', { name: /加入所选/ })
   await expect(joinButton).toBeDisabled()
-  await page.getByRole('checkbox', { name: /选择群组 产品交流与资源分享/ }).check()
+  // 桌面端使用 TDesign 表格复选框，移动端卡片复选框带 aria-label；按当前视口选择可见行，避免把隐藏布局当成真实控件。
+  const desktopGroupRow = page.locator('tr').filter({ hasText: '产品交流与资源分享' })
+  if (await desktopGroupRow.isVisible().catch(() => false)) {
+    await desktopGroupRow.getByRole('checkbox').check()
+  } else {
+    await page.getByRole('checkbox', { name: /选择群组 产品交流与资源分享/ }).check()
+  }
   await expect(joinButton).toBeEnabled()
   await expect(joinButton).toContainText('1')
   await page.screenshot({ path: testInfo.outputPath('groups-discover-selected.png'), fullPage: true })
