@@ -3,7 +3,7 @@
     <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
     <section class="space-y-3">
       <div>
-        <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
+        <h2 class="text-lg font-bold text-text-primary">群组库</h2>
         <p class="text-xs text-text-secondary mt-1">
           所有租户共同维护的 Telegram 群组库；可贡献链接完善资料，也可选择群组创建加群任务。
         </p>
@@ -29,14 +29,7 @@
       </div>
     </section>
 
-    <!-- R128 统一示例2 seg 语言(与进群邀请/链接采集同款) -->
-    <div class="ui-segmented" role="tablist" aria-label="群组来源">
-      <button type="button" role="tab" :aria-selected="tab === 'library'" class="ui-segmented__item" :class="{ 'is-active': tab === 'library' }" @click="tab = 'library'">雷达群库</button>
-      <button type="button" role="tab" :aria-selected="tab === 'diy'" class="ui-segmented__item" :class="{ 'is-active': tab === 'diy' }" @click="tab = 'diy'">定向采集</button>
-    </div>
-
-    <!-- 系统群库 -->
-    <template v-if="tab === 'library'">
+    <!-- 群组库筛选与列表 -->
       <!-- 筛选条 -->
       <div class="ui-card p-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 lift">
         <div class="relative w-full col-span-2 sm:col-span-1 sm:w-56">
@@ -63,12 +56,7 @@
           <option value="import">文件/手动导入</option>
           <option value="search">Telegram 搜索</option>
         </select>
-        <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
-          <Loader2 v-if="kwSearching" class="w-3.5 h-3.5 animate-spin mr-1" />
-          TG全网搜
-        </t-button>
+        <!-- 输入框回车搜索；筛选项变化时自动刷新 -->
         <span class="hidden sm:block flex-1" />
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
       </div>
@@ -195,18 +183,7 @@
           </div>
         </div>
       </div>
-    </template>
-
-    <!-- 自助采集: 引导到工作区链接采集 -->
-    <div v-else class="ui-card p-8 text-center space-y-3 lift">
-      <Radar class="w-10 h-10 mx-auto text-[var(--t-brand)]" />
-      <div class="text-text-primary font-medium">自助采集</div>
-      <p class="text-sm text-text-secondary max-w-md mx-auto">
-        用你自己的账号做定向采集：监听指定群/频道里的 t.me 链接、挖成员简介，采集结果自动汇入系统群库。
-      </p>
-      <t-button theme="primary" class="whitespace-nowrap ui-t-button ui-t-button--primary" @click="goDiy">去工作区采集</t-button>
-    </div>
-
+    
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
     <Modal v-model="importModalVisible" title="导入群链接">
       <div class="space-y-3 pb-2">
@@ -285,18 +262,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
+import { Search, CheckSquare, Loader2 } from 'lucide-vue-next'
+import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
 
-const router = useRouter()
 const accountStore = useAccountStore()
-
-const tab = ref<'library' | 'diy'>('library')
 const list = ref<SystemGroup[]>([])
 
 // ===== 同群聚合(2026-10-21): 同一群多个邀请链接合并为一行 =====
@@ -453,28 +426,7 @@ async function doImport() {
     importing.value = false
   }
 }
-// 关键词搜群(用筛选条的关键字输入框, 借本租户在线账号做 TG 全局搜索)
-const kwSearching = ref(false)
-
-async function doSearch() {
-  if (!filters.keyword.trim() || kwSearching.value) return
-  kwSearching.value = true
-  try {
-    const res = await searchLibraryGroups(filters.keyword.trim())
-    if (res.count > 0) {
-      toast({ type: 'success', title: '搜索完成', message: `搜到 ${res.count} 个群, 已放入群组大厅` })
-      load()
-    } else {
-      toast({ type: 'info', title: '没有结果', message: '没搜到相关群组, 换个关键词试试' })
-    }
-  } catch (err: any) {
-    toast({ type: 'error', title: '搜索失败', message: err?.message || '搜索失败' })
-  } finally {
-    kwSearching.value = false
-  }
-}
-
-const tableCols = [
+ const tableCols = [
   { colKey: 'checked', title: '', width: 44 },
   { colKey: 'title', title: '群组资源', minWidth: 220, ellipsis: true },
   { colKey: 'gtype', title: '类型', width: 88 },
@@ -563,12 +515,6 @@ async function doJoin() {
   } finally {
     joining.value = false
   }
-}
-
-function goDiy() {
-  const acc = accountStore.currentAccount
-  if (acc?.account_id) router.push(`/workspace/${acc.account_id}/scrape-links`)
-  else router.push('/accounts')
 }
 
 onMounted(() => {
