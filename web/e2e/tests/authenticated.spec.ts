@@ -96,13 +96,13 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
-  // 桌面表格和移动卡片会同时保留在 DOM 中；按当前视口限定容器，
-  // 避免隐藏布局参与可见性断言，也避免同一标题在表格/卡片中重复命中。
-  const groupContent = testInfo.project.name.includes('mobile')
-    ? page.locator('[class~="md:hidden"]').filter({ has: page.getByText('产品交流与资源分享', { exact: true }) })
-    : page.locator('[class~="hidden"][class~="md:block"]').filter({ has: page.getByText('产品交流与资源分享', { exact: true }) })
+  // 表格与移动卡片可能同时存在于 DOM，且 TDesign 会包装表格节点。
+  // 用浏览器 innerText 检查当前视口实际呈现的文本，天然排除 display:none 内容。
   for (const title of ['产品交流与资源分享', '跨境电商运营讨论', '运营素材与案例库']) {
-    await expect(groupContent.getByText(title, { exact: true })).toBeVisible()
+    await expect.poll(
+      () => page.locator('body').evaluate(element => element.innerText),
+      { message: `当前视口应显示群组标题：${title}` },
+    ).toContain(title)
   }
   await page.screenshot({ path: testInfo.outputPath('groups-discover-populated.png'), fullPage: true })
 
