@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -19,17 +20,16 @@ var importLinkRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|t
 
 // ImportResult 批量导入结果汇总。
 type ImportResult struct {
-	Imported []domain.SystemGroup // 成功解析并入群库的条目
-	Failed   []string             // 解析失败的原因(如 "xxx: 群组不存在")
-	Skipped  int                  // 重复/无效的原始行数
+	Processed int                  // 已完成解析的链接数；遇到 429 的当前链接不计入
+	Imported  []domain.SystemGroup // 成功解析并入群库的条目
+	Failed    []string             // 解析失败的原因(如 "xxx: 群组不存在")
+	Skipped   int                  // 重复/无效的原始行数
 }
 
 // ImportByLinks 批量导入: 逐条解析链接→调 TG 补全群名/成员数/类型→归并入群库。
 //
-// 解析能力边界(向调用方诚实交代):
-//   - 公开群/频道(@username, t.me/username): 能拿到群名、成员数、类型, 完整入库;
-//   - 私密邀请链接(t.me/+hash, t.me/joinchat/hash): 未加入前 TG 不暴露群名,
-//     只能先按链接占位入库(status=active), 等加群任务成功后由 syncJoinedGroups 自动补名。
+// 解析规则：只有成功取得群组身份信息后才允许写入正式群组库。
+// 私密邀请链接如果 Telegram 不提供预览信息，保留为失败/待补充，不创建占位群组。
 func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUID, lines []string) (*ImportResult, error) {
 	// 归一化+去重: 每个 entry = {kind, username|hash, tmeLink}
 	type entry struct {
@@ -101,10 +101,12 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	res := &ImportResult{Skipped: skipped}
-	// 大批量(>200条)不在导入请求内逐条调 TG——同步解析 1 万条必然超时且撞 flood。
-	// 策略: 全部先占位入库, 群名交给后台解析器(resolver.go)低速补齐。
+	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
 	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
+		if err := ctx.Err(); err != nil {
+			return res, err
+		}
 		sg := domain.SystemGroup{Source: "import", Status: "active", TmeLink: en.link, ContributorTenantID: tenantID}
 		if en.private {
 			sg.GType = "private"
@@ -112,37 +114,62 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			sg.Username = en.username
 			sg.GType = "unknown"
 		}
-		if !bulkMode {
+		var title string
+		var count int
+		var gtype string
+		var chatID int64
+		var rerr error
+		if client != nil && !bulkMode {
 			if en.private {
-				// 私密邀请: messages.checkChatInvite 无需入群即可拿到群名/成员数
-				title, count, gtype, chatID, rerr := resolveInviteInfo(ctx, client, en.hash)
-				if rerr != nil {
-					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
-					continue
-				}
-				sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
+				title, count, gtype, chatID, rerr = resolveInviteInfo(ctx, client, en.hash)
 			} else {
-				title, count, gtype, chatID, rerr := resolveGroupInfo(ctx, client, en.username)
-				if rerr != nil {
-					res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
-					continue
-				}
-				sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
+				title, count, gtype, chatID, rerr = resolveGroupInfo(ctx, client, en.username)
+			}
+		} else {
+			// 无账号或大批量分片时走复用连接池的 HTTP 解析器。
+			// HTTP 页面没有暴露有效标题时，不允许创建正式群组记录。
+			if en.private {
+				title, count, gtype, rerr = resolveInviteInfoViaWeb(ctx, en.hash)
+			} else {
+				title, count, gtype, rerr = resolvePublicGroupInfoViaWeb(ctx, en.username)
 			}
 		}
+		if ctx.Err() != nil {
+			return res, ctx.Err()
+		}
+		if rerr == nil && gtype == "user" {
+			rerr = fmt.Errorf("链接指向用户或机器人，不是群组/频道")
+		}
+		if rerr != nil || strings.TrimSpace(title) == "" {
+			if rerr == nil {
+				rerr = fmt.Errorf("解析结果缺少群组名称，暂不入库")
+			}
+			res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", en.link, rerr))
+			var rateLimitErr *TelegramRateLimitError
+			if errors.As(rerr, &rateLimitErr) {
+				return res, rateLimitErr
+			}
+			res.Processed++
+			continue
+		}
+		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 		if err := e.repo.Upsert(ctx, &sg); err != nil {
+			if ctx.Err() != nil {
+				return res, ctx.Err()
+			}
 			res.Failed = append(res.Failed, fmt.Sprintf("%s: 入库失败 %v", en.link, err))
+			res.Processed++
 			continue
 		}
 		res.Imported = append(res.Imported, sg)
-		if bulkMode {
-			continue
-		}
-		// TG 对解析类请求有限流: 条目间间隔 1s, 避免连打触发 flood
-		select {
-		case <-ctx.Done():
-			return res, ctx.Err()
-		case <-time.After(time.Second):
+		res.Processed++
+		// MTProto 请求保守限速；HTTP 解析由连接池与 Worker 调度统一控制。
+		if client != nil && !bulkMode {
+			select {
+			case <-ctx.Done():
+				return res, ctx.Err()
+			case <-time.After(time.Second):
+			}
 		}
 	}
 	return res, nil
@@ -173,11 +200,11 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			// 该账号已在群里, 直接返回群信息
 			switch c := v.Chat.(type) {
 			case *tg.Chat:
-				return c.Title, int(c.ParticipantsCount), "private", int64(c.ID), nil
+				return c.Title, int(c.ParticipantsCount), "group", int64(c.ID), nil
 			case *tg.Channel:
 				gt := "channel"
 				if c.Megagroup {
-					gt = "private"
+					gt = "supergroup"
 				}
 				return c.Title, int(c.ParticipantsCount), gt, int64(c.ID), nil
 			}
@@ -185,18 +212,18 @@ func resolveInviteInfo(ctx context.Context, client *telegram.Client, hash string
 			// TG 官方"不入群预览"变体: 内嵌完整 chat 对象
 			switch c := v.Chat.(type) {
 			case *tg.Chat:
-				return c.Title, int(c.ParticipantsCount), "public", int64(c.ID), nil
+				return c.Title, int(c.ParticipantsCount), "group", int64(c.ID), nil
 			case *tg.Channel:
 				gt := "channel"
 				if c.Megagroup {
-					gt = "private"
+					gt = "supergroup"
 				}
 				return c.Title, int(c.ParticipantsCount), gt, int64(c.ID), nil
 			}
 		}
 		return "", 0, "", 0, fmt.Errorf("邀请响应异常")
 	}
-	gt := "private"
+	gt := "group"
 	if inv.Broadcast {
 		gt = "channel"
 	}
@@ -228,7 +255,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 				title = ch.Title
 				chatID = int64(ch.ID)
 				if ch.Megagroup {
-					gtype = "public"
+					gtype = "supergroup"
 				} else {
 					gtype = "channel"
 				}
@@ -247,7 +274,7 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 			// mtgo 的 tg.ChatFull 没有 ParticipantsCount, 普通群成员数取自 tg.Chat 对象
 			for _, c := range full.Chats {
 				if ch, ok := c.(*tg.Chat); ok && ch.ID == p.ChatID {
-					title, gtype, count, chatID = ch.Title, "public", int(ch.ParticipantsCount), int64(ch.ID)
+					title, gtype, count, chatID = ch.Title, "group", int(ch.ParticipantsCount), int64(ch.ID)
 					break
 				}
 			}
@@ -255,8 +282,8 @@ func resolveGroupInfo(ctx context.Context, client *telegram.Client, username str
 	default:
 		return "", 0, "", 0, fmt.Errorf("目标不是群组/频道")
 	}
-	if title == "" {
-		title = "@" + username
+	if strings.TrimSpace(title) == "" {
+		return "", 0, "", 0, fmt.Errorf("Telegram 未返回有效群组名称")
 	}
 	return title, count, gtype, chatID, nil
 }

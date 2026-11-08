@@ -135,6 +135,7 @@ export interface TaskLog {
   target_id?: string
   target_name?: string
   error_code?: string
+  tg_message_id?: number
 }
 
 export interface Task {

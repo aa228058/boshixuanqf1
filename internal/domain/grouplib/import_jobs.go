@@ -2,7 +2,9 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -159,18 +161,113 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW() WHERE job_id=$1`, jobID)
 			continue
 		}
-		end := offset + 5000
+		end := offset + 30
 		if end > len(lines) {
 			end = len(lines)
 		}
+		// 群组库导入默认走无账号的共享 HTTP 页面解析器，不读取、不占用租户 Telegram 会话。
+		// 公开页面无法提供资料时记录失败原因；不自动切换账号，避免后台导入隐式消耗账号额度。
 		result, importErr := e.ImportByLinks(ctx, tenantID, uuid.Nil, lines[offset:end])
+		var rateLimitErr *TelegramRateLimitError
+		if errors.As(importErr, &rateLimitErr) {
+			// 429 不计为失败；只提交限流前已处理的前缀，offset 停在被限流链接。
+			partialImported, partialFailed, partialSkipped := 0, 0, 0
+			if result != nil {
+				partialImported = len(result.Imported)
+				partialFailed = len(result.Failed)
+				partialSkipped = result.Skipped
+			}
+			if partialFailed > 0 {
+				partialFailed-- // 最后一条失败就是当前 429 链接，必须留待重试。
+			}
+			processedPrefix := 0
+			if result != nil {
+				processedPrefix = result.Processed
+			}
+			if processedPrefix > 0 {
+				var detail string
+				if result != nil && partialFailed > 0 {
+					detail = strings.Join(result.Failed[:partialFailed], "\n")
+				}
+				_, _ = e.pool.Exec(ctx, `
+					UPDATE group_library_import_jobs
+					SET processed_count=processed_count+$2,
+					    imported_count=imported_count+$3,
+					    failed_count=failed_count+$4,
+					    skipped_count=skipped_count+$5,
+					    last_error=CASE WHEN $6='' THEN last_error
+					                    WHEN last_error='' THEN $6
+					                    ELSE LEFT(last_error || E'\\n' || $6, 4000) END,
+					    updated_at=$7
+					WHERE job_id=$1`, jobID, processedPrefix, partialImported, partialFailed,
+					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter))
+			} else {
+				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1`,
+					jobID, time.Now().Add(rateLimitErr.RetryAfter))
+			}
+			timer := time.NewTimer(rateLimitErr.RetryAfter)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			// 冷却结束后立即释放任务给本轮调度器继续处理。
+			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=NOW() WHERE job_id=$1 AND status='processing'`, jobID)
+			continue
+		}
+		if ctx.Err() != nil {
+			// A graceful shutdown must not turn the unprocessed suffix into failures.
+			// Persist the completed prefix with a short independent context so the job
+			// can resume from the exact next input row after the process restarts.
+			processed, imported, failed, skipped := 0, 0, 0, 0
+			detail := ""
+			if result != nil {
+				processed = result.Processed
+				imported = len(result.Imported)
+				failed = len(result.Failed)
+				skipped = result.Skipped
+				if failed > 0 {
+					detail = strings.Join(result.Failed, "\n")
+				}
+			}
+			persistCtx, persistCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, persistErr := e.pool.Exec(persistCtx, `
+				UPDATE group_library_import_jobs
+				SET processed_count=$2,
+				    imported_count=imported_count+$3,
+				    failed_count=failed_count+$4,
+				    skipped_count=skipped_count+$5,
+				    last_error=CASE WHEN $6='' THEN last_error ELSE LEFT($6, 4000) END,
+				    status='pending', updated_at=NOW()
+				WHERE job_id=$1 AND status='processing'
+			`, jobID, offset+processed, imported, failed, skipped, detail)
+			persistCancel()
+			if persistErr != nil {
+				log.Printf("[grouplib] 保存中断导入进度失败 job=%s: %v", jobID, persistErr)
+			}
+			return
+		}
 		imported, failed, skipped := 0, 0, 0
 		lastError := ""
 		if result != nil {
 			imported, failed, skipped = len(result.Imported), len(result.Failed), result.Skipped
+			if len(result.Failed) > 0 {
+				// 将逐条失败原因持久化，任务中心可以直接展示，避免只看到失败数量。
+				lastError = strings.Join(result.Failed, "\n")
+				if len(lastError) > 4000 {
+					lastError = lastError[:4000] + "…（错误明细已截断）"
+				}
+			}
+		} else if importErr != nil {
+			// 整批调用失败时，不能把这一批记成零失败的成功任务。
+			failed = end - offset
 		}
 		if importErr != nil {
-			lastError = importErr.Error()
+			lastError = strings.TrimSpace(lastError + "\n" + importErr.Error())
+			if len(lastError) > 4000 {
+				lastError = lastError[:4000] + "…（错误明细已截断）"
+			}
 		}
 		nextStatus := "processing"
 		var finished any

@@ -46,10 +46,10 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <t-button v-if="task?.status === 'running'" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
+          <t-button v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
           <t-button v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</t-button>
-          <t-button v-if="['running','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
-          <t-button v-if="['success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
+          <t-button v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
+          <t-button v-if="['completed','success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
@@ -124,9 +124,25 @@
           <t-button @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</t-button>
         </div>
       </div>
+      <div class="ui-segmented mb-2 flex-wrap" role="group" aria-label="筛选任务日志">
+        <button
+          v-for="pill in logPills"
+          :key="pill.value"
+          type="button"
+          class="ui-segmented__item"
+          :aria-pressed="logFilter === pill.value"
+          :class="{ 'is-active': logFilter === pill.value }"
+          @click="logFilter = pill.value"
+        >
+          {{ pill.label }}
+        </button>
+      </div>
+      <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
+        <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
+      </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
         <div
-          v-for="(log, i) in displayLogs"
+          v-for="(log, i) in filteredDisplayLogs"
           :key="log.log_id || `${log.executed_at}-${i}`"
           class="flex items-start gap-2.5 py-1.5 px-2 rounded-lg text-xs"
           :class="logCardClass(log)"
@@ -153,12 +169,16 @@
               {{ log.message }}
               <span v-if="log._waitMsg" class="ml-1 text-text-muted/60">⏳ {{ log._waitMsg }}</span>
             </div>
-            <div v-if="log.error_code" class="mt-1 text-[var(--t-err)] text-xs bg-[var(--t-err)]/5 rounded px-2 py-1 inline-block">
-              {{ statusLabel(log.error_code) }}
+            <div v-if="log.tg_message_id" class="mt-1 text-text-muted text-[11px] font-mono">
+              Telegram 消息 ID：{{ log.tg_message_id }}
+            </div>
+            <div v-if="log.error_code" class="mt-1 text-xs rounded px-2 py-1 inline-block"
+                 :class="log.error_code === 'checkpoint_persist_failed' ? 'text-[var(--t-warning)] bg-[var(--t-warning)]/10' : 'text-[var(--t-err)] bg-[var(--t-err)]/5'">
+              {{ log.error_code === 'checkpoint_persist_failed' ? '发送结果待核实：请先到 Telegram 检查目标消息，禁止自动续发' : statusLabel(log.error_code) }}
             </div>
           </div>
         </div>
-        <div v-if="!filteredLogs.length" class="text-text-muted text-center py-10 text-sm">
+        <div v-if="!filteredDisplayLogs.length" class="text-text-muted text-center py-10 text-sm">
           <Clock class="w-8 h-8 mx-auto mb-2 opacity-30" />
           {{ logs.length ? '当前筛选条件下没有日志' : '暂无执行日志，任务运行后会在这里显示~' }}
         </div>
@@ -250,6 +270,10 @@ async function fetchMembers() {
 }
 
 const logs = ref<TaskLog[]>([])
+const logsPage = ref(1)
+const hasMoreLogs = ref(false)
+const loadingMoreLogs = ref(false)
+const LOG_PAGE_SIZE = 50
 
 // R87-M10: 100% 后状态收敛兜底 —— SSE 事件丢失时, 进度满后 3s 自动补拉任务状态,
 // 避免"发完了还显示执行中"必须手动刷新
@@ -303,6 +327,24 @@ const filteredLogs = computed(() => {
 // {account_id, target_id, remaining, next_index, total}
 const waitState = ref<{ account_id: string; target_id: string; remaining: number; next_index: number; total: number } | null>(null)
 
+function taskLogKey(log: TaskLog): string {
+  if (log.log_id) return `id:${log.log_id}`
+  return [
+    log.executed_at || '',
+    log.action || '',
+    log.status || '',
+    log.target_id || '',
+    log.tg_message_id ?? '',
+    log.error_code || '',
+    log.message || '',
+  ].join('|')
+}
+
+const filteredDisplayLogs = computed(() => {
+  const visibleKeys = new Set(filteredLogs.value.map(taskLogKey))
+  return displayLogs.value.filter(log => visibleKeys.has(taskLogKey(log)))
+})
+
 // SSE 实时: 本任务的日志/进度/状态亚秒级推送, 打开详情页即可盯着日志滚动
 useTaskEvents((evt: any) => {
   if (evt.task_id !== taskId) return
@@ -318,7 +360,7 @@ useTaskEvents((evt: any) => {
   }
   if (evt.type === 'task_log' && evt.log) {
     const l = evt.log
-    if (!logs.value.some((x: any) => x.log_id === l.log_id)) {
+    if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(l))) {
       logs.value = [...logs.value, l]
       requestAnimationFrame(() => {
         if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
@@ -335,12 +377,22 @@ useTaskEvents((evt: any) => {
   }
 })
 
-async function clearLogs() {
+async function loadMoreLogs() {
+  if (loadingMoreLogs.value || !hasMoreLogs.value) return
+  loadingMoreLogs.value = true
   try {
-    await taskApi.deleteTaskLogs((task.value as any).task_id)
-    logs.value = []
-    toast({ type: 'success', title: '日志已清空' })
-  } catch { toast({ type: 'error', title: '清空失败' }) }
+    await fetchLogs(logsPage.value + 1)
+  } finally {
+    loadingMoreLogs.value = false
+  }
+}
+
+function clearLogs() {
+  // “清除显示”只影响当前页面状态；绝不删除数据库中的审计/发送日志。
+  logs.value = []
+  logsPage.value = 1
+  hasMoreLogs.value = false
+  toast({ type: 'success', title: '已清除当前显示' })
 }
 // 2026-09-23 修复: 初始态是"连接中"而非"已断开"——换ticket+建连要1-2秒,
 // 原实现初始 false 直接显示"已断开", 用户每次打开详情都看到一次假断线
@@ -354,17 +406,28 @@ const groupMap = ref<Record<string, string>>({})
 const normId = (id: any): string => String(id ?? '').replace(/^-100/, '')
 let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let sseConnecting = false
 let onVisCleanup: (() => void) | null = null
 // R87-M9: SSE 看门狗 —— 某些代理/网络下连接"假活"(不断开也不推数据),
 // onerror 永不触发导致日志假死。30秒无任何消息则判定假活, 主动断开重连。
 let sseWatchdog: ReturnType<typeof setTimeout> | null = null
+function scheduleSSEReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void connectSSE()
+  }, 3000)
+}
+
 function resetSseWatchdog() {
   if (sseWatchdog) clearTimeout(sseWatchdog)
   sseWatchdog = setTimeout(() => {
     console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连')
     try { eventSource?.close() } catch { /* 忽略 */ }
     eventSource = null
-    connectSSE()
+    connState.value = 'disconnected'
+    scheduleSSEReconnect()
   }, 45000)
 }
 
@@ -416,9 +479,9 @@ async function fetchTask() {
   }
 }
 
-async function fetchLogs() {
+async function fetchLogs(page = 1) {
   try {
-    const res = await taskApi.getLogs(taskId)
+    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE)
     // 兼容: 直接数组 / {list: [...]} / {data: [...]}
     let data: TaskLog[] = []
     if (Array.isArray(res)) {
@@ -426,7 +489,22 @@ async function fetchLogs() {
     } else if (res && typeof res === 'object') {
       data = (res as any).list || (res as any).data || []
     }
-    logs.value = data
+    // The API returns the newest page first; render that page chronologically so
+    // SSE-appended entries and the scroll-to-bottom behavior remain consistent.
+    // Merge persisted history with events received while the request was in flight;
+    // reconnect snapshots must not discard newer SSE entries.
+    const merged = new Map<string, TaskLog>()
+    for (const log of logs.value) merged.set(taskLogKey(log), log)
+    for (const log of data) merged.set(taskLogKey(log), log)
+    logs.value = [...merged.values()]
+      .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
+    if (page === 1) {
+      logsPage.value = 1
+      hasMoreLogs.value = data.length === LOG_PAGE_SIZE
+    } else {
+      logsPage.value = Math.max(logsPage.value, page)
+      hasMoreLogs.value = data.length === LOG_PAGE_SIZE
+    }
     await nextTick()
     if (logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
@@ -437,63 +515,86 @@ async function fetchLogs() {
 }
 
 async function connectSSE() {
-  const authStore = useAuthStore(); const token = authStore.token
-  // 审计P0-03: 短期ticket替代URL里的JWT
-  let ticket = ''
+  if (sseConnecting || (eventSource && eventSource.readyState !== EventSource.CLOSED)) return
+  sseConnecting = true
   try {
-    // F-20: 使用内存中的 token（authStore 已在函数头部获取）
-    // P2-04: 同 Layout.vue——硬编码 /api/v1 改为可配置 base
+    const authStore = useAuthStore()
+    const token = authStore.token
+    if (!token) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+      return
+    }
+
+    // Short-lived ticket replaces the JWT in the EventSource URL.
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const tres = await fetch(`${apiBase}/events/ticket`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-    ticket = (await tres.json()).ticket || ''
-  } catch { /* 静默 */ }
-  const apiBase2 = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-  eventSource = new EventSource(`${apiBase2}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
-  eventSource.onopen = () => { connState.value = 'connected'; resetSseWatchdog() }
-  eventSource.onmessage = (e) => {
-    try {
-      resetSseWatchdog() // R87-M9: 收到任何消息都重置看门狗
-      const data = JSON.parse(e.data)
-      if (!data || !task.value) return
+    const ticketResponse = await fetch(`${apiBase}/events/ticket`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!ticketResponse.ok) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+      return
+    }
+    const ticket = (await ticketResponse.json()).ticket || ''
+    if (!ticket) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+      return
+    }
 
-      // Handle real-time task log
-      // 精读修复: useTaskEvents 全局通道也会推同一条日志, 去重防双份
-      if (data.type === 'task_log' && data.log) {
-        if (!logs.value.some((x: any) => x.log_id === data.log.log_id)) {
-          logs.value.push(data.log)
+    eventSource = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
+    eventSource.onopen = () => {
+      connState.value = 'connected'
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+      resetSseWatchdog()
+      // The stream has no durable event replay cursor. Reconcile from DB on every
+      // successful connection so logs emitted during a disconnect are not lost.
+      void fetchLogs()
+    }
+    eventSource.onmessage = (e) => {
+      try {
+        resetSseWatchdog()
+        const data = JSON.parse(e.data)
+        if (!data || !task.value) return
+
+        if (data.type === 'task_log' && data.log) {
+          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) {
+            logs.value.push(data.log)
+          }
+          if (logs.value.length > 500) logs.value = logs.value.slice(-500)
+          return
         }
-        // Keep max 500 logs in memory to prevent UI lag
-        if (logs.value.length > 500) {
-          logs.value = logs.value.slice(-500)
+
+        if (data.type === 'task_status') {
+          fetchTask()
+          return
         }
-        return
-      }
 
-      // 2026-09-23 修复: 任务状态变更(完成/失败/取消)时整任务刷新,
-      // 否则详情页永远停在"执行中"(原实现只处理日志和进度, 漏了状态事件)
-      if (data.type === 'task_status') {
-        fetchTask()
-        return
-      }
-
-      // Handle task progress update
-      const tp = task.value.progress || {}
-      task.value.progress = {
-        total: data.total ?? data.progress?.total ?? tp.total ?? 0,
-        done: data.done ?? data.progress?.done ?? tp.done ?? 0,
-        failed: data.failed ?? data.progress?.failed ?? tp.failed ?? 0,
-        current_target: data.current_target ?? data.progress?.current_target ?? tp.current_target ?? '',
-        account_progress: data.account_progress ?? data.progress?.account_progress ?? tp.account_progress ?? []
-      }
-    } catch (err) { /* ignore malformed SSE data */ }
-  }
-  eventSource.onerror = () => {
+        const tp = task.value.progress || {}
+        task.value.progress = {
+          total: data.total ?? data.progress?.total ?? tp.total ?? 0,
+          done: data.done ?? data.progress?.done ?? tp.done ?? 0,
+          failed: data.failed ?? data.progress?.failed ?? tp.failed ?? 0,
+          current_target: data.current_target ?? data.progress?.current_target ?? tp.current_target ?? '',
+          account_progress: data.account_progress ?? data.progress?.account_progress ?? tp.account_progress ?? []
+        }
+      } catch (err) { /* ignore malformed SSE data */ }
+    }
+    eventSource.onerror = () => {
+      connState.value = 'disconnected'
+      const failedSource = eventSource
+      eventSource = null
+      failedSource?.close()
+      if (sseWatchdog) { clearTimeout(sseWatchdog); sseWatchdog = null }
+      scheduleSSEReconnect()
+    }
+  } catch {
     connState.value = 'disconnected'
-    eventSource?.close()
-    // Auto-reconnect after 3 seconds
-    setTimeout(() => {
-      if (connState.value !== 'connected') connectSSE()
-    }, 3000)
+    scheduleSSEReconnect()
+  } finally {
+    sseConnecting = false
   }
 }
 
@@ -586,7 +687,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   eventSource?.close()
+  eventSource = null
   clearInterval(refreshTimer)
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  if (sseWatchdog) clearTimeout(sseWatchdog)
   if (onVisCleanup) onVisCleanup()
 })
 </script>
