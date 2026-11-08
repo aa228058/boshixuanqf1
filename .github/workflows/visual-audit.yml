@@ -1,0 +1,48 @@
+name: Accounts page visual audit
+
+# 独立于 browser-audit: 不需要预览站、不连接真实后端、不读取生产密钥。
+# 接口全部由 Playwright route 拦截模拟, 截图作为 Artifact 下载。
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/visual-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accounts-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install frontend dependencies and build
+        working-directory: web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Install Playwright
+        working-directory: web/e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Capture accounts page screenshots
+        working-directory: web/e2e
+        env:
+          VISUAL_AUDIT: '1'
+        run: npx playwright test --project=visual-desktop --project=visual-mobile
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-visual-screenshots
+          path: |
+            web/e2e/test-results/
+            web/e2e/playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
