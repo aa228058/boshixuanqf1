@@ -445,7 +445,7 @@ function insertVar(v: string) {
 let draftTimer: ReturnType<typeof setTimeout> | null = null
 const draftKeyFor = (account: any) => {
   const tenant: any = authStore.tenant
-  const tenantId = String(tenant?.tenant_id ?? tenant?.id ?? 'tenant')
+  const tenantId = String(tenant?.tenant_id ?? 'tenant')
   const accountId = String(account?.account_id ?? 'unselected')
   return 'broadcast_msg_draft:' + tenantId + ':' + accountId
 }
@@ -479,7 +479,7 @@ watch(message, (value) => {
   }, 800)
 })
 // 切换账号前先把当前编辑内容写回旧账号，再恢复新账号自己的草稿。
-watch([currentAccount, () => authStore.tenant?.tenant_id ?? authStore.tenant?.id], ([account]) => {
+watch([currentAccount, () => authStore.tenant?.tenant_id], ([account]) => {
   if (draftTimer) {
     clearTimeout(draftTimer)
     draftTimer = null
