@@ -472,11 +472,19 @@ watch(message, (v) => {
 watch(() => authStore.tenant?.tenant_id, (tenantId, previousTenantId) => {
   if (draftTimer) clearTimeout(draftTimer)
   draftTimer = null
-  if (previousTenantId && previousTenantId !== tenantId) message.value = ''
+  if (previousTenantId && previousTenantId !== tenantId) {
+    const previousKey = draftKeyForTenant(previousTenantId)
+    try { if (previousKey && message.value.trim()) localStorage.setItem(previousKey, message.value) } catch {}
+    message.value = ''
+  }
   restoreDraft(tenantId)
 }, { immediate: true })
 onUnmounted(() => {
   if (draftTimer) clearTimeout(draftTimer)
+  const key = draftKeyForTenant(authStore.tenant?.tenant_id)
+  try {
+    if (key && message.value.trim()) localStorage.setItem(key, message.value)
+  } catch {}
   draftTimer = null
 })
 // 默认 [5,12] 与后端强制下限及协议群发页一致；原先 [4,300] 会让协同任务
