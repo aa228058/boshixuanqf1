@@ -38,6 +38,19 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	}
 }
 
+func dedupeAccountIDs(accountIDs []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]bool, len(accountIDs))
+	result := make([]uuid.UUID, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID == uuid.Nil || seen[accountID] {
+			continue
+		}
+		seen[accountID] = true
+		result = append(result, accountID)
+	}
+	return result
+}
+
 func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][]string {
 	result := make(map[uuid.UUID][]string, len(accountTargets))
 	for accountID, targets := range accountTargets {
@@ -158,6 +171,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	if len(urlButtons) > 0 {
 		log.Printf("[broadcast] 任务 %s 执行器收到 %d 个按钮", task.TaskID, len(urlButtons))
 	}
+
+	// Duplicate account IDs would otherwise launch duplicate workers for the
+	// same (account,target) pair while the progress total counts it only once.
+	task.AccountIDs = dedupeAccountIDs(task.AccountIDs)
 
 	// Determine broadcast mode
 	modeStr, _ := task.Payload["mode"].(string)
@@ -312,6 +329,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	total = 0
 	for _, targets := range accountTargets {
 		total += len(targets)
+	}
+	if total == 0 {
+		taskLog.Printf("[broadcast] task %s has no valid account-target work", task.TaskID)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] failed to mark empty task failed: %v", err)
+		}
+		return
 	}
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
