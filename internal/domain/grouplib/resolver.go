@@ -72,8 +72,8 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			if (isInviteLink && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) ||
 				(strings.Contains(errText, "返回 404") || strings.Contains(errText, "返回 410")) {
 				if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
-                    log.Printf("[grouplib] 标记失效链接失败 %s: %v", p.link, err)
-                }
+					log.Printf("[grouplib] 标记失效链接失败 %s: %v", p.link, err)
+				}
 			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
