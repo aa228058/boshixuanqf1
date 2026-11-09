@@ -166,8 +166,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 				invited++
 			} else {
 				errStr := strings.ToLower(inviteErr.Error())
-				_, isTelegramRPC := tgerr.As(inviteErr)
-				if isTelegramRPC {
+				if isDefiniteInviteRPCError(inviteErr) {
 					// A typed Telegram RPC error is an explicit server response:
 					// the invite was rejected, so it is a definite failure.
 					if err := finishAttempt(key, repository.InviteAttemptFailedDefinite, inviteErr.Error()); err != nil {
@@ -219,3 +218,12 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 	return nil
 }
 
+
+
+// isDefiniteInviteRPCError only classifies explicit, non-server-error Telegram
+// RPC responses as definite rejection. Transport failures and server-side 5xx
+// responses remain ambiguous because Telegram may have applied the side effect.
+func isDefiniteInviteRPCError(err error) bool {
+	rpcErr, ok := tgerr.As(err)
+	return ok && rpcErr.Code > 0 && rpcErr.Code < 500
+}
