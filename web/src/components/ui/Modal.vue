@@ -117,26 +117,38 @@ function onFocusIn(e: FocusEvent) {
    监听 visualViewport: 键盘弹起时其 height 缩小,
    把差值写成 CSS 变量 --modal-kb, 移动端弹窗整体上移同样距离 */
 const KB_VAR = '--modal-kb'
+let vv: VisualViewport | null = null
+if (typeof window !== 'undefined') vv = window.visualViewport
+
+// visualViewport is global, but multiple modal instances may be open at once.
+// A closed/hidden modal must not remove the shared listener while another modal
+// still needs keyboard compensation.
+let activeKbGuards = 0
+let kbGuardAttached = false
+
 function syncKbOffset() {
-  const vv = window.visualViewport
   if (!vv) return
   const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
   document.documentElement.style.setProperty(KB_VAR, kb > 80 ? `${kb}px` : '0px')
 }
 function attachKbGuard() {
-  if (!window.visualViewport) return
+  if (!vv || kbGuardAttached) return
+  kbGuardAttached = true
+  activeKbGuards++
+  if (activeKbGuards !== 1) return
   syncKbOffset()
-  vv?.addEventListener('resize', syncKbOffset)
-  vv?.addEventListener('scroll', syncKbOffset)
+  vv.addEventListener('resize', syncKbOffset)
+  vv.addEventListener('scroll', syncKbOffset)
 }
 function detachKbGuard() {
-  if (!vv) return
+  if (!kbGuardAttached) return
+  kbGuardAttached = false
+  activeKbGuards = Math.max(0, activeKbGuards - 1)
+  if (activeKbGuards !== 0 || !vv) return
   vv.removeEventListener('resize', syncKbOffset)
   vv.removeEventListener('scroll', syncKbOffset)
   document.documentElement.style.setProperty(KB_VAR, '0px')
 }
-let vv: VisualViewport | null = null
-if (typeof window !== 'undefined') vv = window.visualViewport
 
 watch(() => props.modelValue, v => {
   if (v) attachKbGuard()
