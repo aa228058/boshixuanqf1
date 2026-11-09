@@ -165,7 +165,9 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		claimedJobIDs = append(claimedJobIDs, jobID)
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW(), lease_token=NULL WHERE job_id=$1 AND lease_token=$2`, jobID, leaseToken)
+			if !e.execImportJobUpdate(ctx, jobID, leaseToken, "complete empty import", `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW(), lease_token=NULL WHERE job_id=$1 AND lease_token=$2`, jobID, leaseToken) {
+				return
+			}
 			continue
 		}
 		end := offset + 30
@@ -240,7 +242,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				if result != nil && partialFailed > 0 {
 					detail = strings.Join(result.Failed[:partialFailed], "\n")
 				}
-				_, _ = e.pool.Exec(ctx, `
+				if !e.execImportJobUpdate(ctx, jobID, leaseToken, "persist rate-limited import prefix", `
 					UPDATE group_library_import_jobs
 					SET processed_count=processed_count+$2,
 					    imported_count=imported_count+$3,
@@ -251,23 +253,29 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					                    ELSE LEFT(last_error || E'\\n' || $6, 4000) END,
 					    updated_at=$7
 					WHERE job_id=$1 AND lease_token=$8 AND status='processing'`, jobID, processedPrefix, partialImported, partialFailed,
-					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter), leaseToken)
+					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter), leaseToken) {
+					return
+				}
 			} else {
-				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1 AND lease_token=$3 AND status='processing'`,
-					jobID, time.Now().Add(rateLimitErr.RetryAfter), leaseToken)
+				if !e.execImportJobUpdate(ctx, jobID, leaseToken, "schedule rate-limit retry", `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1 AND lease_token=$3 AND status='processing'`,
+					jobID, time.Now().Add(rateLimitErr.RetryAfter), leaseToken) {
+					return
+				}
 			}
 			timer := time.NewTimer(rateLimitErr.RetryAfter)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
 				persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				_, _ = e.pool.Exec(persistCtx, `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken)
+				e.execImportJobUpdate(persistCtx, jobID, leaseToken, "release lease after shutdown", `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken)
 				persistCancel()
 				return
 			case <-timer.C:
 			}
 			// 冷却结束后释放租约，任务立即回到可领取队列。
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken)
+			if !e.execImportJobUpdate(ctx, jobID, leaseToken, "release lease after rate limit", `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken) {
+				return
+			}
 			continue
 		}
 		if ctx.Err() != nil {
@@ -329,18 +337,31 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			nextStatus = "completed"
 			finished = time.Now()
 		}
-		_, updateErr := e.pool.Exec(ctx, `
+		if !e.execImportJobUpdate(ctx, jobID, leaseToken, "persist import chunk", `
 			UPDATE group_library_import_jobs
 			SET processed_count=$2, imported_count=imported_count+$3,
 			    failed_count=failed_count+$4, skipped_count=skipped_count+$5,
 			    last_error=CASE WHEN $6='' THEN last_error ELSE $6 END,
 			    status=$7, finished_at=$8, payload=CASE WHEN $7='completed' THEN '' ELSE payload END,
 			    lease_token=NULL, updated_at=NOW()
-			WHERE job_id=$1 AND lease_token=$9 AND status='processing'`, jobID, end, imported, failed, skipped, lastError, nextStatus, finished, leaseToken)
-		if updateErr != nil {
+			WHERE job_id=$1 AND lease_token=$9 AND status='processing'`, jobID, end, imported, failed, skipped, lastError, nextStatus, finished, leaseToken) {
 			return
 		}
 	}
+}
+
+
+func (e *Engine) execImportJobUpdate(ctx context.Context, jobID, leaseToken uuid.UUID, action, query string, args ...any) bool {
+	tag, err := e.pool.Exec(ctx, query, args...)
+	if err != nil {
+		log.Printf("[grouplib] %s 失败 job=%s: %v", action, jobID, err)
+		return false
+	}
+	if tag.RowsAffected() != 1 {
+		log.Printf("[grouplib] %s 未更新记录，租约可能已失效 job=%s", action, jobID)
+		return false
+	}
+	return true
 }
 
 func splitImportLines(payload string) []string {
