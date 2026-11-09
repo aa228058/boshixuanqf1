@@ -392,6 +392,7 @@ async function loadMoreLogs() {
 
 function clearLogs() {
   // “清除显示”只影响当前页面状态；绝不删除数据库中的审计/发送日志。
+  for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
   logs.value = []
   logsPage.value = 1
   hasMoreLogs.value = false
@@ -487,38 +488,44 @@ async function fetchTask() {
   }
 }
 
+const logPageRequestIds = new Map<number, number>()
+let nextLogPageRequestId = 0
+
 async function fetchLogs(page = 1) {
+  const requestId = ++nextLogPageRequestId
+  logPageRequestIds.set(page, requestId)
   try {
     const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE)
+    if (!pageActive || logPageRequestIds.get(page) !== requestId) return
     // 兼容: 直接数组 / {list: [...]} / {data: [...]}
     let data: TaskLog[] = []
     if (Array.isArray(res)) {
       data = res
     } else if (res && typeof res === 'object') {
-      data = (res as any).list || (res as any).data || []
+      const payload = res as any
+      data = Array.isArray(payload.list) ? payload.list
+        : Array.isArray(payload.data) ? payload.data
+        : Array.isArray(payload.data?.list) ? payload.data.list : []
     }
-    // The API returns the newest page first; render that page chronologically so
-    // SSE-appended entries and the scroll-to-bottom behavior remain consistent.
-    // Merge persisted history with events received while the request was in flight;
-    // reconnect snapshots must not discard newer SSE entries.
+    // Page 1 is a live snapshot, not a reset of the user's historical pagination.
+    // Merge by stable log identity so SSE entries arriving during the request survive.
     const merged = new Map<string, TaskLog>()
     for (const log of logs.value) merged.set(taskLogKey(log), log)
     for (const log of data) merged.set(taskLogKey(log), log)
     logs.value = [...merged.values()]
       .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
-    if (page === 1) {
-      logsPage.value = 1
-      hasMoreLogs.value = data.length === LOG_PAGE_SIZE
-    } else {
-      logsPage.value = Math.max(logsPage.value, page)
+    if (page > logsPage.value) logsPage.value = page
+    if (page === 1 || page === logsPage.value) {
       hasMoreLogs.value = data.length === LOG_PAGE_SIZE
     }
     await nextTick()
-    if (logContainer.value) {
+    if (pageActive && logContainer.value) {
       logContainer.value.scrollTop = logContainer.value.scrollHeight
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取日志失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (pageActive && logPageRequestIds.get(page) === requestId) {
+      toast({ type: 'error', title: '获取日志失败', message: e instanceof Error ? e.message : '请稍后重试' })
+    }
   }
 }
 
