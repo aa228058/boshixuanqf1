@@ -852,6 +852,16 @@ onMounted(() => document.addEventListener('keydown', onGlobalKeydown))
 onUnmounted(() => document.removeEventListener('keydown', onGlobalKeydown))
 const avatarRefreshingId = ref('')
 const selectedIds = ref<Set<string>>(new Set())
+// 账号被删除或租户账号列表刷新后，清理已不存在的 ID，避免批量操作继续提交失效账号。
+// 只按真实账号全集校验，不按当前搜索/分页结果清理，保留跨筛选与跨页多选。
+watch(
+  () => (accountStore.accounts || []).map((account: any) => account?.account_id).filter(Boolean),
+  (accountIds) => {
+    const available = new Set(accountIds)
+    const next = new Set([...selectedIds.value].filter(id => available.has(id)))
+    if (next.size !== selectedIds.value.size) selectedIds.value = next
+  }
+)
 const batchingPool = ref(false)
 const selectAllRef = ref<HTMLInputElement | null>(null)
 
