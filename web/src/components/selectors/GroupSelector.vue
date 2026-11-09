@@ -177,11 +177,53 @@ const syncFailCount = ref(0)
 const syncStatus = ref<'idle' | 'syncing' | 'done' | 'timeout' | 'error'>('idle')
 const localGroups = ref<Group[]>([])
 const groupStore = useGroupStore()
+// 账号切换/关闭弹窗后，旧请求不能再写入当前选择器状态。
+let selectorRequestId = 0
+let dmRequestId = 0
 
-// props.groups 变化时同步到本地
-watch(() => props.groups, (v) => {
-  localGroups.value = v && v.length > 0 ? [...v] : localGroups.value
+// props.groups 是父组件的权威快照；空数组也必须同步，不能把旧账号的列表留在界面。
+watch(() => props.groups, (groups) => {
+  localGroups.value = [...(groups || [])]
 }, { deep: true, immediate: true })
+
+async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '') {
+  if (!accountId) {
+    localGroups.value = []
+    return
+  }
+  const suppliedGroups = props.groups || []
+  if (suppliedGroups.length) {
+    localGroups.value = [...suppliedGroups]
+    return
+  }
+  loading.value = true
+  try {
+    const groups = await groupStore.ensure(accountId)
+    if (requestId === selectorRequestId && visible.value && props.accountId === accountId) {
+      localGroups.value = [...groups]
+    }
+  } catch (e) {
+    if (requestId === selectorRequestId && visible.value && props.accountId === accountId) {
+      localGroups.value = []
+      console.error('[GroupSelector] ensure error:', e)
+    }
+  } finally {
+    if (requestId === selectorRequestId && visible.value && props.accountId === accountId) {
+      loading.value = false
+    }
+  }
+}
+
+watch(() => props.accountId, (accountId, previousAccountId) => {
+  if (accountId === previousAccountId) return
+  selectorRequestId++
+  dmRequestId++
+  localGroups.value = []
+  dmUsers.value = []
+  dmLoaded.value = false
+  syncStatus.value = 'idle'
+  if (visible.value) loadAccountGroups(selectorRequestId, accountId || '')
+})
 
 const filtered = computed(() => {
   // 群组 tab = 普通群 + 超级群, 明确排除频道(channel)
@@ -199,10 +241,12 @@ const dmUsers = ref<Group[]>([])
 const dmLoaded = ref(false)
 
 async function loadDmUsers() {
-  if (dmLoaded.value) return
-  if (!props.accountId) return
+  if (dmLoaded.value || !props.accountId) return
+  const accountId = props.accountId
+  const requestId = ++dmRequestId
   try {
-    const raw: any = await groupApi.listMembersGlobal(props.accountId)
+    const raw: any = await groupApi.listMembersGlobal(accountId)
+    if (requestId !== dmRequestId || !visible.value || props.accountId !== accountId) return
     const arr: any[] = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
     const seen = new Set<number>()
     dmUsers.value = arr.filter((m: any) => {
@@ -219,11 +263,14 @@ async function loadDmUsers() {
       type: 'dm',
       access_hash: m.access_hash || 0,
     })) as unknown as Group[]
+    dmLoaded.value = true
   } catch (e) {
-    console.error('[GroupSelector] loadDmUsers:', e)
-    dmUsers.value = []
+    if (requestId === dmRequestId && visible.value && props.accountId === accountId) {
+      console.error('[GroupSelector] loadDmUsers:', e)
+      dmUsers.value = []
+      dmLoaded.value = true
+    }
   }
-  dmLoaded.value = true
 }
 
 const dmFiltered = computed(() => {
@@ -352,28 +399,17 @@ async function onRefresh() {
   }
 }
 
-watch(() => props.modelValue, async (v) => {
+watch(() => props.modelValue, (v) => {
+  selectorRequestId++
+  dmRequestId++
   if (v) {
     selected.value = []
     search.value = ''
-    activeTab.value = 'all'
-    // 不再自动同步，仅手动点击"同步刷新"按钮时同步。
-    // 打开时优先读群组缓存(零请求); 无缓存且父组件未传入数据时才查库。
-    if (!localGroups.value.length && props.accountId) {
-      const cached = groupStore.get(props.accountId)
-      if (cached.length) {
-        localGroups.value = cached
-      } else {
-        loading.value = true
-        try {
-          localGroups.value = await groupStore.ensure(props.accountId)
-        } catch (e) {
-          console.error('[GroupSelector] ensure error:', e)
-        } finally {
-          loading.value = false
-        }
-      }
-    }
+    activeTab.value = 'group'
+    syncStatus.value = 'idle'
+    loadAccountGroups(selectorRequestId, props.accountId || '')
+  } else {
+    loading.value = false
   }
 })
 
