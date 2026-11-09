@@ -82,9 +82,9 @@ const formControlUsage = formControlPatterns.map(([label, pattern]) => ({
 }))
 
 const confirmationPatterns = [
-  ['Native window.confirm()', /window\\.confirm\\s*\\(/g],
-  ['Native window.alert()', /window\\.alert\\s*\\(/g],
-  ['Shared ask() calls', /\\bask\\s*\\(/g],
+  ['Native window.confirm()', /window\.confirm\s*\(/g],
+  ['Native window.alert()', /window\.alert\s*\(/g],
+  ['Shared ask() calls', /\bask\s*\(/g],
 ]
 const confirmationUsage = confirmationPatterns.map(([label, pattern]) => ({
   label,
