@@ -303,7 +303,16 @@ func (c *Container) initEngines() error {
 	taskEngine.StartResourceMonitor(engineCtx)
 
 	c.MonitorEngine = monitor.NewEngine(c.Cfg, c.AccountEngine, c.MonitorRuleRepo, c.SSEBroker)
-	c.MonitorEngine.SetDMActionStore(repository.NewDMActionRepository(c.DB.Pool))
+	dmActionRepo := repository.NewDMActionRepository(c.DB.Pool)
+	staleActionCtx, cancelStaleActionRecovery := context.WithTimeout(context.Background(), 10*time.Second)
+	resolvedStaleActions, staleActionErr := dmActionRepo.ResolveStale(staleActionCtx, 5*time.Minute)
+	cancelStaleActionRecovery()
+	if staleActionErr != nil {
+		log.Printf("[monitor] stale DM action recovery failed; claims remain fail-closed: %v", staleActionErr)
+	} else if resolvedStaleActions > 0 {
+		log.Printf("[monitor] recovered %d stale DM action claims as outcome_unknown", resolvedStaleActions)
+	}
+	c.MonitorEngine.SetDMActionStore(dmActionRepo)
 	c.MonitorEngine.SetCallCooldownStore(repository.NewCallCooldownRepository(c.DB.Pool))
 
 	// Auto-sync joined groups for all online accounts on startup
