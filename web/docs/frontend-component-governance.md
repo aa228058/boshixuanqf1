@@ -1,0 +1,80 @@
+# Frontend component governance
+
+## Goal
+
+Reduce the number of competing implementations for the same interaction without breaking page behavior. This is a migration plan and review standard, not permission to delete files based on naming or age.
+
+## Current baseline (main, reviewed 2026-11-10)
+
+- The application is Vue 3 + TypeScript.
+- TDesign Vue Next is registered selectively in `web/src/main.ts`.
+- `vue-final-modal` is installed and used by the project `Modal.vue` wrapper.
+- `vue-sonner` is installed for toast notifications.
+- Project-owned UI SFCs currently include `Modal.vue`, `ConfirmDialog.vue`, `ConfirmHost.vue`, `EmptyState.vue`, `Loading.vue`, `Skeleton.vue`, `Breadcrumb.vue`, and other specialized components.
+- Global CSS is layered across tokens, Tailwind, theme files, UI refinement/polish, TDesign skin/theme/overrides, UI kit, and modal-system rules.
+
+These facts show multiple layers, but do not by themselves prove that any particular file is dead or redundant.
+
+## Canonical ownership (target)
+
+| Concern | Canonical owner | Migration rule |
+|---|---|---|
+| Design tokens | `styles/tokens.css` | New component styling must use tokens; do not add parallel palettes. |
+| Shared button/input primitives | TDesign components plus project adapters in `ui-kit.css` | Prefer existing primitives and variants; no page-local global button systems. |
+| Modal/dialog shell | `components/ui/Modal.vue` | All project-owned modal surfaces should use the wrapper unless a documented exception requires a native TDesign dialog. |
+| Confirm interaction | `utils/confirm.ts` + `components/ui/ConfirmHost.vue` | Prefer the centralized promise-based confirmation flow; keep `ConfirmDialog.vue` only for verified declarative use cases during migration. |
+| Toast | `vue-sonner` | Do not introduce another toast/event-bus implementation. |
+| Empty/loading/skeleton states | Existing project UI components | Consolidate APIs only after call-site inventory; do not replace specialized progress components blindly. |
+| TDesign compatibility | `tdesign-skin.css`, `tdesign-theme.css`, `tdesign-overrides.css` | Each file must have a documented, non-overlapping responsibility; consolidate after selector ownership audit. |
+| Modal positioning | `modal-system.css` | Keep positioning out of generic polish and theme layers. |
+| Motion/interaction polish | `ui-polish.css` | Keep visual motion and feedback here; avoid defining component base appearance. |
+
+## Required audit before removal
+
+A component or stylesheet can be removed only after all checks pass:
+
+1. Search static imports, lazy imports, Vue template tags, app-level registration, route-level imports, and string-based/dynamic component resolution.
+2. Check whether a component is used by tests, stories, fixtures, or runtime configuration.
+3. Check CSS selectors against templates and dynamically generated class names. A selector with no static match is not automatically dead.
+4. Check whether a stylesheet is imported directly or indirectly and inspect cascade/order dependencies.
+5. Migrate every verified call site to the canonical implementation.
+6. Run typecheck, unit tests, design-token audit, production build, and browser regression checks.
+7. Delete only in a separate, reviewable change with before/after evidence.
+
+The inventory script `npm run audit:components` reports direct SFC imports and global CSS import order. Its "no direct import" output is a manual-review lead, never a deletion instruction.
+
+## Migration batches
+
+### Batch A — inventory and contracts
+- Generate component import inventory.
+- Document current global CSS import order.
+- Identify repeated component basenames and overlapping CSS selector ownership.
+- Establish canonical props/events/slots and accessibility expectations.
+
+### Batch B — interaction primitives
+- Normalize button variants and sizes.
+- Normalize modal/dialog/drawer behavior, desktop centering, mobile viewport sizing, focus management, Escape/backdrop behavior, and scroll locking.
+- Consolidate confirmation flows without changing business semantics.
+
+### Batch C — forms and data display
+- Normalize input/select/checkbox/switch/date-picker wrappers and validation behavior.
+- Normalize table, pagination, badges, tooltips and empty/loading states.
+
+### Batch D — stylesheet consolidation
+- Reduce overlapping TDesign overrides.
+- Retire obsolete selectors only after call-site and cascade verification.
+- Preserve theme parity and responsive behavior.
+
+### Batch E — page migration and regression
+- Migrate pages in coherent groups.
+- Run automated checks and real-browser desktop/mobile visual review.
+- Record remaining intentional exceptions.
+
+## Acceptance criteria
+
+- Each shared interaction has one documented canonical entry point.
+- No page adds a competing global primitive for an existing shared interaction.
+- Public props/events/slots and keyboard behavior are documented for shared wrappers.
+- No component or CSS file is removed solely because an automated search reports no direct reference.
+- `npm run typecheck`, `npm test`, `npm run check:design-tokens`, and `npm run build` pass.
+- Desktop and mobile browser checks cover dialogs, buttons, forms, tables, empty/loading states, themes, and overflow.
