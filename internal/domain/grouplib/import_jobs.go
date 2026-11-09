@@ -415,6 +415,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				return true
 			}
 		}
+		deferUntilLeaseExpiry := false
 		for chunk := 0; chunk < 1 && offset < len(lines); chunk++ {
 			if leaseCtx.Err() != nil {
 				break
@@ -468,26 +469,18 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					offset += processedPrefix
 				}
 				persistCancel()
-				timer := time.NewTimer(rateLimitErr.RetryAfter)
-				shutdownDuringRateLimit := false
-				select {
-				case <-leaseCtx.Done():
-					timer.Stop()
-					shutdownDuringRateLimit = true
-				case <-timer.C:
-					continue
-				}
-				if shutdownDuringRateLimit && leaseValid() {
-					persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-					_, persistErr := e.pool.Exec(persistCtx, `
-						UPDATE group_library_import_jobs
-						SET status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
-						WHERE job_id=$1 AND status='processing' AND lease_token=$2 AND processed_count=$3`,
-						jobID, leaseToken, offset)
-					persistCancel()
-					if persistErr != nil {
-						log.Printf("[grouplib] 429 停机时释放导入租约失败 job=%s: %v", jobID, persistErr)
-					}
+				// Do not block the shared scheduler while waiting for Telegram's RetryAfter.
+				// Keep the fenced lease until the cooldown expires; other jobs can progress.
+				deferUntilLeaseExpiry = true
+				deferCtx, deferCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+				_, deferErr := e.pool.Exec(deferCtx, `
+					UPDATE group_library_import_jobs
+					SET lease_expires_at=NOW()+$3::interval, updated_at=NOW()
+					WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2`,
+					jobID, leaseToken, rateLimitErr.RetryAfter.String())
+				deferCancel()
+				if deferErr != nil {
+					log.Printf("[grouplib] 延迟限流任务租约失败 job=%s: %v", jobID, deferErr)
 				}
 				break
 			}
@@ -596,7 +589,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			persistCancel()
 		}
 		// 每个任务每轮只处理一个分片，未完成任务立即释放回 pending。
-		if leaseValid() && leaseCtx.Err() == nil {
+		if leaseValid() && leaseCtx.Err() == nil && !deferUntilLeaseExpiry {
 			_, _ = e.pool.Exec(leaseCtx, `
 				UPDATE group_library_import_jobs
 				SET status='pending', lease_token=NULL, lease_expires_at=NULL, updated_at=NOW()
