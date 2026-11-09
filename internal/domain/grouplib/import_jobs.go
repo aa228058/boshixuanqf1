@@ -158,7 +158,10 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		}
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW() WHERE job_id=$1`, jobID)
+			if _, err := e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=COALESCE(finished_at,NOW()), payload='', updated_at=NOW() WHERE job_id=$1 AND status='processing'`, jobID); err != nil {
+				log.Printf("[grouplib] 完成空余导入任务失败 job=%s: %v", jobID, err)
+				return
+			}
 			continue
 		}
 		// Keep each lease bounded: five slow page lookups stay comfortably below the
@@ -191,7 +194,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				if result != nil && partialFailed > 0 {
 					detail = strings.Join(result.Failed[:partialFailed], "\n")
 				}
-				_, _ = e.pool.Exec(ctx, `
+				if _, err := e.pool.Exec(ctx, `
 					UPDATE group_library_import_jobs
 					SET processed_count=processed_count+$2,
 					    imported_count=imported_count+$3,
@@ -202,10 +205,16 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					                    ELSE LEFT(last_error || E'\\n' || $6, 4000) END,
 					    status='pending', updated_at=$7
 					WHERE job_id=$1 AND status='processing'`, jobID, processedPrefix, partialImported, partialFailed,
-					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter))
+					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter)); err != nil {
+					log.Printf("[grouplib] 保存限流前导入进度失败 job=%s: %v", jobID, err)
+					return
+				}
 			} else {
-				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='pending', updated_at=$2 WHERE job_id=$1 AND status='processing'`,
-					jobID, time.Now().Add(rateLimitErr.RetryAfter))
+				if _, err := e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='pending', updated_at=$2 WHERE job_id=$1 AND status='processing'`,
+					jobID, time.Now().Add(rateLimitErr.RetryAfter)); err != nil {
+					log.Printf("[grouplib] 保存导入限流重试时间失败 job=%s: %v", jobID, err)
+					return
+				}
 			}
 			// Release the worker immediately. The pending job's future updated_at is
 			// its retry-after timestamp; other tenants' imports can use this worker now.
