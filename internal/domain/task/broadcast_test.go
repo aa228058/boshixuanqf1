@@ -92,3 +92,13 @@ func TestDedupeAccountIDsRemovesDuplicatesAndNil(t *testing.T) {
 		t.Fatalf("account IDs=%v, want %v", got, want)
 	}
 }
+
+func TestDedupeAccountTargetsTrimsWhitespace(t *testing.T) {
+	accountID := uuid.New()
+	got := dedupeAccountTargets(map[uuid.UUID][]string{
+		accountID: {" -1001 ", "-1001", "   ", "-1002"},
+	})
+	if want := []string{"-1001", "-1002"}; !reflect.DeepEqual(got[accountID], want) {
+		t.Fatalf("targets=%v, want %v", got[accountID], want)
+	}
+}
