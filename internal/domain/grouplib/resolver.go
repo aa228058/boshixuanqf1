@@ -44,8 +44,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		if !isInviteLink && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
 			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
 				log.Printf("[grouplib] 标记机器人链接无效失败 %s: %v", p.link, err)
+			} else {
+				e.finishResolution(ctx, p.sgID, "bot link")
 			}
-			e.deferResolutionRetry(ctx, p.sgID, "bot link")
 			continue
 		}
 
@@ -76,18 +77,24 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			return
 		}
 		if resolveErr != nil {
-			e.deferResolutionRetry(ctx, p.sgID, "resolution failed")
 			errText := strings.ToLower(resolveErr.Error())
-			if (isInviteLink && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) ||
-				(strings.Contains(errText, "返回 404") || strings.Contains(errText, "返回 410")) {
-				_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
+			permanent := (isInviteLink && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) ||
+				strings.Contains(errText, "返回 404") || strings.Contains(errText, "返回 410")
+			if permanent {
+				if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+					log.Printf("[grouplib] 标记永久失效链接失败 %s: %v", p.link, err)
+				} else {
+					e.finishResolution(ctx, p.sgID, "permanently invalid link")
+				}
+			} else {
+				e.deferResolutionRetry(ctx, p.sgID, "resolution failed")
 			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
 			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
 				log.Printf("[grouplib] 标记非群组链接无效失败 %s: %v", p.link, err)
 			}
-			e.deferResolutionRetry(ctx, p.sgID, "not a group")
+			e.finishResolution(ctx, p.sgID, "not a group")
 		} else if title != "" || count > 0 {
 			if pageType == "" || pageType == "unknown" {
 				pageType = p.gtype
@@ -120,5 +127,20 @@ func (e *Engine) deferResolutionRetry(ctx context.Context, sgID uuid.UUID, reaso
 	}
 	if tag.RowsAffected() != 1 {
 		log.Printf("[grouplib] 延后群组解析未更新记录 %s (%s)", sgID, reason)
+	}
+}
+
+// finishResolution removes permanently invalid candidates from the retry queue.
+func (e *Engine) finishResolution(ctx context.Context, sgID uuid.UUID, reason string) {
+	tag, err := e.pool.Exec(ctx, `
+		UPDATE system_groups SET resolution_status='resolved'
+		WHERE sg_id=$1 AND status='active'
+	`, sgID)
+	if err != nil {
+		log.Printf("[grouplib] 结束群组解析失败 %s (%s): %v", sgID, reason, err)
+		return
+	}
+	if tag.RowsAffected() != 1 {
+		log.Printf("[grouplib] 结束群组解析未更新记录 %s (%s)", sgID, reason)
 	}
 }
