@@ -65,6 +65,9 @@ type raffleWatcher struct {
 	mu         sync.Mutex
 	pendingAck map[string]time.Time // 参与回执等待: key=tenant:account:chat:keyword → 截止时间
 	notified   map[string]time.Time // 开奖通知去重(同活动多条开奖消息)
+	stopCh     chan struct{}
+	doneCh     chan struct{}
+	stopOnce   sync.Once
 
 	// service 注入的回调:
 	// 结果落库 + SSE 推送
@@ -79,28 +82,45 @@ func newRaffleWatcher() *raffleWatcher {
 	w := &raffleWatcher{
 		pendingAck: map[string]time.Time{},
 		notified:   map[string]time.Time{},
+		stopCh:     make(chan struct{}),
+		doneCh:     make(chan struct{}),
 	}
-	// 定期清理过期等待与通知去重
+	// 定期清理过期等待与通知去重；跟随 Engine.StopAll 退出。
 	safego.Go(func() {
+		defer close(w.doneCh)
 		t := time.NewTicker(5 * time.Minute)
 		defer t.Stop()
-		for range t.C {
-			now := time.Now()
-			w.mu.Lock()
-			for k, exp := range w.pendingAck {
-				if now.After(exp) {
-					delete(w.pendingAck, k)
+		for {
+			select {
+			case <-t.C:
+				now := time.Now()
+				w.mu.Lock()
+				for k, exp := range w.pendingAck {
+					if now.After(exp) {
+						delete(w.pendingAck, k)
+					}
 				}
-			}
-			for k, at := range w.notified {
-				if now.Sub(at) > 30*time.Minute {
-					delete(w.notified, k)
+				for k, at := range w.notified {
+					if now.Sub(at) > 30*time.Minute {
+						delete(w.notified, k)
+					}
 				}
+				w.mu.Unlock()
+			case <-w.stopCh:
+				return
 			}
-			w.mu.Unlock()
 		}
 	})
 	return w
+}
+
+// Stop ends the watcher maintenance goroutine and waits for its exit.
+func (w *raffleWatcher) Stop() {
+	if w == nil {
+		return
+	}
+	w.stopOnce.Do(func() { close(w.stopCh) })
+	<-w.doneCh
 }
 
 // SetRaffleResultHandler 注入结果处理(落 raffle_results + SSE)
@@ -161,7 +181,7 @@ func itoa(v int64) string {
 }
 
 // watchRaffleMessage 在 dispatch 的消息回调里调用(每账号并行, 互不阻塞)
-func (e *Engine) watchRaffleMessage(tenantID, accountID uuid.UUID, chatID int64, msg *types.Message, cl *telegram.Client) {
+func (e *Engine) watchRaffleMessage(ctx context.Context, tenantID, accountID uuid.UUID, chatID int64, msg *types.Message, cl *telegram.Client) {
 	if msg == nil {
 		return
 	}
@@ -219,7 +239,7 @@ func (e *Engine) watchRaffleMessage(tenantID, accountID uuid.UUID, chatID int64,
 		}
 		w.notified[nk] = time.Now()
 		w.mu.Unlock()
-		safego.Go(func() {
+		monitorGo(ctx, func() {
 			// R144: 群组名用书名号包裹; 未解析到时详情不再留空尾巴
 			detail := "私聊通知"
 			if groupTitle != "" {
@@ -266,7 +286,7 @@ func (e *Engine) watchRaffleMessage(tenantID, accountID uuid.UUID, chatID int64,
 		w.notified[nk] = time.Now()
 		w.mu.Unlock()
 
-		safego.Go(func() {
+		monitorGo(ctx, func() {
 			// R149: 开奖公告标题(emoji前文字)作为活动名, 与私聊通知路径聚合
 			w.onResult(tenantID, accountID, chatID, kind, extractActivityName(text), prize, truncateR(text, 300))
 		})
@@ -280,8 +300,13 @@ func (e *Engine) watchRaffleMessage(tenantID, accountID uuid.UUID, chatID int64,
 					rp = string(rr[:200])
 				}
 				if rp != "" {
-					safego.Go(func() {
-						e.sendRaffleReply(context.Background(), cl, chatID, rp)
+					monitorGo(ctx, func() {
+						select {
+						case <-ctx.Done():
+							return
+						default:
+						}
+						e.sendRaffleReply(ctx, cl, chatID, rp)
 					})
 				}
 			}
