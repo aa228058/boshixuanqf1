@@ -63,6 +63,13 @@ type Engine struct {
 	workerID string
 	stopCh   chan struct{}
 	stopOnce sync.Once
+
+	// lifecycleMu serializes Start and Stop so Wait cannot race with startup Add calls.
+	lifecycleMu   sync.Mutex
+	started       bool
+	stopped       bool
+	runtimeCancel context.CancelFunc
+
 	// shutdownCtx is cancelled by Stop so long-running task contexts cannot outlive the engine.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
@@ -299,7 +306,9 @@ func (e *Engine) publishLog(tenantID uuid.UUID, taskID uuid.UUID, log *domain.Ta
 
 // startLogCleanup 每 24 小时自动删除 7 天前的历史日志, 防表膨胀。
 func (e *Engine) startLogCleanup(ctx context.Context) {
+	e.wg.Add(1)
 	safego.Go(func() {
+		defer e.wg.Done()
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		// 启动时先清一次(系统级清扫, 无租户上下文 → Global 版本)
@@ -314,21 +323,53 @@ func (e *Engine) startLogCleanup(ctx context.Context) {
 				}
 			case <-ctx.Done():
 				return
+			case <-e.stopCh:
+				return
 			}
 		}
 	})
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	e.startLogCleanup(ctx)
-	// Load all active tenants and register their plan quotas
-	if err := e.loadTenantQuotas(ctx); err != nil {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+
+	if e.stopped {
+		return fmt.Errorf("task engine has already been stopped")
+	}
+	if e.started {
+		return nil
+	}
+
+	// Every engine-owned background loop shares a child context. Stop cancels it
+	// even when the parent context is still alive.
+	runtimeCtx, runtimeCancel := context.WithCancel(ctx)
+	e.runtimeCancel = runtimeCancel
+	stopShutdown := func() bool { return false }
+	if e.shutdownCtx != nil {
+		stopShutdown = context.AfterFunc(e.shutdownCtx, runtimeCancel)
+		if e.shutdownCtx.Err() != nil {
+			stopShutdown()
+			runtimeCancel()
+			e.runtimeCancel = nil
+			return fmt.Errorf("task engine has already been stopped")
+		}
+	}
+
+	// Load all active tenants and register their plan quotas.
+	if err := e.loadTenantQuotas(runtimeCtx); err != nil {
 		log.Printf("[engine] 加载租户配额失败: %v", err)
 	}
 
-	if err := e.startListen(ctx); err != nil {
+	if err := e.startListen(runtimeCtx); err != nil {
+		stopShutdown()
+		runtimeCancel()
+		e.runtimeCancel = nil
 		return fmt.Errorf("start listen: %w", err)
 	}
+
+	e.startLogCleanup(runtimeCtx)
+
 	// P1-45 审计修复: worker 数原来硬编码 3, cfg.TaskWorkerCount 配置形同虚设——用配置值
 	workers := e.cfg.TaskWorkerCount
 	if workers < 1 {
@@ -336,16 +377,17 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	for i := 0; i < workers; i++ {
 		e.wg.Add(1)
-		safego.Go(func() { e.workerLoop(ctx) })
+		safego.Go(func() { e.workerLoop(runtimeCtx) })
 	}
 	e.wg.Add(1)
-	safego.Go(func() { e.pollLoop(ctx) })
+	safego.Go(func() { e.pollLoop(runtimeCtx) })
 	if e.linkScraper != nil {
-		e.linkScraper.Start(ctx)
+		e.linkScraper.Start(runtimeCtx)
 	}
 	// 账号冷却到期自动恢复: 每分钟把 blocked_until 已过的受限账号恢复为 online
 	e.wg.Add(1)
-	safego.Go(func() { e.unblockExpiredLoop(ctx) })
+	safego.Go(func() { e.unblockExpiredLoop(runtimeCtx) })
+	e.started = true
 	return nil
 }
 
@@ -433,12 +475,18 @@ func (e *Engine) RegisterTenantQuota(tenantID [16]byte, maxConcurrent int) {
 }
 
 func (e *Engine) Stop() {
+	e.lifecycleMu.Lock()
+	e.stopped = true
 	e.stopOnce.Do(func() {
 		close(e.stopCh)
 		if e.shutdownCancel != nil {
 			e.shutdownCancel()
 		}
+		if e.runtimeCancel != nil {
+			e.runtimeCancel()
+		}
 	})
+	e.lifecycleMu.Unlock()
 	if e.linkScraper != nil {
 		e.linkScraper.Stop()
 	}
@@ -480,7 +528,9 @@ func (e *Engine) startListen(ctx context.Context) error {
 	}
 	e.listenConn = conn
 
+	e.wg.Add(1)
 	safego.Go(func() {
+		defer e.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("startListen panic: %v\n%s\n", r, debug.Stack())
@@ -490,6 +540,8 @@ func (e *Engine) startListen(ctx context.Context) error {
 		for {
 			select {
 			case <-e.stopCh:
+				return
+			case <-ctx.Done():
 				return
 			default:
 			}
@@ -526,6 +578,8 @@ func (e *Engine) startListen(ctx context.Context) error {
 			for {
 				select {
 				case <-e.stopCh:
+					return
+				case <-ctx.Done():
 					return
 				case <-func() <-chan time.Time {
 					timer := time.NewTimer(30 * time.Second)
