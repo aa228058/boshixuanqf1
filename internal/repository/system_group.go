@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,8 +46,10 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			if err != nil {
 				return err
 			}
-		} else {
+		} else if errors.Is(lookupErr, pgx.ErrNoRows) {
 			sgID = uuid.Nil
+		} else {
+			return fmt.Errorf("lookup system group by Telegram chat ID: %w", lookupErr)
 		}
 	}
 	if sgID == uuid.Nil {
@@ -55,9 +58,12 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			return err
 		}
 		if sg.TelegramChatID != 0 {
-			_ = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
+			err = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
 		} else {
-			_ = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE dedup_key=$1", sg.DedupKey()).Scan(&sgID)
+			err = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE dedup_key=$1", sg.DedupKey()).Scan(&sgID)
+		}
+		if err != nil {
+			return fmt.Errorf("reload upserted system group: %w", err)
 		}
 	}
 	if sgID != uuid.Nil && sg.ContributorTenantID != uuid.Nil {
