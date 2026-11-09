@@ -1,9 +1,11 @@
 package task
 
 import (
-	"github.com/google/uuid"
 	"context"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestAcquireBroadcastSlotRespectsCancellation(t *testing.T) {
