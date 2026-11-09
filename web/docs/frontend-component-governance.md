@@ -137,6 +137,11 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - The watcher now runs immediately, registering an initially open modal and preserving the same cleanup/compaction behavior on close and unmount.
 - Extended the inventory to distinguish TDesign `<Dialog>`, dynamic `resolveComponent("Dialog")`, render-function `h(Dialog)`, and global `app.use(Dialog)` registration from lowercase `<t-dialog>`. This is evidence gathering only; global registration remains until every usage path is reviewed.
 
+### Batch D7 — first-render loading state correction
+
+- Follow-up verification found that the sessions page initialized `loading` to `false`, while the first `refresh()` runs from the mount lifecycle. The page could therefore render EmptyState for one frame before the request started.
+- Changed the initial value to `true`; `refresh()` still owns the request lifecycle and resets it in `finally`. This closes the first-render gap rather than only fixing the post-request state branch.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
