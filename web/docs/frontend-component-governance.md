@@ -120,6 +120,12 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - `EmptyState` remains the established wrapper around TDesign Empty and is used across multiple pages. `Skeleton` is used for content-shaped loading placeholders. The standalone `Loading.vue` has no direct import found in the audited page/component set; it is not deleted until dynamic/runtime references and any external contract are ruled out.
 - The app-level TDesign Dialog registration is intentionally retained until the complete source inventory confirms no dynamic or non-template use.
 
+### Batch D4 — session page confirmation and initial loading
+
+- Replaced the session page's native `window.confirm()` bulk-delete prompt with the shared promise-based `ask()` confirmation host, preserving the destructive intent while using the project's accessible, theme-aware modal system.
+- Fixed the initial empty-list flash: while the first account request is pending and there are no cached accounts, the page now shows the shared Loading component; only after loading completes does it show EmptyState. Refreshes with existing rows keep the table visible.
+- Added `role="status"` and `aria-live="polite"` to the shared Loading root and marked its decorative spinner as hidden from assistive technology.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
