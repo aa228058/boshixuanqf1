@@ -287,3 +287,51 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Live-event deduplication now uses a maintained key set instead of scanning the entire loaded timeline for every event, avoiding quadratic lookup work as a long-running task accumulates logs.
 - Ticket acquisition has a 15-second abort deadline; a stalled ticket request can no longer hold the connection lock indefinitely and prevent retries.
 - Remaining verification: CI must compile/test the backend cursor query and frontend changes; manually verify reconnect, wait countdown, and historical paging while a task is actively generating logs in desktop and mobile browsers.
+
+
+## 全仓前端剩余问题复核（2026-11-10）
+
+### 复核基线与覆盖
+
+- 复核分支：`refactor/frontend-component-governance`。
+- 复核基线：`d08037df1c37230c1ea65d0ae5195deff5ffb03f`；后续测试夹具修复提交：`8287fb51d19a36c4b54480b36532bdc45c4f19c1`。
+- 对仓库树进行全量枚举：`web/src` 下 58 个 Vue SFC，其中 34 个页面/布局视图、23 个组件；全局样式目录 12 个 CSS 文件；前端现有 6 个测试文件。
+- 页面覆盖包括工作区（群发、进群、监控、采集、任务）、账号、群组发现、会话、任务详情、仪表盘、设置、帮助、更新、验证器、登录注册、更多/404，以及管理端布局、登录、公告、审计、卡密、仪表盘、套餐、探测、客服、系统监控和租户列表/详情。
+- 公共组件覆盖 AppShell、移动导航、实时任务/日历/图表、选择器、Modal/Confirm、Empty/Loading/Skeleton、Breadcrumb、PullDownRefresh 等。
+- 样式覆盖 tokens、Tailwind、两套主题、UI refined/polish/UI kit、TDesign skin/theme/overrides、modal-system、animations。
+- 本次是以源码、组件调用关系、治理文档、GitHub Actions 结果为依据的仓库复核；未连接生产环境，未执行真实设备手工视觉验收。
+
+### 已确认收敛（本轮不再列为待修）
+
+- 普通动作按钮已按仓库既定 TDesign + `.ui-t-button` 入口收敛；`.ui-btn` 模板调用静态扫描为 0。图标按钮、导航、分段控件和原生语义控件保留各自用途。
+- 项目业务 Modal 的桌面居中/移动端几何由 Modal 与 modal-system 管理；会话页两个业务 Dialog 已迁移到 Modal；确认内容和动作复用 ConfirmPrompt/ConfirmActions。
+- dark 主题 TDesign 基础按钮兜底规则已排除语义按钮，避免覆盖主/危险色。
+- 空状态图标映射、Loading 可访问状态、会话页首屏加载态已修。
+- 管理端卡密桌面分页、Join 执行账号群组异步竞态、TargetSelector/GroupSelector 账号切换缓存、账号批量选择与草稿隔离、Broadcast DTO 选项透传和循环模式不支持项提示、任务列表请求竞态、任务详情操作/SSE/日志历史分页等已完成相应代码整改。
+- CSS 重复选择器复核未证明存在可安全删除的死规则；不得把相同选择器文本直接等同于重复/无效 CSS。
+
+### 当前剩余问题清单
+
+| 编号 | 级别 | 位置/范围 | 当前证据与影响 | 下一步 |
+|---|---|---|---|---|
+| R1 | P1（验收阻塞） | 全部页面与公共浮层 | 自动 Browser UI audit 已通过，但这不是人工视觉验收，无法证明桌面/移动端三主题下的居中、遮挡、焦点、键盘和滚动行为均正确 | 使用真实浏览器逐模块验收 normal/eye/dark，桌面和移动视口；记录截图与复现步骤 |
+| R2 | P2 | `styles/ui-refined.css`、`styles/ui-polish.css`、`useAsyncBtn` 及调用方 | `.btn-success`、`.btn-error` 仍保留；现有搜索不足以证明动态 class、组合 class 或运行时注入没有调用 | 追踪 composable 返回值、全部调用方和模板绑定；有完整零调用证据后再决定迁移/删除 |
+| R3 | P2 | `components/ui/Modal.vue` | 有模块级 VisualViewport/弹窗栈生命周期修复，但没有专门 Modal 单测；浏览器自动审计不能替代多弹窗键盘/焦点测试 | 测试桌面居中、窄屏底部策略、软键盘、嵌套弹窗、Esc、遮罩、滚动锁定和卸载 |
+| R4 | P2 | `views/tasks/Detail.vue` | 任务详情的 SSE 重连、等待倒计时、实时日志、历史游标和滚动锚定有代码防护；需要运行中的任务才能验证事件交错和断线恢复 | 用持续产生日志的测试任务验证断线重连、旧 EventSource 回调、翻页时插入新日志和到达最旧页 |
+| R5 | P2 | `components/selectors/TargetSelector.vue`、`GroupSelector.vue` | 大列表已限制首屏渲染 200 项并支持增量加载；全量筛选/全选语义由代码保留，但极大数据量下的滚动、搜索和交互响应未实测 | 用数千/数万群组/联系人数据验证搜索、全选、反选、分页渲染、刷新与切换账号 |
+| R6 | P2 | `views/workspace/Broadcast.vue`、`Join.vue`、`Scrape.vue`、`Tasks.vue` 等关键业务表单 | 发现并修复过多项请求竞态和表单状态问题；全流程浏览器回归仍未完成 | 逐项走通创建、校验、取消、失败重试、账号切换、媒体上传中提交、循环模式限制和任务刷新 |
+| R7 | P3 | `web/src/main.ts` 全局错误探针 | 全局运行时错误横幅使用 DOM 直接创建并显示截断后的错误堆栈；目前有 8 秒自动关闭，但仍需检查生产环境错误信息是否包含内部路径/敏感业务内容，以及高频错误是否造成视觉干扰 | 用脱敏策略审查消息内容和重复错误节流；不影响正常错误诊断的前提下收敛提示 |
+| R8 | P2（CI） | `internal/repository/task_integration_test.go` | 最新 CI 的 Go 测试失败不是产品代码断言失败：新增游标分页集成测试调用 `ensureTasksTable`，但该 helper 没创建 `task_logs` 表，日志明确报 `relation "task_logs" does not exist` | 已在提交 `8287fb5` 给测试夹具补建最小 `task_logs` 表并清理夹具数据；必须等待新 SHA CI 重新验证 |
+
+### 验证状态
+
+- 基线 SHA `d08037d`：Frontend Typecheck + Unit Tests、frontend、integration、sql-audit、secrets 均成功；Browser UI audit 成功。
+- 同一 SHA 的 `build` Job 中 `gofmt`、`go vet`、`gosec` 成功，但 `go test` 因 R8 的测试夹具缺表失败；日志已定位到具体失败测试和 SQL relation，不是笼统的 Runner 启动故障。
+- 已提交 R8 修复：`8287fb51d19a36c4b54480b36532bdc45c4f19c1`。该提交后的 CI 结果尚待 GitHub Actions 完成，不能提前标记通过。
+- Browser UI audit 的自动化步骤成功并生成 Playwright 报告；该结果不代表人工浏览器验收，也不代表所有主题/设备组合都被覆盖。
+- 尚未删除任何组件、样式文件或依赖；没有证据支持的删除候选继续保留。
+- 未合并 PR、未部署生产。
+
+### 关闭标准
+
+R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须有动态引用追踪结果；R8 必须在修复提交上取得 CI 全绿。以上条件完成前，本轮前端全仓问题清单保持“复核已完成、验收未关闭”状态。
