@@ -68,6 +68,7 @@ const props = defineProps<{ accountId: string; taskType: string }>()
 const task = ref<any>(null)
 const lastDone = ref<any>(null)
 let timer: ReturnType<typeof setInterval> | null = null
+let completionRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
 
@@ -201,7 +202,11 @@ useTaskEvents((evt: any) => {
   if (evt.progress) {
     task.value = { ...task.value, progress: evt.progress }
     if (evt.progress.done + (evt.progress.failed || 0) >= (evt.progress.total || 0) && evt.progress.total > 0) {
-      setTimeout(load, 800) // 接近完成时主动拉一次终态
+      if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
+      completionRefreshTimer = setTimeout(() => {
+        completionRefreshTimer = null
+        void load()
+      }, 800) // 接近完成时主动拉一次终态
       // 全部目标完成: 撒花庆祝(每个任务只放一次)
       if (!celebrated) {
         celebrated = true
@@ -230,6 +235,11 @@ watch(liveLogs, (logs: any[]) => {
   }
 })
 
-onUnmounted(() => { if (timer) clearInterval(timer); if (waitTimer) clearInterval(waitTimer) })
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+  if (waitTimer) clearInterval(waitTimer)
+  if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
+  completionRefreshTimer = null
+})
 watch(() => [props.accountId, props.taskType], load)
 </script>
