@@ -87,3 +87,10 @@ func TestFilterImportLinksRejectsTruncatedPathAndQuery(t *testing.T) {
 	}
 }
 
+func TestFilterImportLinksPreservesInviteHashCase(t *testing.T) {
+	got := filterImportLinks("https://t.me/+AbCdEf123\nhttps://t.me/+abcdef123")
+	want := []string{"https://t.me/+AbCdEf123", "https://t.me/+abcdef123"}
+	if !reflect.DeepEqual(got.Links, want) {
+		t.Fatalf("links = %#v, want %#v", got.Links, want)
+	}
+}
