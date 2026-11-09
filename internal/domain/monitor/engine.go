@@ -69,6 +69,7 @@ type Engine struct {
 	// lifecycleMu serializes StartMonitoring/StopMonitoring so concurrent
 	// requests cannot register multiple handlers for the same account.
 	lifecycleMu     sync.Mutex
+	stopped         bool // protected by lifecycleMu; StopAll permanently closes this engine
 	rateLimiter     *RateLimiter
 	msgPushMu       sync.Mutex
 	lastMsgPush     map[string]time.Time
@@ -166,6 +167,9 @@ func (e *Engine) IsMonitoring(tenantID, accountID uuid.UUID) bool {
 func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.UUID, rules []domain.MonitorRule) error {
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
+	if e.stopped {
+		return fmt.Errorf("monitor engine is stopped")
+	}
 	// 先停掉同账号的旧会话, 并等待其 goroutine 完全退出——否则旧 goroutine
 	// 的清理逻辑可能在新 goroutine 注册 OnMessage 之后执行, 造成双注册/竞态。
 	e.mu.Lock()
@@ -281,6 +285,7 @@ func (e *Engine) EnsureSession(ctx context.Context, tenantID, accountID uuid.UUI
 func (e *Engine) StopAll() {
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
+	e.stopped = true
 
 	e.mu.Lock()
 	doneChannels := make([]chan struct{}, 0)
