@@ -46,10 +46,10 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <t-button v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
-          <t-button v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</t-button>
-          <t-button v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
-          <t-button v-if="['completed','success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
+          <t-button v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" :disabled="!!actionPending" :loading="actionPending === 'pause'" class="ui-t-button--secondary ui-t-button">暂停</t-button>
+          <t-button v-else-if="task?.status === 'paused'" @click="resume" :disabled="!!actionPending" :loading="actionPending === 'resume'" class="ui-t-button--secondary ui-t-button">恢复</t-button>
+          <t-button v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" :disabled="!!actionPending" :loading="actionPending === 'cancel'" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
+          <t-button v-if="['completed','success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" :disabled="!!actionPending" :loading="actionPending === 'retry'" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
@@ -249,6 +249,9 @@ function getActionLabel(action: string): string {
 }
 
 const task = ref<Task | null>(null)
+const actionPending = ref<'pause' | 'resume' | 'cancel' | 'retry' | null>(null)
+let taskFetchRequestId = 0
+let pageActive = true
 const members = ref<any[]>([])
 const membersLoading = ref(false)
 const membersError = ref('')
@@ -461,10 +464,12 @@ function formatTime(date: string | undefined | null) {
 }
 
 async function fetchTask() {
+  const requestId = ++taskFetchRequestId
   pageLoading.value = true
   pageError.value = ''
   try {
     const res = await taskApi.getById(taskId)
+    if (!pageActive || requestId !== taskFetchRequestId) return
     // 兼容: 直接对象 / {data: {...}}
     if (res && typeof res === 'object') {
       task.value = (res as any).data || res
@@ -472,10 +477,11 @@ async function fetchTask() {
       task.value = res as Task
     }
   } catch (e: unknown) {
+    if (!pageActive || requestId !== taskFetchRequestId) return
     pageError.value = e instanceof Error ? e.message : '请稍后重试'
     toast({ type: 'error', title: '获取任务失败', message: pageError.value })
   } finally {
-    pageLoading.value = false
+    if (pageActive && requestId === taskFetchRequestId) pageLoading.value = false
   }
 }
 
@@ -598,31 +604,49 @@ async function connectSSE() {
   }
 }
 
+async function performTaskAction(
+  kind: 'pause' | 'resume' | 'cancel',
+  request: () => Promise<unknown>,
+  successTitle: string,
+  errorTitle: string,
+) {
+  if (actionPending.value) return
+  actionPending.value = kind
+  try {
+    await request()
+    await fetchTask()
+    toast({ type: 'success', title: successTitle })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: errorTitle, message: e instanceof Error ? e.message : '请稍后重试' })
+  } finally {
+    actionPending.value = null
+  }
+}
 async function pause() {
-  try { await taskApi.pause(taskId); await fetchTask(); toast({ type: 'success', title: '任务已暂停' }) }
-  catch (e: unknown) { toast({ type: 'error', title: '暂停失败', message: (e instanceof Error ? e.message : '请稍后重试') }) }
+  return performTaskAction('pause', () => taskApi.pause(taskId), '任务已暂停', '暂停失败')
 }
 async function resume() {
-  try { await taskApi.resume(taskId); await fetchTask(); toast({ type: 'success', title: '任务已恢复' }) }
-  catch (e: unknown) { toast({ type: 'error', title: '恢复失败', message: (e instanceof Error ? e.message : '请稍后重试') }) }
+  return performTaskAction('resume', () => taskApi.resume(taskId), '任务已恢复', '恢复失败')
 }
 async function cancel() {
-  try { await taskApi.cancel(taskId); await fetchTask(); toast({ type: 'success', title: '任务已取消' }) }
-  catch (e: unknown) { toast({ type: 'error', title: '取消失败', message: (e instanceof Error ? e.message : '请稍后重试') }) }
+  return performTaskAction('cancel', () => taskApi.cancel(taskId), '任务已取消', '取消失败')
 }
 
 // 重试失败目标: 后端 scope=failed 克隆新任务(仅含失败目标, 续传防重保证不重复)
 async function retryFailed() {
-  if (!task.value) return
+  if (!task.value || actionPending.value) return
   const failed = task.value.progress?.failed || 0
   const ok = await ask(`仅对 ${failed} 个失败目标重新发送？将创建新任务`, { title: '重试失败目标' })
-  if (!ok) return
+  if (!ok || actionPending.value) return
+  actionPending.value = 'retry'
   try {
     await taskApi.retry(taskId, 'failed')
     toast({ type: 'success', title: '已创建重试任务', message: '可在任务列表查看进度' })
     router.push(`/workspace/${route.params.accountId}/tasks`)
   } catch (e: unknown) {
     toast({ type: 'error', title: '重试失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    actionPending.value = null
   }
 }
 
@@ -686,6 +710,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  pageActive = false
+  taskFetchRequestId++
   eventSource?.close()
   eventSource = null
   clearInterval(refreshTimer)
