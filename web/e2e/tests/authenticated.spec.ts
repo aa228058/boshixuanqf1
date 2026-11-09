@@ -22,7 +22,6 @@ const routes = [
   '/updates',
   '/help',
   '/raffle',
-  '/sessions',
 ]
 
 async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
@@ -143,6 +142,12 @@ test('租户认证路由可渲染且没有浏览器运行时异常', async ({ pa
   expect(runtimeErrors, '页面不应出现未处理的前端运行时异常').toEqual([])
 })
 
+
+test('旧协议号管理地址重定向到账号管理', async ({ page }) => {
+  await page.goto('/sessions')
+  await expect(page).toHaveURL(url => url.pathname === '/accounts')
+  await expect(page.locator('body')).not.toBeEmpty()
+})
 
 test('会话在页面切换和硬刷新后仍然有效', async ({ page }) => {
   const checkedRoutes = ['/dashboard', '/accounts', '/settings', '/groups/discover', '/help']
