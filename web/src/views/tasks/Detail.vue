@@ -3,7 +3,7 @@
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
-      <t-button @click="fetchTask" class="ui-t-button--secondary ui-t-button mt-3">重新加载</t-button>
+      <UiButton @click="fetchTask" class="ui-t-button--secondary ui-t-button mt-3">重新加载</UiButton>
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
     <div v-if="task" class="flex flex-wrap items-center gap-3">
@@ -46,10 +46,10 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-2">
-          <t-button v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</t-button>
-          <t-button v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</t-button>
-          <t-button v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</t-button>
-          <t-button v-if="['completed','success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</t-button>
+          <UiButton v-if="['running','queued','scheduled'].includes(task?.status || '')" @click="pause" class="ui-t-button--secondary ui-t-button">暂停</UiButton>
+          <UiButton v-else-if="task?.status === 'paused'" @click="resume" class="ui-t-button--secondary ui-t-button">恢复</UiButton>
+          <UiButton v-if="['running','queued','scheduled','paused','pending'].includes(task?.status || '')" @click="cancel" class="ui-t-button--danger ui-t-button" aria-label="取消">取消</UiButton>
+          <UiButton v-if="['completed','success','failed','cancelled'].includes(task?.status || '') && (task?.progress?.failed || 0) > 0" @click="retryFailed" class="ui-t-button--primary ui-t-button">重试失败目标 ({{ task?.progress?.failed }})</UiButton>
         </div>
       </div>
       <div class="w-full h-3 bg-bg-card rounded-full overflow-hidden">
@@ -85,9 +85,9 @@
           <h3 class="text-sm font-medium">采集到的成员</h3>
           <span class="text-xs text-text-secondary">({{ members.length }})</span>
         </div>
-        <t-button @click="fetchMembers" :disabled="membersLoading" class="ui-t-button--secondary ui-t-button disabled:opacity-40">
+        <UiButton @click="fetchMembers" :disabled="membersLoading" class="ui-t-button--secondary ui-t-button disabled:opacity-40">
           {{ membersLoading ? '加载中...' : '刷新' }}
-        </t-button>
+        </UiButton>
       </div>
       <div v-if="membersLoading" class="py-6 text-center text-sm text-text-muted">加载中...</div>
       <div v-else-if="membersError" class="py-6 text-center text-sm text-[var(--t-err)]">{{ membersError }}</div>
@@ -121,7 +121,7 @@
           </span>
           <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
           <!-- R128 语义修正: 仅清除前端显示, 不动服务端已保存的记录 -->
-          <t-button @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</t-button>
+          <UiButton @click="clearLogs" class="ui-t-button--secondary ui-t-button" title="仅清除当前显示">清除显示</UiButton>
         </div>
       </div>
       <div class="ui-segmented mb-2 flex-wrap" role="group" aria-label="筛选任务日志">
@@ -138,7 +138,7 @@
         </button>
       </div>
       <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
-        <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
+        <UiButton size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</UiButton>
       </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
         <div
@@ -191,6 +191,7 @@
 
 <script setup lang="ts">
 import { statusLabel } from '@/utils/labels'
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, Send, Clock, Users } from 'lucide-vue-next'
