@@ -2,9 +2,8 @@ package task
 
 import (
 	"context"
-	"testing"
-
 	"github.com/google/uuid"
+	"testing"
 )
 
 func TestAcquireBroadcastSlotRespectsCancellation(t *testing.T) {
@@ -62,7 +61,7 @@ func TestCountBroadcastTargetProgress(t *testing.T) {
 	accountID := uuid.New()
 	targets := []string{"one", "two", "three"}
 	successes := map[string]bool{
-		accountID.String() + "|one": true,
+		accountID.String() + "|one":   true,
 		accountID.String() + "|three": true,
 	}
 	done, pending := countBroadcastTargetProgress(accountID, targets, successes)
