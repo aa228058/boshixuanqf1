@@ -41,6 +41,10 @@ type Engine struct {
 	stopCh   chan struct{}
 	wg       sync.WaitGroup
 
+	lifecycleMu sync.Mutex
+	started     bool
+	stopped     bool
+
 	mu  sync.Mutex
 	slW time.Time // scraped_links 水位
 	gW  time.Time // groups 水位
@@ -52,8 +56,18 @@ func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc a
 }
 
 func (e *Engine) Start() {
+	e.lifecycleMu.Lock()
+	if e.started || e.stopped {
+		e.lifecycleMu.Unlock()
+		return
+	}
+	// Register all background goroutines while holding the lifecycle lock so
+	// Stop cannot begin Wait before these Add calls are complete.
+	e.started = true
+	e.wg.Add(2)
+	e.lifecycleMu.Unlock()
+
 	// 聚合任务保持低频运行，避免影响主业务数据库。
-	e.wg.Add(1)
 	safego.Go(func() {
 		defer e.wg.Done()
 		t := time.NewTicker(e.interval)
@@ -70,7 +84,6 @@ func (e *Engine) Start() {
 	})
 
 	// 用户确认的导入任务使用独立调度周期，不再等待两分钟一次的全量聚合周期。
-	e.wg.Add(1)
 	safego.Go(func() {
 		defer e.wg.Done()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -104,12 +117,26 @@ func (e *Engine) Start() {
 }
 
 func (e *Engine) Stop() {
-	close(e.stopCh)
+	e.lifecycleMu.Lock()
+	if !e.stopped {
+		e.stopped = true
+		close(e.stopCh)
+	}
+	e.lifecycleMu.Unlock()
 	e.wg.Wait()
 }
 
 func (e *Engine) runOnce() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-e.stopCh:
+			cancel()
+		case <-done:
+		}
+	}()
+	defer close(done)
 	defer cancel()
 	var errs []error
 	if err := e.aggregateScrapedLinks(ctx); err != nil {
