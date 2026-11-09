@@ -1,5 +1,6 @@
 -- +goose Up
 -- Durable idempotency ledger for each DM sub-action triggered by a specific Telegram message.
+-- Keep primary-key tombstones: deleting old keys could replay a delayed Telegram update and resend a DM.
 CREATE TABLE monitor_dm_actions (
     tenant_id UUID NOT NULL,
     account_id UUID NOT NULL,
@@ -17,6 +18,9 @@ CREATE TABLE monitor_dm_actions (
 
 CREATE INDEX idx_monitor_dm_actions_created_at
     ON monitor_dm_actions (created_at);
+
+CREATE INDEX idx_monitor_dm_actions_in_progress_updated_at
+    ON monitor_dm_actions (updated_at) WHERE status = 'in_progress';
 
 -- +goose Down
 DROP TABLE IF EXISTS monitor_dm_actions;
