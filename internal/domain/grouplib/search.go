@@ -2,6 +2,7 @@ package grouplib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -44,7 +45,12 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 		return nil, fmt.Errorf("TG 搜索失败: %w", err)
 	}
 
+	if res == nil {
+		return nil, fmt.Errorf("TG 搜索返回空结果")
+	}
+
 	var out []domain.SystemGroup
+	var upsertErrors []error
 	for _, ch := range res.Chats {
 		var sg *domain.SystemGroup
 		switch c := ch.(type) {
@@ -71,13 +77,18 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 			continue
 		}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
-			log.Printf("[grouplib] 搜索入库失败 %s: %v", sg.TmeLink, err)
+			wrapped := fmt.Errorf("搜索结果 %s 入库失败: %w", sg.TmeLink, err)
+			log.Printf("[grouplib] %v", wrapped)
+			upsertErrors = append(upsertErrors, wrapped)
 			continue
 		}
 		out = append(out, *sg)
 	}
 	if len(out) > 0 {
 		log.Printf("[grouplib] 关键词「%s」搜到并入库 %d 个群", keyword, len(out))
+	}
+	if len(upsertErrors) > 0 {
+		return out, errors.Join(upsertErrors...)
 	}
 	return out, nil
 }
