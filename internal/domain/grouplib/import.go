@@ -90,8 +90,11 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 		return &ImportResult{Skipped: skipped}, fmt.Errorf("没有解析到任何有效链接(支持 t.me/xxx、@xxx、t.me/+邀请hash)")
 	}
 
+	// Large imports deliberately use the shared HTTP resolver and must not
+	// acquire or hold a tenant MTProto session they will never use.
+	bulkMode := len(entries) > 200 || accountID == uuid.Nil
 	var client *telegram.Client
-	if accountID != uuid.Nil {
+	if !bulkMode {
 		var err error
 		client, err = e.acc.GetClient(ctx, tenantID, accountID)
 		if err != nil {
@@ -101,8 +104,6 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	res := &ImportResult{Skipped: skipped}
-	// 大批量或无账号时改用共享 HTTP 解析器，仍然只允许完整解析后正式入库。
-	bulkMode := len(entries) > 200 || client == nil
 	for _, en := range entries {
 		if err := ctx.Err(); err != nil {
 			return res, err
