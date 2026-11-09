@@ -910,6 +910,7 @@ func (e *Engine) markAccountRestricted(ctx context.Context, tenantID, accountID 
 	}
 	if err := e.accEngine.UpdateAccountRestriction(ctx, tenantID, accountID, blockedUntil); err != nil {
 		log.Printf("[engine] 原子更新账号受限状态和冷却截止时间失败: %v", err)
+		return
 	}
 	e.sendTelegramAlert(fmt.Sprintf("⚠️ 账号受限告警\n账号ID: %s\n原因: %s\n冷却至: %s\n详情: %s",
 		accountID, eventType, blockedUntil.Format("01-02 15:04"), detail))
