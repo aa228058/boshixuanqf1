@@ -14,7 +14,6 @@ func TestInviteAttemptLedgerClaimsAndTransitions(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 	tenantID, accountID, taskID := uuid.New(), uuid.New(), uuid.New()
-	otherTaskID := uuid.New()
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
 		VALUES ($1, $2, 'x', 'Invite ledger', $3, 'free')
@@ -81,6 +80,7 @@ func TestResolveStaleInviteAttemptsNeverMakesThemRetryable(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 	tenantID, accountID, taskID := uuid.New(), uuid.New(), uuid.New()
+	otherTaskID := uuid.New()
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
 		VALUES ($1, $2, 'x', 'Invite stale', $3, 'free')
