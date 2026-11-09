@@ -283,7 +283,7 @@
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { groupApi } from '@/api/group'
@@ -441,28 +441,57 @@ function insertVar(v: string) {
   }
 }
 
-// 草稿: 停止输入 800ms 后存 localStorage, 重新打开页面自动恢复(示例116)
-let draftTimer: any = null
-const DRAFT_KEY = 'broadcast_msg_draft'
-watch(message, (v) => {
+// 草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
+let draftTimer: ReturnType<typeof setTimeout> | null = null
+const draftKeyFor = (account: any) => {
+  const tenant: any = authStore.tenant
+  const tenantId = String(tenant?.tenant_id ?? tenant?.id ?? 'tenant')
+  const accountId = String(account?.account_id ?? 'unselected')
+  return 'broadcast_msg_draft:' + tenantId + ':' + accountId
+}
+const activeDraftKey = ref(draftKeyFor(currentAccount.value))
+function persistDraft(key: string, value: string) {
+  try {
+    if (value.trim()) localStorage.setItem(key, value)
+    else localStorage.removeItem(key)
+  } catch {}
+}
+function restoreDraft(key: string, notify = false) {
+  try {
+    const saved = localStorage.getItem(key) || ''
+    message.value = saved
+    draftSaved.value = !!saved.trim()
+    if (saved.trim() && notify) {
+      toast({ type: 'info', title: '草稿已恢复', message: '已恢复当前账号上次未发送的草稿' })
+    }
+  } catch {
+    message.value = ''
+    draftSaved.value = false
+  }
+}
+watch(message, (value) => {
   draftSaved.value = false
-  clearTimeout(draftTimer)
+  if (draftTimer) clearTimeout(draftTimer)
   draftTimer = setTimeout(() => {
-    try {
-      if (v.trim()) { localStorage.setItem(DRAFT_KEY, v); draftSaved.value = true }
-      else localStorage.removeItem(DRAFT_KEY)
-    } catch {}
+    persistDraft(activeDraftKey.value, value)
+    draftSaved.value = !!value.trim()
+    draftTimer = null
   }, 800)
 })
-// 恢复草稿(挂载时, 仅当当前内容为空)
-onMounted(() => {
-  try {
-    const d = localStorage.getItem(DRAFT_KEY)
-    if (d && d.trim() && !message.value.trim()) {
-      message.value = d
-      toast({ type: 'info', title: '草稿已恢复', message: '已恢复上次未发送的草稿' })
-    }
-  } catch {}
+// 切换账号前先把当前编辑内容写回旧账号，再恢复新账号自己的草稿。
+watch(currentAccount, (account) => {
+  if (draftTimer) {
+    clearTimeout(draftTimer)
+    draftTimer = null
+  }
+  persistDraft(activeDraftKey.value, message.value)
+  activeDraftKey.value = draftKeyFor(account)
+  restoreDraft(activeDraftKey.value, true)
+})
+onMounted(() => restoreDraft(activeDraftKey.value, true))
+onUnmounted(() => {
+  if (draftTimer) clearTimeout(draftTimer)
+  persistDraft(activeDraftKey.value, message.value)
 })
 // 默认 [5,12] 与后端强制下限及协议群发页一致；原先 [4,300] 会让协同任务
 // 平均 2.5 分钟才发一条，看起来像"群发没反应、账号全待机"
