@@ -1168,12 +1168,10 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		scrapedUsers[key] = true
 		scrapedCount++
 		currentCount := scrapedCount
-		if maxResults > 0 && currentCount >= int(maxResults) {
-			maxReachedFlag = true
-		}
-		countMu.Unlock()
 
-		// Save member to database (TGUserID only, username fetched if possible)
+		// Serialize the reservation and persistence step. Otherwise a later callback
+		// could persist the final slot and mark the task complete before an earlier
+		// callback fails its write and rolls the count back.
 		member := &domain.Member{
 			MemberID:  uuid.New(),
 			TenantID:  task.TenantID,
@@ -1182,14 +1180,16 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			ScrapedAt: time.Now(),
 		}
 		if err := e.memberRepo.BatchCreate(ctx, []*domain.Member{member}); err != nil {
-			taskLog.Printf("[task] failed to save member: %v", err)
-			countMu.Lock()
 			delete(scrapedUsers, key)
 			scrapedCount--
-			maxReachedFlag = maxResults > 0 && scrapedCount >= int(maxResults)
 			countMu.Unlock()
+			taskLog.Printf("[task] failed to save member: %v", err)
 			return
 		}
+		if maxResults > 0 && currentCount >= int(maxResults) {
+			maxReachedFlag = true
+		}
+		countMu.Unlock()
 
 		// Update progress
 		e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
