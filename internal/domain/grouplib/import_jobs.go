@@ -350,7 +350,6 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 	}
 }
 
-
 func (e *Engine) execImportJobUpdate(ctx context.Context, jobID uuid.UUID, action, query string, args ...any) bool {
 	tag, err := e.pool.Exec(ctx, query, args...)
 	if err != nil {
