@@ -83,30 +83,32 @@
           <button v-if="displayGroups.length < filtered.length" type="button" @click="visibleGroupCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多群组（{{ displayGroups.length }} / {{ filtered.length }}）</button>
         </template>
         <!-- 私聊 tab: 采集过的成员 -->
-        <div
-          v-else
-          v-for="u in dmFiltered"
-          :key="u.group_id"
-          @click="toggle(u)"
-          class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
-          :class="isSelected(u) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="button">
-          <t-checkbox
-            :model-value="isSelected(u)"
-            @click.stop
-            @update:model-value="toggle(u)"
-          />
-          <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
-            <UsersRound class="w-5 h-5 text-amber" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm truncate max-w-[65ch]">{{ u.title }}</div>
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs text-text-muted">{{ u.username ? '@' + u.username : 'TG 用户 ' + u.tg_chat_id }}</span>
-              <t-tag theme="warning" variant="light">私聊</t-tag>
+        <template v-else>
+          <div
+            v-for="u in dmDisplay"
+            :key="u.group_id"
+            @click="toggle(u)"
+            class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
+            :class="isSelected(u) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
+           tabindex="0" role="button">
+            <t-checkbox
+              :model-value="isSelected(u)"
+              @click.stop
+              @update:model-value="toggle(u)"
+            />
+            <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
+              <UsersRound class="w-5 h-5 text-amber" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm truncate max-w-[65ch]">{{ u.title }}</div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs text-text-muted">{{ u.username ? '@' + u.username : 'TG 用户 ' + u.tg_chat_id }}</span>
+                <t-tag theme="warning" variant="light">私聊</t-tag>
+              </div>
             </div>
           </div>
-        </div>
+          <button v-if="dmDisplay.length < dmFiltered.length" type="button" @click="dmVisibleCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多私聊对象（{{ dmDisplay.length }} / {{ dmFiltered.length }}）</button>
+        </template>
         <div v-if="!loading && (activeTab === 'dm' ? !dmFiltered.length : !filtered.length)" class="py-8 text-center">
           <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-bg-card flex items-center justify-center mx-auto mb-3">
             <Search class="w-8 h-8 text-text-muted" />
@@ -284,6 +286,9 @@ const dmFiltered = computed(() => {
   const s = search.value.toLowerCase()
   return dmUsers.value.filter(u => u.title.toLowerCase().includes(s) || (u.username && u.username.toLowerCase().includes(s)))
 })
+const dmVisibleCount = ref(200)
+const dmDisplay = computed(() => dmFiltered.value.slice(0, dmVisibleCount.value))
+watch(search, () => { dmVisibleCount.value = 200 })
 
 watch(activeTab, t => { if (t === 'dm') loadDmUsers() })
 
