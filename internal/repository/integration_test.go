@@ -340,3 +340,52 @@ func TestUpdateLinkValidityByLinkPreservesAlternateLinks(t *testing.T) {
 		t.Fatalf("single-link group status = %q, want invalid", groupStatus)
 	}
 }
+
+
+// TestMemberListQueriesScanAccessHash verifies both member list queries select
+// the AccessHash column required by their Scan destinations.
+func TestMemberListQueriesScanAccessHash(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	groupID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, 'memberlisttest', 'x', 'Member List Test', 'member-list-test-key', 'free')
+	`, tenantID)
+	if err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+	_, err = pool.Exec(ctx, `
+		INSERT INTO groups (group_id, tenant_id, tg_chat_id, title, type)
+		VALUES ($1, $2, -1001234567890, 'Member List Group', 'supergroup')
+	`, groupID, tenantID)
+	if err != nil {
+		t.Fatalf("seed group: %v", err)
+	}
+	const accessHash int64 = 987654321
+	_, err = pool.Exec(ctx, `
+		INSERT INTO members (tenant_id, group_id, tg_user_id, username, access_hash)
+		VALUES ($1, $2, 123456789, 'member_one', $3)
+	`, tenantID, groupID, accessHash)
+	if err != nil {
+		t.Fatalf("seed member: %v", err)
+	}
+
+	repo := NewMemberRepository(pool)
+	byGroup, err := repo.ListByGroup(ctx, tenantID, groupID, 10, 0)
+	if err != nil {
+		t.Fatalf("ListByGroup: %v", err)
+	}
+	if len(byGroup) != 1 || byGroup[0].AccessHash != accessHash {
+		t.Fatalf("ListByGroup result=%+v, want one member with access_hash %d", byGroup, accessHash)
+	}
+
+	byTenant, err := repo.ListByTenant(ctx, tenantID, 10)
+	if err != nil {
+		t.Fatalf("ListByTenant: %v", err)
+	}
+	if len(byTenant) != 1 || byTenant[0].AccessHash != accessHash {
+		t.Fatalf("ListByTenant result=%+v, want one member with access_hash %d", byTenant, accessHash)
+	}
+}
