@@ -301,6 +301,10 @@ func (e *Engine) StopAll() {
 	}
 	e.mu.Unlock()
 
+	if e.raffleWatch != nil {
+		e.raffleWatch.Stop()
+	}
+
 	timer := time.NewTimer(135 * time.Second)
 	defer timer.Stop()
 	for i, done := range doneChannels {
