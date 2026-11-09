@@ -131,6 +131,12 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Extended the component inventory to report native `window.confirm()` and `window.alert()` separately from shared `ask()` calls.
 - This gives the next cleanup pass a measurable way to find browser-native prompts that bypass the project's themed confirmation host; source-level counts still require call-site review before migration.
 
+### Batch D6 — Modal initial-open stack registration
+
+- Fixed an edge case in `Modal.vue`: its modal-stack watcher previously ran only on subsequent `modelValue` changes. If a parent mounted a Modal already open, it was absent from the active stack and received no managed order.
+- The watcher now runs immediately, registering an initially open modal and preserving the same cleanup/compaction behavior on close and unmount.
+- Extended the inventory to distinguish TDesign `<Dialog>`, dynamic `resolveComponent("Dialog")`, render-function `h(Dialog)`, and global `app.use(Dialog)` registration from lowercase `<t-dialog>`. This is evidence gathering only; global registration remains until every usage path is reviewed.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
