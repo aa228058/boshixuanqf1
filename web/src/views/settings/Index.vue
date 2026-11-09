@@ -4,7 +4,7 @@
     <div class="flex gap-1 p-1 rounded-[var(--t-r-md)] bg-bg-card border border-border/50 mb-2 overflow-x-auto" role="tablist" aria-label="设置分类">
       <button type="button" v-for="t in tabs" :key="t.key" class="ui-segmented__item px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors"
               :class="activeTab === t.key ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'"
-              role="tab" :aria-selected="activeTab === t.key" :tabindex="activeTab === t.key ? 0 : -1"
+              role="tab" :aria-selected="activeTab === t.key"
               @click="switchTab(t.key)">{{ t.label }}</button>
     </div>
     <!-- 套餐信息 -->
