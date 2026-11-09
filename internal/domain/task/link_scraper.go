@@ -63,32 +63,32 @@ type LinkScraper struct {
 	accountRepo AccountLister
 
 	// Runtime state
-	handlersMu  sync.Mutex
-	handlers    sync.Map // accountID(string) -> *accountHandler
-	started     bool
-	stopped     bool
+	handlersMu   sync.Mutex
+	handlers     sync.Map // accountID(string) -> *accountHandler
+	started      bool
+	stopped      bool
 	consumerDone chan struct{}
-	linkQueue   chan *rawLink
-	dedupMap    map[string]time.Time
-	dedupMu     sync.RWMutex
-	batchLinks  []*domain.ScrapedLink
-	batchMu     sync.Mutex
-	stopCh      chan struct{}
-	stopOnce    sync.Once
-	wg          sync.WaitGroup
+	linkQueue    chan *rawLink
+	dedupMap     map[string]time.Time
+	dedupMu      sync.RWMutex
+	batchLinks   []*domain.ScrapedLink
+	batchMu      sync.Mutex
+	stopCh       chan struct{}
+	stopOnce     sync.Once
+	wg           sync.WaitGroup
 }
 
 // NewLinkScraper creates a new persistent link scraper.
 func NewLinkScraper(cfg *config.Config, accEngine AccountEngine, linkRepo domain.ScrapedLinkRepository, groupRepo *repository.GroupRepository, accountRepo AccountLister) *LinkScraper {
 	return &LinkScraper{
-		cfg:         cfg,
-		accEngine:   accEngine,
-		linkRepo:    linkRepo,
-		groupRepo:   groupRepo,
-		accountRepo: accountRepo,
-		linkQueue:   make(chan *rawLink, 10000), // Buffer 10k links
-		dedupMap:    make(map[string]time.Time),
-		stopCh:      make(chan struct{}),
+		cfg:          cfg,
+		accEngine:    accEngine,
+		linkRepo:     linkRepo,
+		groupRepo:    groupRepo,
+		accountRepo:  accountRepo,
+		linkQueue:    make(chan *rawLink, 10000), // Buffer 10k links
+		dedupMap:     make(map[string]time.Time),
+		stopCh:       make(chan struct{}),
 		consumerDone: make(chan struct{}),
 	}
 }
