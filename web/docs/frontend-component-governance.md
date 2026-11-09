@@ -175,6 +175,14 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - No safe dead-rule deletion was established in this pass. Keep the current cascade ownership: theme files own theme variables/fallbacks, `ui-kit.css` owns semantic project primitives, TDesign skin/overrides own vendor adjustments, and `modal-system.css` owns modal geometry.
 - The inventory's duplicate-selector report should be treated as a review queue, not an auto-fix list. Future CSS consolidation must compare selector, at-rule context, specificity, source order, and computed property overlap.
 
+### Batch E1 — account selection and broadcast draft isolation
+
+- Account-list “select all” previously replaced the entire selected-ID set with the current filtered result, or cleared every selection when the current result was fully selected. This made multi-filter/multi-page batch selection surprising: selecting another search result could silently discard IDs selected under a previous search.
+- “Select all” and “clear all” now operate only on IDs matching the current filter and preserve selections outside that filter. Existing cross-page selection remains supported.
+- Broadcast message drafts were stored under one global `broadcast_msg_draft` key. Switching the active account could therefore restore another account's unsent message, and separate tenants sharing a browser could share the same draft.
+- Draft keys now include tenant and active account identifiers. On account switch, the current draft is persisted to the old scope before restoring the new scope; pending debounce work is cancelled safely, and unmount flushes the current draft.
+- This batch changes only client-side draft storage and selection presentation; task payloads, API contracts, and send semantics are unchanged.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
