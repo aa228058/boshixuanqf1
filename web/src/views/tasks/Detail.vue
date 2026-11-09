@@ -207,7 +207,6 @@ import { toast } from '@/utils/toast'
 import { useAuthStore } from '@/stores/auth'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import { useTaskEvents } from '@/composables/useTaskEvents'
 import type { Task, TaskLog } from '@/types'
 
 const route = useRoute()
@@ -281,6 +280,7 @@ async function fetchMembers() {
 
 const logs = ref<TaskLog[]>([])
 const logsPage = ref(1)
+const logPageCursors = new Map<number, string>()
 const hasMoreLogs = ref(false)
 const loadingMoreLogs = ref(false)
 const LOG_PAGE_SIZE = 50
@@ -362,45 +362,15 @@ const filteredDisplayLogs = computed(() => {
   return displayLogs.value.filter(log => visibleKeys.has(taskLogKey(log)))
 })
 
-// SSE 实时: 本任务的日志/进度/状态亚秒级推送, 打开详情页即可盯着日志滚动
-useTaskEvents((evt: any) => {
-  if (evt.task_id !== taskId) return
-  if (evt.type === 'task_wait') {
-    waitState.value = {
-      account_id: String(evt.account_id || ''),
-      target_id: String(evt.target_id || ''),
-      remaining: Number(evt.remaining || 0),
-      next_index: Number(evt.next_index || 0),
-      total: Number(evt.total || 0),
-    }
-    return
-  }
-  if (evt.type === 'task_log' && evt.log) {
-    const l = evt.log
-    if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(l))) {
-      logs.value = [...logs.value, l]
-      requestAnimationFrame(() => {
-        if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
-      })
-    }
-    return
-  }
-  if (evt.progress && task.value) {
-    task.value = { ...task.value, progress: evt.progress }
-    return
-  }
-  if (evt.type === 'task_status') {
-    fetchTask()
-  }
-})
-
 async function loadMoreLogs() {
-  if (loadingMoreLogs.value || !hasMoreLogs.value) return
+  if (loadingMoreLogs.value || !hasMoreLogs.value || !pageActive) return
+  const cursor = logPageCursors.get(logsPage.value)
+  if (!cursor) { hasMoreLogs.value = false; return }
   loadingMoreLogs.value = true
   try {
-    await fetchLogs(logsPage.value + 1)
+    await fetchLogs(logsPage.value + 1, cursor)
   } finally {
-    loadingMoreLogs.value = false
+    if (pageActive) loadingMoreLogs.value = false
   }
 }
 
@@ -409,6 +379,7 @@ function clearLogs() {
   for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
   logs.value = []
   logsPage.value = 1
+  logPageCursors.clear()
   hasMoreLogs.value = false
   toast({ type: 'success', title: '已清除当前显示' })
 }
@@ -439,13 +410,14 @@ function scheduleSSEReconnect() {
   }, 3000)
 }
 
-function resetSseWatchdog() {
+function resetSseWatchdog(source: EventSource) {
   if (sseWatchdog) clearTimeout(sseWatchdog)
   sseWatchdog = setTimeout(() => {
-    if (!pageActive) return
+    if (!pageActive || eventSource !== source) return
     console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连')
-    try { eventSource?.close() } catch { /* 忽略 */ }
+    try { source.close() } catch { /* 忽略 */ }
     eventSource = null
+    sseWatchdog = null
     connState.value = 'disconnected'
     scheduleSSEReconnect()
   }, 45000)
@@ -454,7 +426,8 @@ function resetSseWatchdog() {
 const // 2026-10-21 修正: 进度按"已处理"(成功+失败)计算——失败也是处理结果, 不应让进度条永远卡住
 progressPercent = computed(() => {
   if (!task.value?.progress.total) return 0
-  return Math.round(((task.value.progress.done + (task.value.progress.failed || 0)) / task.value.progress.total) * 100)
+  const percent = ((task.value.progress.done + (task.value.progress.failed || 0)) / task.value.progress.total) * 100
+  return Math.max(0, Math.min(100, Math.round(percent)))
 })
 
 const progressColor = computed(() => {
@@ -505,11 +478,11 @@ async function fetchTask() {
 const logPageRequestIds = new Map<number, number>()
 let nextLogPageRequestId = 0
 
-async function fetchLogs(page = 1) {
+async function fetchLogs(page = 1, beforeLogId?: string) {
   const requestId = ++nextLogPageRequestId
   logPageRequestIds.set(page, requestId)
   try {
-    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE)
+    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE, beforeLogId)
     if (!pageActive || logPageRequestIds.get(page) !== requestId) return
     // 兼容: 直接数组 / {list: [...]} / {data: [...]}
     let data: TaskLog[] = []
@@ -527,10 +500,18 @@ async function fetchLogs(page = 1) {
     for (const log of logs.value) merged.set(taskLogKey(log), log)
     for (const log of data) merged.set(taskLogKey(log), log)
     logs.value = [...merged.values()]
-      .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
+      .sort((a, b) => {
+        const timeDiff = new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime()
+        return timeDiff || String(a.log_id || '').localeCompare(String(b.log_id || ''))
+      })
+    if (data.length && data[data.length - 1].log_id) {
+      logPageCursors.set(page, data[data.length - 1].log_id!)
+    } else {
+      logPageCursors.delete(page)
+    }
     if (page > logsPage.value) logsPage.value = page
     if (page === logsPage.value) {
-      hasMoreLogs.value = data.length === LOG_PAGE_SIZE
+      hasMoreLogs.value = data.length === LOG_PAGE_SIZE && !!logPageCursors.get(page)
     }
     await nextTick()
     if (pageActive && logContainer.value) {
@@ -575,36 +556,42 @@ async function connectSSE() {
       return
     }
 
-    eventSource = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
-    eventSource.onopen = () => {
-      if (!pageActive) return
+    const source = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
+    eventSource = source
+    source.onopen = () => {
+      if (!pageActive || eventSource !== source) return
       connState.value = 'connected'
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-      resetSseWatchdog()
-      // The stream has no durable event replay cursor. Reconcile from DB on every
-      // successful connection so logs emitted during a disconnect are not lost.
+      resetSseWatchdog(source)
+      // This stream has no replay cursor; reconcile persisted rows after every reconnect.
       void fetchLogs()
     }
-    eventSource.onmessage = (e) => {
-      if (!pageActive) return
+    source.onmessage = (e) => {
+      if (!pageActive || eventSource !== source) return
       try {
-        resetSseWatchdog()
+        resetSseWatchdog(source)
         const data = JSON.parse(e.data)
         if (!data || !task.value) return
 
+        if (data.type === 'task_wait') {
+          const remaining = Number(data.remaining || 0)
+          waitState.value = remaining > 0 ? {
+            account_id: String(data.account_id || ''),
+            target_id: String(data.target_id || ''),
+            remaining,
+            next_index: Number(data.next_index || 0),
+            total: Number(data.total || 0),
+          } : null
+          return
+        }
         if (data.type === 'task_log' && data.log) {
-          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) {
-            logs.value.push(data.log)
-          }
-          if (logs.value.length > 500) logs.value = logs.value.slice(-500)
+          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) logs.value.push(data.log)
           return
         }
-
         if (data.type === 'task_status') {
-          fetchTask()
+          void fetchTask()
           return
         }
-
         const tp = task.value.progress || {}
         task.value.progress = {
           total: data.total ?? data.progress?.total ?? tp.total ?? 0,
@@ -615,12 +602,11 @@ async function connectSSE() {
         }
       } catch (err) { /* ignore malformed SSE data */ }
     }
-    eventSource.onerror = () => {
-      if (!pageActive) return
+    source.onerror = () => {
+      if (!pageActive || eventSource !== source) return
       connState.value = 'disconnected'
-      const failedSource = eventSource
       eventSource = null
-      failedSource?.close()
+      source.close()
       if (sseWatchdog) { clearTimeout(sseWatchdog); sseWatchdog = null }
       scheduleSSEReconnect()
     }
@@ -640,16 +626,17 @@ async function performTaskAction(
   successTitle: string,
   errorTitle: string,
 ) {
-  if (actionPending.value) return
+  if (!pageActive || actionPending.value) return
   actionPending.value = kind
   try {
     await request()
+    if (!pageActive) return
     await fetchTask()
-    toast({ type: 'success', title: successTitle })
+    if (pageActive) toast({ type: 'success', title: successTitle })
   } catch (e: unknown) {
-    toast({ type: 'error', title: errorTitle, message: e instanceof Error ? e.message : '请稍后重试' })
+    if (pageActive) toast({ type: 'error', title: errorTitle, message: e instanceof Error ? e.message : '请稍后重试' })
   } finally {
-    actionPending.value = null
+    if (pageActive) actionPending.value = null
   }
 }
 async function pause() {
@@ -664,25 +651,26 @@ async function cancel() {
 
 // 重试失败目标: 后端 scope=failed 克隆新任务(仅含失败目标, 续传防重保证不重复)
 async function retryFailed() {
-  if (!task.value || actionPending.value) return
+  if (!pageActive || !task.value || actionPending.value) return
   const failed = task.value.progress?.failed || 0
   const ok = await ask(`仅对 ${failed} 个失败目标重新发送？将创建新任务`, { title: '重试失败目标' })
-  if (!ok || actionPending.value) return
+  if (!ok || !pageActive || actionPending.value) return
   actionPending.value = 'retry'
   try {
     await taskApi.retry(taskId, 'failed')
+    if (!pageActive) return
     toast({ type: 'success', title: '已创建重试任务', message: '可在任务列表查看进度' })
     router.push(`/workspace/${route.params.accountId}/tasks`)
   } catch (e: unknown) {
-    toast({ type: 'error', title: '重试失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (pageActive) toast({ type: 'error', title: '重试失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    actionPending.value = null
+    if (pageActive) actionPending.value = null
   }
 }
 
 watch(() => logs.value.length, async () => {
   await nextTick()
-  if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
+  if (pageActive && logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
 })
 
 onMounted(async () => {
