@@ -216,6 +216,13 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - TargetSelector group/contact lists and GroupSelector group list render the first 200 matching rows, with an explicit incremental “load more” action. Search resets the visible window. Bulk select/deselect still applies to the entire filtered result set, not just rendered rows, so progressive rendering does not change selection semantics. GroupSelector's collected private-contact list uses the same progressive rendering so large member collections do not mount thousands of checkbox rows at once.
 - The selector changes reduce initial DOM work for large accounts while retaining access to all matches through search and incremental loading.
 
+### Batch E6 — Task list request isolation and account batch profile snapshot
+
+- Workspace task list fetches now use a monotonically increasing request generation. Responses from older page/filter/range requests are ignored, and only the latest request may clear the loading state or replace the visible rows.
+- Task list errors now populate the existing `loadError` state instead of silently retaining stale rows without an error state.
+- Account batch profile updates snapshot selected account IDs and profile fields at submit time, reject empty submissions, and only remove the submitted IDs from the live selection after success. This prevents selection changes during an in-flight operation from changing the request's target set or clearing newly selected accounts.
+- Existing clone-profile operation already has a duplicate-submit guard; no redundant wrapper was added.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
