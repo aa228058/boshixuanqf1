@@ -53,7 +53,7 @@
       <div class="space-y-4">
         <div>
           <label for="ann-title" class="block text-sm text-text-secondary mb-1.5">标题</label>
-          <input id="ann-title" v-model="form.title" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="输入" />
+          <input id="ann-title" v-model="form.title" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" />
         </div>
         <div>
           <t-textarea v-model="form.content" label="内容" :rows="4" />
@@ -88,7 +88,7 @@
           <label for="ann-plans" class="block text-sm text-text-secondary mb-1.5">选择套餐</label>
           <div class="flex flex-wrap gap-2">
             <label v-for="p in plans" :key="p.plan_id" class="flex items-center gap-1 text-sm">
-              <input type="checkbox" :value="p.plan_id" v-model="form.target_plans" class="rounded border-border bg-bg-card text-[var(--t-brand)]" aria-label="选择" />
+              <input type="checkbox" :value="p.plan_id" v-model="form.target_plans" class="rounded border-border bg-bg-card text-[var(--t-brand)]" :aria-label="'选择套餐：' + p.name" />
               {{ p.name }}
             </label>
           </div>
