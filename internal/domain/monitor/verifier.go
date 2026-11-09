@@ -155,7 +155,7 @@ func (e *Engine) HandleVerification(ctx context.Context, client *telegram.Client
 		}
 	}
 	e.vstates.put(accountID, chatID, st)
-	safego.Go(func() { e.runVerification(ctx, client, st, cand) })
+	monitorGo(ctx, func() { e.runVerification(ctx, client, st, cand) })
 }
 
 func looksLikeVerification(c *vcandidate) bool {
