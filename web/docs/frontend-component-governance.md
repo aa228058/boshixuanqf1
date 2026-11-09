@@ -92,6 +92,24 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - Scoped the dark-theme fallback to TDesign buttons that are not marked `.ui-t-button`, matching the existing exclusion in `tdesign-skin.css`.
 - Corrected the `tdesign-overrides.css` header comment: it loads after `ui-kit.css`, while `modal-system.css` is imported after it and owns project Modal positioning.
 
+### Batch D2 — CSS ownership and control inventory
+
+The actual `main.ts` import order is:
+
+1. Third-party TDesign and Vue Final Modal styles
+2. `tokens.css`, `tailwind.css`, `animations.css`
+3. `theme-stripe.css`, `theme-dark.css`
+4. `ui-refined.css`, `ui-polish.css`
+5. `tdesign-skin.css`, `tdesign-theme.css`
+6. `ui-kit.css`, `tdesign-overrides.css`
+7. `modal-system.css`
+
+The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic variables; `tdesign-skin.css` provides generic third-party component skin; `ui-kit.css` owns project semantic classes such as `.ui-t-button` and `.ui-input`; `tdesign-overrides.css` handles third-party responsive/DOM-specific adjustments; `modal-system.css` owns project Modal geometry. Theme files should override tokens or narrowly scoped theme exceptions, not redefine generic component ownership.
+
+- Extended `npm run audit:components` to count TDesign and native Input, Textarea, InputNumber, Select, Checkbox, Switch, DatePicker and Table usages separately.
+- This is a source-level inventory; it does not classify whether each native control is a valid semantic exception. Do not replace native controls without reviewing their form behavior and call sites.
+- Removed the obsolete `UiButton` audit category after deleting that temporary wrapper; the inventory now reports only the established TDesign/native entrypoints and project semantic classes.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
