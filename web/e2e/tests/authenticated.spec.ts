@@ -74,7 +74,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
     ] : undefined,
     last_seen_at: new Date(Date.UTC(2026, 10, 6 - i, 9, 30)).toISOString(),
   }))
-  await page.route(/\/api\/v1\/group-library(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/group-library(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
     const url = new URL(route.request().url())
     const keyword = (url.searchParams.get('keyword') || '').toLowerCase()
