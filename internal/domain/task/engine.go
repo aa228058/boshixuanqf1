@@ -631,6 +631,19 @@ func (e *Engine) pollLoop(ctx context.Context) {
 	}
 }
 
+// shouldDeferGlobalClaim fails closed when the cross-worker running-task
+// count cannot be read. Continuing on a database error would bypass the
+// configured global concurrency limit across application replicas.
+func shouldDeferGlobalClaim(running, limit int, countErr error) bool {
+	if limit <= 0 {
+		return false
+	}
+	if countErr != nil {
+		return true
+	}
+	return running >= limit
+}
+
 func (e *Engine) claimAndExecute(ctx context.Context) {
 	// Activate pending tasks whose scheduled_at has passed
 	if err := e.repo.ActivatePendingTasks(ctx); err != nil {
@@ -641,7 +654,10 @@ func (e *Engine) claimAndExecute(ctx context.Context) {
 	if e.GlobalLimitFn != nil {
 		if limit := e.GlobalLimitFn(); limit > 0 {
 			running, err := e.repo.CountRunningGlobal(ctx)
-			if err == nil && running >= limit {
+			if shouldDeferGlobalClaim(running, limit, err) {
+				if err != nil {
+					taskLog.Printf("[engine] 全局运行任务数读取失败，暂停本轮认领以保护并发上限: %v", err)
+				}
 				return
 			}
 		}
