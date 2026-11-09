@@ -507,6 +507,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					if resolveErr != nil {
 						status = "failed"
 						errCode = "resolve_peer_failed"
+						if isGlobalFlood(resolveErr) {
+							e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_resolve_flood_wait", resolveErr.Error(), extractFloodSeconds(resolveErr.Error()))
+						}
 						accFailed++
 						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
 						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\n",
@@ -594,7 +597,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 								}
 								retryMsgID, retryErr := trySend()
 								if retryErr != nil {
-									e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
+									if isGlobalFlood(retryErr) {
+										e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_retry_flood_wait", retryErr.Error(), extractFloodSeconds(retryErr.Error()))
+									} else {
+										e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
+									}
 								} else {
 									if retryMsgID != 0 {
 										sentMsgID = retryMsgID
@@ -607,6 +614,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 									status = "success"
 									errCode = ""
 								}
+							} else {
+								// PEER_FLOOD 等账号级限制没有 FLOOD_WAIT_N 秒数，使用保守冷却兜底。
+								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), 0)
 							}
 						case isGroupLevelRestriction(sendErr):
 							// Group-level restriction: skip this target only, do not mark account

@@ -25,6 +25,27 @@ func TestExtractFloodSeconds(t *testing.T) {
 	}
 }
 
+func TestIsGlobalFlood(t *testing.T) {
+	cases := []struct {
+		name string
+		err  string
+		want bool
+	}{
+		{"telegram flood wait", "FLOOD_WAIT_60", true},
+		{"peer flood", "PEER_FLOOD", true},
+		{"flood test phone wait", "FLOOD_TEST_PHONE_WAIT_10", true},
+		{"slow mode is group scoped", "SLOWMODE_WAIT_30", false},
+		{"unrelated error", "CHAT_WRITE_FORBIDDEN", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isGlobalFlood(errString(tc.err)); got != tc.want {
+				t.Errorf("isGlobalFlood(%q) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsInviteRequestSent(t *testing.T) {
 	if isInviteRequestSent(nil) {
 		t.Error("nil error must not be treated as invite-sent")

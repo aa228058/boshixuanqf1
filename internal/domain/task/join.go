@@ -321,9 +321,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							switch {
 							case isGlobalFlood(joinErr):
 								waitSec := extractFloodSeconds(errStr)
-								if waitSec >= 60 {
-									e.markAccountRestricted(ctx, task.TenantID, accID, "join_flood_wait", joinErr.Error(), extractFloodSeconds(strings.ToLower(joinErr.Error())))
-								}
+								// Join 请求不会在当前目标内自动重试；任何账号级 Flood 都应进入冷却，
+								// 无法解析秒数时由 markAccountRestricted 使用保守兜底时长。
+								e.markAccountRestricted(ctx, task.TenantID, accID, "join_flood_wait", joinErr.Error(), waitSec)
 							case isAccountBanned(joinErr):
 								e.markAccountBanned(ctx, task.TenantID, accID, "account_banned", joinErr.Error())
 							default:
