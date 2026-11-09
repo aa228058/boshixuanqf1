@@ -387,7 +387,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 		// P2-43 审计修复: 空群(0 成员)是合法采集结果——原来标 failed, 空群永远显示失败。
 		// 空群/全员隐私设置的群按"成功完成(0 结果)"处理。
 		finalProgress := domain.TaskProgress{Total: 0, Done: 0, Failed: 0}
-		if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
+		if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, finalProgress); err != nil {
 			taskLog.Printf("[task] UpdateProgressExact failed: %v", err)
 		}
 		e.publishProgress(task.TenantID, task.TaskID, finalProgress)
@@ -698,7 +698,7 @@ storeResults:
 		Total: totalFound,
 		Done:  totalFound,
 	}
-	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, finalProgress); err != nil {
+	if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
 		taskLog.Printf("[task] UpdateProgressExact failed: %v", err)
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
