@@ -131,6 +131,7 @@ func (h *GroupLibraryHandler) Import(c echo.Context) error {
 	}
 	const maxImportBytes = 20 << 20
 	var payload, fileName string
+	var accountID uuid.UUID
 	if strings.HasPrefix(strings.ToLower(c.Request().Header.Get(echo.HeaderContentType)), "multipart/form-data") {
 		if err := c.Request().ParseMultipartForm(maxImportBytes); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "无法读取导入文件")
@@ -148,15 +149,22 @@ func (h *GroupLibraryHandler) Import(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, "文件读取失败或超过 20MB")
 		}
 		payload, fileName = string(body), header.Filename
+		if rawAccountID := strings.TrimSpace(c.FormValue("account_id")); rawAccountID != "" {
+			accountID, err = uuid.Parse(rawAccountID)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "account_id 无效")
+			}
+		}
 	} else {
 		var req struct {
-			Text     string `json:"text"`
-			FileName string `json:"file_name"`
+			Text      string    `json:"text"`
+			FileName  string    `json:"file_name"`
+			AccountID uuid.UUID `json:"account_id"`
 		}
 		if err := c.Bind(&req); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "导入内容格式错误")
 		}
-		payload, fileName = req.Text, req.FileName
+		payload, fileName, accountID = req.Text, req.FileName, req.AccountID
 		if len(payload) > maxImportBytes {
 			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "导入内容不能超过 20MB")
 		}
@@ -164,7 +172,13 @@ func (h *GroupLibraryHandler) Import(c echo.Context) error {
 	if strings.TrimSpace(payload) == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "导入内容不能为空")
 	}
-	job, err := h.lib.CreateImportPreview(c.Request().Context(), tenantID, fileName, payload)
+	if accountID != uuid.Nil {
+		selectedAccount, accountErr := h.accRepo.GetByID(c.Request().Context(), tenantID, accountID)
+		if accountErr != nil || selectedAccount == nil || selectedAccount.Status != domain.AccountStatusOnline {
+			return echo.NewHTTPError(http.StatusBadRequest, "所选 Telegram 账号不存在或未在线")
+		}
+	}
+	job, err := h.lib.CreateImportPreviewWithAccount(c.Request().Context(), tenantID, accountID, fileName, payload)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
@@ -185,6 +199,40 @@ func (h *GroupLibraryHandler) ConfirmImportJob(c echo.Context) error {
 	job, err := h.lib.ConfirmImportJob(c.Request().Context(), tenantID, jobID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusConflict, "导入预览不存在或已经确认")
+	}
+	return c.JSON(http.StatusOK, job)
+}
+
+// RetryFailedImportJob handles POST /group-library/import-jobs/:id/retry.
+func (h *GroupLibraryHandler) RetryFailedImportJob(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
+	job, err := h.lib.RetryFailedImportJob(c.Request().Context(), tenantID, jobID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusConflict, err.Error())
+	}
+	return c.JSON(http.StatusAccepted, job)
+}
+
+// CancelImportJob handles POST /group-library/import-jobs/:id/cancel.
+func (h *GroupLibraryHandler) CancelImportJob(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
+	job, err := h.lib.CancelImportJob(c.Request().Context(), tenantID, jobID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusConflict, "导入任务不存在、已结束或无法取消")
 	}
 	return c.JSON(http.StatusOK, job)
 }
