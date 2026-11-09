@@ -65,21 +65,21 @@ type LinkScraper struct {
 	accountRepo AccountLister
 
 	// Runtime state
-	handlersMu   sync.Mutex
-	handlers     sync.Map // accountID(string) -> *accountHandler
-	started      bool
-	stopped      bool
-	consumerDone chan struct{}
-	linkQueue    chan *rawLink
-	dedupMap     map[string]time.Time
-	dedupMu      sync.RWMutex
-	batchLinks   []*domain.ScrapedLink
-	batchMu      sync.Mutex
-	stopCh       chan struct{}
-	stopOnce     sync.Once
-	wg           sync.WaitGroup
-	pendingLinkCount int64
-	queueDropped int64
+	handlersMu          sync.Mutex
+	handlers            sync.Map // accountID(string) -> *accountHandler
+	started             bool
+	stopped             bool
+	consumerDone        chan struct{}
+	linkQueue           chan *rawLink
+	dedupMap            map[string]time.Time
+	dedupMu             sync.RWMutex
+	batchLinks          []*domain.ScrapedLink
+	batchMu             sync.Mutex
+	stopCh              chan struct{}
+	stopOnce            sync.Once
+	wg                  sync.WaitGroup
+	pendingLinkCount    int64
+	queueDropped        int64
 	persistenceFailures int64
 }
 
@@ -289,12 +289,12 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 
 			select {
 			case ls.linkQueue <- &rawLink{
-				TenantID:     tenantID,
-				AccountID:    accountID,
-				LinkType:     linkType,
-				LinkHash:     linkHash,
-				FullURL:      fullLink,
-				SourceChatID: msg.ChatID,
+				TenantID:        tenantID,
+				AccountID:       accountID,
+				LinkType:        linkType,
+				LinkHash:        linkHash,
+				FullURL:         fullLink,
+				SourceChatID:    msg.ChatID,
 				SourceChatTitle: func() string {
 					if msg.Chat != nil {
 						return msg.Chat.Title
