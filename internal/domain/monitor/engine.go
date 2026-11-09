@@ -313,7 +313,7 @@ func (e *Engine) StopAll() error {
 
 	timer := time.NewTimer(135 * time.Second)
 	defer timer.Stop()
-	for i, done := range doneChannels {
+	for _, done := range doneChannels {
 		select {
 		case <-done:
 		case <-timer.C:
