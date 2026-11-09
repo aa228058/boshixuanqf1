@@ -53,6 +53,21 @@ for (const file of componentFiles) {
 const mainFile = files.find(file => relative(root, file) === 'main.ts')
 const mainText = mainFile ? contents.get(mainFile) : ''
 const globalStyles = [...mainText.matchAll(/import\s+['"]([^'"]+\.css)['"]/g)].map(match => match[1])
+const buttonPatterns = [
+  ['TDesign <t-button>', /<t-button\b/gi],
+  ['Native <button>', /<button\b/gi],
+  ['Canonical <UiButton>', /<UiButton\b/g],
+  ['Shared .ui-t-button class', /ui-t-button/g],
+  ['Shared .ui-native-button class', /ui-native-button/g],
+]
+const buttonUsage = buttonPatterns.map(([label, pattern]) => ({
+  label,
+  total: [...contents.values()].reduce((sum, source) => sum + [...source.matchAll(pattern)].length, 0),
+  files: [...contents.entries()]
+    .map(([file, source]) => ({ path: relative(root, file), count: [...source.matchAll(pattern)].length }))
+    .filter(entry => entry.count > 0)
+    .sort((a, b) => b.count - a.count),
+}))
 
 console.log('Frontend component inventory')
 console.log('============================')
@@ -72,5 +87,11 @@ for (const [name, paths] of duplicates) console.log(`- ${name}: ${paths.join(', 
 console.log('')
 console.log('Global CSS import order (src/main.ts)')
 for (const style of globalStyles) console.log(`- ${style}`)
+console.log('')
+console.log('Button implementation usage (source-level matches)')
+for (const usage of buttonUsage) {
+  console.log(`- ${usage.label}: ${usage.total} matches across ${usage.files.length} files`)
+  for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
+}
 console.log('')
 console.log('Important: this is a review aid, not proof that a component or stylesheet is safe to delete.')
