@@ -3,9 +3,9 @@ package task
 import (
 	"context"
 	"reflect"
+	"testing"
 
 	"github.com/google/uuid"
-	"testing"
 )
 
 func TestAcquireBroadcastSlotRespectsCancellation(t *testing.T) {
