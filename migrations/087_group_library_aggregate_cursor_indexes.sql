@@ -9,9 +9,7 @@ CREATE INDEX IF NOT EXISTS idx_groups_aggregate_cursor
     WHERE is_joined = TRUE AND username IS NOT NULL AND username <> '';
 
 CREATE INDEX IF NOT EXISTS idx_members_bio_aggregate_cursor
-    ON members (scraped_at ASC, member_id ASC)
-    WHERE bio IS NOT NULL AND bio <> ''
-      AND (bio ILIKE '%t.me%' OR bio ILIKE '%telegram%');
+    ON members (scraped_at ASC, member_id ASC);
 
 -- +goose Down
 DROP INDEX IF EXISTS idx_members_bio_aggregate_cursor;
