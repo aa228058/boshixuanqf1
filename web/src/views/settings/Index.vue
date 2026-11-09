@@ -31,9 +31,9 @@
       <div v-if="tenant?.expires_at" class="text-xs text-[var(--t-warn)] mb-4">
         到期时间: {{ formatDate(tenant.expires_at) }}
       </div>
-      <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="showUpgrade = true">
+      <UiButton theme="primary" class="ui-t-button ui-t-button--primary" @click="showUpgrade = true">
         升级套餐
-      </t-button>
+      </UiButton>
     </div>
 
     <!-- R119: 通知中心 -->
@@ -88,8 +88,8 @@
         </div>
 
         <div class="flex gap-2 mt-4">
-          <t-button class="ui-t-button ui-t-button--primary" :disabled="notifyLoading || !notifyEmail" @click="saveNotify">保存全部设置</t-button>
-          <t-button class="ui-t-button ui-t-button--secondary" :disabled="notifyLoading" @click="testNotifyMail">发送测试邮件</t-button>
+          <UiButton class="ui-t-button ui-t-button--primary" :disabled="notifyLoading || !notifyEmail" @click="saveNotify">保存全部设置</UiButton>
+          <UiButton class="ui-t-button ui-t-button--secondary" :disabled="notifyLoading" @click="testNotifyMail">发送测试邮件</UiButton>
           <span v-if="smtpConfigured" class="self-center text-[11px] text-[var(--t-ok)] flex items-center gap-1">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>发件配置已完成
           </span>
@@ -145,14 +145,14 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <t-button size="small" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="aiSaving" @click="saveAI">
+        <UiButton size="small" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="aiSaving" @click="saveAI">
           <Loader2 v-if="aiSaving" class="w-3.5 h-3.5 animate-spin mr-1" />
           保存
-        </t-button>
-        <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary" :disabled="aiTesting" @click="testAI">
+        </UiButton>
+        <UiButton size="small" variant="outline" class="ui-t-button ui-t-button--secondary" :disabled="aiTesting" @click="testAI">
           <Loader2 v-if="aiTesting" class="w-3.5 h-3.5 animate-spin mr-1" />
           测试连通
-        </t-button>
+        </UiButton>
         <span v-if="aiTestResult" class="text-xs" :class="aiTestResult.ok ? 'text-[var(--t-ok)]' : 'text-[var(--t-err)]'">
           {{ aiTestResult.ok ? `连通正常 · 回答「${aiTestResult.answer}」` : aiTestResult.error }}
         </span>
@@ -169,9 +169,9 @@
           placeholder="输入卡密，如 TGS-PRO-XXXX-XXXX"
           class="ui-input !w-full sm:!flex-1 !px-4 !py-2.5 !text-sm font-mono uppercase"
           @keyup.enter="activate" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
-        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="activate">
+        <UiButton theme="primary" class="ui-t-button ui-t-button--primary" @click="activate">
           激活
-        </t-button>
+        </UiButton>
       </div>
     </div>
 
@@ -183,9 +183,9 @@
           <p class="text-xs text-text-muted mt-1">导出本租户全部自有数据（成员/群组/任务），不含任何账号凭证</p>
         </div>
         <!-- R122: tdesign outline 按钮在深色下是白底白字 —— 改用令牌类 -->
-        <t-button class="ui-t-button ui-t-button--secondary px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50" :disabled="exporting" @click="exportMyData">
+        <UiButton class="ui-t-button ui-t-button--secondary px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50" :disabled="exporting" @click="exportMyData">
           {{ exporting ? '导出中…' : '导出 JSON' }}
-        </t-button>
+        </UiButton>
       </div>
     </div>
 
@@ -193,7 +193,7 @@
     <div v-show="activeTab === 'templates'" class="glass rounded-[var(--t-r-md)] p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">消息模板</h3>
-        <t-button @click="showTemplateModal = true" class="ui-t-button ui-t-button--text ui-t-button--sm">管理模板</t-button>
+        <UiButton @click="showTemplateModal = true" class="ui-t-button ui-t-button--text ui-t-button--sm">管理模板</UiButton>
       </div>
       <div class="space-y-2">
         <div
@@ -218,9 +218,9 @@
           <p class="font-medium">{{ supportConfig.display_name }}</p>
           <p class="text-sm text-text-secondary font-mono max-w-[65ch]">{{ supportConfig.contact_value }}</p>
         </div>
-        <t-button @click="copyContact" class="ui-t-button ui-t-button--secondary ui-t-button--sm ml-auto" aria-label="复制">
+        <UiButton @click="copyContact" class="ui-t-button ui-t-button--secondary ui-t-button--sm ml-auto" aria-label="复制">
           {{ copied ? '已复制' : '复制' }}
-        </t-button>
+        </UiButton>
       </div>
     </div>
 
@@ -256,10 +256,10 @@
         </div>
       </div>
       <template #footer>
-        <t-button @click="showUpgrade = false" class="ui-t-button ui-t-button--secondary">取消</t-button>
-        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="copyContact">
+        <UiButton @click="showUpgrade = false" class="ui-t-button ui-t-button--secondary">取消</UiButton>
+        <UiButton theme="primary" class="ui-t-button ui-t-button--primary" @click="copyContact">
           联系客服购买
-        </t-button>
+        </UiButton>
       </template>
     </Modal>
 
@@ -278,9 +278,9 @@
               class="bg-transparent text-sm font-medium focus:outline-none flex-1 min-w-0" 
             />
             <div class="flex items-center gap-1 shrink-0">
-              <t-button @click="saveTemplate(t)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
+              <UiButton @click="saveTemplate(t)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
                 保存
-              </t-button>
+              </UiButton>
               <button type="button" @click="deleteTemplate(t.template_id)" class="ui-icon-btn" aria-label="删除消息模板">
                 <Trash2 class="w-4 h-4" />
               </button>
@@ -297,9 +297,9 @@
             <!-- R121: 删掉手写计数 —— tdesign textarea 的 maxlength 自带右下角计数器, 双份叠印成"重影" -->
           </div>
         </div>
-        <t-button @click="addTemplate" class="ui-t-button ui-t-button--secondary w-full">
+        <UiButton @click="addTemplate" class="ui-t-button ui-t-button--secondary w-full">
           + 添加模板
-        </t-button>
+        </UiButton>
       </div>
     </Modal>
   </main>
@@ -307,6 +307,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { useRoute, useRouter } from 'vue-router'
 
 // ===== Phase 4 设置页 Tab(手册信息架构): 5 Tab + URL ?tab= 双向同步 =====
