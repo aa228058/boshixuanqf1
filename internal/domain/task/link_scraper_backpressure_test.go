@@ -2,8 +2,8 @@ package task
 
 import (
 	"context"
-	"testing"
 	"sync/atomic"
+	"testing"
 
 	"github.com/google/uuid"
 )
