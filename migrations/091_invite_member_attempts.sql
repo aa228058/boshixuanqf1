@@ -13,8 +13,8 @@ CREATE TABLE invite_member_attempts (
     PRIMARY KEY (tenant_id, task_id, account_id, tg_user_id)
 );
 
-CREATE INDEX idx_invite_member_attempts_status_updated
-    ON invite_member_attempts (status, updated_at)
+CREATE INDEX idx_invite_member_attempts_task_stale
+    ON invite_member_attempts (tenant_id, task_id, updated_at)
     WHERE status = 'in_progress';
 
 -- +goose Down
