@@ -484,10 +484,13 @@ let nextLogPageRequestId = 0
 async function fetchLogs(page = 1, beforeLogId?: string) {
   const requestId = ++nextLogPageRequestId
   logPageRequestIds.set(page, requestId)
+  const container = logContainer.value
+  const previousHeight = container?.scrollHeight || 0
+  const previousTop = container?.scrollTop || 0
+  const wasAtBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
   try {
     const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE, beforeLogId)
     if (!pageActive || logPageRequestIds.get(page) !== requestId) return
-    // 兼容: 直接数组 / {list: [...]} / {data: [...]}
     let data: TaskLog[] = []
     if (Array.isArray(res)) {
       data = res
@@ -497,16 +500,16 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
         : Array.isArray(payload.data) ? payload.data
         : Array.isArray(payload.data?.list) ? payload.data.list : []
     }
-    // Page 1 is a live snapshot, not a reset of the user's historical pagination.
-    // Merge by stable log identity so SSE entries arriving during the request survive.
+
+    // Merge persisted rows with any live events received while this request was in flight.
     const merged = new Map<string, TaskLog>()
     for (const log of logs.value) merged.set(taskLogKey(log), log)
     for (const log of data) merged.set(taskLogKey(log), log)
-    logs.value = [...merged.values()]
-      .sort((a, b) => {
-        const timeDiff = new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime()
-        return timeDiff || String(a.log_id || '').localeCompare(String(b.log_id || ''))
-      })
+    logs.value = [...merged.values()].sort((a, b) => {
+      const timeDiff = new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime()
+      return timeDiff || String(a.log_id || '').localeCompare(String(b.log_id || ''))
+    })
+
     if (data.length && data[data.length - 1].log_id) {
       logPageCursors.set(page, data[data.length - 1].log_id!)
     } else {
@@ -516,9 +519,16 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
     if (page === logsPage.value) {
       hasMoreLogs.value = data.length === LOG_PAGE_SIZE && !!logPageCursors.get(page)
     }
+
     await nextTick()
     if (pageActive && logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight
+      if (page > 1) {
+        // Older rows are prepended; compensate for their height so the current
+        // reading position stays anchored to the same visible log.
+        logContainer.value.scrollTop = previousTop + (logContainer.value.scrollHeight - previousHeight)
+      } else if (wasAtBottom) {
+        logContainer.value.scrollTop = logContainer.value.scrollHeight
+      }
     }
   } catch (e: unknown) {
     if (pageActive && logPageRequestIds.get(page) === requestId) {
@@ -597,7 +607,16 @@ async function connectSSE() {
           return
         }
         if (data.type === 'task_log' && data.log) {
-          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) logs.value.push(data.log)
+          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) {
+            const container = logContainer.value
+            const shouldFollow = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
+            logs.value.push(data.log)
+            if (shouldFollow) {
+              void nextTick(() => {
+                if (pageActive && logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
+              })
+            }
+          }
           return
         }
         if (data.type === 'task_status') {
@@ -680,10 +699,6 @@ async function retryFailed() {
   }
 }
 
-watch(() => logs.value.length, async () => {
-  await nextTick()
-  if (pageActive && logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
-})
 
 onMounted(async () => {
   if (!isValidUUID(taskId)) {
