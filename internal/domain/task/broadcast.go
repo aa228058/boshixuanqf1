@@ -26,6 +26,20 @@ import (
 )
 
 // acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
+// countBroadcastTargetProgress separates durable successes from targets still
+// pending for one account. It is used when an account cannot run so resumed
+// tasks do not count already-sent targets as failures a second time.
+func countBroadcastTargetProgress(accountID uuid.UUID, targets []string, successSet map[string]bool) (done, pending int) {
+	for _, target := range targets {
+		if successSet[accountID.String()+"|"+target] {
+			done++
+		} else {
+			pending++
+		}
+	}
+	return done, pending
+}
+
 func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	if ctx.Err() != nil {
 		return false
@@ -372,11 +386,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				}
 				taskLog.Printf("[task] skip account %s: status=%s (not active)", accID, status)
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -385,11 +400,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			if acc.BlockedUntil != nil && acc.BlockedUntil.After(time.Now().UTC()) {
 				taskLog.Printf("[task] skip account %s: blocked_until=%s", accID, acc.BlockedUntil.Format(time.RFC3339))
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -399,11 +415,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			client, err := e.accEngine.GetClient(ctx, task.TenantID, accID)
 			if err != nil {
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
