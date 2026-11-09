@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/repository"
@@ -54,6 +55,38 @@ type Engine struct {
 	slW aggregationCursor // scraped_links 复合游标
 	gW  aggregationCursor // groups 复合游标
 	mW  aggregationCursor // members 复合游标
+}
+
+func (e *Engine) loadAggregationCursor(ctx context.Context, source string, local aggregationCursor) (aggregationCursor, error) {
+	var stored aggregationCursor
+	err := e.pool.QueryRow(ctx, `
+		SELECT cursor_at, cursor_id
+		FROM group_library_aggregation_cursors
+		WHERE source=$1`, source).Scan(&stored.at, &stored.id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return local, nil
+	}
+	if err != nil {
+		return aggregationCursor{}, err
+	}
+	if stored.at.After(local.at) || (stored.at.Equal(local.at) && stored.id.String() > local.id.String()) {
+		return stored, nil
+	}
+	return local, nil
+}
+
+func (e *Engine) saveAggregationCursor(ctx context.Context, source string, cursor aggregationCursor) error {
+	if cursor.id == uuid.Nil {
+		return nil
+	}
+	_, err := e.pool.Exec(ctx, `
+		INSERT INTO group_library_aggregation_cursors (source, cursor_at, cursor_id, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (source) DO UPDATE
+		SET cursor_at=EXCLUDED.cursor_at, cursor_id=EXCLUDED.cursor_id, updated_at=NOW()
+		WHERE (group_library_aggregation_cursors.cursor_at, group_library_aggregation_cursors.cursor_id)
+		    < (EXCLUDED.cursor_at, EXCLUDED.cursor_id)`, source, cursor.at, cursor.id)
+	return err
 }
 
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
@@ -165,6 +198,11 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	e.mu.Lock()
 	cursor := e.slW
 	e.mu.Unlock()
+	var cursorErr error
+	cursor, cursorErr = e.loadAggregationCursor(ctx, "scraped_links", cursor)
+	if cursorErr != nil {
+		return fmt.Errorf("load scraped_links aggregation cursor: %w", cursorErr)
+	}
 	// 复合游标以 link_id 作为同时间戳的唯一排序键，避免 LIMIT 截断后重复首批。
 	rows, err := e.pool.Query(ctx, `
 		SELECT link_id, tenant_id, full_url, link_type, COALESCE(NULLIF(resolved_title,''), NULLIF(source_chat_title,''), ''),
@@ -211,13 +249,19 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	}
 	if upsertFailed {
 		if last.id != uuid.Nil {
-			e.mu.Lock()
-			e.slW = last
-			e.mu.Unlock()
+		if err := e.saveAggregationCursor(ctx, "scraped_links", last); err != nil {
+			return fmt.Errorf("save scraped_links aggregation cursor: %w", err)
+		}
+		e.mu.Lock()
+		e.slW = last
+		e.mu.Unlock()
 		}
 		return errors.New("scraped links aggregation incomplete; cursor stopped before failed row")
 	}
 	if last.id != uuid.Nil {
+		if err := e.saveAggregationCursor(ctx, "scraped_links", last); err != nil {
+			return fmt.Errorf("save scraped_links aggregation cursor: %w", err)
+		}
 		e.mu.Lock()
 		e.slW = last
 		e.mu.Unlock()
@@ -233,6 +277,11 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	e.mu.Lock()
 	cursor := e.gW
 	e.mu.Unlock()
+	var cursorErr error
+	cursor, cursorErr = e.loadAggregationCursor(ctx, "groups", cursor)
+	if cursorErr != nil {
+		return fmt.Errorf("load groups aggregation cursor: %w", cursorErr)
+	}
 	// updated_at(065 迁移 + trigger) 负责捕获群资料更新，group_id 负责稳定分页。
 	rows, err := e.pool.Query(ctx, `
 		SELECT group_id, tenant_id, title, username, type, member_count, created_at, updated_at
@@ -280,13 +329,19 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	}
 	if upsertFailed {
 		if last.id != uuid.Nil {
-			e.mu.Lock()
-			e.gW = last
-			e.mu.Unlock()
+		if err := e.saveAggregationCursor(ctx, "groups", last); err != nil {
+			return fmt.Errorf("save groups aggregation cursor: %w", err)
+		}
+		e.mu.Lock()
+		e.gW = last
+		e.mu.Unlock()
 		}
 		return errors.New("joined groups aggregation incomplete; cursor stopped before failed row")
 	}
 	if last.id != uuid.Nil {
+		if err := e.saveAggregationCursor(ctx, "groups", last); err != nil {
+			return fmt.Errorf("save groups aggregation cursor: %w", err)
+		}
 		e.mu.Lock()
 		e.gW = last
 		e.mu.Unlock()
@@ -302,6 +357,11 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	e.mu.Lock()
 	cursor := e.mW
 	e.mu.Unlock()
+	var cursorErr error
+	cursor, cursorErr = e.loadAggregationCursor(ctx, "members_bio", cursor)
+	if cursorErr != nil {
+		return fmt.Errorf("load members_bio aggregation cursor: %w", cursorErr)
+	}
 	rows, err := e.pool.Query(ctx, `
 		SELECT member_id, bio, scraped_at FROM members
 		WHERE (scraped_at, member_id) > ($1, $2) AND bio IS NOT NULL AND bio <> ''
@@ -331,6 +391,9 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 		return err
 	}
 	if last.id != uuid.Nil {
+		if err := e.saveAggregationCursor(ctx, "members_bio", last); err != nil {
+			return fmt.Errorf("save members_bio aggregation cursor: %w", err)
+		}
 		e.mu.Lock()
 		e.mW = last
 		e.mu.Unlock()
