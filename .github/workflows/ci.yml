@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master, feat/group-import-resolver-pipeline]
+    branches: [main, master, feat/group-import-resolver-pipeline, fix/group-library-stable-keyset-aggregation-stacked]
 
 jobs:
   # 字段覆盖审计：防「上层有值、底层丢字段」类 bug（accounts.source / plans 配额列教训）
