@@ -25,7 +25,7 @@
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-medium">监控规则</h3>
           <!-- P0-28: 走 openAddRule 先清空 editingRule, 防编辑残留变覆盖 -->
-          <UiButton @click="openAddRule" class="ui-t-button--primary ui-t-button">添加规则</UiButton>
+          <t-button @click="openAddRule" class="ui-t-button--primary ui-t-button">添加规则</t-button>
         </div>
         <div class="space-y-2">
           <EmptyState v-if="rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
@@ -145,11 +145,11 @@
                   <option value="">选择账号…</option>
                   <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
                 </select>
-                <UiButton type="button" class="ui-t-button--primary ui-t-button whitespace-nowrap"
+                <t-button type="button" class="ui-t-button--primary ui-t-button whitespace-nowrap"
                         :disabled="!contactPickAccount || contactLoading"
                         @click="loadContacts">
                   {{ contactLoading ? '获取中…' : '获取联系人' }}
-                </UiButton>
+                </t-button>
               </div>
               <select v-if="contactList.length" v-model="contactPick" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-xs" @change="applyContact">
                 <option value="">选择联系人（自动填入手机号和姓名）…</option>
@@ -193,8 +193,8 @@
           </div>
         </div>
         <div class="flex justify-end gap-3 mt-6">
-          <UiButton @click="showAddRule = false" class="ui-t-button--secondary ui-t-button">取消</UiButton>
-          <UiButton @click="saveRule" class="ui-t-button--primary ui-t-button">保存</UiButton>
+          <t-button @click="showAddRule = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
+          <t-button @click="saveRule" class="ui-t-button--primary ui-t-button">保存</t-button>
         </div>
     </Modal>
 
@@ -221,7 +221,6 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
