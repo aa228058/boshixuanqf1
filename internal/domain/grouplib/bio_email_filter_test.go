@@ -11,7 +11,7 @@ func TestIsEmailAddressMention(t *testing.T) {
 		want bool
 	}{
 		{name: "email with uncommon TLD", bio: "contact user@example.dev", at: 12, end: 20, want: true},
-		{name: "email with plus local part", bio: "reach me at name+tag@example.ai", at: 20, end: 27, want: true},
+		{name: "email with plus local part", bio: "reach me at name+tag@example.ai", at: 20, end: 28, want: true},
 		{name: "standalone email-like domain", bio: "@example.com", at: 0, end: 8, want: true},
 		{name: "telegram handle after whitespace", bio: "join @sample_group today", at: 5, end: 18, want: false},
 		{name: "telegram handle in parentheses", bio: "(@sample_group)", at: 1, end: 14, want: false},
