@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"tg-sender/internal/safego"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ import (
 	"tg-sender/internal/config"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/repository"
+	"tg-sender/internal/safego"
 )
 
 // rawLink represents a link extracted from a message before processing.
@@ -30,13 +30,22 @@ type rawLink struct {
 	SourceChatTitle string
 }
 
+// scrapedLinkDedupKey scopes the in-memory cache to a tenant. The database
+// uniqueness constraint is (tenant_id, link_hash), so a global hash-only
+// cache would incorrectly suppress another tenant's copy of the same link.
+func scrapedLinkDedupKey(tenantID uuid.UUID, linkHash string) string {
+	return tenantID.String() + ":" + linkHash
+}
+
 // accountHandler tracks OnMessage handler for an account.
 type accountHandler struct {
 	active     int32
 	tenantID   uuid.UUID
 	accountID  uuid.UUID
 	client     *telegram.Client
-	cancelFunc func()
+	handler    telegram.Handler
+	callbackMu sync.Mutex
+	callbackWG sync.WaitGroup
 }
 
 // LinkScraper is a persistent background service that continuously scrapes links
@@ -46,6 +55,8 @@ type AccountLister interface {
 	ListAll(ctx context.Context) ([]*domain.Account, error)
 }
 
+const maxPendingScrapedLinks int64 = 50000
+
 type LinkScraper struct {
 	cfg         *config.Config
 	accEngine   AccountEngine
@@ -54,68 +65,112 @@ type LinkScraper struct {
 	accountRepo AccountLister
 
 	// Runtime state
-	handlers   sync.Map // accountID(string) -> *accountHandler
-	linkQueue  chan *rawLink
-	dedupMap   map[string]time.Time
-	dedupMu    sync.RWMutex
-	batchLinks []*domain.ScrapedLink
-	batchMu    sync.Mutex
-	stopCh     chan struct{}
-	stopOnce   sync.Once
-	wg         sync.WaitGroup
+	handlersMu          sync.Mutex
+	handlers            sync.Map // accountID(string) -> *accountHandler
+	started             bool
+	stopped             bool
+	consumerDone        chan struct{}
+	linkQueue           chan *rawLink
+	dedupMap            map[string]time.Time
+	dedupMu             sync.RWMutex
+	batchLinks          []*domain.ScrapedLink
+	batchMu             sync.Mutex
+	stopCh              chan struct{}
+	stopOnce            sync.Once
+	wg                  sync.WaitGroup
+	pendingLinkCount    int64
+	queueDropped        int64
+	persistenceFailures int64
 }
 
 // NewLinkScraper creates a new persistent link scraper.
 func NewLinkScraper(cfg *config.Config, accEngine AccountEngine, linkRepo domain.ScrapedLinkRepository, groupRepo *repository.GroupRepository, accountRepo AccountLister) *LinkScraper {
 	return &LinkScraper{
-		cfg:         cfg,
-		accEngine:   accEngine,
-		linkRepo:    linkRepo,
-		groupRepo:   groupRepo,
-		accountRepo: accountRepo,
-		linkQueue:   make(chan *rawLink, 10000), // Buffer 10k links
-		dedupMap:    make(map[string]time.Time),
-		stopCh:      make(chan struct{}),
+		cfg:          cfg,
+		accEngine:    accEngine,
+		linkRepo:     linkRepo,
+		groupRepo:    groupRepo,
+		accountRepo:  accountRepo,
+		linkQueue:    make(chan *rawLink, 10000), // Buffer 10k links
+		dedupMap:     make(map[string]time.Time),
+		stopCh:       make(chan struct{}),
+		consumerDone: make(chan struct{}),
 	}
 }
 
 // Start begins the link scraper background workers.
 func (ls *LinkScraper) Start(ctx context.Context) {
-	// Start the link consumer (async processing with rate limiting)
+	ls.handlersMu.Lock()
+	if ls.started || ls.stopped {
+		ls.handlersMu.Unlock()
+		return
+	}
+	// Serialize startup with Stop: every positive WaitGroup Add happens before
+	// Stop can mark the scraper stopped and begin waiting.
+	ls.started = true
+
+	// Start the consumer before the writer. The writer waits for consumerDone
+	// during shutdown so the final batch cannot race an in-flight processLink.
 	ls.wg.Add(1)
 	safego.Go(func() { ls.consumerLoop(ctx) })
 
-	// Start the batch writer (flush to DB periodically)
 	ls.wg.Add(1)
 	safego.Go(func() { ls.batchWriterLoop(ctx) })
 
-	// Start the dedup cleaner (remove old entries)
 	ls.wg.Add(1)
 	safego.Go(func() { ls.dedupCleanerLoop(ctx) })
 
-	// Start the account watcher (register handlers for online accounts)
 	ls.wg.Add(1)
 	safego.Go(func() { ls.accountWatcherLoop(ctx) })
+	ls.handlersMu.Unlock()
 
 	log.Printf("[link-scraper] 常驻链接采集服务已启动")
 }
 
 // Stop gracefully shuts down the link scraper.
-func (ls *LinkScraper) Stop() {
-	ls.stopOnce.Do(func() { close(ls.stopCh) })
-	// Deactivate all handlers
-	ls.handlers.Range(func(key, value interface{}) bool {
-		if h := value.(*accountHandler); h != nil {
-			atomic.StoreInt32(&h.active, 0)
-			if h.cancelFunc != nil {
-				h.cancelFunc()
+func (ls *LinkScraper) stopHandlers() {
+	var handlers []*accountHandler
+	ls.stopOnce.Do(func() {
+		ls.handlersMu.Lock()
+		ls.stopped = true
+		ls.handlers.Range(func(key, value interface{}) bool {
+			if h, ok := value.(*accountHandler); ok && h != nil {
+				ls.deactivateHandler(h)
+				handlers = append(handlers, h)
 			}
+			ls.handlers.Delete(key)
+			return true
+		})
+		ls.handlersMu.Unlock()
+
+		// Stop accepting callbacks and wait for callbacks already admitted before
+		// waking the consumer. This makes the final queue drain a stable snapshot.
+		for _, h := range handlers {
+			h.callbackWG.Wait()
 		}
-		ls.handlers.Delete(key)
-		return true
+		close(ls.stopCh)
 	})
+}
+
+// Stop gracefully shuts down the link scraper and waits for all workers.
+func (ls *LinkScraper) Stop() {
+	ls.stopHandlers()
 	ls.wg.Wait()
 	log.Printf("[link-scraper] 常驻链接采集服务已停止")
+}
+
+func (ls *LinkScraper) deactivateHandler(h *accountHandler) {
+	if h == nil {
+		return
+	}
+	// Close callback admission before unregistering; Wait is safe because Add
+	// is performed under the same mutex while admission remains open.
+	h.callbackMu.Lock()
+	atomic.StoreInt32(&h.active, 0)
+	h.callbackMu.Unlock()
+	if h.handler != nil && h.client != nil {
+		h.client.RemoveHandler(h.handler)
+	}
 }
 
 // GetStats returns current scraper statistics.
@@ -125,6 +180,9 @@ func (ls *LinkScraper) GetStats() map[string]any {
 	ls.dedupMu.RUnlock()
 
 	queueLen := len(ls.linkQueue)
+	pendingLinks := atomic.LoadInt64(&ls.pendingLinkCount)
+	queueDropped := atomic.LoadInt64(&ls.queueDropped)
+	persistenceFailures := atomic.LoadInt64(&ls.persistenceFailures)
 
 	var handlerCount int
 	ls.handlers.Range(func(_, _ interface{}) bool {
@@ -133,9 +191,12 @@ func (ls *LinkScraper) GetStats() map[string]any {
 	})
 
 	return map[string]any{
-		"handlers_active": handlerCount,
-		"queue_length":    queueLen,
-		"dedup_cache":     dedupSize,
+		"handlers_active":            handlerCount,
+		"queue_length":               queueLen,
+		"dedup_cache":                dedupSize,
+		"pending_links":              pendingLinks,
+		"queue_dropped_total":        queueDropped,
+		"persistence_failures_total": persistenceFailures,
 	}
 }
 
@@ -151,51 +212,57 @@ func (ls *LinkScraper) touchAccount(ctx context.Context, tenantID, accountID uui
 func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID uuid.UUID) {
 	key := accountID.String()
 
-	// 已注册且底层连接仍然存活: 只做保活(刷新 lastUsed 防止被空闲回收), 避免重复注册。
+	ls.handlersMu.Lock()
+	if ls.stopped {
+		ls.handlersMu.Unlock()
+		return
+	}
 	if v, loaded := ls.handlers.Load(key); loaded {
 		if h, ok := v.(*accountHandler); ok && h != nil && h.client != nil && h.client.IsConnected() {
+			ls.handlersMu.Unlock()
+			// Refresh lastUsed without holding the handler registry lock.
 			ls.touchAccount(ctx, tenantID, accountID)
 			return
 		}
-		// 残留条目(底层连接已被替换/回收): 先注销再重新注册。
-		ls.UnregisterAccount(accountID)
+		if h, ok := v.(*accountHandler); ok {
+			ls.deactivateHandler(h)
+			h.callbackWG.Wait()
+		}
+		ls.handlers.Delete(key)
 	}
 
 	client, err := ls.accEngine.GetClient(ctx, tenantID, accountID)
 	if err != nil {
+		ls.handlersMu.Unlock()
 		// R181.1: 死密钥账号已被熔断, 每 30s 刷一条"获取客户端失败"纯属噪音, 静默跳过
 		if !strings.Contains(err.Error(), "需重新登录") {
 			log.Printf("[link-scraper] 获取客户端失败 %s: %v", accountID.String()[:8], err)
 		}
-		ls.handlers.Delete(key)
 		return
 	}
-	// 注册完回调立刻释放客户端锁。持有它会永久阻塞同一账号的
-	// 监控/采集/群发功能(锁不响应 ctx 超时)。
+	// 注册回调后立即释放客户端锁，避免阻塞同一账号的监控/采集/群发。
 	ls.accEngine.ReleaseClient(tenantID, accountID, client)
 
-	handler := &accountHandler{
+	h := &accountHandler{
 		active:    1,
 		tenantID:  tenantID,
 		accountID: accountID,
 		client:    client,
 	}
-	ls.handlers.Store(key, handler)
+	h.handler = client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+		h.callbackMu.Lock()
+		if atomic.LoadInt32(&h.active) == 0 {
+			h.callbackMu.Unlock()
+			return
+		}
+		h.callbackWG.Add(1)
+		h.callbackMu.Unlock()
+		defer h.callbackWG.Done()
 
-	// Register OnMessage callback
-	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
-		if atomic.LoadInt32(&handler.active) == 0 {
-			return
-		}
-		if msg == nil || msg.Text == "" {
-			return
-		}
-		// Only process group messages (ChatID < 0 for groups/channels)
-		if msg.ChatID >= 0 {
+		if msg == nil || msg.Text == "" || msg.ChatID >= 0 {
 			return
 		}
 
-		// Extract links from message text
 		matches := tmeLinkRe.FindAllStringSubmatch(msg.Text, -1)
 		for _, match := range matches {
 			if len(match) < 5 {
@@ -207,7 +274,6 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 			}
 			fullLink := "https://t.me/" + path
 
-			// Determine link type
 			privateMatch := privateLinkRe.FindStringSubmatch(fullLink)
 			var linkType, linkHash string
 			if len(privateMatch) > 1 {
@@ -221,7 +287,6 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 				}
 			}
 
-			// Push to queue for async processing
 			select {
 			case ls.linkQueue <- &rawLink{
 				TenantID:     tenantID,
@@ -240,10 +305,13 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 			case <-ls.stopCh:
 				return
 			default:
-				// Queue full, drop link (log occasionally)
+				// Keep Telegram update callbacks non-blocking, but make overload visible.
+				atomic.AddInt64(&ls.queueDropped, 1)
 			}
 		}
 	})
+	ls.handlers.Store(key, h)
+	ls.handlersMu.Unlock()
 
 	log.Printf("[link-scraper] 已注册账号 %s 的消息监听", accountID.String()[:8])
 }
@@ -257,21 +325,26 @@ func (ls *LinkScraper) IsRegistered(accountID uuid.UUID) bool {
 // UnregisterAccount removes the OnMessage handler for an account.
 func (ls *LinkScraper) UnregisterAccount(accountID uuid.UUID) {
 	key := accountID.String()
-	if h, ok := ls.handlers.Load(key); ok {
-		if handler := h.(*accountHandler); handler != nil {
-			atomic.StoreInt32(&handler.active, 0)
-			if handler.cancelFunc != nil {
-				handler.cancelFunc()
-			}
-		}
-		ls.handlers.Delete(key)
-		log.Printf("[link-scraper] 已注销账号 %s 的消息监听", accountID.String()[:8])
+	ls.handlersMu.Lock()
+	value, ok := ls.handlers.Load(key)
+	if !ok {
+		ls.handlersMu.Unlock()
+		return
 	}
+	ls.handlers.Delete(key)
+	h, _ := value.(*accountHandler)
+	ls.deactivateHandler(h)
+	ls.handlersMu.Unlock()
+	if h != nil {
+		h.callbackWG.Wait()
+	}
+	log.Printf("[link-scraper] 已注销账号 %s 的消息监听", accountID.String()[:8])
 }
 
 // consumerLoop processes links from the queue with rate limiting.
 func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 	defer ls.wg.Done()
+	defer close(ls.consumerDone)
 	// Rate limiter: max 5 ResolvePeer per second
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -279,10 +352,19 @@ func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ls.stopCh:
+			ls.drainQueuedLinks()
 			return
 		case <-ctx.Done():
+			// Parent cancellation can race Engine.Stop. Close callback admission
+			// before draining so no handler can enqueue after the final snapshot.
+			ls.stopHandlers()
+			ls.drainQueuedLinks()
 			return
 		case <-ticker.C:
+			// Bound memory while PostgreSQL is unavailable; the channel remains bounded too.
+			if atomic.LoadInt64(&ls.pendingLinkCount) >= maxPendingScrapedLinks {
+				continue
+			}
 			// 消费节奏由 ticker 门控：200ms 一条 = 每秒最多 5 次 ResolvePeer，
 			// 队列空时直接跳过本轮，避免 ticker 空转处理。
 			select {
@@ -290,6 +372,21 @@ func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 				ls.processLink(ctx, raw)
 			default:
 			}
+		}
+	}
+}
+
+// drainQueuedLinks persists queued links without network resolution during shutdown.
+// The queue is stable because Stop first disables handlers and waits for callbacks.
+func (ls *LinkScraper) drainQueuedLinks() {
+	drainCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for {
+		select {
+		case raw := <-ls.linkQueue:
+			ls.processLink(drainCtx, raw)
+		default:
+			return
 		}
 	}
 }
@@ -302,9 +399,10 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 		}
 	}()
 
-	// Memory dedup check (24h window)
+	// Memory dedup mirrors the DB's tenant-scoped UNIQUE(tenant_id, link_hash).
+	dedupKey := scrapedLinkDedupKey(raw.TenantID, raw.LinkHash)
 	ls.dedupMu.RLock()
-	if lastSeen, ok := ls.dedupMap[raw.LinkHash]; ok && time.Since(lastSeen) < 24*time.Hour {
+	if lastSeen, ok := ls.dedupMap[dedupKey]; ok && time.Since(lastSeen) < 24*time.Hour {
 		ls.dedupMu.RUnlock()
 		return
 	}
@@ -312,7 +410,7 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 
 	// Mark as seen in memory
 	ls.dedupMu.Lock()
-	ls.dedupMap[raw.LinkHash] = time.Now()
+	ls.dedupMap[dedupKey] = time.Now()
 	ls.dedupMu.Unlock()
 
 	// Build domain link
@@ -330,7 +428,7 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 	}
 
 	// For public links, try to resolve group info (with rate limiting)
-	if raw.LinkType == "public" {
+	if raw.LinkType == "public" && ctx.Err() == nil {
 		client, err := ls.accEngine.GetClient(ctx, raw.TenantID, raw.AccountID)
 		if err == nil {
 			defer ls.accEngine.ReleaseClient(raw.TenantID, raw.AccountID, client)
@@ -365,6 +463,7 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 	// Add to batch for DB write
 	ls.batchMu.Lock()
 	ls.batchLinks = append(ls.batchLinks, link)
+	atomic.AddInt64(&ls.pendingLinkCount, 1)
 	ls.batchMu.Unlock()
 }
 
@@ -377,10 +476,14 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ls.stopCh:
-			ls.flushBatch(ctx)
+			// The consumer may still be finishing an in-flight ResolvePeer and
+			// appending its result. Drain it before taking the final batch snapshot.
+			<-ls.consumerDone
+			ls.flushBatchOnShutdown(ctx)
 			return
 		case <-ctx.Done():
-			ls.flushBatch(ctx)
+			<-ls.consumerDone
+			ls.flushBatchOnShutdown(ctx)
 			return
 		case <-ticker.C:
 			ls.flushBatch(ctx)
@@ -389,22 +492,68 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 }
 
 // flushBatch writes accumulated links to DB and clears the batch.
-func (ls *LinkScraper) flushBatch(ctx context.Context) {
+func (ls *LinkScraper) flushBatch(ctx context.Context) bool {
 	ls.batchMu.Lock()
 	if len(ls.batchLinks) == 0 {
 		ls.batchMu.Unlock()
-		return
+		return true
 	}
 	batch := make([]*domain.ScrapedLink, len(ls.batchLinks))
 	copy(batch, ls.batchLinks)
 	ls.batchLinks = ls.batchLinks[:0]
 	ls.batchMu.Unlock()
 
-	if err := ls.linkRepo.CreateBatch(ctx, batch); err != nil {
-		log.Printf("[link-scraper] 批量写入链接失败: %v", err)
-	} else {
-		log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
+	writeCtx := ctx
+	cancel := func() {}
+	if ctx.Err() != nil {
+		// The engine cancels its runtime context before stopping the scraper.
+		// Give the final batch a short independent window to reach PostgreSQL.
+		writeCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	}
+	defer cancel()
+
+	if err := ls.linkRepo.CreateBatch(writeCtx, batch); err != nil {
+		atomic.AddInt64(&ls.persistenceFailures, 1)
+		log.Printf("[link-scraper] 批量写入链接失败，保留待重试批次: %v", err)
+		ls.batchMu.Lock()
+		pending := make([]*domain.ScrapedLink, 0, len(batch)+len(ls.batchLinks))
+		pending = append(pending, batch...)
+		pending = append(pending, ls.batchLinks...)
+		ls.batchLinks = pending
+		ls.batchMu.Unlock()
+		return false
+	}
+	atomic.AddInt64(&ls.pendingLinkCount, -int64(len(batch)))
+	log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
+	return true
+}
+
+// flushBatchOnShutdown retries the retained batch with a bounded independent context.
+func (ls *LinkScraper) flushBatchOnShutdown(_ context.Context) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if ls.flushBatch(shutdownCtx) {
+			return
+		}
+		if attempt < maxAttempts {
+			timer := time.NewTimer(time.Duration(attempt) * time.Second)
+			select {
+			case <-timer.C:
+			case <-shutdownCtx.Done():
+				timer.Stop()
+			}
+			if shutdownCtx.Err() != nil {
+				break
+			}
+		}
+	}
+	ls.batchMu.Lock()
+	remaining := len(ls.batchLinks)
+	ls.batchMu.Unlock()
+	log.Printf("[link-scraper] shutdown persistence exhausted retries; %d links remain unpersisted", remaining)
 }
 
 // dedupCleanerLoop removes old entries from the dedup map to prevent memory growth.
@@ -440,13 +589,23 @@ func (ls *LinkScraper) dedupCleanerLoop(ctx context.Context) {
 // accountWatcherLoop 每30秒同步: 上线账号注册监听, 下线注销(多租户全自动)。
 func (ls *LinkScraper) accountWatcherLoop(ctx context.Context) {
 	defer ls.wg.Done()
-	time.Sleep(10 * time.Second) // 等账号引擎完成首批连接
+	startupDelay := time.NewTimer(10 * time.Second) // 等账号引擎完成首批连接
+	defer startupDelay.Stop()
+	select {
+	case <-ls.stopCh:
+		return
+	case <-ctx.Done():
+		return
+	case <-startupDelay.C:
+	}
 	ls.syncOnlineAccounts(ctx)
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ls.stopCh:
+			return
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			ls.syncOnlineAccounts(ctx)
@@ -464,6 +623,9 @@ func (ls *LinkScraper) syncOnlineAccounts(ctx context.Context) {
 	}
 	online := make(map[string]bool)
 	for _, a := range accounts {
+		if a == nil {
+			continue
+		}
 		// 门槛放宽: 已授权(authenticated)但尚未入池的账号也尝试注册,
 		// 连通性由 GetClient 报错兜底; 只排除明确不可用的状态。
 		// 待机(离线)号也注册：GetClient 会现场建连。只排除真正不可用的。

@@ -63,6 +63,18 @@ type Engine struct {
 	workerID string
 	stopCh   chan struct{}
 	stopOnce sync.Once
+
+	// startMu serializes concurrent Start calls. lifecycleMu protects state and
+	// ensures Stop cancels startup before waiting for engine-owned goroutines.
+	startMu       sync.Mutex
+	lifecycleMu   sync.Mutex
+	started       bool
+	stopped       bool
+	runtimeCancel context.CancelFunc
+
+	// shutdownCtx is cancelled by Stop so long-running task contexts cannot outlive the engine.
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
 	// GlobalLimitFn 返回当前全局并发上限(由 adaptive 内存调度注入, 按服务器内存动态调整).
 	// nil 表示不限. 领取任务前检查全局 running 数, 达到上限则本轮不领.
 	GlobalLimitFn func() int
@@ -133,6 +145,7 @@ func (e *Engine) WarmAccounts(ctx context.Context, tenantID uuid.UUID, accountID
 
 // NewEngine creates a new task engine.
 func NewEngine(cfg *config.Config, db *database.DB, repo *repository.TaskRepository, logRepo *repository.TaskLogRepository, quotaRepo *repository.QuotaRepository, riskRepo *repository.RiskRepository) *Engine {
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	e := &Engine{
 		cfg:              cfg,
 		db:               db,
@@ -142,6 +155,8 @@ func NewEngine(cfg *config.Config, db *database.DB, repo *repository.TaskReposit
 		riskRepo:         riskRepo,
 		workerID:         fmt.Sprintf("worker-%s", uuid.New().String()[:8]),
 		stopCh:           make(chan struct{}),
+		shutdownCtx:      shutdownCtx,
+		shutdownCancel:   shutdownCancel,
 		scheduler:        NewAutoScheduler(int64(cfg.MemoryLimitMB)),
 		scrapeRegistered: make(map[string]bool),
 	}
@@ -293,7 +308,9 @@ func (e *Engine) publishLog(tenantID uuid.UUID, taskID uuid.UUID, log *domain.Ta
 
 // startLogCleanup 每 24 小时自动删除 7 天前的历史日志, 防表膨胀。
 func (e *Engine) startLogCleanup(ctx context.Context) {
+	e.wg.Add(1)
 	safego.Go(func() {
+		defer e.wg.Done()
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		// 启动时先清一次(系统级清扫, 无租户上下文 → Global 版本)
@@ -308,21 +325,69 @@ func (e *Engine) startLogCleanup(ctx context.Context) {
 				}
 			case <-ctx.Done():
 				return
+			case <-e.stopCh:
+				return
 			}
 		}
 	})
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	e.startLogCleanup(ctx)
-	// Load all active tenants and register their plan quotas
-	if err := e.loadTenantQuotas(ctx); err != nil {
+	e.startMu.Lock()
+	defer e.startMu.Unlock()
+
+	e.lifecycleMu.Lock()
+	if e.stopped {
+		e.lifecycleMu.Unlock()
+		return fmt.Errorf("task engine has already been stopped")
+	}
+	if e.started {
+		e.lifecycleMu.Unlock()
+		return nil
+	}
+
+	// Count startup itself before releasing the lifecycle lock. Stop may now
+	// cancel this context and wait without racing a zero-count WaitGroup.
+	e.wg.Add(1)
+	runtimeCtx, runtimeCancel := context.WithCancel(ctx)
+	e.runtimeCancel = runtimeCancel
+	stopShutdown := func() bool { return false }
+	if e.shutdownCtx != nil {
+		stopShutdown = context.AfterFunc(e.shutdownCtx, runtimeCancel)
+	}
+	e.lifecycleMu.Unlock()
+
+	startupSucceeded := false
+	defer func() {
+		if !startupSucceeded {
+			stopShutdown()
+			runtimeCancel()
+			e.lifecycleMu.Lock()
+			e.runtimeCancel = nil
+			e.lifecycleMu.Unlock()
+		}
+		e.wg.Done()
+	}()
+
+	// Load all active tenants and register their plan quotas.
+	if err := e.loadTenantQuotas(runtimeCtx); err != nil {
 		log.Printf("[engine] 加载租户配额失败: %v", err)
 	}
 
-	if err := e.startListen(ctx); err != nil {
+	if err := e.startListen(runtimeCtx); err != nil {
 		return fmt.Errorf("start listen: %w", err)
 	}
+
+	// Startup may have been cancelled while acquiring the LISTEN connection.
+	// Do not launch any additional loops after Stop has begun.
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if e.stopped || runtimeCtx.Err() != nil {
+		return fmt.Errorf("task engine stopped during startup")
+	}
+
+	e.startLogCleanup(runtimeCtx)
+
 	// P1-45 审计修复: worker 数原来硬编码 3, cfg.TaskWorkerCount 配置形同虚设——用配置值
 	workers := e.cfg.TaskWorkerCount
 	if workers < 1 {
@@ -330,16 +395,18 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	for i := 0; i < workers; i++ {
 		e.wg.Add(1)
-		safego.Go(func() { e.workerLoop(ctx) })
+		safego.Go(func() { e.workerLoop(runtimeCtx) })
 	}
 	e.wg.Add(1)
-	safego.Go(func() { e.pollLoop(ctx) })
+	safego.Go(func() { e.pollLoop(runtimeCtx) })
 	if e.linkScraper != nil {
-		e.linkScraper.Start(ctx)
+		e.linkScraper.Start(runtimeCtx)
 	}
 	// 账号冷却到期自动恢复: 每分钟把 blocked_until 已过的受限账号恢复为 online
 	e.wg.Add(1)
-	safego.Go(func() { e.unblockExpiredLoop(ctx) })
+	safego.Go(func() { e.unblockExpiredLoop(runtimeCtx) })
+	e.started = true
+	startupSucceeded = true
 	return nil
 }
 
@@ -427,18 +494,24 @@ func (e *Engine) RegisterTenantQuota(tenantID [16]byte, maxConcurrent int) {
 }
 
 func (e *Engine) Stop() {
-	e.stopOnce.Do(func() { close(e.stopCh) })
+	e.lifecycleMu.Lock()
+	e.stopped = true
+	e.stopOnce.Do(func() {
+		close(e.stopCh)
+		if e.shutdownCancel != nil {
+			e.shutdownCancel()
+		}
+		if e.runtimeCancel != nil {
+			e.runtimeCancel()
+		}
+	})
+	e.lifecycleMu.Unlock()
 	if e.linkScraper != nil {
 		e.linkScraper.Stop()
 	}
 	if e.scheduler != nil {
 		e.scheduler.Stop()
 	}
-	e.listenMu.Lock()
-	if e.listenConn != nil {
-		e.listenConn.Release()
-	}
-	e.listenMu.Unlock()
 	// Clean up all scrape handler entries to prevent memory leaks
 	scrapeHandlerRegistry.Range(func(key, value interface{}) bool {
 		if entry, ok := value.(*scrapeHandlerEntry); ok {
@@ -448,6 +521,15 @@ func (e *Engine) Stop() {
 		return true
 	})
 	e.wg.Wait()
+
+	// The listener goroutine may still be inside WaitForNotification. Release
+	// its connection only after cancellation has drained that goroutine.
+	e.listenMu.Lock()
+	if e.listenConn != nil {
+		e.listenConn.Release()
+		e.listenConn = nil
+	}
+	e.listenMu.Unlock()
 }
 
 // startLogArchiver periodically deletes old task logs to prevent disk bloat.
@@ -469,7 +551,9 @@ func (e *Engine) startListen(ctx context.Context) error {
 	}
 	e.listenConn = conn
 
+	e.wg.Add(1)
 	safego.Go(func() {
+		defer e.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("startListen panic: %v\n%s\n", r, debug.Stack())
@@ -479,6 +563,8 @@ func (e *Engine) startListen(ctx context.Context) error {
 		for {
 			select {
 			case <-e.stopCh:
+				return
+			case <-ctx.Done():
 				return
 			default:
 			}
@@ -515,6 +601,8 @@ func (e *Engine) startListen(ctx context.Context) error {
 			for {
 				select {
 				case <-e.stopCh:
+					return
+				case <-ctx.Done():
 					return
 				case <-func() <-chan time.Time {
 					timer := time.NewTimer(30 * time.Second)
@@ -773,8 +861,13 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 
 		// Create a cancellable context for this specific task
 		taskCtx, cancel := context.WithCancel(ctx)
+		stopShutdown := func() bool { return false }
+		if e.shutdownCtx != nil {
+			stopShutdown = context.AfterFunc(e.shutdownCtx, cancel)
+		}
 		e.taskCtxs.Store(taskKey, cancel)
 		defer func() {
+			stopShutdown()
 			cancel()
 			e.taskCtxs.Delete(taskKey)
 		}()
@@ -1083,14 +1176,35 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	}()
 
 	// Register OnMessage callback
-	// P2止血(精读发现): OnMessage 无法摘除, 任务结束后把闭包拽住的
-	// scrapedUsers 置 nil(持 countMu, handler 访问同锁, 无竞争)。
+	// Track callbacks admitted before shutdown so finalization cannot race with
+	// an in-flight database write or progress publication.
+	var callbackMu sync.Mutex
+	var callbackWG sync.WaitGroup
+	acceptingCallbacks := true
+	var handler telegram.Handler
+
 	defer func() {
+		callbackMu.Lock()
+		acceptingCallbacks = false
+		callbackMu.Unlock()
+		client.RemoveHandler(handler)
+		callbackWG.Wait()
+
 		countMu.Lock()
 		scrapedUsers = nil
 		countMu.Unlock()
 	}()
-	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+
+	handler = client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+		callbackMu.Lock()
+		if !acceptingCallbacks {
+			callbackMu.Unlock()
+			return
+		}
+		callbackWG.Add(1)
+		callbackMu.Unlock()
+		defer callbackWG.Done()
+
 		select {
 		case <-ctx.Done():
 			return
