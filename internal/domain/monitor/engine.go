@@ -301,7 +301,7 @@ func (e *Engine) StopAll() {
 	}
 	e.mu.Unlock()
 
-	timer := time.NewTimer(45 * time.Second)
+	timer := time.NewTimer(135 * time.Second)
 	defer timer.Stop()
 	for i, done := range doneChannels {
 		select {
