@@ -88,14 +88,14 @@
             <p class="mt-1.5 text-xs text-text-secondary">没有卡密？请联系管理员获取</p>
           </div>
 
-          <t-button
+          <UiButton
             type="submit"
             :disabled="loading"
             class="ui-t-button ui-t-button--primary w-full disabled:opacity-50"
             :class="[regFailed ? '!bg-rose !border-rose shake-x' : '']"
           >
             {{ loading ? '注册中...' : '注册' }}
-          </t-button>
+          </UiButton>
         </form>
 
         <div v-if="error" class="mt-4 p-3.5 bg-rose/5 border border-rose/10 rounded-[var(--t-r-md)] text-rose text-sm text-center">
@@ -122,6 +122,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Send, Eye, EyeOff } from 'lucide-vue-next'
