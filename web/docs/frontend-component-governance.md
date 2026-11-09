@@ -150,6 +150,14 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Follow-up verification found that the sessions page initialized `loading` to `false`, while the first `refresh()` runs from the mount lifecycle. The page could therefore render EmptyState for one frame before the request started.
 - Changed the initial value to `true`; `refresh()` still owns the request lifecycle and resets it in `finally`. This closes the first-render gap rather than only fixing the post-request state branch.
 
+### Batch C1 — admin table pagination behavior
+
+- Audited the admin audit-log, activation-code, and tenant tables plus the workspace task table.
+- Found a real defect in `admin/codes/List.vue`: the desktop TDesign table pagination callback only changed the local page number and never requested the corresponding server page. The mobile pagination buttons did call `fetchCodes()`, so desktop and mobile behavior diverged.
+- Added a single `onPageChange` handler that updates the page and fetches the new server page; it ignores no-op page changes. The existing status-filter watcher still resets to page 1 and fetches, while the mobile previous/next controls remain unchanged.
+- Audit-log pagination already fetches on desktop and mobile. Tenant pagination already uses a shared page-change handler and resets pagination when search/status filters change. Workspace task pagination is driven by the page watcher and URL state.
+- This batch intentionally does not replace TDesign tables or native semantic summary tables with wrappers. Source-level inventory is not enough to justify changing table semantics, responsive layouts, or data-loading contracts.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
