@@ -223,13 +223,16 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 		var tenantID uuid.UUID
 		var maxConcurrent int
 		if err := rows.Scan(&tenantID, &maxConcurrent); err != nil {
-			continue
+			return fmt.Errorf("scan tenant quota: %w", err)
 		}
 		if maxConcurrent <= 0 {
 			maxConcurrent = 1
 		}
 		e.scheduler.RegisterTenant(tenantID, maxConcurrent)
 		count++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate tenant quotas: %w", err)
 	}
 	log.Printf("[engine] 已加载 %d 个租户配额到调度器", count)
 	return nil
@@ -376,6 +379,11 @@ func (e *Engine) unblockExpiredLoop(ctx context.Context) {
 					continue
 				}
 				recovered = append(recovered, ra)
+			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				log.Printf("[engine] 遍历恢复账号结果失败: %v", err)
+				continue
 			}
 			rows.Close()
 			for _, ra := range recovered {
