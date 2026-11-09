@@ -270,3 +270,16 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Reviewed the task-log deduplication key used when the API does not provide `log_id`.
 - Replaced delimiter-joined fields with JSON-encoded field tuples and included `target_name`, preventing log message text containing the delimiter from creating accidental key collisions.
 - Logs without a stable server ID can still be indistinguishable if every fallback field is identical. The durable fix for that case is a unique backend log identifier; this frontend fallback does not pretend to manufacture one.
+
+
+### Batch E11 — task detail end-to-end reliability
+
+- Removed the detail page's second subscription to the tenant-wide `useTaskEvents` stream. The page already owns a task-scoped SSE endpoint that forwards this task's logs, status, wait countdown, and progress; processing both streams duplicated work and allowed the global callback to append logs without the task stream's lifecycle/cap behavior. The task-scoped stream is now the single source for detail-page realtime events.
+- Bound every EventSource callback and the watchdog to the exact EventSource instance. A late `error` callback from an old connection can no longer close a newer connection after reconnect; watchdog expiry also only closes the connection it was created for.
+- Added task-scoped `task_wait` handling to the dedicated stream and clear the countdown when it reaches zero or the task leaves running state.
+- Progress display is clamped to 0–100%, and equal-timestamp logs receive a deterministic `log_id` tie-breaker.
+- Reordered page bootstrap so task/log loading is followed immediately by the task-scoped stream, visibility recovery, and disconnect polling. Account/group name dictionaries load independently and cannot delay live updates. Initial task-fetch failure no longer prevents the stream and retry path from starting.
+- Action and failed-target retry completions now suppress stale toasts/state updates after navigation; disconnected polling is silent to avoid repeated error-toast storms.
+- Replaced task-detail history paging's mutable OFFSET continuation with a keyset cursor (`before_log_id`, ordered by `executed_at, log_id`). New live inserts no longer shift the next historical page and cause skipped/duplicated rows. Existing page-number requests remain backward compatible for callers that do not supply a cursor.
+- Clear-display now resets the local cursor chain and invalidates outstanding page requests; it still never deletes server-side logs.
+- Remaining verification: CI must compile/test the backend cursor query and frontend changes; manually verify reconnect, wait countdown, and historical paging while a task is actively generating logs in desktop and mobile browsers.
