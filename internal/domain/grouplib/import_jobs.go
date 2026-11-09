@@ -476,9 +476,9 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				deferCtx, deferCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 				_, deferErr := e.pool.Exec(deferCtx, `
 					UPDATE group_library_import_jobs
-					SET lease_expires_at=NOW()+$3::interval, updated_at=NOW()
+					SET lease_expires_at=NOW()+($3 * INTERVAL '1 second'), updated_at=NOW()
 					WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2`,
-					jobID, leaseToken, rateLimitErr.RetryAfter.String())
+					jobID, leaseToken, rateLimitErr.RetryAfter.Seconds())
 				deferCancel()
 				if deferErr != nil {
 					log.Printf("[grouplib] 延迟限流任务租约失败 job=%s: %v", jobID, deferErr)
