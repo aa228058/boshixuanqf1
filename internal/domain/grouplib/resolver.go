@@ -26,14 +26,20 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
 	}
+	defer rows.Close()
 	var pending []row
 	for rows.Next() {
 		var item row
-		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err == nil {
-			pending = append(pending, item)
+		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err != nil {
+			log.Printf("[grouplib] 读取待解析群记录失败: %v", err)
+			return
 		}
+		pending = append(pending, item)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		log.Printf("[grouplib] 遍历待解析群记录失败: %v", err)
+		return
+	}
 	if len(pending) == 0 {
 		return
 	}
@@ -42,7 +48,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		isInviteLink := inviteHashFromLink(p.link) != ""
 		// Defensive cleanup for bot links inserted by older import/aggregation paths.
 		if !isInviteLink && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
-			_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
+			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+				log.Printf("[grouplib] 标记无效机器人链接失败 %s: %v", p.link, err)
+			}
 			continue
 		}
 
@@ -73,11 +81,15 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			errText := strings.ToLower(resolveErr.Error())
 			if (isInviteLink && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) ||
 				(strings.Contains(errText, "返回 404") || strings.Contains(errText, "返回 410")) {
-				_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
+				if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+					log.Printf("[grouplib] 标记无效链接失败 %s: %v", p.link, err)
+				}
 			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
-			_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
+			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+				log.Printf("[grouplib] 标记用户链接无效失败 %s: %v", p.link, err)
+			}
 		} else if title != "" || count > 0 {
 			if pageType == "" || pageType == "unknown" {
 				pageType = p.gtype
@@ -85,7 +97,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, pageType, 0); err != nil {
 				log.Printf("[grouplib] 回写群组资料失败 %s: %v", p.sgID, err)
 			} else {
-				_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "valid")
+				if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "valid"); err != nil {
+					log.Printf("[grouplib] 标记有效链接失败 %s: %v", p.link, err)
+				}
 			}
 		}
 	}
