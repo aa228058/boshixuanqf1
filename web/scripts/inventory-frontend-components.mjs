@@ -81,6 +81,20 @@ const formControlUsage = formControlPatterns.map(([label, pattern]) => ({
     .sort((a, b) => b.count - a.count),
 }))
 
+const confirmationPatterns = [
+  ['Native window.confirm()', /window\\.confirm\\s*\\(/g],
+  ['Native window.alert()', /window\\.alert\\s*\\(/g],
+  ['Shared ask() calls', /\\bask\\s*\\(/g],
+]
+const confirmationUsage = confirmationPatterns.map(([label, pattern]) => ({
+  label,
+  total: [...contents.values()].reduce((sum, source) => sum + [...source.matchAll(pattern)].length, 0),
+  files: [...contents.entries()]
+    .map(([file, source]) => ({ path: relative(root, file), count: [...source.matchAll(pattern)].length }))
+    .filter(entry => entry.count > 0)
+    .sort((a, b) => b.count - a.count),
+}))
+
 const stateAndOverlayPatterns = [
   ['TDesign <t-dialog>', /<t-dialog\b/gi],
   ['TDesign <t-empty>', /<t-empty\b/gi],
@@ -139,6 +153,12 @@ for (const usage of formControlUsage) {
   for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
 }
 console.log('')
+console.log('')
+console.log('Confirmation entrypoint usage (source-level matches)')
+for (const usage of confirmationUsage) {
+  console.log(`- ${usage.label}: ${usage.total} matches across ${usage.files.length} files`)
+  for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
+}
 console.log('')
 console.log('Modal, empty, and loading-state usage (source-level matches)')
 for (const usage of stateAndOverlayUsage) {
