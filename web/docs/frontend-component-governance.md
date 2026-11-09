@@ -20,7 +20,7 @@ These facts show multiple layers, but do not by themselves prove that any partic
 | Concern | Canonical owner | Migration rule |
 |---|---|---|
 | Design tokens | `styles/tokens.css` | New component styling must use tokens; do not add parallel palettes. |
-| Shared button/input primitives | TDesign components plus project adapters in `ui-kit.css` | Prefer existing primitives and variants; no page-local global button systems. |
+| Shared button/input primitives | TDesign components plus semantic classes in `ui-kit.css` | Prefer existing primitives and variants; add a Vue wrapper only for repeated project-specific behavior. |
 | Modal/dialog shell | `components/ui/Modal.vue` | All project-owned modal surfaces should use the wrapper unless a documented exception requires a native TDesign dialog. |
 | Confirm interaction | `utils/confirm.ts` + `components/ui/ConfirmHost.vue` | Prefer the centralized promise-based confirmation flow; keep `ConfirmDialog.vue` only for verified declarative use cases during migration. |
 | Toast | `vue-sonner` | Do not introduce another toast/event-bus implementation. |
