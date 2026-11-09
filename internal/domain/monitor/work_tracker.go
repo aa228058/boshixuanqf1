@@ -10,9 +10,9 @@ import (
 // monitorWorkTracker closes task admission before waiting, preventing
 // WaitGroup.Add from racing with Wait during session shutdown.
 type monitorWorkTracker struct {
-	mu sync.Mutex
+	mu        sync.Mutex
 	accepting bool
-	wg sync.WaitGroup
+	wg        sync.WaitGroup
 }
 
 func newMonitorWorkTracker() *monitorWorkTracker {
