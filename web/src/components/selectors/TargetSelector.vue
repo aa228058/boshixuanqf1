@@ -269,6 +269,10 @@ function onManualImportFile(e: Event) {
 const dialogs = ref<DialogItem[]>([])
 const loading = ref(false)
 const syncAllLoading = ref(false)
+// 每次打开/切换账号/手动刷新都会递增，旧账号的慢响应不得覆盖当前选择器。
+let selectorRequestId = 0
+const isCurrentSelectorRequest = (requestId: number, accountId: string) =>
+  requestId === selectorRequestId && visible.value && props.accountId === accountId
 
 // 批量同步: 后台逐个同步全部在线账号的群组(后端串行3秒间隔), 30秒防重复点击
 async function syncAllAccounts() {
@@ -390,12 +394,16 @@ function removeTarget(t: string) {
   selectedTargets.value.delete(t)
 }
 
-async function fetchDialogs() {
-  if (!props.accountId) return
+async function fetchDialogs(requestId = ++selectorRequestId, accountId = props.accountId || '') {
+  if (!accountId) {
+    dialogs.value = []
+    return
+  }
   loading.value = true
   try {
     // 读 contacts 表缓存(同步群组时写入), 秒开; 不再实时拉 TG(慢且每次重复)
-    const res: any = await contactApi.list(props.accountId)
+    const res: any = await contactApi.list(accountId)
+    if (!isCurrentSelectorRequest(requestId, accountId)) return
     const data = res.data || res || []
     dialogs.value = data.map((d: any) => ({
       id: String(d.tg_user_id),
@@ -404,9 +412,9 @@ async function fetchDialogs() {
       typeLabel: '私聊',
     })).filter((d: DialogItem) => d.id && d.id !== 'undefined' && d.id !== 'null')
   } catch {
-    dialogs.value = []
+    if (isCurrentSelectorRequest(requestId, accountId)) dialogs.value = []
   } finally {
-    loading.value = false
+    if (isCurrentSelectorRequest(requestId, accountId)) loading.value = false
   }
 }
 
@@ -544,20 +552,26 @@ const lastSyncText = computed(() => {
 
 // 打开时缓存优先: 库里有数据先展示(秒开), 后台静默同步; 无缓存才走全量同步
 async function openSelector() {
-  if (!props.accountId) { syncHint.value = '错误: 缺少 accountId'; return }
+  const accountId = props.accountId || ''
+  if (!accountId) { syncHint.value = '错误: 缺少 accountId'; dialogs.value = []; return }
+  const requestId = ++selectorRequestId
   try {
-    const cached: any = await groupApi.list(props.accountId)
+    const cached: any = await groupApi.list(accountId)
+    if (!isCurrentSelectorRequest(requestId, accountId)) return
     const cl = cached.list || cached.data || (Array.isArray(cached) ? cached : [])
     // P1-10: 调试文案仅开发环境可见——生产用户看到"缓存检查: 库里 N 个群"
     // 这类内部话术会困惑
     if (import.meta.env.DEV) syncHint.value = `缓存检查: 库里 ${cl.length} 个群`
     if (cl.length) {
       fromCache.value = true
-      await groupStore.refresh(props.accountId!); syncStatus.value = 'done'
+      await groupStore.refresh(accountId)
+      if (!isCurrentSelectorRequest(requestId, accountId)) return
+      syncStatus.value = 'done'
       emit('refresh')
       // 私聊联系人从数据库缓存填充(同步时才入库), 不点"同步"不调接口
       try {
-        const cr: any = await contactApi.list(props.accountId)
+        const cr: any = await contactApi.list(accountId)
+        if (!isCurrentSelectorRequest(requestId, accountId)) return
         // P0-21: parseResponse 归一后列表接口统一 {list,total}, 但纯数组直返时
         // cr.list 是 undefined——私聊列表曾因此恒空。数组兜底。
         const rows = Array.isArray(cr) ? cr : (cr.list || cr.data || [])
@@ -567,22 +581,36 @@ async function openSelector() {
           type: 'user',
         }))
         syncHint.value += `, 私聊缓存 ${rows.length} 人`
-      } catch { /* 私聊无缓存保持空, 切 tab 时才同步 */ }
+      } catch { /* 私聊无缓存保持空, 切 tab 时才调接口 */ }
       return
     }
     syncHint.value += ' → 无缓存, 全量同步'
   } catch (e: any) {
-    syncHint.value = '缓存查询失败: ' + (e?.message || e)
+    if (isCurrentSelectorRequest(requestId, accountId)) {
+      syncHint.value = '缓存查询失败: ' + (e?.message || e)
+    }
   }
-  fetchDialogs()
+  if (isCurrentSelectorRequest(requestId, accountId)) {
+    await fetchDialogs(requestId, accountId)
+  }
 }
 
 watch(() => props.modelValue, v => {
   if (v) {
+    selectorRequestId++
     selectedTargets.value.clear()
     manualInput.value = ''
     activeTab.value = 'user'
     openSelector()
+  } else {
+    selectorRequestId++
   }
+})
+watch(() => props.accountId, (accountId, previousAccountId) => {
+  if (!visible.value || accountId === previousAccountId) return
+  // 账号上下文变化时，旧联系人结果失效；目标勾选保留，避免误删用户已选目标。
+  selectorRequestId++
+  dialogs.value = []
+  openSelector()
 })
 </script>
