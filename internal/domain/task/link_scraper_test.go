@@ -101,11 +101,11 @@ func TestLinkScraperDrainsQueuedLinksWithoutNetworkResolution(t *testing.T) {
 	tenantID := uuid.New()
 	accountID := uuid.New()
 	ls.linkQueue <- &rawLink{
-		TenantID: tenantID,
-		AccountID: accountID,
-		LinkType: "public",
-		LinkHash: "sample-public-group",
-		FullURL: "https://t.me/sample-public-group",
+		TenantID:        tenantID,
+		AccountID:       accountID,
+		LinkType:        "public",
+		LinkHash:        "sample-public-group",
+		FullURL:         "https://t.me/sample-public-group",
 	}
 
 	ls.drainQueuedLinks()
