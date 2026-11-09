@@ -111,7 +111,6 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-
       - name: Check formatting
         run: |
           UNFORMATTED=$(gofmt -l internal/ cmd/)
