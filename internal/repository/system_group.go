@@ -74,7 +74,7 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			if err != nil {
 				return err
 			}
-			_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source) SELECT $1,tenant_id,name,$2,$3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", sgID, sg.TmeLink, sg.Source, sg.ContributorTenantID)
+			_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source) SELECT $1,tenant_id,name,$2,$3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", sgID, link, sg.Source, sg.ContributorTenantID)
 			if err != nil {
 				return err
 			}
