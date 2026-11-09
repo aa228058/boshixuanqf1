@@ -191,12 +191,12 @@ func (ls *LinkScraper) GetStats() map[string]any {
 	})
 
 	return map[string]any{
-		"handlers_active":           handlerCount,
-		"queue_length":              queueLen,
-		"dedup_cache":               dedupSize,
-		"pending_links":              pendingLinks,
-		"queue_dropped_total":        queueDropped,
-		"persistence_failures_total": persistenceFailures,
+		"handlers_active":            handlerCount,
+		"queue_length":               queueLen,
+		"dedup_cache":                dedupSize,
+		"pending_links":               pendingLinks,
+		"queue_dropped_total":         queueDropped,
+		"persistence_failures_total":  persistenceFailures,
 	}
 }
 
@@ -289,12 +289,12 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 
 			select {
 			case ls.linkQueue <- &rawLink{
-				TenantID:        tenantID,
-				AccountID:       accountID,
-				LinkType:        linkType,
-				LinkHash:        linkHash,
-				FullURL:         fullLink,
-				SourceChatID:    msg.ChatID,
+				TenantID:     tenantID,
+				AccountID:    accountID,
+				LinkType:     linkType,
+				LinkHash:     linkHash,
+				FullURL:      fullLink,
+				SourceChatID: msg.ChatID,
 				SourceChatTitle: func() string {
 					if msg.Chat != nil {
 						return msg.Chat.Title
