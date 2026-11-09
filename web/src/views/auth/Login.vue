@@ -53,16 +53,16 @@
 
         <form @submit.prevent="handleLogin" class="mt-6 grid gap-4">
           <div class="grid gap-1.5">
-            <label class="text-[12px] font-bold" style="color: var(--t-text-3);">用户名</label>
+            <label for="login-username" class="text-[12px] font-bold" style="color: var(--t-text-3);">用户名</label>
             <!-- R140: 与密码框统一纯 CSS focus(品牌紫描边+柔光), 删除 JS 内联焦点方案 -->
-            <input v-model="form.username" autocomplete="username" required
+            <input id="login-username" v-model="form.username" autocomplete="username" required
                    class="ui-input !min-h-[48px] !rounded-xl !px-4 !py-3 !text-base"
                    placeholder="请输入用户名" />
           </div>
           <div class="grid gap-1.5">
-            <label class="text-[12px] font-bold" style="color: var(--t-text-3);">密码</label>
+            <label for="login-password" class="text-[12px] font-bold" style="color: var(--t-text-3);">密码</label>
             <div class="relative">
-              <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
+              <input id="login-password" v-model="form.password" :type="showPassword ? 'text' : 'password'"
                      autocomplete="current-password" required
                      class="ui-input !min-h-[48px] !rounded-xl !px-4 !py-3 !pr-11 !text-base"
                      placeholder="请输入密码" @keyup.enter="handleLogin" />
