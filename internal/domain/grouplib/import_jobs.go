@@ -310,6 +310,7 @@ const importJobHeartbeatInterval = 30 * time.Second
 func (e *Engine) processImportJobs(ctx context.Context) {
 	// A worker may die after a cancellation request. Finalize abandoned cancelling leases after expiry.
 	_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE status='cancelling' AND (lease_expires_at IS NULL OR lease_expires_at < NOW())`)
+	claimedJobIDs := make([]uuid.UUID, 0, 10)
 	for jobBatch := 0; jobBatch < 10; jobBatch++ {
 		var jobID, tenantID, accountID, leaseToken uuid.UUID
 		var payload string
@@ -321,19 +322,21 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			    started_at=COALESCE(started_at, NOW()), updated_at=NOW()
 			WHERE job_id = (
 				SELECT job_id FROM group_library_import_jobs
-				WHERE status='pending'
+				WHERE (status='pending'
 				   OR (status='processing' AND
-				       (lease_expires_at IS NULL OR lease_expires_at < NOW()))
+				       (lease_expires_at IS NULL OR lease_expires_at < NOW())))
+				  AND NOT (job_id = ANY($2::uuid[]))
 				ORDER BY created_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED
 			)
-			RETURNING job_id, tenant_id, COALESCE(account_id, '00000000-0000-0000-0000-000000000000'::uuid), payload, processed_count, total_count, lease_token`).Scan(
+			RETURNING job_id, tenant_id, COALESCE(account_id, '00000000-0000-0000-0000-000000000000'::uuid), payload, processed_count, total_count, lease_token`, claimedJobIDs).Scan(
 			&jobID, &tenantID, &accountID, &payload, &offset, &total, &leaseToken)
 		if err != nil {
 			return
 		}
 
+		claimedJobIDs = append(claimedJobIDs, jobID)
 		leaseCtx, stopLease := context.WithCancel(ctx)
 		leaseLost := make(chan struct{})
 		heartbeatDone := make(chan struct{})
@@ -412,7 +415,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				return true
 			}
 		}
-		for chunk := 0; chunk < 10 && offset < len(lines); chunk++ {
+		for chunk := 0; chunk < 1 && offset < len(lines); chunk++ {
 			if leaseCtx.Err() != nil {
 				break
 			}
@@ -592,7 +595,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			_, _ = e.pool.Exec(persistCtx, `UPDATE group_library_import_jobs SET status='cancelled', finished_at=NOW(), lease_token=NULL, lease_expires_at=NULL, updated_at=NOW() WHERE job_id=$1 AND status='cancelling' AND lease_token=$2`, jobID, leaseToken)
 			persistCancel()
 		}
-		// 每次调度最多处理 300 条；未完成任务立即释放回 pending，不必等待租约过期。
+		// 每个任务每轮只处理一个分片，未完成任务立即释放回 pending。
 		if leaseValid() && leaseCtx.Err() == nil {
 			_, _ = e.pool.Exec(leaseCtx, `
 				UPDATE group_library_import_jobs
@@ -603,10 +606,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		stopLease()
 		<-heartbeatDone
 		<-cancelWatchDone
-		// Yield after one 300-link slice; the next scheduler tick resumes this job.
-		if offset < len(lines) {
-			return
-		}
+		// The next claimed job gets a turn in this scheduler pass; this job resumes later.
 	}
 }
 
