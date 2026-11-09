@@ -304,6 +304,7 @@ func (c *Container) initEngines() error {
 
 	c.MonitorEngine = monitor.NewEngine(c.Cfg, c.AccountEngine, c.MonitorRuleRepo, c.SSEBroker)
 	dmActionRepo := repository.NewDMActionRepository(c.DB.Pool)
+	callCooldownRepo := repository.NewCallCooldownRepository(c.DB.Pool)
 	resolveStaleDMClaims := func() {
 		staleActionCtx, cancelStaleActionRecovery := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelStaleActionRecovery()
@@ -314,9 +315,20 @@ func (c *Container) initEngines() error {
 			log.Printf("[monitor] recovered %d stale DM action claims as outcome_unknown", resolved)
 		}
 	}
-	// Recover once at startup, then sweep periodically so stale rows do not remain
-	// in_progress forever even when Telegram never redelivers the triggering update.
+	pruneExpiredCallCooldowns := func() {
+		pruneCtx, cancelPrune := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelPrune()
+		pruned, err := callCooldownRepo.PruneExpired(pruneCtx)
+		if err != nil {
+			log.Printf("[monitor] expired call cooldown pruning failed: %v", err)
+		} else if pruned > 0 {
+			log.Printf("[monitor] pruned %d expired call cooldown rows", pruned)
+		}
+	}
+	// Recover stale action claims and prune expired cooldowns at startup and every
+	// minute. DM idempotency tombstones stay; expired cooldowns are safe to delete.
 	resolveStaleDMClaims()
+	pruneExpiredCallCooldowns()
 	safego.Go(func() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
@@ -324,13 +336,14 @@ func (c *Container) initEngines() error {
 			select {
 			case <-ticker.C:
 				resolveStaleDMClaims()
+				pruneExpiredCallCooldowns()
 			case <-c.stopCh:
 				return
 			}
 		}
 	})
 	c.MonitorEngine.SetDMActionStore(dmActionRepo)
-	c.MonitorEngine.SetCallCooldownStore(repository.NewCallCooldownRepository(c.DB.Pool))
+	c.MonitorEngine.SetCallCooldownStore(callCooldownRepo)
 
 	// Auto-sync joined groups for all online accounts on startup
 	safego.Go(func() {
