@@ -60,9 +60,9 @@ type Engine struct {
 	// R119: 任务结束邮件通知回调(由 container 注入, nil=不通知)
 	finishNotify func(tenantID uuid.UUID, taskName string, taskType string, status string, done, failed int)
 
-	workerID string
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	workerID       string
+	stopCh         chan struct{}
+	stopOnce       sync.Once
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	// GlobalLimitFn 返回当前全局并发上限(由 adaptive 内存调度注入, 按服务器内存动态调整).
