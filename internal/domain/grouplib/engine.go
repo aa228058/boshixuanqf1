@@ -165,14 +165,12 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	e.mu.Lock()
 	cursor := e.slW
 	e.mu.Unlock()
-	// V27 审计修复: 原水位是裸 created_at 严格大于——并发写入同毫秒的行在
-	// 水位推进后会被永久漏掉。聚合是逐行 Upsert(幂等), 故采用 at-least-once
-	// 语义: 查询窗口回退 1 秒, 每轮最多重复归并最近 1 秒的行, 换取零漏单。
+	// 复合游标以 link_id 作为同时间戳的唯一排序键，避免 LIMIT 截断后重复首批。
 	rows, err := e.pool.Query(ctx, `
 		SELECT link_id, tenant_id, full_url, link_type, COALESCE(NULLIF(resolved_title,''), NULLIF(source_chat_title,''), ''),
 		       member_count, status, created_at, COALESCE(resolved_chat_id,0)
 		FROM scraped_links WHERE (created_at, link_id) > ($1, $2)
-		ORDER BY created_at ASC, link_id ASC LIMIT 5000`, cursor.at, cursor.id))
+		ORDER BY created_at ASC, link_id ASC LIMIT 5000`, cursor.at, cursor.id)
 	if err != nil {
 		return err
 	}
@@ -229,17 +227,13 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	e.mu.Lock()
 	cursor := e.gW
 	e.mu.Unlock()
-	// V26 审计修复: 原水位只看 created_at——群改标题/人数或重新入群时 created_at
-	// 不变, 永不重新聚合, 群库永远是最初值。现用 updated_at(065 迁移 + trigger
-	// 自动维护), 查询条件与水位推进都取 GREATEST(created_at, updated_at)。
-	// V27 同款修复: 窗口回退 1 秒做 at-least-once 聚合(逐群 Upsert 幂等),
-	// 消除同毫秒并发写入被水位漏掉的可能。
+	// updated_at(065 迁移 + trigger) 负责捕获群资料更新，group_id 负责稳定分页。
 	rows, err := e.pool.Query(ctx, `
 		SELECT group_id, title, username, type, member_count, created_at, updated_at
 		FROM groups
 		WHERE is_joined = TRUE AND username IS NOT NULL AND username <> ''
 		  AND (GREATEST(created_at, updated_at), group_id) > ($1, $2)
-		ORDER BY GREATEST(created_at, updated_at) ASC, group_id ASC LIMIT 5000`, cursor.at, cursor.id))
+		ORDER BY GREATEST(created_at, updated_at) ASC, group_id ASC LIMIT 5000`, cursor.at, cursor.id)
 	if err != nil {
 		return err
 	}
