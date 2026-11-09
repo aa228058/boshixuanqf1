@@ -255,3 +255,11 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Response normalization now handles nested { data: { list } } in addition to array, { list }, and { data } forms.
 - Clearing the displayed log list invalidates in-flight page requests; this remains a local display action and does not delete persisted audit/send logs.
 - Manual verification is still required for overlapping page loads, SSE arrival during refresh, and reaching the oldest page.
+
+
+### Batch E9 — task detail completion and member-request lifecycle
+
+- The 100%-progress convergence fallback now owns a single tracked timeout. New progress/status changes replace or cancel the previous timeout, and leaving the page clears it; the callback also checks that the page is still active before fetching task state.
+- Member-list requests now use a generation counter and page-lifecycle guard. A late response from an older refresh or an unmounted detail page cannot replace the visible member list, error, or loading state.
+- Account and group name-map requests check the page lifecycle immediately after their awaited API calls, preventing post-unmount state writes during the sequential detail-page bootstrap.
+- This batch is frontend lifecycle hardening only; it does not change task execution, log persistence, or backend APIs.
