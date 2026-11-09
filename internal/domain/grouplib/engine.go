@@ -122,7 +122,9 @@ func (e *Engine) runOnce() {
 		errs = append(errs, err)
 	}
 	// 批量导入的私密链接在此低速补群名(每轮最多 resolveBatchSize 条)
-	e.resolvePendingTitles(ctx)
+	if err := e.resolvePendingTitles(ctx); err != nil {
+		errs = append(errs, err)
+	}
 	for _, err := range errs {
 		log.Printf("[grouplib] 聚合失败: %v", err)
 	}
