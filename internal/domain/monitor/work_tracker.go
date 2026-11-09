@@ -45,7 +45,11 @@ func monitorGo(ctx context.Context, fn func()) {
 		return
 	}
 	t, _ := ctx.Value(monitorWorkTrackerKey{}).(*monitorWorkTracker)
-	if t == nil || !t.enter() {
+	if t == nil {
+		safego.Go(fn)
+		return
+	}
+	if !t.enter() {
 		return
 	}
 	safego.Go(func() {
