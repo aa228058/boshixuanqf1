@@ -541,17 +541,26 @@ async function connectSSE() {
 
     // Short-lived ticket replaces the JWT in the EventSource URL.
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const ticketResponse = await fetch(`${apiBase}/events/ticket`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!pageActive) return
-    if (!ticketResponse.ok) {
-      connState.value = 'disconnected'
-      scheduleSSEReconnect()
-      return
+    const ticketController = new AbortController()
+    const ticketTimeout = setTimeout(() => ticketController.abort(), 15000)
+    let ticketResponse: Response
+    let ticket = ''
+    try {
+      ticketResponse = await fetch(`${apiBase}/events/ticket`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: ticketController.signal,
+      })
+      if (!pageActive) return
+      if (!ticketResponse.ok) {
+        connState.value = 'disconnected'
+        scheduleSSEReconnect()
+        return
+      }
+      ticket = (await ticketResponse.json()).ticket || ''
+    } finally {
+      clearTimeout(ticketTimeout)
     }
-    const ticket = (await ticketResponse.json()).ticket || ''
     if (!pageActive) return
     if (!ticket) {
       connState.value = 'disconnected'
