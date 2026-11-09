@@ -250,7 +250,6 @@ func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress 
 		}
 	}
 	e.progressCache.Store(taskID, progress)
-	e.progressMu.Unlock()
 	if e.sseBroker != nil {
 		e.sseBroker.BroadcastToTenant(tenantID, "events", map[string]any{
 			"task_id":  taskID,
@@ -258,6 +257,7 @@ func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress 
 			"time":     time.Now().UTC(),
 		})
 	}
+	e.progressMu.Unlock()
 }
 
 // GetProgress 返回任务最新进度（内存缓存）。第二返回值 false = 无缓存
