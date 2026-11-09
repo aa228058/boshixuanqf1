@@ -626,15 +626,19 @@ const showTargetSelector = ref(false)
 const groups = computed<any[]>(() => {
   const byId = new Map<string, any>()
   for (const accId of execAccounts.value) {
-    for (const g of (groupStore.get(accId) || []) as any[]) {
-      const key = String(g.group_id || g.tg_chat_id || g.username || Math.random())
+    const accountGroups = (groupStore.get(accId) || []) as any[]
+    accountGroups.forEach((g: any, index: number) => {
+      // 无 Telegram ID/username 的异常记录也必须有稳定 key；Math.random 会导致每次
+      // computed 重算都改变 key，让选择器整批卸载重建并丢失焦点/滚动位置。
+      const fallback = [accId, g.title || g.name || 'group', index].join(':')
+      const key = String(g.group_id || g.tg_chat_id || g.username || fallback)
       if (byId.has(key)) {
         const ex = byId.get(key)
         if (!ex._joinedAccounts.includes(accId)) ex._joinedAccounts.push(accId)
       } else {
         byId.set(key, { ...g, _joinedAccounts: [accId] })
       }
-    }
+    })
   }
   return [...byId.values()]
 })
