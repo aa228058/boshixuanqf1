@@ -68,6 +68,7 @@ func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domai
 }
 
 func upsertSystemGroupTx(ctx context.Context, tx pgx.Tx, sg *domain.SystemGroup) error {
+	var err error
 	var sgID uuid.UUID
 	if sg.TelegramChatID != 0 {
 		lookupErr := tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
