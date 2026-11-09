@@ -338,7 +338,7 @@ func (e *Engine) tapRaffle(ctx context.Context, cl *telegram.Client, tenantID, a
 	raffleG.lastJoin[ak] = now
 	raffleG.mu.Unlock()
 
-	safego.Go(func() {
+	monitorGo(ctx, func() {
 		rctx, cancel := context.WithTimeout(ctx, 40*time.Second)
 		defer cancel()
 		// 持久化防重已移除(2026-10-21): 旧"chat+keyword 永久跳过"会把同关键词新活动挡死,
@@ -355,7 +355,7 @@ func (e *Engine) tapRaffle(ctx context.Context, cl *telegram.Client, tenantID, a
 		// 原实现等 bot "已参与成功" 回执才触发, 回执丢失会"参与了但邮件漏发"。
 		// 活动标记已在上面打上, 回执到达时因 activityJoined 去重会跳过, 不会重复触发。
 		if e.raffleWatch != nil && e.raffleWatch.onResult != nil {
-			safego.Go(func() { e.raffleWatch.onResult(tenantID, accountID, chatID, "joined", kw, "", "") })
+			monitorGo(ctx, func() { e.raffleWatch.onResult(tenantID, accountID, chatID, "joined", kw, "", "") })
 		}
 		log.Printf("[raffle] 账号 %s 群 %d 已自动参与抽奖, 关键词: %q (创建公告=%v)", accountID, chatID, kw, isCreation)
 
@@ -367,7 +367,7 @@ func (e *Engine) tapRaffle(ctx context.Context, cl *telegram.Client, tenantID, a
 				if raw, ok := msg.Raw.(*tg.Message); ok && raw != nil && raw.FromID != nil {
 					if pu, ok := raw.FromID.(*tg.PeerUser); ok && pu.UserID != 0 {
 						messageID, botUserID := raw.ID, pu.UserID
-						safego.Go(func() {
+						monitorGo(ctx, func() {
 							// 激活任务独立于 joinRaffle 的短生命周期, 但仍绑定监控会话,
 							// 停止监听时取消, 避免后台继续触发 Telegram 私聊动作。
 							pingCtx, pingCancel := context.WithTimeout(ctx, 40*time.Second)
