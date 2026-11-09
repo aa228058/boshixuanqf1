@@ -15,7 +15,7 @@
 import { computed, type Component } from 'vue'
 import {
   Inbox, Search, Users, MessageSquare, ListTodo, Eye,
-  Send, Shield, Bell, Megaphone, CheckCircle, AlertTriangle,
+  Send, Shield, Bell, Megaphone, CheckCircle, AlertTriangle, Clock, Link,
   Key, ClipboardList, Download, ShieldCheck, FileText, BarChart3,
   Settings, Trash2, FolderPlus, Plug, Unplug, KeyRound
 } from 'lucide-vue-next'
@@ -28,7 +28,7 @@ const props = defineProps<{
 
 const iconMap: Record<string, Component> = {
   Inbox, Search, Users, MessageSquare, ListTodo, Eye,
-  Send, Shield, Bell, Megaphone, CheckCircle, AlertTriangle,
+  Send, Shield, Bell, Megaphone, CheckCircle, AlertTriangle, Clock, Link,
   Key, ClipboardList, Download, ShieldCheck, FileText, BarChart3,
   Settings, Trash2, FolderPlus, Plug, Unplug, KeyRound
 }
