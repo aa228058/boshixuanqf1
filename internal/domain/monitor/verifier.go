@@ -859,6 +859,8 @@ func extractCandidate(msg *tg.Message) *vcandidate {
 					c.buttons = append(c.buttons, vbutton{text: btn.Text, data: b.Data})
 				case *tg.InlineButtonTypeURL:
 					c.buttons = append(c.buttons, vbutton{text: btn.Text, url: b.URL})
+				case *tg.InlineButtonTypeWebView:
+					c.buttons = append(c.buttons, vbutton{text: btn.Text, url: b.URL})
 				}
 			}
 		}
