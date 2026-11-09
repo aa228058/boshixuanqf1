@@ -184,18 +184,18 @@ func (ls *LinkScraper) GetStats() map[string]any {
 	queueDropped := atomic.LoadInt64(&ls.queueDropped)
 	persistenceFailures := atomic.LoadInt64(&ls.persistenceFailures)
 
-	var handlerCount
+	var handlerCount int
 	ls.handlers.Range(func(_, _ interface{}) bool {
 		handlerCount++
 		return true
 	})
 
 	return map[string]any{
-		"handlers_active": handlerCount,
-		"queue_length":    queueLen,
-		"dedup_cache":     dedupSize,
-		"pending_links": pendingLinks,
-		"queue_dropped_total": queueDropped,
+		"handlers_active":           handlerCount,
+		"queue_length":              queueLen,
+		"dedup_cache":               dedupSize,
+		"pending_links":              pendingLinks,
+		"queue_dropped_total":        queueDropped,
 		"persistence_failures_total": persistenceFailures,
 	}
 }
