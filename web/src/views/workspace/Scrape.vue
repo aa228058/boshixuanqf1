@@ -6,12 +6,12 @@
         <!-- R119: 账号选择已挪进创建弹窗(胶囊选择), 页头不再放下拉 -->
       </div>
       <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <UiButton v-if="tasks.length" type="button" class="ui-t-button ui-t-button--danger ui-t-button--text flex items-center gap-2" @click="clearLogs" variant="text">
+        <t-button v-if="tasks.length" type="button" class="ui-t-button ui-t-button--danger ui-t-button--text flex items-center gap-2" @click="clearLogs" variant="text">
           <Trash2 class="w-4 h-4" />
           清空记录
-        </UiButton>
-        <UiButton type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="showCreate = true"> 开始采集
-        </UiButton>
+        </t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="showCreate = true"> 开始采集
+        </t-button>
       </div>
     </div>
 
@@ -84,11 +84,11 @@
         </label>
       </div>
       <div class="flex items-center justify-end gap-3 pt-2">
-        <UiButton type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</UiButton>
-        <UiButton type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
+        <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : '开始采集' }}
-        </UiButton>
+        </t-button>
       </div>
     </Modal>
 
@@ -117,8 +117,8 @@
                 <span v-else-if="task.status === 'completed'">点击展开查看结果</span>
                 <!-- R112: 导出前置 —— 完成后无需展开即可导出名单 -->
                 <template v-if="task.status === 'completed'">
-                  <UiButton @click.stop="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</UiButton>
-                  <UiButton @click.stop="exportExcel(task.task_id)" class="ui-t-button--primary ui-t-button">Excel</UiButton>
+                  <t-button @click.stop="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</t-button>
+                  <t-button @click.stop="exportExcel(task.task_id)" class="ui-t-button--primary ui-t-button">Excel</t-button>
                 </template>
                 <span v-else>{{ task.result_count || task.config?.member_count || 0 }} 成员</span>
               </div>
@@ -161,8 +161,8 @@
               </div>
             </div>
             <div class="flex justify-end gap-2 mt-3">
-              <UiButton @click="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</UiButton>
-              <UiButton @click="exportExcel(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 Excel</UiButton>
+              <t-button @click="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</t-button>
+              <t-button @click="exportExcel(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 Excel</t-button>
             </div>
           </template>
         </div>
@@ -178,7 +178,6 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue'
 // 进度对象后端可能是 JSON 字符串或对象,统一解析
 function progressOf(task: any): { total: number; done: number; failed: number } {
   const p = task?.progress
