@@ -57,6 +57,7 @@ func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][
 		seen := make(map[string]bool, len(targets))
 		unique := make([]string, 0, len(targets))
 		for _, target := range targets {
+			target = strings.TrimSpace(target)
 			if target == "" || seen[target] {
 				continue
 			}
