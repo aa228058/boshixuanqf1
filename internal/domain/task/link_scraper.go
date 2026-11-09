@@ -531,15 +531,29 @@ func (ls *LinkScraper) flushBatch(ctx context.Context) bool {
 
 // Shutdown gets a small bounded retry window because a transient PostgreSQL
 // outage during process teardown must not discard the retained in-memory batch.
-func (ls *LinkScraper) flushBatchOnShutdown(ctx context.Context) {
+func (ls *LinkScraper) flushBatchOnShutdown(_ context.Context) {
+	// The worker context is commonly already cancelled when this function is
+	// called. Use a bounded independent context so shutdown can still persist
+	// the final batch instead of retrying with an immediately-cancelled parent.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
 	const maxAttempts = 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if ls.flushBatch(ctx) {
+		if ls.flushBatch(shutdownCtx) {
 			return
 		}
 		if attempt < maxAttempts {
 			timer := time.NewTimer(time.Duration(attempt) * time.Second)
-			<-timer.C
+			select {
+			case <-timer.C:
+			case <-shutdownCtx.Done():
+				timer.Stop()
+				break
+			}
+			if shutdownCtx.Err() != nil {
+				break
+			}
 		}
 	}
 	ls.batchMu.Lock()
