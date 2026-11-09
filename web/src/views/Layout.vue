@@ -307,23 +307,23 @@
       <!-- footer 按步骤切换(footer 插槽必须在 Modal 直接子层级, 不能嵌套在条件分支内) -->
       <template #footer>
         <template v-if="addStep === 'phone'">
-          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
-          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
+          <UiButton type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</UiButton>
+          <UiButton type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
             <Loader2 v-if="adding" class="w-4 h-4 animate-spin" />
             {{ adding ? '发送中...' : resendCountdown > 0 ? `已发送(${resendCountdown}s)` : '获取验证码' }}
-          </t-button>
+          </UiButton>
         </template>
         <template v-else-if="addStep === 'code'">
-          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
-          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
+          <UiButton type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</UiButton>
+          <UiButton type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
             {{ submitting ? '提交中...' : '提交验证码' }}
-          </t-button>
+          </UiButton>
         </template>
         <template v-else>
-          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
-          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
+          <UiButton type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</UiButton>
+          <UiButton type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
             {{ submitting ? '验证中...' : '完成登录' }}
-          </t-button>
+          </UiButton>
         </template>
       </template>
     </Modal>
@@ -334,6 +334,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 // P1-06: ParticleField 的 import 已删(背景收敛为 2 层, 组件保留给 auth/Login 用)
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
