@@ -97,6 +97,10 @@ const confirmationUsage = confirmationPatterns.map(([label, pattern]) => ({
 
 const stateAndOverlayPatterns = [
   ['TDesign <t-dialog>', /<t-dialog\b/gi],
+  ['TDesign <Dialog>', /<Dialog\b/g],
+  ['Dynamic resolveComponent("Dialog")', /resolveComponent\s*\(\s*['"]Dialog['"]\s*\)/g],
+  ['Render-function h(Dialog)', /\bh\s*\(\s*Dialog\b/g],
+  ['Global Dialog registration', /\.use\(Dialog\)/g],
   ['TDesign <t-empty>', /<t-empty\b/gi],
   ['TDesign <t-loading>', /<t-loading\b/gi],
   ['Project <Modal>', /<Modal\b/g],
