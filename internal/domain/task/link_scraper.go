@@ -623,6 +623,9 @@ func (ls *LinkScraper) syncOnlineAccounts(ctx context.Context) {
 	}
 	online := make(map[string]bool)
 	for _, a := range accounts {
+		if a == nil {
+			continue
+		}
 		// 门槛放宽: 已授权(authenticated)但尚未入池的账号也尝试注册,
 		// 连通性由 GetClient 报错兜底; 只排除明确不可用的状态。
 		// 待机(离线)号也注册：GetClient 会现场建连。只排除真正不可用的。
