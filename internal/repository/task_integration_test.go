@@ -80,6 +80,31 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("create tasks table: %v", err)
 	}
+	// The task-log cursor integration test uses a deliberately minimal fixture
+	// instead of running the full migration chain. Keep the columns consumed by
+	// TaskLogRepository available in that isolated test database.
+	_, err = pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS task_logs (
+			log_id UUID PRIMARY KEY,
+			task_id UUID NOT NULL,
+			tenant_id UUID NOT NULL,
+			account_id UUID,
+			target_id TEXT,
+			target_name TEXT NOT NULL DEFAULT '',
+			action TEXT NOT NULL,
+			status TEXT NOT NULL,
+			tg_response TEXT,
+			error_code TEXT,
+			message TEXT NOT NULL DEFAULT '',
+			tg_message_id BIGINT,
+			executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`)
+	if err != nil {
+		t.Fatalf("create task_logs table: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `DELETE FROM task_logs`); err != nil {
+		t.Fatalf("truncate task_logs: %v", err)
+	}
 	if _, err := pool.Exec(context.Background(), `DELETE FROM tasks`); err != nil {
 		t.Fatalf("truncate tasks: %v", err)
 	}
