@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -66,5 +67,63 @@ func TestDMActionClaimIsDurableAndAtomic(t *testing.T) {
 	}
 	if status != "outcome_unknown" || lastError != "telegram response timed out" {
 		t.Fatalf("persisted state = %q / %q", status, lastError)
+	}
+
+	// A process crash leaves a durable in_progress claim. Startup recovery marks
+	// it outcome_unknown rather than risking a duplicate external side effect.
+	if claimed, err := repo.Claim(ctx, tenantID, accountID, ruleID, 22345, -10001, 78, "contact"); err != nil || !claimed {
+		t.Fatalf("create stale claim = (%t, %v), want (true, nil)", claimed, err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE monitor_dm_actions SET updated_at=NOW()-INTERVAL '6 minutes'
+		WHERE tenant_id=$1 AND account_id=$2 AND rule_id=$3
+		  AND target_id=22345 AND source_chat_id=-10001 AND source_message_id=78 AND action='contact'
+	`, tenantID, accountID, ruleID); err != nil {
+		t.Fatalf("age stale claim: %v", err)
+	}
+	resolved, err := repo.ResolveStale(ctx, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("resolve stale claims: %v", err)
+	}
+	if resolved != 1 {
+		t.Fatalf("resolved stale claims = %d, want 1", resolved)
+	}
+	if claimed, err := repo.Claim(ctx, tenantID, accountID, ruleID, 22345, -10001, 78, "contact"); err != nil || claimed {
+		t.Fatalf("stale claim retry = (%t, %v), want (false, nil)", claimed, err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT status, last_error FROM monitor_dm_actions
+		WHERE tenant_id=$1 AND account_id=$2 AND rule_id=$3
+		  AND target_id=22345 AND source_chat_id=-10001 AND source_message_id=78 AND action='contact'
+	`, tenantID, accountID, ruleID).Scan(&status, &lastError); err != nil {
+		t.Fatalf("read recovered action: %v", err)
+	}
+	if status != "outcome_unknown" || lastError == "" {
+		t.Fatalf("recovered state = %q / %q, want outcome_unknown with explanation", status, lastError)
+	}
+
+	// Duplicate delivery can also close one exact stale claim without reclaiming it.
+	if claimed, err := repo.Claim(ctx, tenantID, accountID, ruleID, 32345, -10001, 79, "call"); err != nil || !claimed {
+		t.Fatalf("create stale call claim = (%t, %v), want (true, nil)", claimed, err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE monitor_dm_actions SET updated_at=NOW()-INTERVAL '6 minutes'
+		WHERE tenant_id=$1 AND account_id=$2 AND rule_id=$3
+		  AND target_id=32345 AND source_chat_id=-10001 AND source_message_id=79 AND action='call'
+	`, tenantID, accountID, ruleID); err != nil {
+		t.Fatalf("age stale call claim: %v", err)
+	}
+	if claimed, err := repo.Claim(ctx, tenantID, accountID, ruleID, 32345, -10001, 79, "call"); err != nil || claimed {
+		t.Fatalf("duplicate stale call claim = (%t, %v), want (false, nil)", claimed, err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT status FROM monitor_dm_actions
+		WHERE tenant_id=$1 AND account_id=$2 AND rule_id=$3
+		  AND target_id=32345 AND source_chat_id=-10001 AND source_message_id=79 AND action='call'
+	`, tenantID, accountID, ruleID).Scan(&status); err != nil {
+		t.Fatalf("read stale call state: %v", err)
+	}
+	if status != "outcome_unknown" {
+		t.Fatalf("duplicate delivery changed stale call state to %q", status)
 	}
 }
