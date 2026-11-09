@@ -14,6 +14,7 @@ func TestInviteAttemptLedgerClaimsAndTransitions(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 	tenantID, accountID, taskID := uuid.New(), uuid.New(), uuid.New()
+	otherTaskID := uuid.New()
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
 		VALUES ($1, $2, 'x', 'Invite ledger', $3, 'free')
@@ -95,15 +96,17 @@ func TestResolveStaleInviteAttemptsNeverMakesThemRetryable(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO tasks (task_id, tenant_id, type, status)
-		VALUES ($1, $2, 'broadcast', 'running')
-	`, taskID, tenantID); err != nil {
-		t.Fatalf("seed stale task: %v", err)
+		VALUES ($1, $2, 'broadcast', 'running'), ($3, $2, 'broadcast', 'running')
+	`, taskID, tenantID, otherTaskID); err != nil {
+		t.Fatalf("seed stale tasks: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO invite_member_attempts (tenant_id, task_id, account_id, tg_user_id, status, updated_at)
-		VALUES ($1, $2, $3, 654321, 'in_progress', NOW() - INTERVAL '10 minutes')
-	`, tenantID, taskID, accountID); err != nil {
-		t.Fatalf("seed stale attempt: %v", err)
+		VALUES
+			($1, $2, $3, 654321, 'in_progress', NOW() - INTERVAL '10 minutes'),
+			($1, $4, $3, 654322, 'in_progress', NOW() - INTERVAL '10 minutes')
+	`, tenantID, taskID, accountID, otherTaskID); err != nil {
+		t.Fatalf("seed stale attempts: %v", err)
 	}
 
 	repo := NewTaskRepository(pool)
@@ -115,5 +118,10 @@ func TestResolveStaleInviteAttemptsNeverMakesThemRetryable(t *testing.T) {
 	claimed, status, err := repo.ClaimInviteAttempt(ctx, key)
 	if err != nil || claimed || status != InviteAttemptOutcomeUnknown {
 		t.Fatalf("stale claim = (%v, %q, %v), want blocked/outcome_unknown", claimed, status, err)
+	}
+	otherKey := InviteAttemptKey{TenantID: tenantID, TaskID: otherTaskID, AccountID: accountID, TGUserID: 654322}
+	claimed, status, err = repo.ClaimInviteAttempt(ctx, otherKey)
+	if err != nil || claimed || status != InviteAttemptInProgress {
+		t.Fatalf("other task claim = (%v, %q, %v), want blocked/in_progress (unmodified)", claimed, status, err)
 	}
 }
