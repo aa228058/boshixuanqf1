@@ -24,7 +24,7 @@
         :columns="tdColumns"
         :data="codes"
         hover
-        :pagination="{ current: page, pageSize: 20, total: total, onChange: (p: any) => page = p.current }"
+        :pagination="{ current: page, pageSize: 20, total: total, onChange: onPageChange }"
       >
         <template #select="{ row }">
           <input type="checkbox" :value="row.code_id" v-model="selectedIds" class="accent-[var(--t-brand)]" @click.stop />
@@ -204,6 +204,12 @@ const tdColumns = computed(() => columns.map(c => ({ colKey: c.key, title: c.tit
 // P0-22 审计修复: 原 statusFilter 无任何 watch——下拉切换不触发查询, 列表纹丝不动。
 // 切换即重置到第 1 页并重新拉取(状态筛选走后端, 页码不重置会看不到结果)。
 watch(statusFilter, () => { page.value = 1; fetchCodes() })
+
+function onPageChange(p: { current: number }) {
+  if (p.current === page.value) return
+  page.value = p.current
+  void fetchCodes()
+}
 
 async function fetchCodes() {
   try {
