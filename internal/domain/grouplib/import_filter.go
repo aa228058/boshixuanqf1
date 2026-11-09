@@ -9,9 +9,9 @@ import (
 // importCandidateRe 只识别 Telegram 公共用户名和私密邀请链接。
 // 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
 var (
-	importTelegramUsernameRe = regexp.MustCompile("^[A-Za-z][A-Za-z0-9_]{4,31}$")
+	importTelegramUsernameRe   = regexp.MustCompile("^[A-Za-z][A-Za-z0-9_]{4,31}$")
 	importTelegramInviteHashRe = regexp.MustCompile("^[A-Za-z0-9_-]{5,64}$")
-	importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:s/|joinchat/|\+)?[A-Za-z0-9_-]{5,64}|tg://(?:resolve\?domain=[A-Za-z][A-Za-z0-9_]{4,31}|join\?invite=[A-Za-z0-9_-]{5,64})|@[A-Za-z][A-Za-z0-9_]{4,31})`)
+	importCandidateRe          = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:s/|joinchat/|\+)?[A-Za-z0-9_-]{5,64}|tg://(?:resolve\?domain=[A-Za-z][A-Za-z0-9_]{4,31}|join\?invite=[A-Za-z0-9_-]{5,64})|@[A-Za-z][A-Za-z0-9_]{4,31})`)
 )
 
 type importFilterResult struct {
