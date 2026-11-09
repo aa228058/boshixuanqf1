@@ -59,14 +59,11 @@
           v-for="g in filtered"
           :key="g.group_id"
           @click="toggle(g)"
-          @keydown.enter.prevent.stop="toggle(g)"
-          @keydown.space.prevent.stop="toggle(g)"
-          :aria-checked="isSelected(g)"
-          :aria-label="'选择群组 ' + g.title"
           class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
           :class="isSelected(g) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="checkbox">
+        >
           <t-checkbox
+            :aria-label="'选择群组 ' + g.title"
             :model-value="isSelected(g)"
             @click.stop
             @update:model-value="toggle(g)"
