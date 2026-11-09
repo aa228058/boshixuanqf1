@@ -74,11 +74,11 @@
             </div>
           </div>
 
-          <UiButton type="submit" class="ui-t-button ui-t-button--primary mt-1 w-full font-extrabold disabled:opacity-60" :disabled="loading"
+          <t-button type="submit" class="ui-t-button ui-t-button--primary mt-1 w-full font-extrabold disabled:opacity-60" :disabled="loading"
                   :style="{ background: loginFailed ? 'var(--t-err)' : 'var(--t-brand)' }">
             <!-- R140 用户拍板: 删除转圈加载动画, 保留"登录中…"文字反馈 -->
             {{ loading ? '登录中…' : '登录并进入工作台 →' }}
-          </UiButton>
+          </t-button>
         </form>
 
         <div v-if="error" class="mt-4 p-3.5 rounded-xl text-[13px] text-center"
@@ -93,9 +93,9 @@
           <input v-model="renewCode" type="text" placeholder="输入续费卡密"
                  class="ui-input !min-h-[40px] !rounded-lg !px-4 !py-2.5 !text-sm"
                  @keyup.enter="doRenew" />
-          <UiButton type="button" class="ui-t-button ui-t-button--primary w-full font-bold disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
+          <t-button type="button" class="ui-t-button ui-t-button--primary w-full font-bold disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
                   style="background: var(--t-warn);"
-                  @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</UiButton>
+                  @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</t-button>
           <div v-if="renewMsg" class="text-xs text-center" :style="{ color: renewOk ? 'var(--t-ok)' : 'var(--t-err)' }">{{ renewMsg }}</div>
         </div>
 
@@ -113,7 +113,6 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue'
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
