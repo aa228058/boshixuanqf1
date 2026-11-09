@@ -359,23 +359,30 @@ async function confirmGroupImport(jobId: string) {
   }
 }
 
+let taskListRequestId = 0
+
 async function fetchTasks() {
+  const requestId = ++taskListRequestId
+  // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
+  const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
+  if (range.value !== 'all') params.range = range.value
+  if (statusFilter.value) params.status = statusFilter.value
+  if (typeFilter.value) params.type = typeFilter.value
   loading.value = true
+  loadError.value = ''
   try {
-    const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
-    if (range.value !== 'all') params.range = range.value
-    if (statusFilter.value) params.status = statusFilter.value
-    if (typeFilter.value) params.type = typeFilter.value
     const res = await taskApi.list(params)
-    const rawList = res.list || []
-    // 2026-09-23 防御: 按 task_id 去重（用户实测"创建任务出现多条相同"——
-    // 多为双击/网络重试导致创建了两条, 此处在渲染层兜底不重复显示）
-    tasks.value = [...new Map(rawList.map(t => [t.task_id, t])).values()]
-    total.value = res.total || 0
+    if (requestId !== taskListRequestId) return
+    const rawList = Array.isArray(res?.list) ? res.list : []
+    // 按 task_id 去重，防止接口异常或重试造成重复行。
+    tasks.value = [...new Map(rawList.filter((t: any) => t?.task_id).map((t: any) => [t.task_id, t])).values()]
+    total.value = Number(res?.total) || 0
   } catch (e) {
+    if (requestId !== taskListRequestId) return
+    loadError.value = e instanceof Error ? e.message : '获取任务失败，请稍后重试'
     console.error('获取任务失败:', e)
   } finally {
-    loading.value = false
+    if (requestId === taskListRequestId) loading.value = false
   }
 }
 
