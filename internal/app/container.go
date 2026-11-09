@@ -827,14 +827,15 @@ func (c *Container) Shutdown() {
 	if c.LinkScraper != nil {
 		c.LinkScraper.Stop()
 	}
-	c.TaskEngine.Stop()
 	// Monitor callbacks and their child tasks may still use Telegram clients and
 	// the database. Never close those dependencies if bounded draining timed out.
 	if err := c.MonitorEngine.StopAll(); err != nil {
 		log.Printf("[shutdown] monitor drain incomplete; preserving AccountEngine, SSE and DB until process exit: %v", err)
+		c.TaskEngine.Stop()
 		backup.Stop()
 		return
 	}
+	c.TaskEngine.Stop()
 	// R114: CampaignEngine.Stop 已删(引擎整建制移除)
 	c.AccountEngine.Stop()
 	c.AccountEngine.Close()
