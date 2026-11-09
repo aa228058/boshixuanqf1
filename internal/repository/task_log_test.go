@@ -13,7 +13,7 @@ func TestCopyFromLogsDoesNotConsumeFallbackBatch(t *testing.T) {
 	original := []*domain.TaskLog{first, second}
 	copyRows := append([]*domain.TaskLog(nil), original...)
 
-	source := copyFromLogs(&copyRows)
+	source := copyFromLogs(copyRows)
 	if !source.Next() {
 		t.Fatal("expected first COPY row")
 	}
