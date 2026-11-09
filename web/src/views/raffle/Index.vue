@@ -76,13 +76,13 @@
           />
           <div class="flex items-center justify-between mt-2">
             <span class="text-xs" style="color: var(--t-text-3);">{奖品} 自动替换为中奖金额 · 上限 200 字</span>
-            <t-button
+            <UiButton
               @click="saveReply(replyEnabled, replyText)"
               :disabled="replySaving"
               class="ui-t-button--primary ui-t-button disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ replySaving ? '保存中…' : '保存' }}
-            </t-button>
+            </UiButton>
           </div>
         </template>
       </div>
@@ -119,13 +119,13 @@
               class="flex-1 px-3 py-2 rounded-[var(--t-r-md)] text-sm disabled:opacity-50"
               style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
             />
-            <t-button
+            <UiButton
               @click="savePing(pingEnabled, pingText)"
               :disabled="pingSaving"
               class="ui-t-button--primary ui-t-button disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ pingSaving ? '保存中…' : '保存' }}
-            </t-button>
+            </UiButton>
           </div>
           <p class="text-xs mt-2" style="color: var(--t-text-3);">激活语默认 /start, 按目标机器人要求改</p>
         </template>
@@ -135,9 +135,9 @@
       <div v-if="raffleEnabled" class="mt-4 pt-4 border-t border-border/50">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs text-text-muted">参与账号（关闭后该账号不再抢抽奖）</span>
-          <t-button class="ui-t-button--text ui-t-button" @click="toggleAll" variant="text">
+          <UiButton class="ui-t-button--text ui-t-button" @click="toggleAll" variant="text">
             {{ allSelected ? '全不选' : '全选' }}
-          </t-button>
+          </UiButton>
         </div>
         <div class="max-h-64 overflow-y-auto space-y-1.5">
           <label
@@ -181,8 +181,8 @@
         <div class="font-extrabold text-body">参与记录</div>
         <div class="flex items-center gap-3 shrink-0">
           <!-- R128 清空记录: 确认后调 DELETE 端点, 日志不再无限叠加 -->
-          <t-button class="ui-t-button--danger ui-t-button" @click="clearAllResults">清空</t-button>
-          <t-button class="ui-t-button--text ui-t-button" @click="loadResults" variant="text">刷新</t-button>
+          <UiButton class="ui-t-button--danger ui-t-button" @click="clearAllResults">清空</UiButton>
+          <UiButton class="ui-t-button--text ui-t-button" @click="loadResults" variant="text">刷新</UiButton>
         </div>
       </div>
 
@@ -235,6 +235,7 @@
 <!-- ACCOUNT_BLOCK_MOVED -->
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted } from 'vue'
 import { accountApi } from '@/api/account'
 import { api as request } from '@/utils/request'  // request 是函数无 .post 方法, api 对象才有——修 f.post is not a function
