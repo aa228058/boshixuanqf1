@@ -167,6 +167,14 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - The current-account watcher still refreshes the task list. The dedicated `phoneAccId` watcher owns group-option clearing and loading.
 - Native file inputs, checkboxes, datetime-local inputs, and selects in these workflows remain intentional where they provide browser-native file selection, checkbox semantics, or native mobile picker behavior; no blanket conversion to TDesign was made.
 
+### Batch C3 — CSS duplicate-selector and cascade review
+
+- Reviewed `theme-dark.css`, `tdesign-theme.css`, `tdesign-skin.css`, `tdesign-overrides.css`, `ui-kit.css`, and `modal-system.css`.
+- Repeated selector text is not automatically duplicate styling: `.ui-segmented__item` appears in its base rule and a narrow-screen media query; compact TDesign/native button rules repeat in mobile media queries to enlarge touch targets; `.modal-content` and `.modal-card` repeat across desktop/mobile geometry and keyboard-offset scopes.
+- The repeated dark-theme glass selector is intentionally scoped to separate mobile blur removal and desktop solid-surface overrides. Consolidating these blocks without preserving media-query scope would change behavior.
+- No safe dead-rule deletion was established in this pass. Keep the current cascade ownership: theme files own theme variables/fallbacks, `ui-kit.css` owns semantic project primitives, TDesign skin/overrides own vendor adjustments, and `modal-system.css` owns modal geometry.
+- The inventory's duplicate-selector report should be treated as a review queue, not an auto-fix list. Future CSS consolidation must compare selector, at-rule context, specificity, source order, and computed property overlap.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
