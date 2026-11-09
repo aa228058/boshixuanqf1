@@ -252,6 +252,8 @@ const task = ref<Task | null>(null)
 const actionPending = ref<'pause' | 'resume' | 'cancel' | 'retry' | null>(null)
 let taskFetchRequestId = 0
 let pageActive = true
+let membersRequestId = 0
+let completionRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const members = ref<any[]>([])
 const membersLoading = ref(false)
 const membersError = ref('')
@@ -259,16 +261,20 @@ const membersError = ref('')
 async function fetchMembers() {
   const t = task.value as any
   const groupId = t?.payload?.group_id || t?.target_ids?.[0]
-  if (!groupId) { membersError.value = '任务缺少群组信息'; return }
+  if (!groupId || !pageActive) { membersError.value = '任务缺少群组信息'; return }
+  const requestId = ++membersRequestId
   membersLoading.value = true
   membersError.value = ''
   try {
     const res: any = await groupApi.getMembers(groupId)
+    if (!pageActive || requestId !== membersRequestId) return
     members.value = res?.members || res?.data?.members || res?.list || res?.items || (Array.isArray(res) ? res : [])
   } catch (e: unknown) {
-    membersError.value = e instanceof Error ? e.message : '加载成员失败'
+    if (pageActive && requestId === membersRequestId) {
+      membersError.value = e instanceof Error ? e.message : '加载成员失败'
+    }
   } finally {
-    membersLoading.value = false
+    if (pageActive && requestId === membersRequestId) membersLoading.value = false
   }
 }
 
@@ -281,13 +287,18 @@ const LOG_PAGE_SIZE = 50
 // R87-M10: 100% 后状态收敛兜底 —— SSE 事件丢失时, 进度满后 3s 自动补拉任务状态,
 // 避免"发完了还显示执行中"必须手动刷新
 watch(() => [(task.value as any)?.progress?.done, (task.value as any)?.progress?.failed, (task.value as any)?.status], () => {
+  if (completionRefreshTimer) {
+    clearTimeout(completionRefreshTimer)
+    completionRefreshTimer = null
+  }
   const t = task.value as any
-  if (!t || t.status !== 'running') return
+  if (!pageActive || !t || t.status !== 'running') return
   const processed = (t.progress?.done || 0) + (t.progress?.failed || 0)
   if (t.progress?.total && processed >= t.progress.total) {
-    setTimeout(() => {
+    completionRefreshTimer = setTimeout(() => {
+      completionRefreshTimer = null
       const cur = task.value as any
-      if (cur && cur.status === 'running') fetchTask()
+      if (pageActive && cur && cur.status === 'running') void fetchTask()
     }, 3000)
   }
 })
@@ -680,6 +691,7 @@ onMounted(async () => {
   await fetchLogs()
   try {
     const accs = await accountApi.list()
+    if (!pageActive) return
     const accData = (accs as any).data || accs || []
     accountMap.value = Object.fromEntries((accData).map((a: any) => [a.account_id, a.remark || a.phone]))
   } catch (e: unknown) { /* ignore */ }
@@ -687,6 +699,7 @@ onMounted(async () => {
     // R87-M10: 不再按"当前账号"过滤 —— 任务可能跨账号执行, 按账号过滤会漏群导致日志显示原始ID。
     // 群库是租户级数据, 全量拉取建立 群ID/群TG_ID → 群名 映射。
     const grps = await groupApi.list()
+    if (!pageActive) return
     // R86 热修: groupApi.list 返回 {list:[...], count} 结构, 原 (grps).data||grps 拿到对象,
     // forEach 抛异常被静默吞掉 → groupMap 为空 → 日志全显示原始ID
     const raw: any = grps
@@ -728,6 +741,8 @@ onMounted(async () => {
 onUnmounted(() => {
   pageActive = false
   taskFetchRequestId++
+  membersRequestId++
+  if (completionRefreshTimer) { clearTimeout(completionRefreshTimer); completionRefreshTimer = null }
   eventSource?.close()
   eventSource = null
   clearInterval(refreshTimer)
