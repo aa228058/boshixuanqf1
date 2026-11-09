@@ -230,11 +230,12 @@ func (r *TaskLogRepository) CreateBatch(ctx context.Context, logs []*domain.Task
 		[]string{"log_id", "task_id", "tenant_id", "account_id", "target_id", "target_name", "action", "status", "tg_response", "error_code", "message", "tg_message_id", "executed_at"},
 		&copyFromLogs{logs: logs})
 	if err != nil {
+		copyErr := err
 		// Keep the original batch intact: CopyFromSource may already have consumed
 		// some or all rows when COPY fails, but PostgreSQL rolls back the COPY statement.
 		for _, l := range logs {
-			if err := r.Create(ctx, l); err != nil {
-				return fmt.Errorf("batch fallback insert failed after COPY error (%v): %w", err, err)
+			if fallbackErr := r.Create(ctx, l); fallbackErr != nil {
+				return fmt.Errorf("batch fallback insert failed after COPY error (%v): %w", copyErr, fallbackErr)
 			}
 		}
 	}
