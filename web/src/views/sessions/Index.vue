@@ -182,6 +182,7 @@ import { KeyRound } from 'lucide-vue-next'
 import { useAccountStore } from '@/stores/account'
 import { useAccountAvatar } from '@/composables/useAccountAvatar'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 // R115: 恢复全量导入 —— 复核脚本误报(函数名含 import 的行被脚本当 import 语句过滤),
 // doImport 实际依赖 importSessions/importSessionFiles/ImportResult
 import { importSessions, importSessionFiles, updateProfile, uploadAvatar, type ImportResult } from '@/api/account'
@@ -232,7 +233,13 @@ function toggleSelect(id: string) {
 // console.error 用户无从感知。改并行 + 汇总反馈。
 async function batchDelete() {
   if (!selected.value.size) return
-  if (!window.confirm(`确定删除选中的 ${selected.value.size} 个协议号？`)) return
+  const confirmed = await ask(`确定删除选中的 ${selected.value.size} 个协议号？`, {
+    title: '批量删除协议号',
+    danger: true,
+    confirmText: '确认删除',
+    cancelText: '取消',
+  })
+  if (!confirmed) return
   const ids = Array.from(selected.value)
   const results = await Promise.allSettled(ids.map((id) => accountStore.deleteAccount(id)))
   const failed = results.filter((r) => r.status === 'rejected').length
