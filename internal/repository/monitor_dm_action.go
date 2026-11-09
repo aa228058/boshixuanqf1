@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const dmActionStaleAfter = 5 * time.Minute
+const DMActionStaleAfter = 5 * time.Minute
 
 // DMActionRepository persists one-time DM action claims across processes and restarts.
 type DMActionRepository struct {
@@ -48,8 +48,8 @@ func (r *DMActionRepository) Claim(ctx context.Context, tenantID, accountID, rul
 		    updated_at=NOW()
 		WHERE tenant_id=$1 AND account_id=$2 AND rule_id=$3 AND target_id=$4
 		  AND source_chat_id=$5 AND source_message_id=$6 AND action=$7
-		  AND status='in_progress' AND updated_at < NOW() - INTERVAL '5 minutes'
-	`, tenantID, accountID, ruleID, targetID, sourceChatID, sourceMessageID, action)
+		  AND status='in_progress' AND updated_at < NOW() - ($8::bigint * INTERVAL '1 second')
+	`, tenantID, accountID, ruleID, targetID, sourceChatID, sourceMessageID, action, int64(DMActionStaleAfter/time.Second))
 	if err != nil {
 		return false, fmt.Errorf("resolve stale monitor DM action claim: %w", err)
 	}
