@@ -46,3 +46,40 @@ func TestDedupeAccountTargetsPreservesCrossAccountAssignments(t *testing.T) {
 		t.Fatalf("second account targets=%v, want %v", got[second], want)
 	}
 }
+
+func TestParseBroadcastMappingsMergesRepeatedAccountEntries(t *testing.T) {
+	accountID := uuid.New()
+	got, err := parseBroadcastMappings([]any{
+		map[string]any{"account_id": accountID.String(), "targets": []any{"-1001", "-1001"}},
+		map[string]any{"account_id": accountID.String(), "targets": []any{"-1002"}},
+	}, []uuid.UUID{accountID})
+	if err != nil {
+		t.Fatalf("parseBroadcastMappings returned error: %v", err)
+	}
+	if want := []string{"-1001", "-1002"}; !reflect.DeepEqual(got[accountID], want) {
+		t.Fatalf("targets=%v, want %v", got[accountID], want)
+	}
+}
+
+func TestParseBroadcastMappingsRejectsInvalidInput(t *testing.T) {
+	selected := uuid.New()
+	unselected := uuid.New()
+	tests := []struct {
+		name string
+		raw  any
+	}{
+		{name: "missing mappings", raw: nil},
+		{name: "wrong mapping entry", raw: []any{"bad"}},
+		{name: "invalid account", raw: []any{map[string]any{"account_id": "not-a-uuid", "targets": []any{"-1001"}}}},
+		{name: "unselected account", raw: []any{map[string]any{"account_id": unselected.String(), "targets": []any{"-1001"}}}},
+		{name: "empty targets", raw: []any{map[string]any{"account_id": selected.String(), "targets": []any{}}}},
+		{name: "empty target", raw: []any{map[string]any{"account_id": selected.String(), "targets": []any{" "}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseBroadcastMappings(tt.raw, []uuid.UUID{selected}); err == nil {
+				t.Fatal("expected invalid mapping to be rejected")
+			}
+		})
+	}
+}
