@@ -100,29 +100,41 @@ func (e *Engine) acquireAggregationLock(ctx context.Context) (func(), bool, erro
 	if err != nil {
 		return nil, false, err
 	}
+	// A transaction-scoped lock is automatically released if the connection or
+	// process is interrupted; a failed explicit unlock cannot poison the pool.
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		conn.Release()
+		return nil, false, err
+	}
 	var acquired bool
-	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, groupLibraryAggregationLockKey).Scan(&acquired); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, groupLibraryAggregationLockKey).Scan(&acquired); err != nil {
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = tx.Rollback(rollbackCtx)
+		cancel()
 		conn.Release()
 		return nil, false, err
 	}
 	if !acquired {
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = tx.Rollback(rollbackCtx)
+		cancel()
 		conn.Release()
 		return nil, false, nil
 	}
 	unlock := func() {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		var unlocked bool
-		if err := conn.QueryRow(unlockCtx, `SELECT pg_advisory_unlock($1)`, groupLibraryAggregationLockKey).Scan(&unlocked); err != nil {
-			log.Printf("[grouplib] release aggregation advisory lock: %v", err)
-		} else if !unlocked {
-			log.Printf("[grouplib] aggregation advisory lock was not held at release")
+		if err := tx.Rollback(rollbackCtx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			log.Printf("[grouplib] release aggregation advisory transaction: %v", err)
+			// Do not return a potentially lock-holding connection to the pool.
+			_ = conn.Hijack().Close(context.Background())
+			return
 		}
 		conn.Release()
 	}
 	return unlock, true, nil
 }
-
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
 	return &Engine{repo: repo, pool: pool, acc: acc, interval: 2 * time.Minute, stopCh: make(chan struct{})}
 }
