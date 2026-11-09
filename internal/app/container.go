@@ -305,7 +305,7 @@ func (c *Container) initEngines() error {
 	c.MonitorEngine = monitor.NewEngine(c.Cfg, c.AccountEngine, c.MonitorRuleRepo, c.SSEBroker)
 	dmActionRepo := repository.NewDMActionRepository(c.DB.Pool)
 	staleActionCtx, cancelStaleActionRecovery := context.WithTimeout(context.Background(), 10*time.Second)
-	resolvedStaleActions, staleActionErr := dmActionRepo.ResolveStale(staleActionCtx, 5*time.Minute)
+	resolvedStaleActions, staleActionErr := dmActionRepo.ResolveStale(staleActionCtx, repository.DMActionStaleAfter)
 	cancelStaleActionRecovery()
 	if staleActionErr != nil {
 		log.Printf("[monitor] stale DM action recovery failed; claims remain fail-closed: %v", staleActionErr)
