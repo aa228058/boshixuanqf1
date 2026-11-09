@@ -228,27 +228,31 @@ func (r *TaskLogRepository) CreateBatch(ctx context.Context, logs []*domain.Task
 	// 且缺 target_name/message —— 群名和耗时从未写进过库。补齐 13 列与 Values 严格对齐
 	_, err = conn.CopyFrom(ctx, []string{"task_logs"},
 		[]string{"log_id", "task_id", "tenant_id", "account_id", "target_id", "target_name", "action", "status", "tg_response", "error_code", "message", "tg_message_id", "executed_at"},
-		(*copyFromLogs)(&logs))
+		&copyFromLogs{logs: logs})
 	if err != nil {
-		// Fallback to individual inserts if COPY fails
+		// Keep the original batch intact: CopyFromSource may already have consumed
+		// some or all rows when COPY fails, but PostgreSQL rolls back the COPY statement.
 		for _, l := range logs {
 			if err := r.Create(ctx, l); err != nil {
-				return fmt.Errorf("batch fallback insert failed: %w", err)
+				return fmt.Errorf("batch fallback insert failed after COPY error (%v): %w", err, err)
 			}
 		}
 	}
 	return nil
 }
 
-type copyFromLogs []*domain.TaskLog
+type copyFromLogs struct {
+	logs  []*domain.TaskLog
+	index int
+}
 
-func (c *copyFromLogs) Next() bool { return len(*c) > 0 }
+func (c *copyFromLogs) Next() bool { return c.index < len(c.logs) }
 func (c *copyFromLogs) Values() ([]any, error) {
-	if len(*c) == 0 {
+	if !c.Next() {
 		return nil, nil
 	}
-	l := (*c)[0]
-	*c = (*c)[1:]
+	l := c.logs[c.index]
+	c.index++
 	return []any{l.LogID, l.TaskID, l.TenantID, nilAccount(l.AccountID), l.TargetID, l.TargetName, l.Action, l.Status, l.TGResponse, l.ErrorCode, l.Message, l.TGMessageID, l.ExecutedAt}, nil
 }
 func (c *copyFromLogs) Err() error { return nil }
