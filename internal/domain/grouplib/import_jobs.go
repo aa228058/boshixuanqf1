@@ -325,7 +325,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				WHERE (status='pending'
 				   OR (status='processing' AND
 				       (lease_expires_at IS NULL OR lease_expires_at < NOW())))
-				  AND NOT (job_id = ANY($2::uuid[]))
+				  AND NOT (job_id = ANY($1::uuid[]))
 				ORDER BY created_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED
