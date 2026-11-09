@@ -441,22 +441,7 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string, tenantID uuid.U
 		if strings.HasSuffix(strings.ToLower(key), "bot") {
 			continue
 		}
-		// 向后扫域名段, 命中 TLD 黑名单即视为邮箱
-		j := m[1]
-		for j < len(bio) && (bio[j] == '.' || bio[j] == '-' ||
-			(bio[j] >= 'a' && bio[j] <= 'z') || (bio[j] >= 'A' && bio[j] <= 'Z') ||
-			(bio[j] >= '0' && bio[j] <= '9')) {
-			j++
-		}
-		tail := strings.ToLower(bio[m[1]:j])
-		isEmail := false
-		for _, tld := range emailTLDs {
-			if strings.Contains(tail, tld) {
-				isEmail = true
-				break
-			}
-		}
-		if isEmail {
+		if isEmailAddressMention(bio, m[0], m[1]) {
 			continue
 		}
 		if seen[key] {
@@ -479,6 +464,32 @@ func extractTmeUsername(url string) string {
 		return ""
 	}
 	return m[2]
+}
+
+// isEmailAddressMention rejects @ tokens that are part of an email address.
+// It checks the local-part boundary (independent of TLD) and retains a
+// conservative domain-suffix fallback for standalone email-like tokens.
+func isEmailAddressMention(bio string, atStart, atEnd int) bool {
+	if atStart > 0 {
+		prev := bio[atStart-1]
+		if (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z') ||
+			(prev >= '0' && prev <= '9') || strings.ContainsRune("._%+-", rune(prev)) {
+			return true
+		}
+	}
+	j := atEnd
+	for j < len(bio) && (bio[j] == '.' || bio[j] == '-' ||
+		(bio[j] >= 'a' && bio[j] <= 'z') || (bio[j] >= 'A' && bio[j] <= 'Z') ||
+		(bio[j] >= '0' && bio[j] <= '9')) {
+		j++
+	}
+	tail := strings.ToLower(bio[atEnd:j])
+	for _, tld := range emailTLDs {
+		if strings.Contains(tail, tld) {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonEmpty(s ...string) string {
