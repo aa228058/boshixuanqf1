@@ -270,18 +270,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	semaphore := make(chan struct{}, maxConcurrentAccounts)
 	var wg sync.WaitGroup
 
-	// Deduplicate targets globally to prevent multiple accounts sending to the same target
-	seenTargets := make(map[string]bool)
-	for accID := range accountTargets {
-		unique := make([]string, 0, len(accountTargets[accID]))
-		for _, t := range accountTargets[accID] {
-			if !seenTargets[t] {
-				seenTargets[t] = true
-				unique = append(unique, t)
-			}
-		}
-		accountTargets[accID] = unique
-	}
+	// Preserve each account's assigned targets. Cartesian mode intentionally sends
+	// every target from every selected account; mapping mode may also assign the
+	// same target to multiple accounts. Deduplicating across accounts silently
+	// drops valid (account,target) work and corrupts resume/progress semantics.
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
 	// 拖慢发送循环。这里在 worker 扇出前一次性批量查回成功目标集; 运行期新成功
