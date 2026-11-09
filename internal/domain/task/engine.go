@@ -1074,8 +1074,13 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	if e.scrapeRegistered[clientKey] {
 		e.scrapeRegMu.Unlock()
 		taskLog.Printf("[monitor_scrape] client %s already has OnMessage registered, falling back to polling", clientKey)
-		// Fallback to polling if OnMessage already registered (by monitor engine or another task)
+		// The polling fallback is currently a documented placeholder and does not
+		// fetch messages. Mark the task failed explicitly instead of returning with
+		// status=running and leaving it for lease-timeout recovery to execute again.
 		e.runMonitorScrapePolling(ctx, task, group, matcher, durationMinutes, maxResults, &scrapedCount, scrapedUsers, &countMu)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] failed to mark unsupported monitor polling task as failed: %v", err)
+		}
 		return
 	}
 	e.scrapeRegistered[clientKey] = true
