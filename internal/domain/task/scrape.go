@@ -1018,6 +1018,13 @@ historyLoop:
 		case <-timer.C:
 		}
 	}
+	select {
+	case <-ctx.Done():
+		interrupted = true
+	case <-e.stopCh:
+		interrupted = true
+	default:
+	}
 
 	if len(collected) > 0 {
 		if e.memberRepo == nil {
@@ -1060,7 +1067,9 @@ historyLoop:
 		return
 	}
 	taskLog.Printf("[scrape] 历史消息采集完成: 扫描 %d 条消息, %d 个用户", scanned, len(collected))
-	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
+	statusCtx, statusCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer statusCancel()
+	if err := e.repo.UpdateStatusOwned(statusCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 		taskLog.Printf("[task] UpdateStatus failed: %v", err)
 	}
 }
