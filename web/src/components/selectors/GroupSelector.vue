@@ -218,6 +218,7 @@ watch(() => props.accountId, (accountId, previousAccountId) => {
   if (accountId === previousAccountId) return
   selectorRequestId++
   dmRequestId++
+  loading.value = false
   localGroups.value = []
   dmUsers.value = []
   dmLoaded.value = false
@@ -323,78 +324,75 @@ function confirm() {
 }
 
 async function onRefresh() {
-  // 防止重复点击
-  if (loading.value) {
-    return
-  }
-  // 全局同步锁：防止跨组件重复同步同一账号
-  if (props.accountId && !syncLock.acquire(props.accountId)) {
-    // 如果其他组件正在同步同一账号，直接等待结果
+  if (loading.value) return
+  const accountId = props.accountId || ''
+  const requestId = ++selectorRequestId
+  const isCurrent = () =>
+    requestId === selectorRequestId && visible.value && props.accountId === accountId
+
+  // 如果其他组件正在同步同一账号，只等待并读取该账号结果；等待期间切换/关闭即放弃 UI 写入。
+  if (accountId && !syncLock.acquire(accountId)) {
     loading.value = true
     syncStatus.value = 'syncing'
     await waitForGlobalSync()
-    // 同步完成后刷新本地数据
+    if (!isCurrent()) return
     try {
-      const raw: any = await groupApi.list(props.accountId)
+      const raw: any = await groupApi.list(accountId)
+      if (!isCurrent()) return
       const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-        emit('refresh')
-      }
+      localGroups.value = list
+      groupStore.setGroups(accountId, list)
+      emit('refresh')
     } catch (e) {
-      console.error('[GroupSelector] list after global sync:', e)
+      if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
+    } finally {
+      if (isCurrent()) loading.value = false
     }
-    loading.value = false
     return
   }
-  // 手动刷新时重置失败计数
+
   syncFailCount.value = 0
-  if (!props.accountId) {
-    syncLock.release()
-    emit('refresh')
+  if (!accountId) {
+    if (isCurrent()) emit('refresh')
     return
   }
+
   loading.value = true
   syncStatus.value = 'syncing'
   try {
-    await groupApi.sync(props.accountId)
-    // 指数退避轮询：直接调用API检查同步结果，不依赖props响应式更新
+    await groupApi.sync(accountId)
     let delay = 1000
-    const start = Date.now()
-    let pollCount = 0
-    while (Date.now() - start < 30000) {
-      // 如果弹窗已关闭，停止轮询避免资源浪费
-      if (!visible.value) {
-        break
-      }
-      pollCount++
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < 30000) {
+      if (!isCurrent()) break
       try {
-        const raw: any = await groupApi.list(props.accountId)
+        const raw: any = await groupApi.list(accountId)
+        if (!isCurrent()) break
         const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
         if (list.length > 0) {
           syncStatus.value = 'done'
-          // P2-07: 原此行写了两次 setGroups(复制粘贴残留)——幂等但无意义, 去重
-          localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-          if (props.accountId) markSyncing(props.accountId)
+          localGroups.value = list
+          groupStore.setGroups(accountId, list)
+          markSyncing(accountId)
           emit('refresh')
           await nextTick()
           break
         }
       } catch (e) {
-        console.error('[GroupSelector] poll error:', e)
+        if (isCurrent()) console.error('[GroupSelector] poll error:', e)
       }
       await new Promise(r => setTimeout(r, delay))
       delay = Math.min(delay * 2, 8000)
     }
-    if (syncStatus.value !== 'done' && visible.value) {
-      syncStatus.value = 'timeout'
-    }
+    if (isCurrent() && syncStatus.value !== 'done') syncStatus.value = 'timeout'
   } catch (e: unknown) {
-    console.error('[GroupSelector] sync failed:', e)
-    syncStatus.value = 'error'
+    if (isCurrent()) {
+      console.error('[GroupSelector] sync failed:', e)
+      syncStatus.value = 'error'
+    }
   } finally {
-    await nextTick()
-    loading.value = false
+    if (isCurrent()) loading.value = false
+    // 这次调用持有全局锁；即使 UI 已切换，也必须释放原账号的锁。
     syncLock.release()
   }
 }
