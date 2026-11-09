@@ -48,3 +48,12 @@ func TestWaitBroadcastDelayZeroDuration(t *testing.T) {
 		t.Fatal("expected zero delay to complete")
 	}
 }
+
+func TestWaitBroadcastDelayCanBeCancelledWhileWaiting(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	timer := time.AfterFunc(10*time.Millisecond, cancel)
+	defer timer.Stop()
+	if waitBroadcastDelay(ctx, time.Second) {
+		t.Fatal("expected in-flight delay to be cancelled")
+	}
+}
