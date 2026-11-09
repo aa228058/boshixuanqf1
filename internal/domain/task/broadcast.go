@@ -26,6 +26,22 @@ import (
 )
 
 // acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
+// waitBroadcastDelay waits for a pacing interval without trapping a worker after
+// task cancellation, pause, or engine shutdown.
+func waitBroadcastDelay(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
 func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	if ctx.Err() != nil {
 		return false
@@ -550,7 +566,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					} else if chatID < 0 {
 						_, _ = client.Raw().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: &tg.InputPeerChat{ChatID: chatID}, Action: &tg.SendMessageTypingAction{}})
 					}
-					time.Sleep(time.Duration(1000+securerand.IntN(2000)) * time.Millisecond)
+					if !waitBroadcastDelay(ctx, time.Duration(1000+securerand.IntN(2000))*time.Millisecond) {
+						return
+					}
 
 					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax/变量/混淆已全部解析,
 					// 转义后的 \{ \} 不再参与语法匹配, 用户写的 {你好|Hi} 能正常随机取值)
