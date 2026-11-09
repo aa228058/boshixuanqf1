@@ -380,12 +380,13 @@ func (e *Engine) unblockExpiredLoop(ctx context.Context) {
 				}
 				recovered = append(recovered, ra)
 			}
-			if err := rows.Err(); err != nil {
-				rows.Close()
-				log.Printf("[engine] 遍历恢复账号结果失败: %v", err)
-				continue
-			}
+			iterationErr := rows.Err()
 			rows.Close()
+			if iterationErr != nil {
+				// The UPDATE has already committed. Still publish every row collected so
+				// far; skipping this batch would leave online accounts without SSE refresh.
+				log.Printf("[engine] 遍历恢复账号结果不完整，仍广播已更新账号: %v", iterationErr)
+			}
 			for _, ra := range recovered {
 				if err := e.accEngine.UpdateAccountStatus(ctx, ra.tenantID, ra.accountID, domain.AccountStatusOnline); err != nil {
 					log.Printf("[engine] 恢复账号广播状态失败 %s: %v", ra.accountID, err)
