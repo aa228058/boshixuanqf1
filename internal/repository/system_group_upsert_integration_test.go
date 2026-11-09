@@ -10,7 +10,7 @@ import (
 	"tg-sender/internal/domain"
 )
 
-func TestSystemGroupUpsertReturnsCanonicalIDOnDedupConflict(t *testing.T) {
+func TestSystemGroupUpsertReturnsCanonicalIDOnUsernameConflict(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 	tenantID := uuid.New()
@@ -26,20 +26,20 @@ func TestSystemGroupUpsertReturnsCanonicalIDOnDedupConflict(t *testing.T) {
 	first := &domain.SystemGroup{
 		Source: "scraped", Title: "Example Group", Username: "same_group_name",
 		TmeLink: "https://t.me/same_group_name", GType: "supergroup",
-		MemberCount: 100, Status: "active", TelegramChatID: 101,
+		MemberCount: 100, Status: "active", TelegramChatID: 0,
 		ContributorTenantID: tenantID,
 	}
 	if err := repo.Upsert(ctx, first); err != nil {
 		t.Fatalf("insert initial system group: %v", err)
 	}
 
-	// A second observation with the same dedup key but a different Telegram ID
-	// conflicts with the canonical group row. Upsert must still retrieve the
-	// canonical sg_id and persist the newly observed link/contribution.
+	// A second unresolved observation has the same username-derived dedup key.
+	// The INSERT ... ON CONFLICT path must return the canonical sg_id so the
+	// newly observed link and contribution are not skipped.
 	second := &domain.SystemGroup{
 		Source: "bio", Title: "Example Group", Username: "same_group_name",
 		TmeLink: "https://t.me/same_group_name_alias", GType: "supergroup",
-		MemberCount: 120, Status: "active", TelegramChatID: 202,
+		MemberCount: 120, Status: "active", TelegramChatID: 0,
 		ContributorTenantID: tenantID,
 	}
 	if err := repo.Upsert(ctx, second); err != nil {
@@ -58,7 +58,7 @@ func TestSystemGroupUpsertReturnsCanonicalIDOnDedupConflict(t *testing.T) {
 		second.DedupKey()).Scan(&contributions); err != nil {
 		t.Fatalf("count group contributions: %v", err)
 	}
-	if groups != 1 || links != 2 || contributions != 1 {
-		t.Fatalf("canonical rows/groups=%d links=%d contributions=%d, want 1/2/1", groups, links, contributions)
+	if groups != 1 || links != 2 || contributions != 2 {
+		t.Fatalf("canonical rows/groups=%d links=%d contributions=%d, want 1/2/2", groups, links, contributions)
 	}
 }
