@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"tg-sender/internal/safego"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +14,7 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/config"
+	"tg-sender/internal/safego"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/repository"
 )
