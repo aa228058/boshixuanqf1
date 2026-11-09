@@ -91,3 +91,25 @@ func TestLinkScraperRetriesFinalBatchOnShutdown(t *testing.T) {
 		t.Fatalf("retained batch length = %d, want 0", len(ls.batchLinks))
 	}
 }
+
+func TestLinkScraperRetainsBatchWhenDatabaseWriteFails(t *testing.T) {
+	repo := &flakyScrapedLinkRepository{failuresRemaining: 1}
+	ls := NewLinkScraper(nil, nil, repo, nil, nil)
+	ls.batchLinks = []*domain.ScrapedLink{{LinkID: uuid.New(), TenantID: uuid.New()}}
+	atomic.StoreInt64(&ls.pendingLinkCount, 1)
+
+	if ls.flushBatch(context.Background()) {
+		t.Fatal("flushBatch should report a failed database write")
+	}
+	if got := atomic.LoadInt64(&ls.pendingLinkCount); got != 1 {
+		t.Fatalf("pending link count = %d, want retained count 1", got)
+	}
+	if got := atomic.LoadInt64(&ls.persistenceFailures); got != 1 {
+		t.Fatalf("persistence failures = %d, want 1", got)
+	}
+	ls.batchMu.Lock()
+	defer ls.batchMu.Unlock()
+	if len(ls.batchLinks) != 1 {
+		t.Fatalf("retained batch length = %d, want 1", len(ls.batchLinks))
+	}
+}
