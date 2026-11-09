@@ -95,7 +95,7 @@ watch(() => props.modelValue, (v) => {
     compactModalOrders()
     order.value = 0
   }
-})
+, { immediate: true })
 function zIndexFn() {
   return props.zIndex ?? (2500 + order.value * 20)
 }
