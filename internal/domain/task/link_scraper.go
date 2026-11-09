@@ -30,9 +30,9 @@ type rawLink struct {
 	SourceChatTitle string
 }
 
- // scrapedLinkDedupKey scopes the in-memory cache to a tenant. The database
- // uniqueness constraint is (tenant_id, link_hash), so a global hash-only
- // cache would incorrectly suppress another tenant's copy of the same link.
+// scrapedLinkDedupKey scopes the in-memory cache to a tenant. The database
+// uniqueness constraint is (tenant_id, link_hash), so a global hash-only
+// cache would incorrectly suppress another tenant's copy of the same link.
 func scrapedLinkDedupKey(tenantID uuid.UUID, linkHash string) string {
 	return tenantID.String() + ":" + linkHash
 }
