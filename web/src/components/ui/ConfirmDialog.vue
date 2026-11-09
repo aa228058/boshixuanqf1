@@ -2,22 +2,13 @@
   <Modal v-model="visible" :title="title">
     <ConfirmPrompt :message="displayMessage" :detail="detail" />
     <template #footer>
-      <t-button
-        type="button"
-        variant="outline"
-        class="ui-t-button ui-t-button--secondary"
-        @click="visible = false"
-      >
-        {{ cancelText }}
-      </t-button>
-      <t-button
-        type="button"
-        :theme="danger ? 'danger' : 'primary'"
-        :class="['ui-t-button', danger ? 'ui-t-button--danger' : 'ui-t-button--primary']"
-        @click="confirm"
-      >
-        {{ confirmText }}
-      </t-button>
+      <ConfirmActions
+        :danger="danger"
+        :confirm-text="confirmText"
+        :cancel-text="cancelText"
+        @cancel="visible = false"
+        @confirm="confirm"
+      />
     </template>
   </Modal>
 </template>
@@ -25,6 +16,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import ConfirmPrompt from './ConfirmPrompt.vue'
+import ConfirmActions from './ConfirmActions.vue'
 import Modal from './Modal.vue'
 
 const props = withDefaults(defineProps<{
