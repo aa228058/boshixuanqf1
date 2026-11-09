@@ -244,11 +244,23 @@ const inviteGroups = ref<Group[]>([])
 const joinedGroups = computed(() => inviteGroups.value)
 
 // R108: 群列表跟随"执行账号"下拉(原绑 currentAccount, 选号与选群错位必失败)
+let inviteGroupRequest = 0
 async function loadInviteGroups() {
-  if (!phoneAccId.value) return
-  inviteGroups.value = await groupStore.ensure(phoneAccId.value)
+  const accountId = phoneAccId.value
+  if (!accountId) {
+    inviteGroups.value = []
+    return
+  }
+  const requestId = ++inviteGroupRequest
+  const groups = await groupStore.ensure(accountId)
+  // 账号切换期间旧请求可能后返回；只允许当前选择账号的结果更新下拉。
+  if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+    inviteGroups.value = groups
+  }
 }
 watch(phoneAccId, () => {
+  // 使此前尚未完成的账号请求失效，避免旧账号群列表覆盖新选择。
+  inviteGroupRequest++
   inviteGroups.value = []
   inviteTargetId.value = ''
   inviteSourceId.value = ''
@@ -256,10 +268,9 @@ watch(phoneAccId, () => {
 })
 
 watch(currentAccount, () => {
+  // 群组下拉以 phoneAccId（弹窗内显式选择）为唯一数据源；
+  // 顶栏账号变化不应清空或重新加载用户已选的执行账号群组。
   fetchTasks()
-  inviteTargetId.value = ''
-  inviteSourceId.value = ''
-  loadInviteGroups()
 })
 
 const statusLabelMap: Record<string, string> = {
