@@ -55,6 +55,44 @@ func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][
 	return result
 }
 
+func parseBroadcastMappings(raw any, allowedAccounts []uuid.UUID) (map[uuid.UUID][]string, error) {
+	mappings, ok := raw.([]any)
+	if !ok || len(mappings) == 0 {
+		return nil, fmt.Errorf("mapping mode requires a non-empty mappings array")
+	}
+	allowed := make(map[uuid.UUID]bool, len(allowedAccounts))
+	for _, id := range allowedAccounts {
+		allowed[id] = true
+	}
+	result := make(map[uuid.UUID][]string, len(mappings))
+	for i, item := range mappings {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("mapping[%d] must be an object", i)
+		}
+		accountText, ok := entry["account_id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("mapping[%d] account_id must be a UUID string", i)
+		}
+		accountID, err := uuid.Parse(accountText)
+		if err != nil || !allowed[accountID] {
+			return nil, fmt.Errorf("mapping[%d] account_id is invalid or not selected", i)
+		}
+		targetValues, ok := entry["targets"].([]any)
+		if !ok || len(targetValues) == 0 {
+			return nil, fmt.Errorf("mapping[%d] targets must be a non-empty array", i)
+		}
+		for j, value := range targetValues {
+			target, ok := value.(string)
+			if !ok || strings.TrimSpace(target) == "" {
+				return nil, fmt.Errorf("mapping[%d] targets[%d] must be a non-empty string", i, j)
+			}
+			result[accountID] = append(result[accountID], target)
+		}
+	}
+	return dedupeAccountTargets(result), nil
+}
+
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Overall timeout: max 30 minutes for a broadcast task to prevent indefinite hanging
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -128,50 +166,31 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		mode = domain.BroadcastModeCartesian // default to legacy mode
 	}
 
-	// Build account -> targets mapping
+	// Build account -> targets mapping. Invalid mapping input must fail closed:
+	// silently falling back to cartesian can send to groups the user did not select.
 	accountTargets := make(map[uuid.UUID][]string)
 	var total int
-
-	if mode == domain.BroadcastModeMapping {
-		// Parse mappings from payload
-		var mappingsData []any
-		if v, ok := task.Payload["mappings"]; ok {
-			switch val := v.(type) {
-			case []any:
-				mappingsData = val
+	switch mode {
+	case domain.BroadcastModeMapping:
+		var mappingErr error
+		accountTargets, mappingErr = parseBroadcastMappings(task.Payload["mappings"], task.AccountIDs)
+		if mappingErr != nil {
+			taskLog.Printf("[broadcast] invalid account-target mapping task=%s: %v", task.TaskID, mappingErr)
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+				taskLog.Printf("[broadcast] failed to mark invalid mapping task failed: %v", err)
 			}
+			return
 		}
-		for _, m := range mappingsData {
-			mMap, ok := m.(map[string]any)
-			if !ok {
-				continue
-			}
-			accIDStr, _ := mMap["account_id"].(string)
-			accID, err := uuid.Parse(accIDStr)
-			if err != nil {
-				continue
-			}
-			targetsRaw, _ := mMap["targets"].([]any)
-			var targets []string
-			for _, t := range targetsRaw {
-				if ts, ok := t.(string); ok {
-					targets = append(targets, ts)
-				}
-			}
-			accountTargets[accID] = targets
-			total += len(targets)
-		}
-		// Fallback: if no valid mappings parsed, use cartesian
-		if len(accountTargets) == 0 {
-			mode = domain.BroadcastModeCartesian
-		}
-	}
-
-	if mode == domain.BroadcastModeCartesian {
+	case domain.BroadcastModeCartesian:
 		for _, accID := range task.AccountIDs {
 			accountTargets[accID] = task.TargetIDs
 		}
-		total = len(task.TargetIDs) * len(task.AccountIDs)
+	default:
+		taskLog.Printf("[broadcast] unsupported broadcast mode task=%s mode=%q", task.TaskID, mode)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] failed to mark unsupported mode task failed: %v", err)
+		}
+		return
 	}
 
 	done := 0
