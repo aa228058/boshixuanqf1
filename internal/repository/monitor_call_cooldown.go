@@ -33,7 +33,6 @@ func (r *CallCooldownRepository) Claim(ctx context.Context, tenantID, accountID 
 	return tag.RowsAffected() == 1, nil
 }
 
-
 // PruneExpired removes cooldown rows that can no longer block a call.
 // Unlike DM action idempotency keys, expired cooldown rows are safe to delete.
 func (r *CallCooldownRepository) PruneExpired(ctx context.Context) (int64, error) {
