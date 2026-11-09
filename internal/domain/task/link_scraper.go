@@ -128,7 +128,6 @@ func (ls *LinkScraper) Stop() {
 	ls.stopOnce.Do(func() {
 		ls.handlersMu.Lock()
 		ls.stopped = true
-		close(ls.stopCh)
 		ls.handlers.Range(func(key, value interface{}) bool {
 			if h, ok := value.(*accountHandler); ok && h != nil {
 				ls.deactivateHandler(h)
@@ -138,9 +137,13 @@ func (ls *LinkScraper) Stop() {
 			return true
 		})
 		ls.handlersMu.Unlock()
+
+		// Stop accepting callbacks and wait for callbacks already admitted before
+		// waking the consumer. This makes the final queue drain a stable snapshot.
 		for _, h := range handlers {
 			h.callbackWG.Wait()
 		}
+		close(ls.stopCh)
 	})
 	ls.wg.Wait()
 	log.Printf("[link-scraper] 常驻链接采集服务已停止")
@@ -332,8 +335,10 @@ func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ls.stopCh:
+			ls.drainQueuedLinks()
 			return
 		case <-ctx.Done():
+			ls.drainQueuedLinks()
 			return
 		case <-ticker.C:
 			// 消费节奏由 ticker 门控：200ms 一条 = 每秒最多 5 次 ResolvePeer，
@@ -343,6 +348,21 @@ func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 				ls.processLink(ctx, raw)
 			default:
 			}
+		}
+	}
+}
+
+// drainQueuedLinks persists queued links without network resolution during shutdown.
+// The queue is stable because Stop first disables handlers and waits for callbacks.
+func (ls *LinkScraper) drainQueuedLinks() {
+	drainCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for {
+		select {
+		case raw := <-ls.linkQueue:
+			ls.processLink(drainCtx, raw)
+		default:
+			return
 		}
 	}
 }
@@ -384,7 +404,7 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 	}
 
 	// For public links, try to resolve group info (with rate limiting)
-	if raw.LinkType == "public" {
+	if raw.LinkType == "public" && ctx.Err() == nil {
 		client, err := ls.accEngine.GetClient(ctx, raw.TenantID, raw.AccountID)
 		if err == nil {
 			defer ls.accEngine.ReleaseClient(raw.TenantID, raw.AccountID, client)
