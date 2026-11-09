@@ -25,14 +25,20 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
 		return
 	}
+	defer rows.Close()
 	var pending []row
 	for rows.Next() {
 		var item row
-		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err == nil {
-			pending = append(pending, item)
+		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err != nil {
+			log.Printf("[grouplib] 读取待解析群记录失败: %v", err)
+			return
 		}
+		pending = append(pending, item)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		log.Printf("[grouplib] 遍历待解析群记录失败: %v", err)
+		return
+	}
 	if len(pending) == 0 {
 		return
 	}
