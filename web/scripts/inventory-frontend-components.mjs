@@ -81,6 +81,24 @@ const formControlUsage = formControlPatterns.map(([label, pattern]) => ({
     .sort((a, b) => b.count - a.count),
 }))
 
+const stateAndOverlayPatterns = [
+  ['TDesign <t-dialog>', /<t-dialog\\b/gi],
+  ['TDesign <t-empty>', /<t-empty\\b/gi],
+  ['TDesign <t-loading>', /<t-loading\\b/gi],
+  ['Project <Modal>', /<Modal\\b/g],
+  ['Project <EmptyState>', /<EmptyState\\b/g],
+  ['Project <Loading>', /<Loading\\b/g],
+  ['Project <Skeleton>', /<Skeleton\\b/g],
+]
+const stateAndOverlayUsage = stateAndOverlayPatterns.map(([label, pattern]) => ({
+  label,
+  total: [...contents.values()].reduce((sum, source) => sum + [...source.matchAll(pattern)].length, 0),
+  files: [...contents.entries()]
+    .map(([file, source]) => ({ path: relative(root, file), count: [...source.matchAll(pattern)].length }))
+    .filter(entry => entry.count > 0)
+    .sort((a, b) => b.count - a.count),
+}))
+
 const buttonUsage = buttonPatterns.map(([label, pattern]) => ({
   label,
   total: [...contents.values()].reduce((sum, source) => sum + [...source.matchAll(pattern)].length, 0),
@@ -117,6 +135,13 @@ for (const usage of buttonUsage) {
 console.log('')
 console.log('Form-control implementation usage (source-level matches)')
 for (const usage of formControlUsage) {
+  console.log(`- ${usage.label}: ${usage.total} matches across ${usage.files.length} files`)
+  for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
+}
+console.log('')
+console.log('')
+console.log('Modal, empty, and loading-state usage (source-level matches)')
+for (const usage of stateAndOverlayUsage) {
   console.log(`- ${usage.label}: ${usage.total} matches across ${usage.files.length} files`)
   for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
 }
