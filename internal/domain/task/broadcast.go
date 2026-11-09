@@ -851,13 +851,14 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		Failed:          failed,
 		AccountProgress: accProgList,
 	}
-	if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
-		log.Printf("[broadcast] 更新进度失败: %v", err)
+	finalProgressPersistErr := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress)
+	if finalProgressPersistErr != nil {
+		log.Printf("[broadcast] 更新最终进度失败: %v", finalProgressPersistErr)
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	finalStatus := domain.TaskStatusCompleted
-	if (failed == total && total > 0) || checkpointPersistErr != nil || finalLogPersistErr != nil {
+	if (failed == total && total > 0) || checkpointPersistErr != nil || finalLogPersistErr != nil || finalProgressPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
 	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
