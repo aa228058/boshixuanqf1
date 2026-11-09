@@ -80,6 +80,7 @@ type Engine struct {
 	// 读这里而不是每秒查库——N 个前端同时看进度时 DB QPS 归零。
 	// 任务结束时由 goroutine defer 删除。
 	progressCache sync.Map
+	progressMu    sync.Mutex // serializes progress snapshots to prevent out-of-order callback regressions
 	// scheduler provides resource-aware, plan-based dynamic concurrency control
 	scheduler *AutoScheduler
 
@@ -239,7 +240,17 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 // Uses "events" topic to match frontend subscription via Handler("events").
 // 同时写入 progressCache，供 StreamProgress 免库读取。
 func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress domain.TaskProgress) {
+	// Monitor callbacks may persist members concurrently and finish out of order.
+	// Keep the in-memory snapshot monotonic so a slower callback cannot roll the
+	// visible progress back after a later callback has already published a higher Done.
+	e.progressMu.Lock()
+	if cached, ok := e.progressCache.Load(taskID); ok {
+		if previous, valid := cached.(domain.TaskProgress); valid && progress.Done < previous.Done {
+			progress = previous
+		}
+	}
 	e.progressCache.Store(taskID, progress)
+	e.progressMu.Unlock()
 	if e.sseBroker != nil {
 		e.sseBroker.BroadcastToTenant(tenantID, "events", map[string]any{
 			"task_id":  taskID,
