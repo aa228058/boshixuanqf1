@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestLinkScraperStartIsIdempotent(t *testing.T) {
@@ -77,5 +79,19 @@ func TestLinkScraperConcurrentStartAndStop(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatalf("iteration %d: Stop did not finish", i)
 		}
+	}
+}
+
+func TestScrapedLinkDedupKeyIsTenantScoped(t *testing.T) {
+	firstTenant := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	secondTenant := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	linkHash := "public-group-name"
+
+	firstKey := scrapedLinkDedupKey(firstTenant, linkHash)
+	if firstKey != scrapedLinkDedupKey(firstTenant, linkHash) {
+		t.Fatal("same tenant and link hash should deduplicate")
+	}
+	if firstKey == scrapedLinkDedupKey(secondTenant, linkHash) {
+		t.Fatal("the same Telegram link must not be deduplicated across tenants")
 	}
 }
