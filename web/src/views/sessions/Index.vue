@@ -196,7 +196,8 @@ const { avatarOf } = useAccountAvatar()
 // 世界隔离：协议号管理页只显示 source='protocol' 的账号，
 // 避免正常号混入列表、批量删除误删正常号
 const accounts = computed(() => accountStore.protocolAccounts as any[])
-const loading = ref(false)
+// 首次渲染即进入加载态，避免 onMounted(refresh) 前短暂闪现 EmptyState。
+const loading = ref(true)
 
 const total = computed(() => accounts.value.length)
 const onlineCount = computed(() => accounts.value.filter((a: any) => a.status === 'online').length)
