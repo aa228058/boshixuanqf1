@@ -110,6 +110,16 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - This is a source-level inventory; it does not classify whether each native control is a valid semantic exception. Do not replace native controls without reviewing their form behavior and call sites.
 - Removed the obsolete `UiButton` audit category after deleting that temporary wrapper; the inventory now reports only the established TDesign/native entrypoints and project semantic classes.
 
+### Batch D3 — session-page dialogs and state inventory
+
+- Migrated the session management page's two TDesign `<t-dialog>` forms (session import and profile edit) to the established `Modal.vue` primitive.
+- Preserved the 560px/480px desktop widths, import/save loading states, explicit cancel actions, delayed successful-import close, and existing form behavior.
+- Removed the page's viewport-width watcher; the shared Modal now owns desktop centering and mobile bottom-sheet geometry.
+- Added page-scoped footer actions: right-aligned on desktop, full-width stacked controls on mobile, with 44px minimum touch height.
+- Extended the inventory to report TDesign Dialog/Empty/Loading usage separately from project Modal/EmptyState/Loading/Skeleton usage.
+- `EmptyState` remains the established wrapper around TDesign Empty and is used across multiple pages. `Skeleton` is used for content-shaped loading placeholders. The standalone `Loading.vue` has no direct import found in the audited page/component set; it is not deleted until dynamic/runtime references and any external contract are ruled out.
+- The app-level TDesign Dialog registration is intentionally retained until the complete source inventory confirms no dynamic or non-template use.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
