@@ -88,6 +88,20 @@ func TestDMActionClaimIsDurableAndAtomic(t *testing.T) {
 	if resolved != 1 {
 		t.Fatalf("resolved stale claims = %d, want 1", resolved)
 	}
+	// A fresh in_progress action must not be swept.
+	if claimed, err := repo.Claim(ctx, tenantID, accountID, ruleID, 42345, -10001, 80, "text"); err != nil || !claimed {
+		t.Fatalf("create fresh claim = (%t, %v), want (true, nil)", claimed, err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT status FROM monitor_dm_actions
+		WHERE tenant_id=$1 AND account_id=$2 AND rule_id=$3
+		  AND target_id=42345 AND source_chat_id=-10001 AND source_message_id=80 AND action='text'
+	`, tenantID, accountID, ruleID).Scan(&status); err != nil {
+		t.Fatalf("read fresh action: %v", err)
+	}
+	if status != "in_progress" {
+		t.Fatalf("fresh action state = %q, want in_progress", status)
+	}
 	if claimed, err := repo.Claim(ctx, tenantID, accountID, ruleID, 22345, -10001, 78, "contact"); err != nil || claimed {
 		t.Fatalf("stale claim retry = (%t, %v), want (false, nil)", claimed, err)
 	}
