@@ -47,13 +47,13 @@
             </t-input>
           </div>
           <p v-if="errorMsg" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
-          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full" theme="primary" size="sm"
+          <UiButton class="ui-t-button ui-t-button--primary ui-t-button--sm w-full" theme="primary" size="sm"
             :disabled="loading"
             @click="handleLogin"
           >
             <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
             <span>{{ loading ? '登录中...' : '登录' }}</span>
-          </t-button>
+          </UiButton>
         </div>
       </div>
     </div>
@@ -61,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref } from 'vue'
 // R87-M7: DynamicBackground 已移除
 import { useRouter } from 'vue-router'
