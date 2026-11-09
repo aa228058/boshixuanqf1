@@ -187,9 +187,9 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 		if err := rows.Scan(&linkID, &tenantID, &url, &linkType, &title, &mc, &status, &ct, &chatID); err != nil {
 			return err
 		}
-		last = aggregationCursor{at: ct, id: linkID}
 		username := extractTmeUsername(url)
 		if strings.HasSuffix(strings.ToLower(username), "bot") {
+			last = aggregationCursor{at: ct, id: linkID}
 			continue
 		}
 		gt := "public"
@@ -201,15 +201,21 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			upsertFailed = true
 			log.Printf("[grouplib] scraped upsert %s: %v", url, err)
-			continue
+			break
 		}
+		last = aggregationCursor{at: ct, id: linkID}
 		n++
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	if upsertFailed {
-		return errors.New("scraped links aggregation incomplete; watermark not advanced")
+		if last.id != uuid.Nil {
+			e.mu.Lock()
+			e.slW = last
+			e.mu.Unlock()
+		}
+		return errors.New("scraped links aggregation incomplete; cursor stopped before failed row")
 	}
 	if last.id != uuid.Nil {
 		e.mu.Lock()
@@ -252,7 +258,6 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 		if ut.After(ct) {
 			ct = ut
 		}
-		last = aggregationCursor{at: ct, id: groupID}
 		gt := "public"
 		if gtype == "channel" {
 			gt = "channel"
@@ -264,15 +269,21 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			upsertFailed = true
 			log.Printf("[grouplib] joined upsert %s: %v", username, err)
-			continue
+			break
 		}
+		last = aggregationCursor{at: ct, id: groupID}
 		n++
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	if upsertFailed {
-		return errors.New("joined groups aggregation incomplete; watermark not advanced")
+		if last.id != uuid.Nil {
+			e.mu.Lock()
+			e.gW = last
+			e.mu.Unlock()
+		}
+		return errors.New("joined groups aggregation incomplete; cursor stopped before failed row")
 	}
 	if last.id != uuid.Nil {
 		e.mu.Lock()
@@ -308,12 +319,12 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 		if err := rows.Scan(&memberID, &bio, &ct); err != nil {
 			return err
 		}
-		last = aggregationCursor{at: ct, id: memberID}
 		processed, bioErr := e.upsertBioLinks(ctx, bio)
 		n += processed
 		if bioErr != nil {
 			return bioErr
 		}
+		last = aggregationCursor{at: ct, id: memberID}
 	}
 	if err := rows.Err(); err != nil {
 		return err
