@@ -929,7 +929,16 @@ func (h *TaskHandler) GetLogs(c echo.Context) error {
 		pageSize = min(value, 200)
 	}
 
-	logs, err := h.svc.GetLogs(c.Request().Context(), tenantID, taskID, page, pageSize)
+	var logs []*domain.TaskLog
+	if cursor := c.QueryParam("before_log_id"); cursor != "" {
+		beforeLogID, parseErr := uuid.Parse(cursor)
+		if parseErr != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "日志游标格式错误")
+		}
+		logs, err = h.svc.GetLogsBefore(c.Request().Context(), tenantID, taskID, beforeLogID, pageSize)
+	} else {
+		logs, err = h.svc.GetLogs(c.Request().Context(), tenantID, taskID, page, pageSize)
+	}
 	if err != nil {
 		log.Printf("[handler] 获取任务日志失败: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "服务器内部错误")
