@@ -479,7 +479,7 @@ watch(message, (value) => {
   }, 800)
 })
 // 切换账号前先把当前编辑内容写回旧账号，再恢复新账号自己的草稿。
-watch(currentAccount, (account) => {
+watch([currentAccount, () => authStore.tenant?.tenant_id ?? authStore.tenant?.id], ([account]) => {
   if (draftTimer) {
     clearTimeout(draftTimer)
     draftTimer = null
