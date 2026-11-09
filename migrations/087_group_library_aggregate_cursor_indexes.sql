@@ -20,3 +20,4 @@ CREATE INDEX IF NOT EXISTS idx_members_bio_aggregate_cursor
 DROP INDEX IF EXISTS idx_members_bio_aggregate_cursor;
 DROP INDEX IF EXISTS idx_groups_aggregate_cursor;
 DROP INDEX IF EXISTS idx_scraped_links_aggregate_cursor;
+DROP TABLE IF EXISTS group_library_aggregation_cursors;
