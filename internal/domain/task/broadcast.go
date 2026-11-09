@@ -38,6 +38,27 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	}
 }
 
+// dedupeBroadcastTargets removes duplicate targets within each account while
+// preserving the same target for different accounts. The returned total matches
+// the exact number of account-target sends that will be attempted.
+func dedupeBroadcastTargets(accountTargets map[uuid.UUID][]string) int {
+	total := 0
+	for accountID, targets := range accountTargets {
+		seen := make(map[string]struct{}, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			if _, exists := seen[target]; exists {
+				continue
+			}
+			seen[target] = struct{}{}
+			unique = append(unique, target)
+		}
+		accountTargets[accountID] = unique
+		total += len(unique)
+	}
+	return total
+}
+
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Overall timeout: max 30 minutes for a broadcast task to prevent indefinite hanging
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -151,22 +172,8 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		}
 	}
 
-	// Deduplicate within each account only. In cartesian mode, every account
-	// must retain the same target list; global deduplication silently removes
-	// all targets from subsequent accounts.
-	for accID, targets := range accountTargets {
-		seen := make(map[string]struct{}, len(targets))
-		unique := make([]string, 0, len(targets))
-		for _, target := range targets {
-			if _, exists := seen[target]; exists {
-				continue
-			}
-			seen[target] = struct{}{}
-			unique = append(unique, target)
-		}
-		accountTargets[accID] = unique
-		total += len(unique)
-	}
+	// Deduplicate per account so cartesian assignments are preserved.
+	total = dedupeBroadcastTargets(accountTargets)
 
 	done := 0
 	failed := 0
