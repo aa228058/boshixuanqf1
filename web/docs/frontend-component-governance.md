@@ -190,6 +190,14 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - `TargetSelector.vue` previously allowed a slow contact/group-cache response for the old `accountId` to overwrite the selector after the user switched account while the modal remained open. Added a request-generation guard to selector opening and contact loading; closing the selector invalidates outstanding work, and changing account reloads its context without clearing already selected targets.
 - These changes are frontend state/lifecycle safeguards. They do not alter task payloads or server contracts.
 
+### Batch E3 — GroupSelector account-scoped cache lifecycle
+
+- `GroupSelector.vue` previously copied incoming groups only when the new array was non-empty. When the parent cleared its group list or switched accounts, the selector could continue showing the previous account's cached groups.
+- The selector now treats `props.groups` as the authoritative snapshot, including an empty array. On account changes it invalidates in-flight selector/DM loads, clears account-scoped local data and DM cache state, and reloads the new account when the modal is open.
+- Cache loading now checks both request generation and current account/modal state before writing results. Closing and reopening also invalidates stale results.
+- Private-message contacts are cached per currently selected account rather than once for the component lifetime; late responses from a previous account are ignored.
+- This is a client-side account-context correction. Selection payload format and backend APIs are unchanged.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
