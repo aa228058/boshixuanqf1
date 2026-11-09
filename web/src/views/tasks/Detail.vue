@@ -261,7 +261,8 @@ const membersError = ref('')
 async function fetchMembers() {
   const t = task.value as any
   const groupId = t?.payload?.group_id || t?.target_ids?.[0]
-  if (!groupId || !pageActive) { membersError.value = '任务缺少群组信息'; return }
+  if (!pageActive) return
+  if (!groupId) { membersError.value = '任务缺少群组信息'; return }
   const requestId = ++membersRequestId
   membersLoading.value = true
   membersError.value = ''
@@ -343,15 +344,17 @@ const waitState = ref<{ account_id: string; target_id: string; remaining: number
 
 function taskLogKey(log: TaskLog): string {
   if (log.log_id) return `id:${log.log_id}`
-  return [
+  // JSON 编码避免日志正文包含分隔符时产生身份键碰撞。
+  return JSON.stringify([
     log.executed_at || '',
     log.action || '',
     log.status || '',
     log.target_id || '',
+    log.target_name || '',
     log.tg_message_id ?? '',
     log.error_code || '',
     log.message || '',
-  ].join('|')
+  ])
 }
 
 const filteredDisplayLogs = computed(() => {
