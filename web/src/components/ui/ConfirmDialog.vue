@@ -1,12 +1,6 @@
 <template>
   <Modal v-model="visible" :title="title">
-    <div class="flex items-start gap-3">
-      <AlertTriangle class="w-6 h-6 text-amber shrink-0 mt-0.5" />
-      <div>
-        <p class="text-text-primary">{{ displayMessage }}</p>
-        <p v-if="detail" class="text-sm text-text-secondary mt-2">{{ detail }}</p>
-      </div>
-    </div>
+    <ConfirmPrompt :message="displayMessage" :detail="detail" />
     <template #footer>
       <t-button
         type="button"
@@ -30,7 +24,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { AlertTriangle } from 'lucide-vue-next'
+import ConfirmPrompt from './ConfirmPrompt.vue'
 import Modal from './Modal.vue'
 
 const props = withDefaults(defineProps<{
