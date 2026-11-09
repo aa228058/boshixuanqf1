@@ -123,7 +123,7 @@ func (ls *LinkScraper) Start(ctx context.Context) {
 }
 
 // Stop gracefully shuts down the link scraper.
-func (ls *LinkScraper) Stop() {
+func (ls *LinkScraper) stopHandlers() {
 	var handlers []*accountHandler
 	ls.stopOnce.Do(func() {
 		ls.handlersMu.Lock()
@@ -145,6 +145,11 @@ func (ls *LinkScraper) Stop() {
 		}
 		close(ls.stopCh)
 	})
+}
+
+// Stop gracefully shuts down the link scraper and waits for all workers.
+func (ls *LinkScraper) Stop() {
+	ls.stopHandlers()
 	ls.wg.Wait()
 	log.Printf("[link-scraper] 常驻链接采集服务已停止")
 }
@@ -338,6 +343,9 @@ func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 			ls.drainQueuedLinks()
 			return
 		case <-ctx.Done():
+			// Parent cancellation can race Engine.Stop. Close callback admission
+			// before draining so no handler can enqueue after the final snapshot.
+			ls.stopHandlers()
 			ls.drainQueuedLinks()
 			return
 		case <-ticker.C:
