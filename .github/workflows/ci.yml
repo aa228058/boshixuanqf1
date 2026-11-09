@@ -3,7 +3,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, integration-grouplib-import-worker-lease]
   pull_request:
     branches: [main, master, feat/group-import-resolver-pipeline]
 
