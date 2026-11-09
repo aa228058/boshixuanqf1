@@ -67,8 +67,10 @@
         <div class="h-1.5 rounded-full overflow-hidden bg-bg-secondary">
           <div class="h-full rounded-full bg-[var(--t-brand)] transition-all" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }"></div>
         </div>
-        <div v-if="job.status === 'review'" class="flex justify-end">
-          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <t-button v-if="job.status === 'review'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
+          <t-button v-if="['review', 'pending', 'processing'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="danger" @click="cancelGroupImport(job.job_id)">取消导入</t-button>
+          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
         </div>
         <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
       </article>
@@ -252,7 +254,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { taskApi } from '@/api/task'
-import { listGroupLibraryImportJobs, confirmImportLibraryGroups } from '@/api/groups'
+import { listGroupLibraryImportJobs, confirmImportLibraryGroups, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
@@ -343,7 +345,7 @@ async function fetchImportJobs() {
 
 function importStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    review: '待确认', pending: '排队中', processing: '解析中',
+    review: '待确认', pending: '排队中', processing: '解析中', cancelling: '取消中', cancelled: '已取消',
     completed: '已完成', failed: '失败',
   }
   return labels[status] || status || '未知'
@@ -356,6 +358,30 @@ async function confirmGroupImport(jobId: string) {
     await fetchImportJobs()
   } catch (e: any) {
     toast({ type: 'error', title: '确认失败', message: e?.message || '无法确认导入任务' })
+  }
+}
+
+async function cancelGroupImport(jobId: string) {
+  const ok = await ask('确定取消这条群组导入任务？已完成的链接不会回滚。', {
+    title: '取消导入任务', danger: true, confirmText: '取消任务',
+  })
+  if (!ok) return
+  try {
+    await cancelGroupLibraryImportJob(jobId)
+    toast({ type: 'success', title: '已提交取消请求' })
+    await fetchImportJobs()
+  } catch (e: any) {
+    toast({ type: 'error', title: '取消失败', message: e?.message || '无法取消导入任务' })
+  }
+}
+
+async function retryGroupImport(jobId: string) {
+  try {
+    await retryFailedGroupLibraryImportJob(jobId)
+    toast({ type: 'success', title: '失败链接已重新排队' })
+    await fetchImportJobs()
+  } catch (e: any) {
+    toast({ type: 'error', title: '重试失败', message: e?.message || '无法重试失败链接' })
   }
 }
 
