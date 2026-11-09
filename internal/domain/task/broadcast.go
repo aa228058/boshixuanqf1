@@ -532,7 +532,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				if chatID == 0 {
 					if status != "failed" {
 						status = "failed"
-						errCode = "unsupported_peer_type"
+						errCode = "unsupported peer type"
 						accFailed++
 						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
 					}
