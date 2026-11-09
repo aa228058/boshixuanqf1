@@ -3,7 +3,7 @@
        v-if 链顺序: invalidId 先行, tenant 内容 v-else-if 跟随 -->
   <main v-if="invalidId" class="max-w-4xl mx-auto py-16 text-center space-y-4">
     <p class="text-text-muted">租户 ID 无效或链接已损坏</p>
-    <t-button @click="router.replace('/admin/tenants')" class="ui-t-button--secondary ui-t-button">返回租户列表</t-button>
+    <UiButton @click="router.replace('/admin/tenants')" class="ui-t-button--secondary ui-t-button">返回租户列表</UiButton>
   </main>
   <main class="max-w-4xl mx-auto space-y-6" v-else-if="tenant">
     <Breadcrumb :items="[{ path: '/admin/tenants', label: '租户管理' }, { path: '', label: '租户详情' }]" />
@@ -53,11 +53,11 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border">
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
-        <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
+        <UiButton theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</UiButton>
+        <UiButton theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</UiButton>
+        <UiButton theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
           {{ tenant.status === 'active' ? '停用租户' : '启用租户' }}
-        </t-button>
+        </UiButton>
       </div>
     </div>
 
@@ -73,14 +73,15 @@
         </div>
       </div>
       <template #footer>
-        <t-button type="button" @click="showEdit = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
+        <UiButton type="button" @click="showEdit = false" class="ui-t-button--secondary ui-t-button">取消</UiButton>
+        <UiButton theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</UiButton>
       </template>
     </Modal>
   </main>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
