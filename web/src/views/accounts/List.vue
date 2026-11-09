@@ -872,16 +872,23 @@ const batchProfile = ref({ first_name: '', last_name: '', about: '', username: '
 // 批量改资料执行: 提交后逐号 2-4 秒间隔, 结果汇总 toast
 async function runBatchProfile() {
   if (batchingProfile.value) return
+  const ids = [...selectedIds.value]
+  if (!ids.length) {
+    toast({ type: 'info', message: '请先选择要修改的账号' })
+    return
+  }
+  // 固化本次提交的账号与资料，避免请求期间选择集合变化影响本次操作。
+  const profile = { ...batchProfile.value }
   batchingProfile.value = true
   try {
-    const r = await accountApi.batchUpdateProfile([...selectedIds.value], batchProfile.value)
+    const r = await accountApi.batchUpdateProfile(ids, profile)
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号资料已修改` })
     } else {
       toast({ type: 'warning', message: `成功 ${r.success}, 失败 ${r.failed} 个` })
     }
     showBatchProfile.value = false
-    selectedIds.value = new Set()
+    selectedIds.value = new Set([...selectedIds.value].filter(id => !ids.includes(id)))
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '批量修改失败' })
   } finally {
