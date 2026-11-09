@@ -516,11 +516,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 							accountFlooded = true
 							e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_resolve_flood_wait", resolveErr.Error(), extractFloodSeconds(resolveErr.Error()))
 						}
-						accFailed++
 						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
 						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\n",
 							targetID, accID, resolveErr.Error())
-						continue
 					}
 					switch p := peer.(type) {
 					case *tg.InputPeerUser:
@@ -532,10 +530,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					}
 				}
 				if chatID == 0 {
-					status = "failed"
-					errCode = "unsupported peer type"
-					accFailed++
-					e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					if status != "failed" {
+						status = "failed"
+						errCode = "unsupported_peer_type"
+						accFailed++
+						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					}
 				} else {
 					// Replace template variables with target info before sending
 					// 先 spintax 随机语法(每个目标独立), 再变量替换
