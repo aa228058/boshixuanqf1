@@ -30,6 +30,13 @@ type rawLink struct {
 	SourceChatTitle string
 }
 
+ // scrapedLinkDedupKey scopes the in-memory cache to a tenant. The database
+ // uniqueness constraint is (tenant_id, link_hash), so a global hash-only
+ // cache would incorrectly suppress another tenant's copy of the same link.
+func scrapedLinkDedupKey(tenantID uuid.UUID, linkHash string) string {
+	return tenantID.String() + ":" + linkHash
+}
+
 // accountHandler tracks OnMessage handler for an account.
 type accountHandler struct {
 	active     int32
@@ -348,9 +355,10 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 		}
 	}()
 
-	// Memory dedup check (24h window)
+	// Memory dedup mirrors the DB's tenant-scoped UNIQUE(tenant_id, link_hash).
+	dedupKey := scrapedLinkDedupKey(raw.TenantID, raw.LinkHash)
 	ls.dedupMu.RLock()
-	if lastSeen, ok := ls.dedupMap[raw.LinkHash]; ok && time.Since(lastSeen) < 24*time.Hour {
+	if lastSeen, ok := ls.dedupMap[dedupKey]; ok && time.Since(lastSeen) < 24*time.Hour {
 		ls.dedupMu.RUnlock()
 		return
 	}
@@ -358,7 +366,7 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 
 	// Mark as seen in memory
 	ls.dedupMu.Lock()
-	ls.dedupMap[raw.LinkHash] = time.Now()
+	ls.dedupMap[dedupKey] = time.Now()
 	ls.dedupMu.Unlock()
 
 	// Build domain link
