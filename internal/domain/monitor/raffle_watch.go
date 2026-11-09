@@ -219,7 +219,7 @@ func (e *Engine) watchRaffleMessage(ctx context.Context, tenantID, accountID uui
 		}
 		w.notified[nk] = time.Now()
 		w.mu.Unlock()
-		safego.Go(func() {
+		monitorGo(ctx, func() {
 			// R144: 群组名用书名号包裹; 未解析到时详情不再留空尾巴
 			detail := "私聊通知"
 			if groupTitle != "" {
@@ -266,7 +266,7 @@ func (e *Engine) watchRaffleMessage(ctx context.Context, tenantID, accountID uui
 		w.notified[nk] = time.Now()
 		w.mu.Unlock()
 
-		safego.Go(func() {
+		monitorGo(ctx, func() {
 			// R149: 开奖公告标题(emoji前文字)作为活动名, 与私聊通知路径聚合
 			w.onResult(tenantID, accountID, chatID, kind, extractActivityName(text), prize, truncateR(text, 300))
 		})
@@ -280,7 +280,7 @@ func (e *Engine) watchRaffleMessage(ctx context.Context, tenantID, accountID uui
 					rp = string(rr[:200])
 				}
 				if rp != "" {
-					safego.Go(func() {
+					monitorGo(ctx, func() {
 						select {
 						case <-ctx.Done():
 							return
