@@ -245,3 +245,13 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Added a monotonically increasing task-detail fetch request ID. Only the newest active request may update task data, page errors, or loading state; responses arriving after unmount are ignored.
 - Guarded the task-detail SSE ticket exchange, EventSource callbacks, watchdog, and reconnect scheduler with the page lifecycle. If the page unmounts while ticket acquisition is pending, the late response cannot create a detached EventSource or schedule another reconnect.
 - This is a client-side duplicate-submit guard, not a replacement for backend idempotency or state-transition validation. Server-side protection and manual browser verification remain required.
+
+
+### Batch E8 — task log pagination and live snapshot reconciliation
+
+- Task-detail log fetches now track request generations per page; an older response for the same page cannot overwrite a newer refresh, and responses after page unmount are ignored.
+- A page-1 live refresh merges persisted rows into the current timeline without resetting the user's deepest loaded history page.
+- The pagination cursor's hasMore state is updated only by the currently deepest loaded page, so a late page-1 refresh cannot undo the end-of-history result from page 2+.
+- Response normalization now handles nested { data: { list } } in addition to array, { list }, and { data } forms.
+- Clearing the displayed log list invalidates in-flight page requests; this remains a local display action and does not delete persisted audit/send logs.
+- Manual verification is still required for overlapping page loads, SSE arrival during refresh, and reaching the oldest page.
