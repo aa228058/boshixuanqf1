@@ -65,6 +65,15 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - Moved the shared button presentation into `ConfirmActions.vue`; the two hosts still own their distinct event handlers (local v-model close vs promise settlement).
 - No legacy component was deleted in this batch.
 
+
+### Batch B2 — button adapter foundation
+
+- Added `components/ui/UiButton.vue` as the canonical project-owned TDesign button adapter.
+- The adapter maps semantic tones (`primary`, `secondary`, `danger`, `text`) to TDesign theme/variant values and applies the shared `.ui-t-button` design tokens/classes.
+- Native TDesign attributes and events (including `type`, `disabled`, `loading`, click handlers and other attrs) are forwarded to the underlying button.
+- Migrated the shared confirmation action component to `UiButton`, making both confirmation entry points use the same button implementation.
+- This is the migration foundation, not a claim that every existing page button has already been migrated. Remaining direct TDesign/native button call sites require inventory and page-by-page conversion.
+
 ### Batch C — forms and data display
 - Normalize input/select/checkbox/switch/date-picker wrappers and validation behavior.
 - Normalize table, pagination, badges, tooltips and empty/loading states.
