@@ -122,3 +122,27 @@ func TestLinkScraperDrainsQueuedLinksWithoutNetworkResolution(t *testing.T) {
 		t.Fatal("shutdown drain should empty the in-memory queue")
 	}
 }
+
+func TestLinkScraperParentCancellationClosesAdmissionAndDrains(t *testing.T) {
+	ls := NewLinkScraper(nil, nil, nil, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	ls.Start(ctx)
+	cancel()
+
+	select {
+	case <-ls.stopCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("parent cancellation did not close scraper callback admission")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		ls.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scraper workers did not drain after parent cancellation")
+	}
+}
