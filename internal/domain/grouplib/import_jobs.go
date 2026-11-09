@@ -165,7 +165,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		claimedJobIDs = append(claimedJobIDs, jobID)
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
-			if !e.execImportJobUpdate(ctx, jobID, leaseToken, "complete empty import", `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW(), lease_token=NULL WHERE job_id=$1 AND lease_token=$2`, jobID, leaseToken) {
+			if !e.execImportJobUpdate(ctx, jobID, "complete empty import", `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW(), lease_token=NULL WHERE job_id=$1 AND lease_token=$2`, jobID, leaseToken) {
 				return
 			}
 			continue
@@ -351,7 +351,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 }
 
 
-func (e *Engine) execImportJobUpdate(ctx context.Context, jobID, leaseToken uuid.UUID, action, query string, args ...any) bool {
+func (e *Engine) execImportJobUpdate(ctx context.Context, jobID uuid.UUID, action, query string, args ...any) bool {
 	tag, err := e.pool.Exec(ctx, query, args...)
 	if err != nil {
 		log.Printf("[grouplib] %s 失败 job=%s: %v", action, jobID, err)
