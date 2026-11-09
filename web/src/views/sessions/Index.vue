@@ -7,10 +7,10 @@
       </h1>
       <span class="text-xs text-text-secondary hidden md:inline">导入外部会话直接可用，无需短信验证</span>
       <div class="flex-1"></div>
-      <t-button v-if="selected.size" size="small" theme="danger" variant="outline" class="ui-t-button--danger ui-t-button whitespace-nowrap shrink-0" @click="batchDelete">删除({{ selected.size }})</t-button>
-      <t-button size="small" theme="primary" class="ui-t-button--primary ui-t-button" @click="showImport = true"> 导入协议号
-      </t-button>
-      <t-button size="small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="refresh">刷新</t-button>
+      <UiButton v-if="selected.size" size="small" theme="danger" variant="outline" class="ui-t-button--danger ui-t-button whitespace-nowrap shrink-0" @click="batchDelete">删除({{ selected.size }})</UiButton>
+      <UiButton size="small" theme="primary" class="ui-t-button--primary ui-t-button" @click="showImport = true"> 导入协议号
+      </UiButton>
+      <UiButton size="small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="refresh">刷新</UiButton>
     </div>
 
     <!-- 状态筛选 -->
@@ -76,8 +76,8 @@
             <td class="p-3">{{ acc.remark || '—' }}</td>
             <td class="p-3"><StatusBadge :status="acc.status" /></td>
             <td class="p-3 text-right whitespace-nowrap">
-              <t-button size="small" variant="text" class="ui-t-button--text ui-t-button" @click="openEdit(acc)">编辑资料</t-button>
-              <t-button size="small" variant="text" class="ui-t-button--text ui-t-button" @click="pickAvatar(acc)">头像</t-button>
+              <UiButton size="small" variant="text" class="ui-t-button--text ui-t-button" @click="openEdit(acc)">编辑资料</UiButton>
+              <UiButton size="small" variant="text" class="ui-t-button--text ui-t-button" @click="pickAvatar(acc)">头像</UiButton>
             </td>
           </tr>
         </tbody>
@@ -99,8 +99,8 @@
             <StatusBadge :status="acc.status" class="mt-1 inline-block" />
           </div>
           <div class="flex flex-col gap-1 shrink-0">
-            <t-button size="extra-small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="openEdit(acc)">编辑</t-button>
-            <t-button size="extra-small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="pickAvatar(acc)">头像</t-button>
+            <UiButton size="extra-small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="openEdit(acc)">编辑</UiButton>
+            <UiButton size="extra-small" variant="outline" class="ui-t-button--secondary ui-t-button" @click="pickAvatar(acc)">头像</UiButton>
           </div>
         </div>
       </div>
@@ -169,6 +169,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, h, defineComponent } from 'vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { KeyRound } from 'lucide-vue-next'
 import { useAccountStore } from '@/stores/account'
 import { useAccountAvatar } from '@/composables/useAccountAvatar'
