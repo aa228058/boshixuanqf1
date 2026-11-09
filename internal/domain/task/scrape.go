@@ -144,6 +144,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 	}
 
 	var allMembers []domain.Member
+	var fetchErr error
 	// totalScraped 用独立计数器: allMembers 每满一批会 flush 并归零,
 	// 不能用 len(allMembers) 判断成败(否则整千数会被误判为失败)。
 	totalScraped := 0
@@ -167,7 +168,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 		return nil
 	}
 	failScrapeTask := func(cause error) {
-		taskLog.Printf("[scrape] 成员写库失败 task=%s: %v", task.TaskID, cause)
+		taskLog.Printf("[scrape] 采集或写库失败 task=%s: %v", task.TaskID, cause)
 		statusCtx, statusCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer statusCancel()
 		if err := e.repo.UpdateStatusOwned(statusCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
@@ -193,11 +194,13 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 			result, err := client.Invoke(invokeCtx, req)
 			invokeCancel()
 			if err != nil {
+				fetchErr = fmt.Errorf("fetch channel participants: %w", err)
 				e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", "fetch: "+err.Error())
 				break
 			}
 			participants, ok := result.(*tg.ChannelsChannelParticipants)
 			if !ok {
+				fetchErr = fmt.Errorf("unexpected channel participants response: %T", result)
 				break
 			}
 			userMap := make(map[int64]*tg.User)
@@ -299,11 +302,13 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 		result, err := client.Invoke(invokeCtx, req)
 		invokeCancel()
 		if err != nil {
+			fetchErr = fmt.Errorf("fetch chat participants: %w", err)
 			e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", "fetch: "+err.Error())
 			break
 		}
 		chatFullResult, ok := result.(*tg.MessagesChatFull)
 		if !ok {
+			fetchErr = fmt.Errorf("unexpected full-chat response: %T", result)
 			break
 		}
 		if chatFull, ok := chatFullResult.FullChat.(*tg.ChatFull); ok && chatFull.Participants != nil {
@@ -365,12 +370,17 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 		}
 
 	default:
-		e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", "peer is not a group or channel")
+		fetchErr = fmt.Errorf("peer is not a supported group or channel: %T", peer)
+		e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", fetchErr.Error())
 	}
 
 	memberCount := totalScraped
 	if err := flushMembers(allMembers); err != nil {
 		failScrapeTask(err)
+		return
+	}
+	if fetchErr != nil {
+		failScrapeTask(fetchErr)
 		return
 	}
 
