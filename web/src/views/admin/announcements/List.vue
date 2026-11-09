@@ -1,8 +1,8 @@
 <template>
   <main class="space-y-4">
     <div class="flex items-center justify-between">
-      <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 发布公告
-      </t-button>
+      <UiButton theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 发布公告
+      </UiButton>
     </div>
 
     <div v-if="!announcements.length" class="py-12">
@@ -95,16 +95,17 @@
         </div>
       </div>
       <template #footer>
-        <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="showCreate = false">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement">
+        <UiButton type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="showCreate = false">取消</UiButton>
+        <UiButton class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement">
           {{ editing ? '保存' : '发布' }}
-        </t-button>
+        </UiButton>
       </template>
     </Modal>
   </main>
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, onMounted } from 'vue'
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
