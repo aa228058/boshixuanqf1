@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main, master]
+  # Run CI for stacked PRs too; their base branches are often other feature branches.
   pull_request:
-    branches: [main, master, feat/group-import-resolver-pipeline]
 
 jobs:
   # 字段覆盖审计：防「上层有值、底层丢字段」类 bug（accounts.source / plans 配额列教训）
