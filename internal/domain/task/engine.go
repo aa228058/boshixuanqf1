@@ -1063,6 +1063,9 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	scrapedCount := 0
 	scrapedUsers := make(map[string]bool)
 	var countMu sync.Mutex
+	maxReached := make(chan struct{})
+	var maxReachedOnce sync.Once
+	maxReachedFlag := false
 
 	// Register OnMessage handler for real-time message listening
 	clientKey := task.TenantID.String() + ":" + accountID.String()
@@ -1114,19 +1117,25 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			return
 		}
 
-		// Deduplicate by sender ID
+		// Reserve a unique sender slot before persistence so concurrent callbacks
+		// cannot exceed maxResults. Failed writes release both the dedupe key and slot.
 		countMu.Lock()
 		key := fmt.Sprintf("%d", msg.FromID)
-		if scrapedUsers[key] {
+		if scrapedUsers == nil || maxReachedFlag || scrapedUsers[key] ||
+			(maxResults > 0 && scrapedCount >= int(maxResults)) {
 			countMu.Unlock()
 			return
 		}
 		scrapedUsers[key] = true
-		currentCount := scrapedCount + 1
-		scrapedCount = currentCount
+		scrapedCount++
+		currentCount := scrapedCount
+		if maxResults > 0 && currentCount >= int(maxResults) {
+			maxReachedFlag = true
+		}
 		countMu.Unlock()
 
-		// Save member to database (TGUserID only, username fetched if possible)
+		// Save member before publishing progress. On failure, allow a later message
+		// from the same sender to retry instead of permanently deduplicating lost data.
 		member := &domain.Member{
 			MemberID:  uuid.New(),
 			TenantID:  task.TenantID,
@@ -1136,6 +1145,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		}
 		if err := e.memberRepo.BatchCreate(ctx, []*domain.Member{member}); err != nil {
 			taskLog.Printf("[task] failed to save member: %v", err)
+			countMu.Lock()
+			delete(scrapedUsers, key)
+			scrapedCount--
+			maxReachedFlag = maxResults > 0 && scrapedCount >= int(maxResults)
+			countMu.Unlock()
+			return
 		}
 
 		// Update progress
@@ -1158,10 +1173,14 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			taskLog.Printf("[task] failed to create scrape log: %v", err)
 		}
 
-		// Check if max results reached
+		// Stop accepting further messages as soon as the configured limit is
+		// durably reached. The outer worker wakes immediately instead of waiting
+		// for the full monitoring duration.
 		if maxResults > 0 && currentCount >= int(maxResults) {
 			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 				taskLog.Printf("[task] failed to update status to completed: %v", err)
+			} else {
+				maxReachedOnce.Do(func() { close(maxReached) })
 			}
 		}
 	})
@@ -1172,9 +1191,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		duration = 30 * time.Minute
 	}
 
+	reachedMax := false
 	select {
 	case <-time.After(duration):
 	case <-ctx.Done():
+	case <-maxReached:
+		reachedMax = true
 	}
 
 	// Finalize
@@ -1182,8 +1204,10 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	finalCount := scrapedCount
 	countMu.Unlock()
 
-	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
-		taskLog.Printf("[task] failed to update status to completed: %v", err)
+	if !reachedMax && ctx.Err() == nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
+			taskLog.Printf("[task] failed to update status to completed: %v", err)
+		}
 	}
 
 	e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
