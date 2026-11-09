@@ -50,10 +50,15 @@ type flakyScrapedLinkRepository struct {
 	domain.ScrapedLinkRepository
 	failuresRemaining int
 	calls              int
+	receivedCancelledContext bool
 }
 
-func (r *flakyScrapedLinkRepository) CreateBatch(_ context.Context, _ []*domain.ScrapedLink) error {
+func (r *flakyScrapedLinkRepository) CreateBatch(ctx context.Context, _ []*domain.ScrapedLink) error {
 	r.calls++
+	if ctx.Err() != nil {
+		r.receivedCancelledContext = true
+		return ctx.Err()
+	}
 	if r.failuresRemaining > 0 {
 		r.failuresRemaining--
 		return errors.New("temporary database outage")
@@ -73,6 +78,9 @@ func TestLinkScraperRetriesFinalBatchOnShutdown(t *testing.T) {
 
 	if repo.calls != 2 {
 		t.Fatalf("CreateBatch calls = %d, want 2", repo.calls)
+	}
+	if repo.receivedCancelledContext {
+		t.Fatal("shutdown persistence received a cancelled context")
 	}
 	if got := atomic.LoadInt64(&ls.pendingLinkCount); got != 0 {
 		t.Fatalf("pending link count = %d, want 0", got)
