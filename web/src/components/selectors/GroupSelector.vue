@@ -56,7 +56,7 @@
         <!-- 群组 tab: 普通群 + 超级群(频道已排除) -->
         <div
           v-else-if="activeTab !== 'dm'"
-          v-for="g in filtered"
+          v-for="g in displayGroups"
           :key="g.group_id"
           @click="toggle(g)"
           class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
@@ -122,6 +122,7 @@
             </p>
             <p v-else class="text-xs text-text-secondary">该账号尚未加入任何群组</p>
           </template>
+          <button v-if="displayGroups.length < filtered.length" type="button" @click="visibleGroupCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多群组（{{ displayGroups.length }} / {{ filtered.length }}）</button>
         </div>
       </div>
     </div>
@@ -236,6 +237,9 @@ const filtered = computed(() => {
     (g.username && g.username.toLowerCase().includes(s))
   )
 })
+const visibleGroupCount = ref(200)
+const displayGroups = computed(() => filtered.value.slice(0, visibleGroupCount.value))
+watch(search, () => { visibleGroupCount.value = 200 })
 
 // ===== 私聊 tab: contacts 表缓存(同步群组时已写入), 按 tg_user_id 去重, 伪装 Group 结构供父组件取 tg_chat_id =====
 const dmUsers = ref<Group[]>([])
