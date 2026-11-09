@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"tg-sender/internal/safego"
 	"time"
+	"tg-sender/internal/safego"
 
 	"github.com/google/uuid"
 	"github.com/mtgo-labs/mtgo/telegram"
