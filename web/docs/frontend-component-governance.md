@@ -284,4 +284,6 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Added migration `086_task_logs_cursor_index.sql` with a tenant/task/time/log-ID composite index matching the keyset predicate and sort order.
 - Clear-display now resets the local cursor chain and invalidates outstanding page requests; it still never deletes server-side logs.
 - Live log arrivals follow the timeline only when the reader is already near the bottom. Loading older cursor pages preserves the current reading position by compensating for the prepended row height; background refreshes no longer yank a user away from the history they are reading.
+- Live-event deduplication now uses a maintained key set instead of scanning the entire loaded timeline for every event, avoiding quadratic lookup work as a long-running task accumulates logs.
+- Ticket acquisition has a 15-second abort deadline; a stalled ticket request can no longer hold the connection lock indefinitely and prevent retries.
 - Remaining verification: CI must compile/test the backend cursor query and frontend changes; manually verify reconnect, wait countdown, and historical paging while a task is actively generating logs in desktop and mobile browsers.
