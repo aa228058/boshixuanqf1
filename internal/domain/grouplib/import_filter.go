@@ -8,7 +8,31 @@ import (
 
 // importCandidateRe 只识别 Telegram 公共用户名和私密邀请链接。
 // 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
-var importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:s/|joinchat/|\+)?[A-Za-z0-9_-]{5,64}|tg://(?:resolve\?domain=[A-Za-z][A-Za-z0-9_]{4,31}|join\?invite=[A-Za-z0-9_-]{5,64})|@[A-Za-z][A-Za-z0-9_]{4,31})`)
+var (
+	importTelegramUsernameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{4,31}package grouplib
+
+import (
+	"net/url"
+	"regexp"
+	"strings"
+)
+
+// importCandidateRe 只识别 Telegram 公共用户名和私密邀请链接。
+// 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
+)
+	importTelegramInviteHashRe = regexp.MustCompile(`^[A-Za-z0-9_-]{5,64}package grouplib
+
+import (
+	"net/url"
+	"regexp"
+	"strings"
+)
+
+// importCandidateRe 只识别 Telegram 公共用户名和私密邀请链接。
+// 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
+)
+	importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:s/|joinchat/|\+)?[A-Za-z0-9_-]{5,64}|tg://(?:resolve\?domain=[A-Za-z][A-Za-z0-9_]{4,31}|join\?invite=[A-Za-z0-9_-]{5,64})|@[A-Za-z][A-Za-z0-9_]{4,31})`)
+)
 
 type importFilterResult struct {
 	Links     []string
@@ -89,7 +113,7 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 		}
 		if strings.EqualFold(u.Host, "resolve") {
 			values, exists := query["domain"]
-			if !exists || len(values) != 1 || !telegramUsernameRe.MatchString(values[0]) {
+			if !exists || len(values) != 1 || !importTelegramUsernameRe.MatchString(values[0]) {
 				return "", "", false
 			}
 			username := values[0]
@@ -97,7 +121,7 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 		}
 		if strings.EqualFold(u.Host, "join") {
 			values, exists := query["invite"]
-			if !exists || len(values) != 1 || !telegramInviteHashRe.MatchString(values[0]) {
+			if !exists || len(values) != 1 || !importTelegramInviteHashRe.MatchString(values[0]) {
 				return "", "", false
 			}
 			hash := values[0]
