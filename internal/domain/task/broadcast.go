@@ -38,6 +38,23 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	}
 }
 
+func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][]string {
+	result := make(map[uuid.UUID][]string, len(accountTargets))
+	for accountID, targets := range accountTargets {
+		seen := make(map[string]bool, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			if target == "" || seen[target] {
+				continue
+			}
+			seen[target] = true
+			unique = append(unique, target)
+		}
+		result[accountID] = unique
+	}
+	return result
+}
+
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Overall timeout: max 30 minutes for a broadcast task to prevent indefinite hanging
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -270,10 +287,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	semaphore := make(chan struct{}, maxConcurrentAccounts)
 	var wg sync.WaitGroup
 
-	// Preserve each account's assigned targets. Cartesian mode intentionally sends
-	// every target from every selected account; mapping mode may also assign the
-	// same target to multiple accounts. Deduplicating across accounts silently
-	// drops valid (account,target) work and corrupts resume/progress semantics.
+	// Deduplicate repeated targets within each account only. The same target
+	// assigned to different accounts remains distinct work.
+	accountTargets = dedupeAccountTargets(accountTargets)
+	total = 0
+	for _, targets := range accountTargets {
+		total += len(targets)
+	}
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
 	// 拖慢发送循环。这里在 worker 扇出前一次性批量查回成功目标集; 运行期新成功
