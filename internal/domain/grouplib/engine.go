@@ -235,7 +235,7 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	e.mu.Unlock()
 	// updated_at(065 迁移 + trigger) 负责捕获群资料更新，group_id 负责稳定分页。
 	rows, err := e.pool.Query(ctx, `
-		SELECT group_id, title, username, type, member_count, created_at, updated_at
+		SELECT group_id, tenant_id, title, username, type, member_count, created_at, updated_at
 		FROM groups
 		WHERE is_joined = TRUE AND username IS NOT NULL AND username <> ''
 		  AND (GREATEST(created_at, updated_at), group_id) > ($1, $2)
@@ -248,11 +248,11 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	n := 0
 	upsertFailed := false
 	for rows.Next() {
-		var groupID uuid.UUID
+		var groupID, tenantID uuid.UUID
 		var title, username, gtype string
 		var mc int
 		var ct, ut time.Time
-		if err := rows.Scan(&groupID, &title, &username, &gtype, &mc, &ct, &ut); err != nil {
+		if err := rows.Scan(&groupID, &tenantID, &title, &username, &gtype, &mc, &ct, &ut); err != nil {
 			return err
 		}
 		if ut.After(ct) {
@@ -265,6 +265,7 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 		sg := &domain.SystemGroup{
 			Source: "joined", Title: firstNonEmpty(title, "@"+username), Username: username,
 			TmeLink: "https://t.me/" + username, GType: gt, MemberCount: mc, Status: "active",
+			ContributorTenantID: tenantID,
 		}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			upsertFailed = true
