@@ -71,8 +71,8 @@
           </div>
           </button>
           <div class="flex items-center gap-2 shrink-0">
-            <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportAllLinks('txt')">导出 TXT</t-button>
-            <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportAllLinks('csv')">导出 CSV</t-button>
+            <UiButton type="button" class="ui-t-button--secondary ui-t-button" @click="exportAllLinks('txt')">导出 TXT</UiButton>
+            <UiButton type="button" class="ui-t-button--secondary ui-t-button" @click="exportAllLinks('csv')">导出 CSV</UiButton>
           </div>
         </div>
         <div v-if="allLinksOpen" class="border-t border-border">
@@ -100,7 +100,7 @@
                   <a v-if="isHttpUrl(link.full_url)" :href="link.full_url" target="_blank" rel="noopener" class="text-cyan text-sm truncate min-w-0 flex-1" :title="link.full_url">{{ link.full_url }}</a>
                   <span v-else class="text-cyan text-sm truncate min-w-0 flex-1" :title="link.full_url">{{ link.full_url }}</span>
                   <span class="shrink-0 text-xs px-1.5 py-0.5 rounded bg-bg-hover text-text-muted">{{ link.link_type === 'private' ? '私密' : '公开' }}</span>
-                  <t-button type="button" @click="copyLink(link.full_url)" class="ui-t-button--secondary ui-t-button shrink-0">复制</t-button>
+                  <UiButton type="button" @click="copyLink(link.full_url)" class="ui-t-button--secondary ui-t-button shrink-0">复制</UiButton>
                 </div>
               </div>
               </pull-down-refresh>
@@ -137,8 +137,8 @@
               <span class="text-xs text-text-muted hidden sm:inline">{{ new Date(task.created_at).toLocaleString() }}</span>
             </button>
             <div class="flex items-center gap-2 shrink-0">
-              <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'txt')">导出 TXT</t-button>
-              <t-button type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'csv')">导出 CSV</t-button>
+              <UiButton type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'txt')">导出 TXT</UiButton>
+              <UiButton type="button" class="ui-t-button--secondary ui-t-button" @click="exportTaskLinks(task, 'csv')">导出 CSV</UiButton>
             </div>
           </div>
 
@@ -186,6 +186,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAuthStore } from '@/stores/auth'
