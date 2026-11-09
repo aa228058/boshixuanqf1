@@ -137,6 +137,9 @@ func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*
 }
 
 func (e *Engine) processImportJobs(ctx context.Context) {
+	// Process at most one chunk per job per scheduler pass. Re-queuing a partial
+	// job must not let the oldest large import monopolize all ten claim slots.
+	claimedJobIDs := make([]uuid.UUID, 0, 10)
 	for batch := 0; batch < 10; batch++ {
 		var jobID, tenantID uuid.UUID
 		var payload string
@@ -147,17 +150,19 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			SET status='processing', started_at=COALESCE(started_at, NOW()), updated_at=NOW(), lease_token=$1
 			WHERE job_id = (
 				SELECT job_id FROM group_library_import_jobs
-				WHERE status='pending'
-				   OR (status='processing' AND updated_at < NOW() - INTERVAL '2 minutes')
+				WHERE (status='pending'
+				   OR (status='processing' AND updated_at < NOW() - INTERVAL '2 minutes'))
+				  AND NOT (job_id = ANY($2::uuid[]))
 				ORDER BY created_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED
 			)
-			RETURNING job_id, tenant_id, payload, processed_count, total_count`, leaseToken).Scan(
+			RETURNING job_id, tenant_id, payload, processed_count, total_count`, leaseToken, claimedJobIDs).Scan(
 			&jobID, &tenantID, &payload, &offset, &total)
 		if err != nil {
 			return
 		}
+		claimedJobIDs = append(claimedJobIDs, jobID)
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
 			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW(), lease_token=NULL WHERE job_id=$1 AND lease_token=$2`, jobID, leaseToken)
