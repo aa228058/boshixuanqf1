@@ -76,7 +76,9 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 
 	saveProgress := func() error {
 		prog := domain.TaskProgress{
-			Total: total, Done: invited, Failed: failed,
+			Total:         total,
+			Done:          invited,
+			Failed:        failed,
 			CurrentTarget: fmt.Sprintf("已邀 %d / 失败 %d", invited, failed),
 		}
 		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -122,8 +124,10 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 			}
 
 			key := repository.InviteAttemptKey{
-				TenantID: task.TenantID, TaskID: task.TaskID,
-				AccountID: accID, TGUserID: member.TGUserID,
+				TenantID:  task.TenantID,
+				TaskID:    task.TaskID,
+				AccountID: accID,
+				TGUserID:  member.TGUserID,
 			}
 			claimed, status, err := e.repo.ClaimInviteAttempt(ctx, key)
 			if err != nil {
@@ -165,7 +169,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 
 			_, inviteErr := client.Raw().ChannelsInviteToChannel(ctx, &tg.ChannelsInviteToChannelRequest{
 				Channel: channel,
-				Users: []tg.InputUserClass{&tg.InputUser{UserID: member.TGUserID, AccessHash: member.AccessHash}},
+				Users:   []tg.InputUserClass{&tg.InputUser{UserID: member.TGUserID, AccessHash: member.AccessHash}},
 			})
 			if inviteErr == nil {
 				if err := finishAttempt(key, repository.InviteAttemptSucceeded, ""); err != nil {
