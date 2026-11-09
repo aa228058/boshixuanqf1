@@ -82,13 +82,13 @@ const formControlUsage = formControlPatterns.map(([label, pattern]) => ({
 }))
 
 const stateAndOverlayPatterns = [
-  ['TDesign <t-dialog>', /<t-dialog\\b/gi],
-  ['TDesign <t-empty>', /<t-empty\\b/gi],
-  ['TDesign <t-loading>', /<t-loading\\b/gi],
-  ['Project <Modal>', /<Modal\\b/g],
-  ['Project <EmptyState>', /<EmptyState\\b/g],
-  ['Project <Loading>', /<Loading\\b/g],
-  ['Project <Skeleton>', /<Skeleton\\b/g],
+  ['TDesign <t-dialog>', /<t-dialog\b/gi],
+  ['TDesign <t-empty>', /<t-empty\b/gi],
+  ['TDesign <t-loading>', /<t-loading\b/gi],
+  ['Project <Modal>', /<Modal\b/g],
+  ['Project <EmptyState>', /<EmptyState\b/g],
+  ['Project <Loading>', /<Loading\b/g],
+  ['Project <Skeleton>', /<Skeleton\b/g],
 ]
 const stateAndOverlayUsage = stateAndOverlayPatterns.map(([label, pattern]) => ({
   label,
