@@ -89,10 +89,14 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
+			// Do not mark the candidate resolved if link validity persistence failed;
+			// otherwise the failed write would be hidden from every future retry.
 			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
 				log.Printf("[grouplib] 标记非群组链接无效失败 %s: %v", p.link, err)
+				e.deferResolutionRetry(ctx, p.sgID, "non-group link validity persistence failed")
+			} else {
+				e.finishResolution(ctx, p.sgID, "not a group")
 			}
-			e.finishResolution(ctx, p.sgID, "not a group")
 		} else if title != "" || count > 0 {
 			if pageType == "" || pageType == "unknown" {
 				pageType = p.gtype
