@@ -196,6 +196,7 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - The selector now treats `props.groups` as the authoritative snapshot, including an empty array. On account changes it invalidates in-flight selector/DM loads, clears account-scoped local data and DM cache state, and reloads the new account when the modal is open.
 - Cache loading now checks both request generation and current account/modal state before writing results. Closing and reopening also invalidates stale results.
 - Private-message contacts are cached per currently selected account rather than once for the component lifetime; late responses from a previous account are ignored.
+- Manual refresh captures its initiating account ID and request generation. A late poll from a previous account/modal session can no longer replace the active list or overwrite its loading/sync status; the original sync lock is still released when its operation ends.
 - This is a client-side account-context correction. Selection payload format and backend APIs are unchanged.
 
 ### Batch E — page migration and regression
