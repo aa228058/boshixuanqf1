@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"tg-sender/internal/domain"
@@ -483,8 +482,10 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 	var logMu sync.Mutex
 
 	handlerID := uuid.New().String()
-	entry := &scrapeHandlerEntry{active: 1}
+	entry := &scrapeHandlerEntry{accepting: true}
 	scrapeHandlerRegistry.Store(handlerID, entry)
+	handlerCtx, cancelHandler := context.WithCancel(ctx)
+	defer cancelHandler()
 
 	// P2止血(精读发现): mtgo OnMessage 无摘除API, 本闭包会永久挂在池化客户端上
 	// 并被后续任务复用。任务结束后把拽住的大状态置 nil, 把每个残留 handler
@@ -501,15 +502,15 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 	}()
 
 	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
-		val, ok := scrapeHandlerRegistry.Load(handlerID)
-		if !ok || atomic.LoadInt32(&val.(*scrapeHandlerEntry).active) == 0 {
+		if !entry.enter() {
 			return
 		}
+		defer entry.leave()
 
 		select {
 		case <-e.stopCh:
 			return
-		case <-ctx.Done():
+		case <-handlerCtx.Done():
 			return
 		default:
 		}
@@ -569,7 +570,7 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 					username = username[1:]
 				}
 
-				peer, resolveErr := client.ResolvePeer(ctx, username)
+				peer, resolveErr := client.ResolvePeer(handlerCtx, username)
 				if resolveErr != nil {
 					taskLog.Printf("[scrape] ResolvePeer failed for %s: %v", username, resolveErr)
 					continue
@@ -590,7 +591,7 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 
 				// Database deduplication: skip if already in groups table
 				if e.groupRepo != nil {
-					if existing, _ := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); existing != nil {
+					if existing, _ := e.groupRepo.GetByTGChatID(handlerCtx, task.TenantID, chatID); existing != nil {
 						continue
 					}
 				}
@@ -652,18 +653,14 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 
 	select {
 	case <-e.stopCh:
-		atomic.StoreInt32(&entry.active, 0)
-		scrapeHandlerRegistry.Delete(handlerID)
-		goto storeResults
 	case <-ctx.Done():
-		atomic.StoreInt32(&entry.active, 0)
-		scrapeHandlerRegistry.Delete(handlerID)
-		goto storeResults
 	case <-time.After(timeout):
-		atomic.StoreInt32(&entry.active, 0)
-		scrapeHandlerRegistry.Delete(handlerID)
-		goto storeResults
 	}
+	// Cancel in-flight Telegram resolution, close callback admission, and wait
+	// before copying/clearing captured state or releasing the pooled client.
+	cancelHandler()
+	entry.stopAndWait()
+	scrapeHandlerRegistry.Delete(handlerID)
 
 storeResults:
 	logMu.Lock()
