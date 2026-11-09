@@ -130,6 +130,8 @@ github.com/mtgo-labs/device-manager v0.3.0 h1:VBFutvb7QKVDIH2OSfoMQTc09Tam0jDKQC
 github.com/mtgo-labs/device-manager v0.3.0/go.mod h1:13Ep1ZUd7Nkkk1U7iyarUipJ9sp/+h/Hr6ftrMllgQk=
 github.com/mtgo-labs/mtgo v0.19.0 h1:oKGQJ2OXjHM+h7uos3JBUoAR+ymDqcY1/vaqARoi1ds=
 github.com/mtgo-labs/mtgo v0.19.0/go.mod h1:auE8wtt8VdtcBKqwAxSS2N8MjVxIFMUB4h67LSpT/bg=
+github.com/mtgo-labs/mtgo v0.25.0 h1:BGvElV7flLhcTW4KfKuObyqhxw1Er4321T3WdkMw2SY=
+github.com/mtgo-labs/mtgo v0.25.0/go.mod h1:CkeeLsibFGPOpaZ27zYaLtmskpy6hYfGLfmEOzNwm64=
 github.com/mtgo-labs/session-converter v0.5.0 h1:NO2uPzSaxed7t1+snRLtRopC5jhmlTDwkj0wJcV+lGY=
 github.com/mtgo-labs/session-converter v0.5.0/go.mod h1:C7Ox25A0ZAIngpbZxUs9a1UA/FBGI5Jsq95MjFB4plw=
 github.com/mtgo-labs/session-converter v0.6.0 h1:TiL9QyiUqtNa4PfxQQCxTCjtjjEJW4Cmi/YUMiDPSH4=
