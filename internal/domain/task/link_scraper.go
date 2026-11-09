@@ -36,7 +36,9 @@ type accountHandler struct {
 	tenantID   uuid.UUID
 	accountID  uuid.UUID
 	client     *telegram.Client
-	cancelFunc func()
+	handler    telegram.Handler
+	callbackMu sync.Mutex
+	callbackWG sync.WaitGroup
 }
 
 // LinkScraper is a persistent background service that continuously scrapes links
@@ -54,7 +56,9 @@ type LinkScraper struct {
 	accountRepo AccountLister
 
 	// Runtime state
+	handlersMu sync.Mutex
 	handlers   sync.Map // accountID(string) -> *accountHandler
+	stopped    bool
 	linkQueue  chan *rawLink
 	dedupMap   map[string]time.Time
 	dedupMu    sync.RWMutex
@@ -102,20 +106,40 @@ func (ls *LinkScraper) Start(ctx context.Context) {
 
 // Stop gracefully shuts down the link scraper.
 func (ls *LinkScraper) Stop() {
-	ls.stopOnce.Do(func() { close(ls.stopCh) })
-	// Deactivate all handlers
-	ls.handlers.Range(func(key, value interface{}) bool {
-		if h := value.(*accountHandler); h != nil {
-			atomic.StoreInt32(&h.active, 0)
-			if h.cancelFunc != nil {
-				h.cancelFunc()
+	var handlers []*accountHandler
+	ls.stopOnce.Do(func() {
+		ls.handlersMu.Lock()
+		ls.stopped = true
+		close(ls.stopCh)
+		ls.handlers.Range(func(key, value interface{}) bool {
+			if h, ok := value.(*accountHandler); ok && h != nil {
+				ls.deactivateHandler(h)
+				handlers = append(handlers, h)
 			}
+			ls.handlers.Delete(key)
+			return true
+		})
+		ls.handlersMu.Unlock()
+		for _, h := range handlers {
+			h.callbackWG.Wait()
 		}
-		ls.handlers.Delete(key)
-		return true
 	})
 	ls.wg.Wait()
 	log.Printf("[link-scraper] 常驻链接采集服务已停止")
+}
+
+func (ls *LinkScraper) deactivateHandler(h *accountHandler) {
+	if h == nil {
+		return
+	}
+	// Close callback admission before unregistering; Wait is safe because Add
+	// is performed under the same mutex while admission remains open.
+	h.callbackMu.Lock()
+	atomic.StoreInt32(&h.active, 0)
+	h.callbackMu.Unlock()
+	if h.handler != nil && h.client != nil {
+		h.client.RemoveHandler(h.handler)
+	}
 }
 
 // GetStats returns current scraper statistics.
@@ -151,51 +175,57 @@ func (ls *LinkScraper) touchAccount(ctx context.Context, tenantID, accountID uui
 func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID uuid.UUID) {
 	key := accountID.String()
 
-	// 已注册且底层连接仍然存活: 只做保活(刷新 lastUsed 防止被空闲回收), 避免重复注册。
+	ls.handlersMu.Lock()
+	if ls.stopped {
+		ls.handlersMu.Unlock()
+		return
+	}
 	if v, loaded := ls.handlers.Load(key); loaded {
 		if h, ok := v.(*accountHandler); ok && h != nil && h.client != nil && h.client.IsConnected() {
+			ls.handlersMu.Unlock()
+			// Refresh lastUsed without holding the handler registry lock.
 			ls.touchAccount(ctx, tenantID, accountID)
 			return
 		}
-		// 残留条目(底层连接已被替换/回收): 先注销再重新注册。
-		ls.UnregisterAccount(accountID)
+		if h, ok := v.(*accountHandler); ok {
+			ls.deactivateHandler(h)
+			h.callbackWG.Wait()
+		}
+		ls.handlers.Delete(key)
 	}
 
 	client, err := ls.accEngine.GetClient(ctx, tenantID, accountID)
 	if err != nil {
+		ls.handlersMu.Unlock()
 		// R181.1: 死密钥账号已被熔断, 每 30s 刷一条"获取客户端失败"纯属噪音, 静默跳过
 		if !strings.Contains(err.Error(), "需重新登录") {
 			log.Printf("[link-scraper] 获取客户端失败 %s: %v", accountID.String()[:8], err)
 		}
-		ls.handlers.Delete(key)
 		return
 	}
-	// 注册完回调立刻释放客户端锁。持有它会永久阻塞同一账号的
-	// 监控/采集/群发功能(锁不响应 ctx 超时)。
+	// 注册回调后立即释放客户端锁，避免阻塞同一账号的监控/采集/群发。
 	ls.accEngine.ReleaseClient(tenantID, accountID, client)
 
-	handler := &accountHandler{
+	h := &accountHandler{
 		active:    1,
 		tenantID:  tenantID,
 		accountID: accountID,
 		client:    client,
 	}
-	ls.handlers.Store(key, handler)
+	h.handler = client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+		h.callbackMu.Lock()
+		if atomic.LoadInt32(&h.active) == 0 {
+			h.callbackMu.Unlock()
+			return
+		}
+		h.callbackWG.Add(1)
+		h.callbackMu.Unlock()
+		defer h.callbackWG.Done()
 
-	// Register OnMessage callback
-	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
-		if atomic.LoadInt32(&handler.active) == 0 {
-			return
-		}
-		if msg == nil || msg.Text == "" {
-			return
-		}
-		// Only process group messages (ChatID < 0 for groups/channels)
-		if msg.ChatID >= 0 {
+		if msg == nil || msg.Text == "" || msg.ChatID >= 0 {
 			return
 		}
 
-		// Extract links from message text
 		matches := tmeLinkRe.FindAllStringSubmatch(msg.Text, -1)
 		for _, match := range matches {
 			if len(match) < 5 {
@@ -207,7 +237,6 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 			}
 			fullLink := "https://t.me/" + path
 
-			// Determine link type
 			privateMatch := privateLinkRe.FindStringSubmatch(fullLink)
 			var linkType, linkHash string
 			if len(privateMatch) > 1 {
@@ -221,15 +250,14 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 				}
 			}
 
-			// Push to queue for async processing
 			select {
 			case ls.linkQueue <- &rawLink{
-				TenantID:     tenantID,
-				AccountID:    accountID,
-				LinkType:     linkType,
-				LinkHash:     linkHash,
-				FullURL:      fullLink,
-				SourceChatID: msg.ChatID,
+				TenantID:        tenantID,
+				AccountID:       accountID,
+				LinkType:        linkType,
+				LinkHash:        linkHash,
+				FullURL:         fullLink,
+				SourceChatID:    msg.ChatID,
 				SourceChatTitle: func() string {
 					if msg.Chat != nil {
 						return msg.Chat.Title
@@ -240,10 +268,12 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 			case <-ls.stopCh:
 				return
 			default:
-				// Queue full, drop link (log occasionally)
+				// Queue full: drop this link rather than blocking Telegram updates.
 			}
 		}
 	})
+	ls.handlers.Store(key, h)
+	ls.handlersMu.Unlock()
 
 	log.Printf("[link-scraper] 已注册账号 %s 的消息监听", accountID.String()[:8])
 }
@@ -257,16 +287,20 @@ func (ls *LinkScraper) IsRegistered(accountID uuid.UUID) bool {
 // UnregisterAccount removes the OnMessage handler for an account.
 func (ls *LinkScraper) UnregisterAccount(accountID uuid.UUID) {
 	key := accountID.String()
-	if h, ok := ls.handlers.Load(key); ok {
-		if handler := h.(*accountHandler); handler != nil {
-			atomic.StoreInt32(&handler.active, 0)
-			if handler.cancelFunc != nil {
-				handler.cancelFunc()
-			}
-		}
-		ls.handlers.Delete(key)
-		log.Printf("[link-scraper] 已注销账号 %s 的消息监听", accountID.String()[:8])
+	ls.handlersMu.Lock()
+	value, ok := ls.handlers.Load(key)
+	if !ok {
+		ls.handlersMu.Unlock()
+		return
 	}
+	ls.handlers.Delete(key)
+	h, _ := value.(*accountHandler)
+	ls.deactivateHandler(h)
+	ls.handlersMu.Unlock()
+	if h != nil {
+		h.callbackWG.Wait()
+	}
+	log.Printf("[link-scraper] 已注销账号 %s 的消息监听", accountID.String()[:8])
 }
 
 // consumerLoop processes links from the queue with rate limiting.
@@ -400,11 +434,26 @@ func (ls *LinkScraper) flushBatch(ctx context.Context) {
 	ls.batchLinks = ls.batchLinks[:0]
 	ls.batchMu.Unlock()
 
-	if err := ls.linkRepo.CreateBatch(ctx, batch); err != nil {
-		log.Printf("[link-scraper] 批量写入链接失败: %v", err)
-	} else {
-		log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
+	writeCtx := ctx
+	cancel := func() {}
+	if ctx.Err() != nil {
+		// The engine cancels its runtime context before stopping the scraper.
+		// Give the final batch a short independent window to reach PostgreSQL.
+		writeCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	}
+	defer cancel()
+
+	if err := ls.linkRepo.CreateBatch(writeCtx, batch); err != nil {
+		log.Printf("[link-scraper] 批量写入链接失败，保留待重试批次: %v", err)
+		ls.batchMu.Lock()
+		pending := make([]*domain.ScrapedLink, 0, len(batch)+len(ls.batchLinks))
+		pending = append(pending, batch...)
+		pending = append(pending, ls.batchLinks...)
+		ls.batchLinks = pending
+		ls.batchMu.Unlock()
+		return
+	}
+	log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
 }
 
 // dedupCleanerLoop removes old entries from the dedup map to prevent memory growth.
@@ -440,13 +489,23 @@ func (ls *LinkScraper) dedupCleanerLoop(ctx context.Context) {
 // accountWatcherLoop 每30秒同步: 上线账号注册监听, 下线注销(多租户全自动)。
 func (ls *LinkScraper) accountWatcherLoop(ctx context.Context) {
 	defer ls.wg.Done()
-	time.Sleep(10 * time.Second) // 等账号引擎完成首批连接
+	startupDelay := time.NewTimer(10 * time.Second) // 等账号引擎完成首批连接
+	defer startupDelay.Stop()
+	select {
+	case <-ls.stopCh:
+		return
+	case <-ctx.Done():
+		return
+	case <-startupDelay.C:
+	}
 	ls.syncOnlineAccounts(ctx)
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ls.stopCh:
+			return
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			ls.syncOnlineAccounts(ctx)
