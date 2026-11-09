@@ -365,7 +365,7 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	rows, err := e.pool.Query(ctx, `
 		SELECT member_id, bio, scraped_at FROM members
 		WHERE (scraped_at, member_id) > ($1, $2) AND bio IS NOT NULL AND bio <> ''
-		  AND (bio ILIKE '%t.me%' OR bio ILIKE '%telegram%')
+		  AND (bio ILIKE '%t.me%' OR bio ILIKE '%telegram%' OR bio ~* '(^|[^A-Za-z0-9_])@[A-Za-z][A-Za-z0-9_]{3,31}($|[^A-Za-z0-9_.-])')
 		ORDER BY scraped_at ASC, member_id ASC LIMIT 5000`, cursor.at, cursor.id)
 	if err != nil {
 		return err
