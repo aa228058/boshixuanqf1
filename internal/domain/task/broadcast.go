@@ -300,7 +300,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Always reset the progress snapshot, including a zero-success restart, so
 	// stale failures from the previous attempt are not shown while retrying.
 	resumedProgress := domain.TaskProgress{Total: total, Done: done}
-	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+	if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), resumedProgress); err != nil {
 		taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
 		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 			taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
@@ -428,7 +428,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				case <-e.stopCh:
 					// Flush pending progress before pausing
 					if progressAccum.Total > 0 {
-						if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progressAccum); err != nil {
+						if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), progressAccum); err != nil {
 							log.Printf("[broadcast] 更新进度失败: %v", err)
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
@@ -440,7 +440,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				case <-ctx.Done():
 					// Flush pending progress before cancel exit
 					if progressAccum.Total > 0 {
-						if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progressAccum); err != nil {
+						if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), progressAccum); err != nil {
 							log.Printf("[broadcast] 更新进度失败: %v", err)
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
@@ -728,7 +728,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					accum := progressAccum
 					progressAccum = domain.TaskProgress{} // reset
 					mu.Unlock()
-					if err := e.repo.UpdateProgress(ctx, task.TenantID, task.TaskID, accum); err != nil {
+					if err := e.repo.UpdateProgressOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), accum); err != nil {
 						taskLog.Printf("progress update failed: %v\n", err)
 					}
 				}
@@ -828,7 +828,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		Failed:          failed,
 		AccountProgress: accProgList,
 	}
-	if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
+	if err := e.repo.UpdateProgressExactOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalProgress); err != nil {
 		log.Printf("[broadcast] 更新进度失败: %v", err)
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
