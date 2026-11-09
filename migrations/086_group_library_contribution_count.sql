@@ -6,7 +6,7 @@ WITH source_paths AS (
     SELECT link_id,
            regexp_replace(
                split_part(split_part(trim(original_link), '?', 1), '#', 1),
-               '^((https?://)?(www\\.)?(t\\.me|telegram\\.me|telegram\\.dog)/)',
+               '^((https?://)?(www\.)?(t\.me|telegram\.me|telegram\.dog)/)',
                '',
                'i'
            ) AS raw_path
