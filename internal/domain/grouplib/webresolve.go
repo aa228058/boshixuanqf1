@@ -14,12 +14,14 @@ import (
 )
 
 var (
-	metaTagRe     = regexp.MustCompile(`(?is)<meta\b[^>]*>`)
-	attrRe        = regexp.MustCompile(`(?is)([a-z_:][-a-z0-9_:]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
-	htmlTitleRe   = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
-	pageExtraRe   = regexp.MustCompile(`(?is)<[^>]+class=["'][^"']*tgme_page_extra[^"']*["'][^>]*>(.*?)</[^>]+>`)
-	htmlTagRe     = regexp.MustCompile(`<[^>]+>`)
-	memberCountRe = regexp.MustCompile(`(?i)([0-9][0-9\s,.\x{00a0}\x{202f}]*)\s*([kmb])?\s*(members?|subscribers?|участник(?:а|ов)?|membres?|成员|订阅者)`)
+	metaTagRe            = regexp.MustCompile("(?is)<meta\\b[^>]*>")
+	attrRe               = regexp.MustCompile("(?is)([a-z_:][-a-z0-9_:]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))")
+	htmlTitleRe          = regexp.MustCompile("(?is)<title[^>]*>(.*?)</title>")
+	pageExtraRe          = regexp.MustCompile("(?is)<[^>]+class=[\"'][^\"']*tgme_page_extra[^\"']*[\"'][^>]*>(.*?)</[^>]+>")
+	htmlTagRe            = regexp.MustCompile("<[^>]+>")
+	memberCountRe        = regexp.MustCompile("(?i)([0-9][0-9\\s,.\\x{00a0}\\x{202f}]*)\\s*([kmb])?\\s*(members?|subscribers?|участник(?:а|ов)?|membres?|成员|订阅者)")
+	telegramUsernameRe   = regexp.MustCompile("^[A-Za-z][A-Za-z0-9_]{4,31}$")
+	telegramInviteHashRe = regexp.MustCompile("^[A-Za-z0-9_-]{5,64}$")
 )
 
 const telegramWebUserAgent = "TG-Sender-GroupResolver/1.0 (+https://github.com/aa228058/boshixuanqf1)"
@@ -41,8 +43,9 @@ var telegramWebClient = &http.Client{
 			return fmt.Errorf("Telegram 页面重定向次数过多")
 		}
 		host := strings.ToLower(req.URL.Hostname())
-		if host != "t.me" && host != "www.t.me" {
-			return fmt.Errorf("拒绝跳转到非 Telegram 域名")
+		if req.URL.Scheme != "https" || (host != "t.me" && host != "www.t.me") ||
+			(req.URL.Port() != "" && req.URL.Port() != "443") || req.URL.User != nil {
+			return fmt.Errorf("拒绝跳转到非安全 Telegram 地址")
 		}
 		return nil
 	},
@@ -53,6 +56,23 @@ var telegramWebClient = &http.Client{
 type TelegramRateLimitError struct {
 	RetryAfter time.Duration
 	Endpoint   string
+}
+
+// TelegramHTTPStatusError preserves HTTP status so callers can distinguish
+// permanent target failures from transient service failures.
+type TelegramHTTPStatusError struct {
+	StatusCode int
+	Endpoint   string
+}
+
+func (e *TelegramHTTPStatusError) Error() string {
+	return fmt.Sprintf("Telegram 网页返回 %d（%s）", e.StatusCode, e.Endpoint)
+}
+
+func (e *TelegramHTTPStatusError) Retryable() bool {
+	return e.StatusCode == http.StatusRequestTimeout ||
+		e.StatusCode == http.StatusTooEarly ||
+		e.StatusCode >= http.StatusInternalServerError
 }
 
 func (e *TelegramRateLimitError) Error() string {
@@ -91,7 +111,7 @@ func telegramHTTPStatusError(resp *http.Response, endpoint string) error {
 			Endpoint:   endpoint,
 		}
 	}
-	return fmt.Errorf("Telegram 网页返回 %d", resp.StatusCode)
+	return &TelegramHTTPStatusError{StatusCode: resp.StatusCode, Endpoint: endpoint}
 }
 
 // applyTelegramWebHeaders uses a stable, internally consistent request profile.
@@ -109,7 +129,7 @@ func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) 
 
 func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, string, error) {
 	hash = strings.TrimSpace(hash)
-	if hash == "" || strings.ContainsAny(hash, "/?#") {
+	if !telegramInviteHashRe.MatchString(hash) {
 		return "", 0, "unknown", fmt.Errorf("邀请 hash 格式无效")
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
@@ -268,7 +288,7 @@ func isGenericTitle(value string) bool {
 
 func resolvePublicGroupInfoViaWeb(ctx context.Context, username string) (string, int, string, error) {
 	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
-	if username == "" || strings.ContainsAny(username, "/?#") {
+	if !telegramUsernameRe.MatchString(username) {
 		return "", 0, "unknown", fmt.Errorf("公开群 username 格式无效")
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
