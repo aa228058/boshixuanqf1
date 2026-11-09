@@ -6,8 +6,8 @@
         <!-- R109: 移除"当前账号"标签(执行账号在创建弹窗里下拉选择) -->
         <p class="text-sm text-text-muted mt-1">执行账号在创建任务时选择</p>
       </div>
-      <UiButton @click="showCreate = true" class="ui-t-button ui-t-button--primary flex items-center gap-2 shrink-0"> 新建加群任务
-      </UiButton>
+      <t-button @click="showCreate = true" class="ui-t-button ui-t-button--primary flex items-center gap-2 shrink-0"> 新建加群任务
+      </t-button>
     </div>
 
     <!-- 实时进度面板: 创建后在此显示, 无需跳转 -->
@@ -25,7 +25,7 @@
     </div>
     <template v-else>
       <EmptyState v-if="tasksError" icon="Users" :title="tasksError" description="点击重试">
-        <UiButton @click="fetchTasks" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3">重新加载</UiButton>
+        <t-button @click="fetchTasks" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
       <div v-else class="space-y-3 mb-4">
@@ -51,9 +51,9 @@
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <UiButton v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</UiButton>
-            <UiButton v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</UiButton>
-            <UiButton @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">查看详情</UiButton>
+            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
+            <t-button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">查看详情</t-button>
           </div>
         </div>
         </pull-down-refresh>
@@ -152,11 +152,11 @@
     </div>
     <template #footer>
       <div class="flex items-center justify-end gap-3">
-        <UiButton type="button" class="ui-t-button ui-t-button--secondary" @click="showCreate = false">取消</UiButton>
-        <UiButton type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
+        <t-button type="button" class="ui-t-button ui-t-button--secondary" @click="showCreate = false">取消</t-button>
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : `创建加群任务 (${validLinks.length})` }}
-        </UiButton>
+        </t-button>
       </div>
     </template>
     </Modal>
@@ -165,7 +165,6 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue'
 import { parseTargets } from '@/utils/importTargets'
 import { toast } from '@/utils/toast'
 import { ref, computed, onMounted, watch } from 'vue'
