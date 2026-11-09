@@ -605,6 +605,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 								retryMsgID, retryErr := trySend()
 								if retryErr != nil {
 									if isGlobalFlood(retryErr) {
+										accountFlooded = true
 										e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_retry_flood_wait", retryErr.Error(), extractFloodSeconds(retryErr.Error()))
 									} else {
 										e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
