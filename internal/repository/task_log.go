@@ -143,7 +143,6 @@ func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uui
 	return logs, rows.Err()
 }
 
-// CountByTask counts logs for a task.
 // ListBeforeByTask retrieves the next older page using a stable keyset cursor.
 func (r *TaskLogRepository) ListBeforeByTask(ctx context.Context, tenantID, taskID, beforeLogID uuid.UUID, limit int) ([]*domain.TaskLog, error) {
 	rows, err := r.db.Query(ctx, `
@@ -176,6 +175,7 @@ func (r *TaskLogRepository) ListBeforeByTask(ctx context.Context, tenantID, task
 	return logs, rows.Err()
 }
 
+// CountByTask counts logs for a task.
 func (r *TaskLogRepository) CountByTask(ctx context.Context, tenantID, taskID uuid.UUID) (int, error) {
 	var count int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM task_logs WHERE tenant_id = $1 AND task_id = $2`, tenantID, taskID).Scan(&count)
