@@ -493,11 +493,6 @@ func (e *Engine) Stop() {
 	if e.scheduler != nil {
 		e.scheduler.Stop()
 	}
-	e.listenMu.Lock()
-	if e.listenConn != nil {
-		e.listenConn.Release()
-	}
-	e.listenMu.Unlock()
 	// Clean up all scrape handler entries to prevent memory leaks
 	scrapeHandlerRegistry.Range(func(key, value interface{}) bool {
 		if entry, ok := value.(*scrapeHandlerEntry); ok {
@@ -507,6 +502,15 @@ func (e *Engine) Stop() {
 		return true
 	})
 	e.wg.Wait()
+
+	// The listener goroutine may still be inside WaitForNotification. Release
+	// its connection only after cancellation has drained that goroutine.
+	e.listenMu.Lock()
+	if e.listenConn != nil {
+		e.listenConn.Release()
+		e.listenConn = nil
+	}
+	e.listenMu.Unlock()
 }
 
 // startLogArchiver periodically deletes old task logs to prevent disk bloat.
