@@ -74,6 +74,21 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - Migrated the shared confirmation action component to `UiButton`, making both confirmation entry points use the same button implementation.
 - This is the migration foundation, not a claim that every existing page button has already been migrated. Remaining direct TDesign/native button call sites require inventory and page-by-page conversion.
 
+
+### Batch B3 — first page migration wave
+
+Migrated all TDesign button tags to the shared `UiButton.vue` adapter in these seven page files:
+
+- `views/groups/Discover.vue` (14 button instances)
+- `views/sessions/Index.vue` (7)
+- `views/tasks/Detail.vue` (8)
+- `views/workspace/Broadcast.vue` (13)
+- `views/accounts/List.vue` (35)
+- `views/settings/Index.vue` (13)
+- `views/admin/tenants/List.vue` (5)
+
+Total: 95 TDesign button instances now use the canonical adapter. The adapter supports existing `theme`, `variant`, and size attributes while allowing new code to use semantic `tone` values. Native `button` elements remain native where they implement tabs, toggles, icon-only controls, or other specialized semantics; they are not blindly converted to generic buttons.
+
 ### Batch C — forms and data display
 - Normalize input/select/checkbox/switch/date-picker wrappers and validation behavior.
 - Normalize table, pagination, badges, tooltips and empty/loading states.
