@@ -11,7 +11,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"tg-sender/internal/safego"
 	"time"
 
@@ -36,7 +35,32 @@ var (
 // scrapeHandlerRegistry tracks active scrape-link handlers to prevent memory leaks.
 // Key: handlerID (uuid), Value: *scrapeHandlerEntry
 type scrapeHandlerEntry struct {
-	active int32 // atomic flag
+	mu        sync.Mutex
+	accepting bool
+	wg        sync.WaitGroup
+}
+
+func (entry *scrapeHandlerEntry) enter() bool {
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	if !entry.accepting {
+		return false
+	}
+	entry.wg.Add(1)
+	return true
+}
+
+func (entry *scrapeHandlerEntry) leave() { entry.wg.Done() }
+
+func (entry *scrapeHandlerEntry) closeAdmission() {
+	entry.mu.Lock()
+	entry.accepting = false
+	entry.mu.Unlock()
+}
+
+func (entry *scrapeHandlerEntry) stopAndWait() {
+	entry.closeAdmission()
+	entry.wg.Wait()
 }
 
 var scrapeHandlerRegistry sync.Map
@@ -442,7 +466,7 @@ func (e *Engine) Stop() {
 	// Clean up all scrape handler entries to prevent memory leaks
 	scrapeHandlerRegistry.Range(func(key, value interface{}) bool {
 		if entry, ok := value.(*scrapeHandlerEntry); ok {
-			atomic.StoreInt32(&entry.active, 0)
+			entry.closeAdmission()
 		}
 		scrapeHandlerRegistry.Delete(key)
 		return true
