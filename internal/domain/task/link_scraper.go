@@ -194,9 +194,9 @@ func (ls *LinkScraper) GetStats() map[string]any {
 		"handlers_active":            handlerCount,
 		"queue_length":               queueLen,
 		"dedup_cache":                dedupSize,
-		"pending_links":               pendingLinks,
-		"queue_dropped_total":         queueDropped,
-		"persistence_failures_total":  persistenceFailures,
+		"pending_links":              pendingLinks,
+		"queue_dropped_total":        queueDropped,
+		"persistence_failures_total": persistenceFailures,
 	}
 }
 
