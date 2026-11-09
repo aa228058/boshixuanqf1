@@ -488,7 +488,7 @@ async function pollImportJob(jobId: string) {
     if (importJob.value?.job_id === job.job_id) importJob.value = job
     const jobIndex = importJobs.value.findIndex((item: any) => item.job_id === job.job_id)
     if (jobIndex >= 0) importJobs.value[jobIndex] = job
-    else importJobs.value.unshift(job)
+    else importJobs.value = [job, ...importJobs.value].slice(0, 8)
     if (['completed', 'failed', 'cancelled'].includes(job.status)) {
       terminal = true
       load()
