@@ -183,6 +183,13 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Draft keys now include tenant and active account identifiers. On account switch, the current draft is persisted to the old scope before restoring the new scope; pending debounce work is cancelled safely, and unmount flushes the current draft.
 - This batch changes only client-side draft storage and selection presentation; task payloads, API contracts, and send semantics are unchanged.
 
+### Batch E2 — account selection cleanup and selector request isolation
+
+- Account-list multi-selection could retain IDs after an account was deleted or removed from the refreshed account list. Those stale IDs could still be submitted by bulk actions. Added pruning against the complete account-store ID set while deliberately preserving selections outside the current filter and page.
+- Broadcast's merged group list used `Math.random()` as a fallback key for records without group ID/chat ID/username. Every computed reevaluation could therefore remount those rows, disrupting focus and scroll position. Replaced it with a deterministic fallback based on account, title/name, and source index.
+- `TargetSelector.vue` previously allowed a slow contact/group-cache response for the old `accountId` to overwrite the selector after the user switched account while the modal remained open. Added a request-generation guard to selector opening and contact loading; closing the selector invalidates outstanding work, and changing account reloads its context without clearing already selected targets.
+- These changes are frontend state/lifecycle safeguards. They do not alter task payloads or server contracts.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
