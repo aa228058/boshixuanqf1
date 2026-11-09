@@ -822,13 +822,16 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	finalCtx, finalCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer finalCancel()
 
-	// Final flush of remaining logs
+	// Final flush of remaining logs. Missing failure/wait logs is an
+	// incomplete audit record, so it must not be reported as a completed task.
+	var finalLogPersistErr error
 	mu.Lock()
 	if len(batchLogs) > 0 {
 		logs := batchLogs
 		batchLogs = nil
 		mu.Unlock()
 		if err := e.logRepo.CreateBatch(finalCtx, logs); err != nil {
+			finalLogPersistErr = err
 			taskLog.Printf("[task] final flush logs failed: %v", err)
 		}
 	} else {
@@ -854,7 +857,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	finalStatus := domain.TaskStatusCompleted
-	if (failed == total && total > 0) || checkpointPersistErr != nil {
+	if (failed == total && total > 0) || checkpointPersistErr != nil || finalLogPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
 	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
