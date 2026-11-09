@@ -203,7 +203,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 						} else {
 							log.Printf("[grouplib] 导入任务租约已失效 job=%s", jobID)
 						}
-					return
+						return
 					}
 				}
 			}
