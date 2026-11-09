@@ -971,8 +971,26 @@ func (e *Engine) executeScrapeActiveUsers(ctx context.Context, task *domain.Task
 	}
 
 	if len(collected) > 0 {
-		if err := e.memberRepo.BatchCreate(ctx, collected); err != nil {
-			taskLog.Printf("[scrape] 活跃用户写库失败: %v", err)
+		if e.memberRepo == nil {
+			taskLog.Printf("[scrape] 活跃用户写库失败: member repository is unavailable")
+			statusCtx, statusCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer statusCancel()
+			if statusErr := e.repo.UpdateStatusOwned(statusCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
+				taskLog.Printf("[task] UpdateStatus failed: %v", statusErr)
+			}
+			return
+		}
+		persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		persistErr := e.memberRepo.BatchCreate(persistCtx, collected)
+		persistCancel()
+		if persistErr != nil {
+			taskLog.Printf("[scrape] 活跃用户写库失败: %v", persistErr)
+			statusCtx, statusCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer statusCancel()
+			if statusErr := e.repo.UpdateStatusOwned(statusCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
+				taskLog.Printf("[task] UpdateStatus failed: %v", statusErr)
+			}
+			return
 		}
 	}
 	taskLog.Printf("[scrape] 历史消息采集完成: 扫描 %d 条消息, %d 个用户", scanned, len(collected))
