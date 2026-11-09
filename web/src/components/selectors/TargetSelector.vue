@@ -457,7 +457,7 @@ async function onRefresh() {
       if (!isCurrent()) return
       const raw: any = await groupApi.list(accountId)
       if (!isCurrent()) return
-      const list = raw.list || raw.data?.list || raw.data || (Array.isArray(raw) ? raw : [])
+      const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
       groupStore.setGroups(accountId, list)
       syncStatus.value = 'done'
       emit('refresh')
@@ -482,7 +482,7 @@ async function onRefresh() {
       if (!isCurrent()) break
       const raw: any = await groupApi.list(accountId)
       if (!isCurrent()) break
-      const list = raw.list || raw.data?.list || raw.data || (Array.isArray(raw) ? raw : [])
+      const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
       if (list.length > 0) {
         groupStore.setGroups(accountId, list)
         syncStatus.value = 'done'
