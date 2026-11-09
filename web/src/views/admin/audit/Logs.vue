@@ -13,7 +13,7 @@
         type="date"
         class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0"
         aria-label="结束日期" />
-      <UiButton theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="page = 1; fetchLogs()">查询</UiButton>
+      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="page = 1; fetchLogs()">查询</t-button>
     </div>
 
     <!-- 桌面端表格 -->
@@ -61,8 +61,8 @@
       <div v-if="total > 20" class="flex items-center justify-between gap-3 pt-1">
         <span class="text-xs text-text-muted">共 {{ total }} 条 · 第 {{ page }} / {{ Math.ceil(total / 20) }} 页</span>
         <div class="flex items-center gap-2">
-          <UiButton size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="page = page - 1; fetchLogs()">上一页</UiButton>
-          <UiButton size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / 20)" @click="page = page + 1; fetchLogs()">下一页</UiButton>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="page = page - 1; fetchLogs()">上一页</t-button>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / 20)" @click="page = page + 1; fetchLogs()">下一页</t-button>
         </div>
       </div>
     </div>
@@ -70,7 +70,6 @@
 </template>
 
 <script setup lang="ts">
-import UiButton from '@/components/ui/UiButton.vue'
 import { ref, onMounted } from 'vue'
 import { adminApiMod } from '@/api/admin'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
