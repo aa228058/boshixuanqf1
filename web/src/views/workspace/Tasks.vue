@@ -153,8 +153,10 @@
       <!-- 手机端: 卡片列表(支持下拉刷新) -->
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" class="md:hidden" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id" :style="{ '--i': ti }"
-           :class="['p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : 'border-border']"
-           @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.enter.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.space.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
+           :class="['p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors', task.status === 'running' ? 'card-running' : 'border-border']"
+           role="group" :aria-label="'任务 ' + taskTypeLabel(task.type) + ' ' + task.task_id">
+        <RouterLink :to="'/workspace/' + route.params.accountId + '/tasks/' + task.task_id"
+                    class="block rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--t-brand)]">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap" :class="statusClass(task.status)">
@@ -187,6 +189,7 @@
             <span v-if="waitInfo[task.task_id].total" class="text-text-muted">({{ waitInfo[task.task_id].next_index }}/{{ waitInfo[task.task_id].total }})</span>
           </div>
         </div>
+        </RouterLink>
         <div class="mt-2 flex items-center gap-2">
           <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
           <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
