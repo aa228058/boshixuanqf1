@@ -3,6 +3,8 @@ package monitor
 import (
 	"context"
 	"sync"
+
+	"tg-sender/internal/safego"
 )
 
 // monitorWorkTracker closes task admission before waiting, preventing
@@ -46,9 +48,8 @@ func monitorGo(ctx context.Context, fn func()) {
 	if t == nil || !t.enter() {
 		return
 	}
-	go func() {
+	safego.Go(func() {
 		defer t.leave()
-		defer func() { _ = recover() }()
 		fn()
-	}()
+	})
 }
