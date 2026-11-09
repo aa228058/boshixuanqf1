@@ -58,3 +58,19 @@ func TestDedupeBroadcastTargetsEmpty(t *testing.T) {
 		t.Fatalf("empty target total=%d, want 0", got)
 	}
 }
+
+func TestCountBroadcastTargetProgress(t *testing.T) {
+	accountID := uuid.New()
+	targets := []string{"one", "two", "three"}
+	successes := map[string]bool{
+		accountID.String() + "|one": true,
+		accountID.String() + "|three": true,
+	}
+	done, pending := countBroadcastTargetProgress(accountID, targets, successes)
+	if done != 2 || pending != 1 {
+		t.Fatalf("got done=%d pending=%d, want done=2 pending=1", done, pending)
+	}
+	if done+pending != len(targets) {
+		t.Fatalf("progress does not reconcile: done+pending=%d total=%d", done+pending, len(targets))
+	}
+}
