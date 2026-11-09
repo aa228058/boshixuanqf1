@@ -1,0 +1,76 @@
+#!/usr/bin/env node
+/**
+ * Frontend component inventory.
+ *
+ * Reports direct component imports, possible unreferenced SFCs, duplicate component
+ * basenames, and global stylesheet loading order. This is a conservative inventory:
+ * dynamic imports, auto-registration, runtime string references and template aliases
+ * can make a component appear unused, so the report never deletes files.
+ */
+import { readdir, readFile } from 'node:fs/promises'
+import { dirname, extname, join, relative, resolve } from 'node:path'
+
+const root = resolve(process.cwd(), 'src')
+const sourceExt = new Set(['.vue', '.ts', '.tsx', '.js', '.jsx'])
+const files = []
+
+async function walk(dir) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) await walk(full)
+    else if (sourceExt.has(extname(entry.name))) files.push(full)
+  }
+}
+
+await walk(root)
+const contents = new Map()
+for (const file of files) contents.set(file, await readFile(file, 'utf8'))
+
+const componentFiles = files.filter(file => file.endsWith('.vue') && relative(root, file).startsWith('components/'))
+const references = new Map(componentFiles.map(file => [file, new Set()]))
+const importPattern = /(?:from\\s*|import\\s*)['"]([^'"]+)['"]/g
+
+for (const [source, text] of contents) {
+  for (const match of text.matchAll(importPattern)) {
+    const specifier = match[1]
+    if (!specifier.startsWith('.') && !specifier.startsWith('@/')) continue
+    const base = specifier.startsWith('@/') ? join(root, specifier.slice(2)) : resolve(dirname(source), specifier)
+    const candidates = [base, base + '.vue', join(base, 'index.vue')]
+    for (const candidate of candidates) {
+      const target = resolve(candidate)
+      if (references.has(target)) references.get(target).add(relative(root, source))
+    }
+  }
+}
+
+const byName = new Map()
+for (const file of componentFiles) {
+  const name = file.split('/').at(-1)
+  if (!byName.has(name)) byName.set(name, [])
+  byName.get(name).push(relative(root, file))
+}
+
+const mainFile = files.find(file => relative(root, file) === 'main.ts')
+const mainText = mainFile ? contents.get(mainFile) : ''
+const globalStyles = [...mainText.matchAll(/import\\s+['"]([^'"]+\\.css)['"]/g)].map(match => match[1])
+
+console.log('Frontend component inventory')
+console.log('============================')
+console.log(`Source files scanned: ${files.length}`)
+console.log(`Vue components under src/components: ${componentFiles.length}`)
+console.log('')
+console.log('Component reference map (direct imports only)')
+for (const file of componentFiles.sort()) {
+  const users = [...references.get(file)]
+  console.log(`- ${relative(root, file)}: ${users.length ? users.join(', ') : 'NO DIRECT IMPORT FOUND — verify before removal'}`)
+}
+console.log('')
+console.log('Duplicate component filenames')
+const duplicates = [...byName.entries()].filter(([, paths]) => paths.length > 1)
+if (!duplicates.length) console.log('- none')
+for (const [name, paths] of duplicates) console.log(`- ${name}: ${paths.join(', ')}`)
+console.log('')
+console.log('Global CSS import order (src/main.ts)')
+for (const style of globalStyles) console.log(`- ${style}`)
+console.log('')
+console.log('Important: this is a review aid, not proof that a component or stylesheet is safe to delete.')
