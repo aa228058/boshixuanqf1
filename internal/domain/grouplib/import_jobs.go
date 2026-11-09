@@ -477,7 +477,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				_, deferErr := e.pool.Exec(deferCtx, `
 					UPDATE group_library_import_jobs
 					SET lease_expires_at=NOW()+($3 * INTERVAL '1 second'), updated_at=NOW()
-					WHERE job_id=$1 AND status IN ('processing','cancelling') AND lease_token=$2`,
+					WHERE job_id=$1 AND status='processing' AND lease_token=$2`,
 					jobID, leaseToken, rateLimitErr.RetryAfter.Seconds())
 				deferCancel()
 				if deferErr != nil {
