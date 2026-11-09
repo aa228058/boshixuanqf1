@@ -222,7 +222,7 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 	e.sessions[tenantID][accountID].lastMsgAt.Store(time.Now().Unix())
 	e.mu.Unlock()
 
-	safego.Go(func() { e.monitorLoop(monitorCtx, client, rules, tenantID, accountID, done) })
+	monitorGo(ctx, func() { e.monitorLoop(monitorCtx, client, rules, tenantID, accountID, done) })
 	return nil
 }
 
@@ -277,24 +277,40 @@ func (e *Engine) EnsureSession(ctx context.Context, tenantID, accountID uuid.UUI
 	return e.StartMonitoring(ctx, tenantID, accountID, rules)
 }
 
-// StopAll stops all monitoring sessions.
+// StopAll cancels every session and waits for each monitor loop to drain.
 func (e *Engine) StopAll() {
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
+
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	doneChannels := make([]chan struct{}, 0)
 	for _, tenantSessions := range e.sessions {
 		for _, sess := range tenantSessions {
+			if sess == nil {
+				continue
+			}
 			sess.cancel()
+			doneChannels = append(doneChannels, sess.done)
 		}
 	}
+	e.sessions = make(map[uuid.UUID]map[uuid.UUID]*monitorSession)
 	select {
 	case <-e.done:
-		// already closed
 	default:
 		close(e.done)
 	}
-	e.sessions = make(map[uuid.UUID]map[uuid.UUID]*monitorSession)
+	e.mu.Unlock()
+
+	timer := time.NewTimer(45 * time.Second)
+	defer timer.Stop()
+	for i, done := range doneChannels {
+		select {
+		case <-done:
+		case <-timer.C:
+			log.Printf("[monitor] StopAll timed out waiting for %d/%d remaining sessions", len(doneChannels)-i, len(doneChannels))
+			return
+		}
+	}
 }
 
 // ReloadRules triggers rule reload for all active monitoring sessions of a tenant.
@@ -324,13 +340,16 @@ func (e *Engine) ReloadRules(ctx context.Context, tenantID uuid.UUID) error {
 }
 
 func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initialRules []domain.MonitorRule, tenantID, accountID uuid.UUID, done chan struct{}) {
+	tracker := newMonitorWorkTracker()
+	ctx = context.WithValue(ctx, monitorWorkTrackerKey{}, tracker)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[monitor] loop panic: %v\n%s", r, debug.Stack())
 		}
 	}()
-	// 通知 StartMonitoring/StopMonitoring 本 goroutine 已完全退出。
+	// Close admission and drain callbacks plus child work before signaling exit.
 	defer func() {
+		tracker.stopAndWait()
 		e.mu.Lock()
 		if tenantSessions := e.sessions[tenantID]; tenantSessions != nil {
 			if current := tenantSessions[accountID]; current != nil && current.done == done {
@@ -390,6 +409,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 	// registerOn 把消息处理逻辑挂到指定客户端上, 可被重复调用于换线重挂。
 	registerOn := func(cl *telegram.Client) {
 		cl.OnMessage(func(c *telegram.Client, msg *types.Message) {
+			if !tracker.enter() {
+				return
+			}
+			defer tracker.leave()
 			select {
 			case <-ctx.Done():
 				return
@@ -412,14 +435,14 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			// 入群验证: 命中验证消息时自动处理(详见 verifier.go / verifier_tap.go)
 			// R153: 登录验证码捕获(TG官方777000/私聊), 异步处理不阻塞消息循环
 			if code := extractLoginCode(msg.Text, msg.FromID, msg.ChatID); code != "" && e.loginCodeNotify != nil {
-				safego.Go(func() { e.loginCodeNotify(tenantID, accountID, code) })
+				monitorGo(ctx, func() { e.loginCodeNotify(tenantID, accountID, code) })
 			}
 			e.tapVerification(ctx, cl, tenantID, accountID, msg.ChatID, "", fmt.Sprint(msg.FromID), msg.Text, rawTG(msg))
 			// 抽奖助手: 命中抽奖公告自动参与(raffle.go)。
 			// 消息包装对象由 Telegram 客户端管理，不跨 goroutine 捕获原指针；
 			// 复制包装结构后再异步处理，避免回调返回后对象被复用导致字段错乱。
 			msgSnapshot := *msg
-			safego.Go(func() { e.tapRaffle(ctx, cl, tenantID, accountID, &msgSnapshot) })
+			monitorGo(ctx, func() { e.tapRaffle(ctx, cl, tenantID, accountID, &msgSnapshot) })
 			// 抽奖结果追踪: 开奖解析(text_mention实体) + 参与回执确认(2026-10-20)
 			// + 中奖自动回复(060, 需 cl 发送)
 			e.watchRaffleMessage(ctx, tenantID, accountID, msg.ChatID, msg, cl)
@@ -472,7 +495,7 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			msgID2 := msg.ID
 			msgText2 := msg.Text
 			msgHasMedia2 := msg.Media != nil
-			safego.Go(func() {
+			monitorGo(ctx, func() {
 				// Read rules with lock
 				rulesMu.RLock()
 				currentRules := rules
@@ -574,7 +597,7 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 	}
 
 	// Start goroutine to reload rules periodically or on demand
-	safego.Go(func() {
+	monitorGo(ctx, func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("[monitor] 规则重载异常: %v", r)
@@ -615,7 +638,7 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 					log.Printf("[monitor] 账号 %s 疑似假在线(30分钟无消息流过), 已告警", accountID)
 					_sess.lastMsgAt.Store(time.Now().Unix()) // 防 tick 风暴
 					if e.flowDeadNotify != nil {
-						safego.Go(func() { e.flowDeadNotify(tenantID, accountID) })
+						monitorGo(ctx, func() { e.flowDeadNotify(tenantID, accountID) })
 					}
 				}
 			}
