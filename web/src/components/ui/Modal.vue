@@ -9,6 +9,34 @@ function compactModalOrders() {
   active.forEach(([, order], index) => { order.value = index + 1 })
   modalCounter = active.length
 }
+
+// 所有 Modal 实例共享一个 visualViewport 监听；任一弹窗关闭时不能提前清除其他弹窗的键盘偏移。
+const activeKeyboardModalIds = new Set<symbol>()
+const KB_VAR = '--modal-kb'
+let keyboardViewport: VisualViewport | null = null
+function syncSharedKeyboardOffset() {
+  const viewport = keyboardViewport
+  if (!viewport || typeof window === 'undefined' || typeof document === 'undefined') return
+  const kb = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+  document.documentElement.style.setProperty(KB_VAR, kb > 80 ? `${kb}px` : '0px')
+}
+function activateKeyboardGuard(id: symbol) {
+  if (typeof window === 'undefined' || !window.visualViewport || activeKeyboardModalIds.has(id)) return
+  activeKeyboardModalIds.add(id)
+  if (activeKeyboardModalIds.size === 1) {
+    keyboardViewport = window.visualViewport
+    keyboardViewport.addEventListener('resize', syncSharedKeyboardOffset)
+    keyboardViewport.addEventListener('scroll', syncSharedKeyboardOffset)
+  }
+  syncSharedKeyboardOffset()
+}
+function deactivateKeyboardGuard(id: symbol) {
+  if (!activeKeyboardModalIds.delete(id) || activeKeyboardModalIds.size > 0) return
+  keyboardViewport?.removeEventListener('resize', syncSharedKeyboardOffset)
+  keyboardViewport?.removeEventListener('scroll', syncSharedKeyboardOffset)
+  keyboardViewport = null
+  if (typeof document !== 'undefined') document.documentElement.style.setProperty(KB_VAR, '0px')
+}
 </script>
 
 <template>
@@ -113,39 +141,15 @@ function onFocusIn(e: FocusEvent) {
   }
 }
 
-/* ===== 键盘弹起适配(规范 §8): H5 弹窗输入时按钮被顶飞的根治 =====
-   监听 visualViewport: 键盘弹起时其 height 缩小,
-   把差值写成 CSS 变量 --modal-kb, 移动端弹窗整体上移同样距离 */
-const KB_VAR = '--modal-kb'
-function syncKbOffset() {
-  const vv = window.visualViewport
-  if (!vv) return
-  const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-  document.documentElement.style.setProperty(KB_VAR, kb > 80 ? `${kb}px` : '0px')
-}
-function attachKbGuard() {
-  if (!window.visualViewport) return
-  syncKbOffset()
-  vv?.addEventListener('resize', syncKbOffset)
-  vv?.addEventListener('scroll', syncKbOffset)
-}
-function detachKbGuard() {
-  if (!vv) return
-  vv.removeEventListener('resize', syncKbOffset)
-  vv.removeEventListener('scroll', syncKbOffset)
-  document.documentElement.style.setProperty(KB_VAR, '0px')
-}
-let vv: VisualViewport | null = null
-if (typeof window !== 'undefined') vv = window.visualViewport
-
+// 键盘偏移是 document 级共享状态；按实例注册/注销，只有最后一个打开的 Modal 关闭才复位。
 watch(() => props.modelValue, v => {
-  if (v) attachKbGuard()
-  else detachKbGuard()
+  if (v) activateKeyboardGuard(modalId)
+  else deactivateKeyboardGuard(modalId)
 }, { immediate: true })
 
-// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时必须释放 visualViewport 监听并复位全局键盘偏移。
+// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时释放本实例的键盘监听引用。
 onUnmounted(() => {
-  detachKbGuard()
+  deactivateKeyboardGuard(modalId)
   activeModalOrders.delete(modalId)
   compactModalOrders()
 })
