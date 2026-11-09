@@ -89,6 +89,39 @@ func (e *Engine) saveAggregationCursor(ctx context.Context, source string, curso
 	return err
 }
 
+const groupLibraryAggregationLockKey int64 = 0x544753454E444552
+
+// acquireAggregationLock serializes durable source scans across all application
+// replicas. The cursor is shared in PostgreSQL, so concurrent scanners must not
+// advance it past another replica's failed batch.
+func (e *Engine) acquireAggregationLock(ctx context.Context) (func(), bool, error) {
+	conn, err := e.pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	var acquired bool
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, groupLibraryAggregationLockKey).Scan(&acquired); err != nil {
+		conn.Release()
+		return nil, false, err
+	}
+	if !acquired {
+		conn.Release()
+		return nil, false, nil
+	}
+	unlock := func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var unlocked bool
+		if err := conn.QueryRow(unlockCtx, `SELECT pg_advisory_unlock($1)`, groupLibraryAggregationLockKey).Scan(&unlocked); err != nil {
+			log.Printf("[grouplib] release aggregation advisory lock: %v", err)
+		} else if !unlocked {
+			log.Printf("[grouplib] aggregation advisory lock was not held at release")
+		}
+		conn.Release()
+	}
+	return unlock, true, nil
+}
+
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
 	return &Engine{repo: repo, pool: pool, acc: acc, interval: 2 * time.Minute, stopCh: make(chan struct{})}
 }
@@ -176,6 +209,17 @@ func (e *Engine) runOnce() {
 	}()
 	defer close(done)
 	defer cancel()
+	unlock, acquired, lockErr := e.acquireAggregationLock(ctx)
+	if lockErr != nil {
+		log.Printf("[grouplib] acquire aggregation advisory lock: %v", lockErr)
+		return
+	}
+	if !acquired {
+		// Another replica owns the shared cursor scan; it will persist progress.
+		return
+	}
+	defer unlock()
+
 	var errs []error
 	if err := e.aggregateScrapedLinks(ctx); err != nil {
 		errs = append(errs, err)
