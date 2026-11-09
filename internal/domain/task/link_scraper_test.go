@@ -95,3 +95,30 @@ func TestScrapedLinkDedupKeyIsTenantScoped(t *testing.T) {
 		t.Fatal("the same Telegram link must not be deduplicated across tenants")
 	}
 }
+
+func TestLinkScraperDrainsQueuedLinksWithoutNetworkResolution(t *testing.T) {
+	ls := NewLinkScraper(nil, nil, nil, nil, nil)
+	tenantID := uuid.New()
+	accountID := uuid.New()
+	ls.linkQueue <- &rawLink{
+		TenantID: tenantID,
+		AccountID: accountID,
+		LinkType: "public",
+		LinkHash: "sample-public-group",
+		FullURL: "https://t.me/sample-public-group",
+	}
+
+	ls.drainQueuedLinks()
+
+	ls.batchMu.Lock()
+	defer ls.batchMu.Unlock()
+	if len(ls.batchLinks) != 1 {
+		t.Fatalf("expected queued link to be retained in final batch, got %d", len(ls.batchLinks))
+	}
+	if ls.batchLinks[0].Status != "new" {
+		t.Fatalf("shutdown drain should preserve unresolved links as new, got %q", ls.batchLinks[0].Status)
+	}
+	if len(ls.linkQueue) != 0 {
+		t.Fatal("shutdown drain should empty the in-memory queue")
+	}
+}
