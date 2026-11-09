@@ -267,11 +267,14 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	e.mu.Lock()
 	wm := e.mW
 	e.mu.Unlock()
+	// Match the other aggregators' at-least-once watermark window. Multiple member
+	// rows can share the same scraped_at timestamp; a strict watermark can skip
+	// peers written at that boundary after the previous batch has advanced.
 	rows, err := e.pool.Query(ctx, `
 		SELECT bio, scraped_at FROM members
 		WHERE scraped_at > $1 AND bio IS NOT NULL AND bio <> ''
 		  AND (bio ILIKE '%t.me%' OR bio ILIKE '%telegram%')
-		ORDER BY scraped_at ASC LIMIT 5000`, wm)
+		ORDER BY scraped_at ASC LIMIT 5000`, wm.Add(-time.Second))
 	if err != nil {
 		return err
 	}
