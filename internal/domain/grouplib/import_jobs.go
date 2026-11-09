@@ -242,7 +242,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				if result != nil && partialFailed > 0 {
 					detail = strings.Join(result.Failed[:partialFailed], "\n")
 				}
-				if !e.execImportJobUpdate(ctx, jobID, leaseToken, "persist rate-limited import prefix", `
+				if !e.execImportJobUpdate(ctx, jobID, "persist rate-limited import prefix", `
 					UPDATE group_library_import_jobs
 					SET processed_count=processed_count+$2,
 					    imported_count=imported_count+$3,
@@ -257,7 +257,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					return
 				}
 			} else {
-				if !e.execImportJobUpdate(ctx, jobID, leaseToken, "schedule rate-limit retry", `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1 AND lease_token=$3 AND status='processing'`,
+				if !e.execImportJobUpdate(ctx, jobID, "schedule rate-limit retry", `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1 AND lease_token=$3 AND status='processing'`,
 					jobID, time.Now().Add(rateLimitErr.RetryAfter), leaseToken) {
 					return
 				}
@@ -267,13 +267,13 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			case <-ctx.Done():
 				timer.Stop()
 				persistCtx, persistCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				e.execImportJobUpdate(persistCtx, jobID, leaseToken, "release lease after shutdown", `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken)
+				e.execImportJobUpdate(persistCtx, jobID, "release lease after shutdown", `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken)
 				persistCancel()
 				return
 			case <-timer.C:
 			}
 			// 冷却结束后释放租约，任务立即回到可领取队列。
-			if !e.execImportJobUpdate(ctx, jobID, leaseToken, "release lease after rate limit", `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken) {
+			if !e.execImportJobUpdate(ctx, jobID, "release lease after rate limit", `UPDATE group_library_import_jobs SET status='pending', lease_token=NULL, updated_at=NOW() WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken) {
 				return
 			}
 			continue
@@ -294,7 +294,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				}
 			}
 			persistCtx, persistCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, persistErr := e.pool.Exec(persistCtx, `
+			persisted := e.execImportJobUpdate(persistCtx, jobID, "persist interrupted import progress", `
 				UPDATE group_library_import_jobs
 				SET processed_count=$2,
 				    imported_count=imported_count+$3,
@@ -305,8 +305,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				WHERE job_id=$1 AND status='processing' AND lease_token=$7
 			`, jobID, offset+processed, imported, failed, skipped, detail, leaseToken)
 			persistCancel()
-			if persistErr != nil {
-				log.Printf("[grouplib] 保存中断导入进度失败 job=%s: %v", jobID, persistErr)
+			if !persisted {
+				log.Printf("[grouplib] 中断进度未能持久化，任务将由租约过期恢复 job=%s", jobID)
 			}
 			return
 		}
@@ -337,7 +337,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			nextStatus = "completed"
 			finished = time.Now()
 		}
-		if !e.execImportJobUpdate(ctx, jobID, leaseToken, "persist import chunk", `
+		if !e.execImportJobUpdate(ctx, jobID, "persist import chunk", `
 			UPDATE group_library_import_jobs
 			SET processed_count=$2, imported_count=imported_count+$3,
 			    failed_count=failed_count+$4, skipped_count=skipped_count+$5,
