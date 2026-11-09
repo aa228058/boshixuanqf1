@@ -546,22 +546,26 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
 						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\n",
 							targetID, accID, resolveErr.Error())
-						continue
-					}
-					switch p := peer.(type) {
-					case *tg.InputPeerUser:
-						chatID = p.UserID
-					case *tg.InputPeerChat:
-						chatID = p.ChatID
-					case *tg.InputPeerChannel:
-						chatID = p.ChannelID
+					} else {
+						switch p := peer.(type) {
+						case *tg.InputPeerUser:
+							chatID = p.UserID
+						case *tg.InputPeerChat:
+							chatID = p.ChatID
+						case *tg.InputPeerChannel:
+							chatID = p.ChannelID
+						}
 					}
 				}
 				if chatID == 0 {
-					status = "failed"
-					errCode = "unsupported peer type"
-					accFailed++
-					e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					// Resolution failures already carry their own error code and failure
+					// count; do not overwrite or count them a second time.
+					if status != "failed" {
+						status = "failed"
+						errCode = "unsupported peer type"
+						accFailed++
+						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					}
 				} else {
 					// Replace template variables with target info before sending
 					// 先 spintax 随机语法(每个目标独立), 再变量替换
