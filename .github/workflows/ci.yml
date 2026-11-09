@@ -1,4 +1,5 @@
 name: CI
+# Stage 1 gates: PostgreSQL failure-row load and 10k/30k/50k parser benchmarks.
 
 on:
   push:
