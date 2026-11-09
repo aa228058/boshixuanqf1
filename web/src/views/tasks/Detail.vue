@@ -198,10 +198,8 @@ import { taskApi } from '@/api/task'
 import { accountApi } from '@/api/account'
 import { groupApi } from '@/api/group'
 import { ask } from '@/utils/confirm'
-import { useAccountStore } from '@/stores/account'
 const pageError = ref('')
 const pageLoading = ref(true)
-const accountStore = useAccountStore()
 import { formatDateTime, formatNumber, taskStatusClass, taskStatusLabel, taskTypeLabel } from '@/utils/format'
 import { toast } from '@/utils/toast'
 import { useAuthStore } from '@/stores/auth'
@@ -279,6 +277,7 @@ async function fetchMembers() {
 }
 
 const logs = ref<TaskLog[]>([])
+const logKeys = new Set<string>()
 const logsPage = ref(1)
 const logPageCursors = new Map<number, string>()
 const hasMoreLogs = ref(false)
@@ -381,6 +380,7 @@ function clearLogs() {
   // “清除显示”只影响当前页面状态；绝不删除数据库中的审计/发送日志。
   for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
   logs.value = []
+  logKeys.clear()
   logsPage.value = 1
   logPageCursors.clear()
   hasMoreLogs.value = false
@@ -453,7 +453,7 @@ function formatTime(date: string | undefined | null) {
   if (!date) return '--:--:--'
   const d = new Date(date)
   if (isNaN(d.getTime())) return '--:--:--'
-  return new Date(date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 async function fetchTask(silent = false) {
@@ -505,6 +505,8 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
     const merged = new Map<string, TaskLog>()
     for (const log of logs.value) merged.set(taskLogKey(log), log)
     for (const log of data) merged.set(taskLogKey(log), log)
+    logKeys.clear()
+    for (const key of merged.keys()) logKeys.add(key)
     logs.value = [...merged.values()].sort((a, b) => {
       const timeDiff = new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime()
       return timeDiff || String(a.log_id || '').localeCompare(String(b.log_id || ''))
@@ -607,7 +609,9 @@ async function connectSSE() {
           return
         }
         if (data.type === 'task_log' && data.log) {
-          if (!logs.value.some((x) => taskLogKey(x) === taskLogKey(data.log))) {
+          const key = taskLogKey(data.log)
+          if (!logKeys.has(key)) {
+            logKeys.add(key)
             const container = logContainer.value
             const shouldFollow = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
             logs.value.push(data.log)
