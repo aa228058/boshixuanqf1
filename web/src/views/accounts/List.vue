@@ -943,11 +943,18 @@ const allSelected = computed(() =>
   filteredAccounts.value.every((a: any) => a && selectedIds.value.has(a.account_id)))
 
 function toggleSelectAll() {
+  // 全选/取消全选只作用于当前筛选结果；保留其他筛选条件下已选中的账号，
+  // 避免用户切换搜索词后执行“全选”意外清空此前选择。
+  const visibleIds = filteredAccounts.value
+    .map((a: any) => a?.account_id)
+    .filter(Boolean)
+  const next = new Set(selectedIds.value)
   if (allSelected.value) {
-    selectedIds.value = new Set()
+    visibleIds.forEach((id: string) => next.delete(id))
   } else {
-    selectedIds.value = new Set(filteredAccounts.value.map((a: any) => a?.account_id).filter(Boolean))
+    visibleIds.forEach((id: string) => next.add(id))
   }
+  selectedIds.value = next
 }
 
 function toggleSelect(acc: any) {
