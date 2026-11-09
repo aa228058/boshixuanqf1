@@ -12,7 +12,7 @@
         <div class="text-small font-bold truncate">{{ authStore.tenant?.name || '我的' }}</div>
         <div class="text-[11.5px] mt-0.5" style="color: var(--t-text-3);">{{ authStore.tenant?.plan_id || '' }} · 到期 {{ (authStore.tenant?.expires_at || '').slice(0, 10) }}</div>
       </div>
-      <t-button theme="default" variant="outline" class="ui-t-button ui-t-button--secondary shrink-0" style="background: var(--t-surface-1); border: 1px solid var(--t-line); color: var(--t-text-2); box-shadow: none;" @click="logout">退出</t-button>
+      <UiButton theme="default" variant="outline" class="ui-t-button ui-t-button--secondary shrink-0" style="background: var(--t-surface-1); border: 1px solid var(--t-line); color: var(--t-text-2); box-shadow: none;" @click="logout">退出</UiButton>
     </div>
 
     <!-- 功能分组 -->
@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChevronRight, Send, UserPlus, Compass, Download, Link2, Eye, Gift, ListChecks, ShieldCheck, Settings, HelpCircle, Megaphone, RefreshCw, KeyRound } from 'lucide-vue-next'
