@@ -39,7 +39,8 @@
     </div>
 
     <!-- 空态 -->
-    <EmptyState v-if="!loading && accounts.length === 0" title="还没有协议号" description="点右上角「导入协议号」开始" />
+    <Loading v-if="loading && accounts.length === 0" text="正在加载协议号..." />
+    <EmptyState v-else-if="accounts.length === 0" title="还没有协议号" description="点右上角「导入协议号」开始" />
 
     <!-- 桌面表格 / 移动卡片 -->
     <div v-else class="rounded-[var(--t-r-md)] bg-surface/80 overflow-hidden">
@@ -187,6 +188,7 @@ import { ask } from '@/utils/confirm'
 // doImport 实际依赖 importSessions/importSessionFiles/ImportResult
 import { importSessions, importSessionFiles, updateProfile, uploadAvatar, type ImportResult } from '@/api/account'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Loading from '@/components/ui/Loading.vue'
 import Modal from '@/components/ui/Modal.vue'
 
 const accountStore = useAccountStore()
