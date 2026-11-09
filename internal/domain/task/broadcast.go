@@ -176,7 +176,6 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		flushStopOnce.Do(func() { close(flushDone) })
 		<-flushExited
 	}
-	defer stopFlush()
 	safego.Go(func() {
 		defer close(flushExited)
 		for {
@@ -219,7 +218,6 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		sseStopOnce.Do(func() { close(sseDone) })
 		<-sseExited
 	}
-	defer stopSSE()
 	safego.Go(func() {
 		defer close(sseExited)
 		for {
@@ -248,6 +246,14 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			}
 		}
 	})
+
+	// Cancel task-scoped work before waiting, so in-flight DB/API calls can unwind.
+	// This defer also covers all early returns after the workers have started.
+	defer func() {
+		cancel()
+		stopSSE()
+		stopFlush()
+	}()
 
 	// Worker pool: process up to N accounts concurrently.
 	// Use tenant plan quota, dynamically compressed based on system memory pressure.
@@ -794,6 +800,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		})
 	}
 	wg.Wait()
+	cancel()    // Final persistence below uses its own bounded context.
 	stopFlush() // Ensure an in-flight periodic flush has either committed or requeued its batch.
 	stopSSE()   // Drain the aggregator before taking the final pending snapshot.
 
