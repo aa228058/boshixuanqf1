@@ -1,25 +1,23 @@
 <template>
   <div class="confirm-actions">
-    <t-button
-      type="button"
-      variant="outline"
-      class="ui-t-button ui-t-button--secondary"
+    <UiButton
+      tone="secondary"
       @click="emit('cancel')"
     >
       {{ cancelText }}
-    </t-button>
-    <t-button
-      type="button"
-      :theme="danger ? 'danger' : 'primary'"
-      :class="['ui-t-button', danger ? 'ui-t-button--danger' : 'ui-t-button--primary']"
+    </UiButton>
+    <UiButton
+      :tone="danger ? 'danger' : 'primary'"
       @click="emit('confirm')"
     >
       {{ confirmText }}
-    </t-button>
+    </UiButton>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiButton from './UiButton.vue'
+
 withDefaults(defineProps<{
   danger?: boolean
   confirmText?: string
