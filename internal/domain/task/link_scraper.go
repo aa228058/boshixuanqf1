@@ -55,6 +55,8 @@ type AccountLister interface {
 	ListAll(ctx context.Context) ([]*domain.Account, error)
 }
 
+const maxPendingScrapedLinks int64 = 50000
+
 type LinkScraper struct {
 	cfg         *config.Config
 	accEngine   AccountEngine
@@ -76,6 +78,9 @@ type LinkScraper struct {
 	stopCh       chan struct{}
 	stopOnce     sync.Once
 	wg           sync.WaitGroup
+	pendingLinkCount int64
+	queueDropped int64
+	persistenceFailures int64
 }
 
 // NewLinkScraper creates a new persistent link scraper.
@@ -175,8 +180,11 @@ func (ls *LinkScraper) GetStats() map[string]any {
 	ls.dedupMu.RUnlock()
 
 	queueLen := len(ls.linkQueue)
+	pendingLinks := atomic.LoadInt64(&ls.pendingLinkCount)
+	queueDropped := atomic.LoadInt64(&ls.queueDropped)
+	persistenceFailures := atomic.LoadInt64(&ls.persistenceFailures)
 
-	var handlerCount int
+	var handlerCount
 	ls.handlers.Range(func(_, _ interface{}) bool {
 		handlerCount++
 		return true
@@ -186,6 +194,9 @@ func (ls *LinkScraper) GetStats() map[string]any {
 		"handlers_active": handlerCount,
 		"queue_length":    queueLen,
 		"dedup_cache":     dedupSize,
+		"pending_links": pendingLinks,
+		"queue_dropped_total": queueDropped,
+		"persistence_failures_total": persistenceFailures,
 	}
 }
 
@@ -294,7 +305,8 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 			case <-ls.stopCh:
 				return
 			default:
-				// Queue full: drop this link rather than blocking Telegram updates.
+				// Keep Telegram update callbacks non-blocking, but make overload visible.
+				atomic.AddInt64(&ls.queueDropped, 1)
 			}
 		}
 	})
@@ -349,6 +361,10 @@ func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 			ls.drainQueuedLinks()
 			return
 		case <-ticker.C:
+			// Bound memory while PostgreSQL is unavailable; the channel remains bounded too.
+			if atomic.LoadInt64(&ls.pendingLinkCount) >= maxPendingScrapedLinks {
+				continue
+			}
 			// 消费节奏由 ticker 门控：200ms 一条 = 每秒最多 5 次 ResolvePeer，
 			// 队列空时直接跳过本轮，避免 ticker 空转处理。
 			select {
@@ -447,6 +463,7 @@ func (ls *LinkScraper) processLink(ctx context.Context, raw *rawLink) {
 	// Add to batch for DB write
 	ls.batchMu.Lock()
 	ls.batchLinks = append(ls.batchLinks, link)
+	atomic.AddInt64(&ls.pendingLinkCount, 1)
 	ls.batchMu.Unlock()
 }
 
@@ -462,11 +479,11 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 			// The consumer may still be finishing an in-flight ResolvePeer and
 			// appending its result. Drain it before taking the final batch snapshot.
 			<-ls.consumerDone
-			ls.flushBatch(ctx)
+			ls.flushBatchOnShutdown(ctx)
 			return
 		case <-ctx.Done():
 			<-ls.consumerDone
-			ls.flushBatch(ctx)
+			ls.flushBatchOnShutdown(ctx)
 			return
 		case <-ticker.C:
 			ls.flushBatch(ctx)
@@ -475,11 +492,11 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 }
 
 // flushBatch writes accumulated links to DB and clears the batch.
-func (ls *LinkScraper) flushBatch(ctx context.Context) {
+func (ls *LinkScraper) flushBatch(ctx context.Context) bool {
 	ls.batchMu.Lock()
 	if len(ls.batchLinks) == 0 {
 		ls.batchMu.Unlock()
-		return
+		return true
 	}
 	batch := make([]*domain.ScrapedLink, len(ls.batchLinks))
 	copy(batch, ls.batchLinks)
@@ -496,6 +513,7 @@ func (ls *LinkScraper) flushBatch(ctx context.Context) {
 	defer cancel()
 
 	if err := ls.linkRepo.CreateBatch(writeCtx, batch); err != nil {
+		atomic.AddInt64(&ls.persistenceFailures, 1)
 		log.Printf("[link-scraper] 批量写入链接失败，保留待重试批次: %v", err)
 		ls.batchMu.Lock()
 		pending := make([]*domain.ScrapedLink, 0, len(batch)+len(ls.batchLinks))
@@ -503,9 +521,39 @@ func (ls *LinkScraper) flushBatch(ctx context.Context) {
 		pending = append(pending, ls.batchLinks...)
 		ls.batchLinks = pending
 		ls.batchMu.Unlock()
-		return
+		return false
 	}
+	atomic.AddInt64(&ls.pendingLinkCount, -int64(len(batch)))
 	log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
+	return true
+}
+
+// flushBatchOnShutdown retries the retained batch with a bounded independent context.
+func (ls *LinkScraper) flushBatchOnShutdown(_ context.Context) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if ls.flushBatch(shutdownCtx) {
+			return
+		}
+		if attempt < maxAttempts {
+			timer := time.NewTimer(time.Duration(attempt) * time.Second)
+			select {
+			case <-timer.C:
+			case <-shutdownCtx.Done():
+				timer.Stop()
+			}
+			if shutdownCtx.Err() != nil {
+				break
+			}
+		}
+	}
+	ls.batchMu.Lock()
+	remaining := len(ls.batchLinks)
+	ls.batchMu.Unlock()
+	log.Printf("[link-scraper] shutdown persistence exhausted retries; %d links remain unpersisted", remaining)
 }
 
 // dedupCleanerLoop removes old entries from the dedup map to prevent memory growth.
