@@ -317,7 +317,17 @@ func (e *Engine) StopAll() error {
 		select {
 		case <-done:
 		case <-timer.C:
-			remaining := len(doneChannels) - i
+			remaining := 0
+			for _, pending := range doneChannels {
+				select {
+				case <-pending:
+				default:
+					remaining++
+				}
+			}
+			if remaining == 0 {
+				return nil
+			}
 			err := fmt.Errorf("monitor shutdown timed out with %d/%d sessions still running", remaining, len(doneChannels))
 			log.Printf("[monitor] StopAll: %v", err)
 			return err
