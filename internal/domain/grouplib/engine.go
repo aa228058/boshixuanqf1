@@ -128,7 +128,9 @@ func (e *Engine) acquireAggregationLock(ctx context.Context) (func(), bool, erro
 		if err := tx.Rollback(rollbackCtx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			log.Printf("[grouplib] release aggregation advisory transaction: %v", err)
 			// Do not return a potentially lock-holding connection to the pool.
-			_ = conn.Hijack().Close(context.Background())
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = conn.Hijack().Close(closeCtx)
+			closeCancel()
 			return
 		}
 		conn.Release()
