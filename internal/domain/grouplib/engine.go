@@ -53,6 +53,12 @@ type Engine struct {
 	stopped     bool
 
 	mu  sync.Mutex
+
+	resolveCache   map[string]cachedImportResolution
+	resolveFlights map[string]*importResolveCall
+
+	// workerImportOverride is used by deterministic PostgreSQL worker tests.
+	workerImportOverride func(context.Context, uuid.UUID, uuid.UUID, []string) (*ImportResult, error)
 	slW aggregationCursor // scraped_links 复合游标
 	gW  aggregationCursor // groups 复合游标
 	mW  aggregationCursor // members 复合游标
