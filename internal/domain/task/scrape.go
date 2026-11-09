@@ -501,6 +501,18 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 		logMu.Unlock()
 	}()
 
+	var handlerStopOnce sync.Once
+	stopHandler := func() {
+		handlerStopOnce.Do(func() {
+			cancelHandler()
+			entry.stopAndWait()
+			scrapeHandlerRegistry.Delete(handlerID)
+		})
+	}
+	// Registered after state cleanup so callback draining always runs first,
+	// including panic/early-return paths.
+	defer stopHandler()
+
 	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		if !entry.enter() {
 			return
@@ -658,9 +670,7 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 	}
 	// Cancel in-flight Telegram resolution, close callback admission, and wait
 	// before copying/clearing captured state or releasing the pooled client.
-	cancelHandler()
-	entry.stopAndWait()
-	scrapeHandlerRegistry.Delete(handlerID)
+	stopHandler()
 
 storeResults:
 	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
