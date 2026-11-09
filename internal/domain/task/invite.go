@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 	"github.com/mtgo-labs/mtgo/tgerr"
 	"tg-sender/internal/domain"
@@ -59,6 +58,11 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 	channel := &tg.InputChannel{ChannelID: target.TGChatID, AccessHash: target.AccessHash}
 	invited, failed := 0, 0
 	const pageSize = 200
+	finishAttempt := func(key repository.InviteAttemptKey, status repository.InviteAttemptStatus, lastError string) error {
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		return e.repo.FinishInviteAttempt(persistCtx, key, status, lastError)
+	}
 
 	saveProgress := func() error {
 		prog := domain.TaskProgress{
@@ -139,7 +143,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 			// side effect definitely did not happen and is safe to retry.
 			select {
 			case <-ctx.Done():
-				if err := e.repo.FinishInviteAttempt(context.WithoutCancel(ctx), key, repository.InviteAttemptFailedDefinite, ctx.Err().Error()); err != nil {
+				if err := finishAttempt(key, repository.InviteAttemptFailedDefinite, ctx.Err().Error()); err != nil {
 					return fmt.Errorf("取消前释放成员 %d 邀请检查点失败: %w", member.TGUserID, err)
 				}
 				if err := saveProgress(); err != nil {
@@ -154,7 +158,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 				Users: []tg.InputUserClass{&tg.InputUser{UserID: member.TGUserID, AccessHash: member.AccessHash}},
 			})
 			if inviteErr == nil {
-				if err := e.repo.FinishInviteAttempt(ctx, key, repository.InviteAttemptSucceeded, ""); err != nil {
+				if err := finishAttempt(key, repository.InviteAttemptSucceeded, ""); err != nil {
 					// Keep the in_progress tombstone. A later stale sweep will
 					// mark it outcome_unknown, never automatically retry it.
 					return fmt.Errorf("Telegram 已接受成员 %d 邀请，但保存成功状态失败: %w", member.TGUserID, err)
@@ -166,7 +170,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 				if isTelegramRPC {
 					// A typed Telegram RPC error is an explicit server response:
 					// the invite was rejected, so it is a definite failure.
-					if err := e.repo.FinishInviteAttempt(ctx, key, repository.InviteAttemptFailedDefinite, inviteErr.Error()); err != nil {
+					if err := finishAttempt(key, repository.InviteAttemptFailedDefinite, inviteErr.Error()); err != nil {
 						return fmt.Errorf("记录成员 %d 的 Telegram 明确拒绝失败: %w", member.TGUserID, err)
 					}
 					failed++
@@ -181,7 +185,7 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 				} else {
 					// Transport errors, timeouts and disconnects do not prove
 					// whether Telegram applied the request. Never auto-retry.
-					if err := e.repo.FinishInviteAttempt(ctx, key, repository.InviteAttemptOutcomeUnknown, inviteErr.Error()); err != nil {
+					if err := finishAttempt(key, repository.InviteAttemptOutcomeUnknown, inviteErr.Error()); err != nil {
 						return fmt.Errorf("成员 %d 邀请结果未知，且无法保存未知状态: %w (原始错误: %v)", member.TGUserID, err, inviteErr)
 					}
 					failed++
@@ -215,4 +219,3 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 	return nil
 }
 
-var _ = telegram.Client{} // 保留包引用一致性
