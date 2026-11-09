@@ -363,7 +363,7 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 		return fmt.Errorf("load members_bio aggregation cursor: %w", cursorErr)
 	}
 	rows, err := e.pool.Query(ctx, `
-		SELECT member_id, bio, scraped_at FROM members
+		SELECT member_id, tenant_id, bio, scraped_at FROM members
 		WHERE (scraped_at, member_id) > ($1, $2) AND bio IS NOT NULL AND bio <> ''
 		  AND (bio ILIKE '%t.me%' OR bio ILIKE '%telegram%' OR bio ~* '(^|[^A-Za-z0-9_])@[A-Za-z][A-Za-z0-9_]{3,31}($|[^A-Za-z0-9_.-])')
 		ORDER BY scraped_at ASC, member_id ASC LIMIT 5000`, cursor.at, cursor.id)
@@ -374,13 +374,13 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	var last aggregationCursor
 	n := 0
 	for rows.Next() {
-		var memberID uuid.UUID
+		var memberID, tenantID uuid.UUID
 		var bio string
 		var ct time.Time
-		if err := rows.Scan(&memberID, &bio, &ct); err != nil {
+		if err := rows.Scan(&memberID, &tenantID, &bio, &ct); err != nil {
 			return err
 		}
-		processed, bioErr := e.upsertBioLinks(ctx, bio)
+		processed, bioErr := e.upsertBioLinks(ctx, bio, tenantID)
 		n += processed
 		if bioErr != nil {
 			return bioErr
@@ -404,7 +404,7 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) upsertBioLinks(ctx context.Context, bio string) (int, error) {
+func (e *Engine) upsertBioLinks(ctx context.Context, bio string, tenantID uuid.UUID) (int, error) {
 	n := 0
 	seen := map[string]bool{}
 	for _, m := range tmeRe.FindAllStringSubmatch(bio, -1) {
@@ -417,7 +417,7 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string) (int, error) {
 			continue
 		}
 		seen[key] = true
-		sg := &domain.SystemGroup{Source: "bio"}
+		sg := &domain.SystemGroup{Source: "bio", ContributorTenantID: tenantID}
 		if isJoin {
 			sg.TmeLink = "https://t.me/joinchat/" + key
 			sg.GType = "private"
@@ -463,7 +463,7 @@ func (e *Engine) upsertBioLinks(ctx context.Context, bio string) (int, error) {
 			continue
 		}
 		seen[key] = true
-		sg := &domain.SystemGroup{Source: "bio", Username: key, TmeLink: "https://t.me/" + key, GType: "public", Title: "@" + key}
+		sg := &domain.SystemGroup{Source: "bio", Username: key, TmeLink: "https://t.me/" + key, GType: "public", Title: "@" + key, ContributorTenantID: tenantID}
 		if err := e.repo.Upsert(ctx, sg); err != nil {
 			return n, err
 		}
