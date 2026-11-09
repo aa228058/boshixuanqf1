@@ -304,14 +304,31 @@ func (c *Container) initEngines() error {
 
 	c.MonitorEngine = monitor.NewEngine(c.Cfg, c.AccountEngine, c.MonitorRuleRepo, c.SSEBroker)
 	dmActionRepo := repository.NewDMActionRepository(c.DB.Pool)
-	staleActionCtx, cancelStaleActionRecovery := context.WithTimeout(context.Background(), 10*time.Second)
-	resolvedStaleActions, staleActionErr := dmActionRepo.ResolveStale(staleActionCtx, repository.DMActionStaleAfter)
-	cancelStaleActionRecovery()
-	if staleActionErr != nil {
-		log.Printf("[monitor] stale DM action recovery failed; claims remain fail-closed: %v", staleActionErr)
-	} else if resolvedStaleActions > 0 {
-		log.Printf("[monitor] recovered %d stale DM action claims as outcome_unknown", resolvedStaleActions)
+	resolveStaleDMClaims := func() {
+		staleActionCtx, cancelStaleActionRecovery := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelStaleActionRecovery()
+		resolved, err := dmActionRepo.ResolveStale(staleActionCtx, repository.DMActionStaleAfter)
+		if err != nil {
+			log.Printf("[monitor] stale DM action recovery failed; claims remain fail-closed: %v", err)
+		} else if resolved > 0 {
+			log.Printf("[monitor] recovered %d stale DM action claims as outcome_unknown", resolved)
+		}
 	}
+	// Recover once at startup, then sweep periodically so stale rows do not remain
+	// in_progress forever even when Telegram never redelivers the triggering update.
+	resolveStaleDMClaims()
+	safego.Go(func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				resolveStaleDMClaims()
+			case <-c.stopCh:
+				return
+			}
+		}
+	})
 	c.MonitorEngine.SetDMActionStore(dmActionRepo)
 	c.MonitorEngine.SetCallCooldownStore(repository.NewCallCooldownRepository(c.DB.Pool))
 
