@@ -91,7 +91,9 @@ func (e *Engine) ImportByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	var client *telegram.Client
-	if accountID != uuid.Nil {
+	// Large imports use the shared HTTP resolver; do not acquire or hold a
+	// tenant Telegram session when the selected path will not use it.
+	if accountID != uuid.Nil && len(entries) <= 200 {
 		var err error
 		client, err = e.acc.GetClient(ctx, tenantID, accountID)
 		if err != nil {

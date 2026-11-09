@@ -145,8 +145,8 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			SET status='processing', started_at=COALESCE(started_at, NOW()), updated_at=NOW()
 			WHERE job_id = (
 				SELECT job_id FROM group_library_import_jobs
-				WHERE status='pending'
-				   OR (status='processing' AND updated_at < NOW() - INTERVAL '2 minutes')
+				WHERE (status='pending' AND updated_at <= NOW())
+				   OR (status='processing' AND updated_at < NOW() - INTERVAL '10 minutes')
 				ORDER BY created_at
 				LIMIT 1
 				FOR UPDATE SKIP LOCKED
@@ -161,7 +161,9 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='completed', finished_at=NOW(), updated_at=NOW() WHERE job_id=$1`, jobID)
 			continue
 		}
-		end := offset + 30
+		// Keep each lease bounded: five slow page lookups stay comfortably below the
+		// ten-minute stale-worker recovery window, even with one transient retry.
+		end := offset + 5
 		if end > len(lines) {
 			end = len(lines)
 		}
@@ -198,22 +200,15 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					    last_error=CASE WHEN $6='' THEN last_error
 					                    WHEN last_error='' THEN $6
 					                    ELSE LEFT(last_error || E'\\n' || $6, 4000) END,
-					    updated_at=$7
-					WHERE job_id=$1`, jobID, processedPrefix, partialImported, partialFailed,
+					    status='pending', updated_at=$7
+					WHERE job_id=$1 AND status='processing'`, jobID, processedPrefix, partialImported, partialFailed,
 					partialSkipped, detail, time.Now().Add(rateLimitErr.RetryAfter))
 			} else {
-				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=$2 WHERE job_id=$1`,
+				_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET status='pending', updated_at=$2 WHERE job_id=$1 AND status='processing'`,
 					jobID, time.Now().Add(rateLimitErr.RetryAfter))
 			}
-			timer := time.NewTimer(rateLimitErr.RetryAfter)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-			// 冷却结束后立即释放任务给本轮调度器继续处理。
-			_, _ = e.pool.Exec(ctx, `UPDATE group_library_import_jobs SET updated_at=NOW() WHERE job_id=$1 AND status='processing'`, jobID)
+			// Release the worker immediately. The pending job's future updated_at is
+			// its retry-after timestamp; other tenants' imports can use this worker now.
 			continue
 		}
 		if ctx.Err() != nil {
