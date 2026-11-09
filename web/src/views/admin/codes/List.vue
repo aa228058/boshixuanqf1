@@ -2,19 +2,19 @@
   <main class="space-y-4">
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '卡密管理' }]" />
     <div class="flex items-center gap-2 overflow-x-auto pb-1">
-      <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showGenerate = true"> 生成卡密
-      </t-button>
+      <UiButton theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showGenerate = true"> 生成卡密
+      </UiButton>
       <t-select v-model="statusFilter" :options="[
         { label: '全部状态', value: '' },
         { label: '未使用', value: 'unused' },
         { label: '已使用', value: 'used' }
       ]" class="w-24 shrink-0" />
-      <t-button theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="exportCodes">
+      <UiButton theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="exportCodes">
         导出
-      </t-button>
-      <t-button v-if="selectedIds.length" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copySelected">
+      </UiButton>
+      <UiButton v-if="selectedIds.length" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copySelected">
         复制选中({{ selectedIds.length }})
-      </t-button>
+      </UiButton>
     </div>
 
     <!-- 桌面端表格 -->
@@ -43,10 +43,10 @@
           </span>
         </template>
         <template #actions="{ row }">
-          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(row.code as string)">复制</t-button>
-          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(row as any)">查看</t-button>
-          <t-button v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)">作废</t-button>
-          <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)">删除</t-button>
+          <UiButton theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(row.code as string)">复制</UiButton>
+          <UiButton theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(row as any)">查看</UiButton>
+          <UiButton v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)">作废</UiButton>
+          <UiButton theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)">删除</UiButton>
         </template>
       </t-table>
     </div>
@@ -74,10 +74,10 @@
         <div class="flex items-center justify-between text-xs text-text-secondary">
           <span>{{ new Date(c.created_at).toLocaleDateString('zh-CN') }}</span>
           <div>
-            <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(c.code)">复制</t-button>
-            <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</t-button>
-            <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)">作废</t-button>
-            <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)">删除</t-button>
+            <UiButton theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(c.code)">复制</UiButton>
+            <UiButton theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</UiButton>
+            <UiButton v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)">作废</UiButton>
+            <UiButton theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)">删除</UiButton>
           </div>
         </div>
       </div>
@@ -85,8 +85,8 @@
       <div v-if="total > 20" class="flex items-center justify-between gap-3 pt-1">
         <span class="text-xs text-text-muted">共 {{ total }} 条 · 第 {{ page }} / {{ Math.ceil(total / 20) }} 页</span>
         <div class="flex items-center gap-2">
-          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="page = page - 1; fetchCodes()">上一页</t-button>
-          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / 20)" @click="page = page + 1; fetchCodes()">下一页</t-button>
+          <UiButton size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="page = page - 1; fetchCodes()">上一页</UiButton>
+          <UiButton size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / 20)" @click="page = page + 1; fetchCodes()">下一页</UiButton>
         </div>
       </div>
     </div>
@@ -114,8 +114,8 @@
         </div>
       </div>
       <template #footer>
-        <t-button type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showGenerate = false">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doGenerate">生成</t-button>
+        <UiButton type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showGenerate = false">取消</UiButton>
+        <UiButton class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doGenerate">生成</UiButton>
       </template>
     </Modal>
 
@@ -131,7 +131,7 @@
         <div v-if="viewingCode.notes" class="flex justify-between gap-4"><span class="text-text-secondary shrink-0">备注</span><span class="text-right">{{ viewingCode.notes }}</span></div>
       </div>
       <template #footer>
-        <t-button type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showView = false">关闭</t-button>
+        <UiButton type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showView = false">关闭</UiButton>
       </template>
     </Modal>
   </main>
@@ -141,8 +141,8 @@
     <Transition name="batch-bar">
       <div v-if="selectedIds.length" class="fixed bottom-[92px] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
-        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke">批量作废</t-button>
-        <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete">批量删除</t-button>
+        <UiButton theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke">批量作废</UiButton>
+        <UiButton theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete">批量删除</UiButton>
         <button type="button" @click="selectedIds = []" class="ui-icon-btn" aria-label="清空已选卡密" title="清空已选卡密">×</button>
       </div>
     </Transition>
@@ -150,6 +150,7 @@
 </template>
 
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, Key } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
