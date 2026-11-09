@@ -164,6 +164,16 @@ jobs:
           go install github.com/pressly/goose/v3/cmd/goose@latest
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
 
+      - name: Run group import worker PostgreSQL tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: tg_sender_test
+          DB_SSLMODE: disable
+        run: go test -tags=importworker -timeout 240s ./internal/domain/grouplib
+
       - name: Enforce gosec result
         if: always() && steps.gosec.outcome == 'failure'
         run: |
