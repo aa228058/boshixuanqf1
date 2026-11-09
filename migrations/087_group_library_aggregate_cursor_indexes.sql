@@ -1,5 +1,11 @@
 -- +goose Up
--- Stable keyset pagination for group-library incremental source scans.
+-- Stable keyset pagination and durable progress for group-library source scans.
+CREATE TABLE IF NOT EXISTS group_library_aggregation_cursors (
+    source VARCHAR(32) PRIMARY KEY CHECK (source IN ('scraped_links', 'groups', 'members_bio')),
+    cursor_at TIMESTAMPTZ NOT NULL,
+    cursor_id UUID NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE INDEX IF NOT EXISTS idx_scraped_links_aggregate_cursor
     ON scraped_links (created_at ASC, link_id ASC);
 
