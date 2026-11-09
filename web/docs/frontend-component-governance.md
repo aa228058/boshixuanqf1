@@ -59,10 +59,10 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 
 ### Batch B1 — confirmation content convergence
 
-- Added `components/ui/ConfirmPrompt.vue` as the shared presentation component for confirmation message/icon/detail content.
+- Added `components/ui/ConfirmPrompt.vue` for shared confirmation message/icon/detail content and `components/ui/ConfirmActions.vue` for shared cancel/confirm buttons, variants, and mobile touch-target layout.
 - Updated both `ConfirmDialog.vue` (declarative + exposed `open()` API) and `ConfirmHost.vue` (promise-based `ask()` API) to reuse that shared content.
 - Kept the two invocation contracts separate intentionally: changing them into one API would risk breaking existing call sites and promise settlement semantics.
-- Kept button actions in each host for now because the two flows have different close/resolve behavior. Their visual variants continue to use the shared `.ui-t-button` styles.
+- Moved the shared button presentation into `ConfirmActions.vue`; the two hosts still own their distinct event handlers (local v-model close vs promise settlement).
 - No legacy component was deleted in this batch.
 
 ### Batch C — forms and data display
