@@ -111,16 +111,15 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		mode = domain.BroadcastModeCartesian // default to legacy mode
 	}
 
-	// Build account -> targets mapping
+	// Build account -> targets mapping. Multiple mapping entries for the same
+	// account are additive; they must not overwrite targets from earlier entries.
 	accountTargets := make(map[uuid.UUID][]string)
 	var total int
 
 	if mode == domain.BroadcastModeMapping {
-		// Parse mappings from payload
 		var mappingsData []any
 		if v, ok := task.Payload["mappings"]; ok {
-			switch val := v.(type) {
-			case []any:
+			if val, ok := v.([]any); ok {
 				mappingsData = val
 			}
 		}
@@ -135,16 +134,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				continue
 			}
 			targetsRaw, _ := mMap["targets"].([]any)
-			var targets []string
-			for _, t := range targetsRaw {
-				if ts, ok := t.(string); ok {
-					targets = append(targets, ts)
+			for _, target := range targetsRaw {
+				if targetStr, ok := target.(string); ok && strings.TrimSpace(targetStr) != "" {
+					accountTargets[accID] = append(accountTargets[accID], targetStr)
 				}
 			}
-			accountTargets[accID] = targets
-			total += len(targets)
 		}
-		// Fallback: if no valid mappings parsed, use cartesian
 		if len(accountTargets) == 0 {
 			mode = domain.BroadcastModeCartesian
 		}
@@ -152,9 +147,25 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 
 	if mode == domain.BroadcastModeCartesian {
 		for _, accID := range task.AccountIDs {
-			accountTargets[accID] = task.TargetIDs
+			accountTargets[accID] = append(accountTargets[accID], task.TargetIDs...)
 		}
-		total = len(task.TargetIDs) * len(task.AccountIDs)
+	}
+
+	// Deduplicate within each account only. In cartesian mode, every account
+	// must retain the same target list; global deduplication silently removes
+	// all targets from subsequent accounts.
+	for accID, targets := range accountTargets {
+		seen := make(map[string]struct{}, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			if _, exists := seen[target]; exists {
+				continue
+			}
+			seen[target] = struct{}{}
+			unique = append(unique, target)
+		}
+		accountTargets[accID] = unique
+		total += len(unique)
 	}
 
 	done := 0
