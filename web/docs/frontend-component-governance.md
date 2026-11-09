@@ -158,6 +158,15 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Audit-log pagination already fetches on desktop and mobile. Tenant pagination already uses a shared page-change handler and resets pagination when search/status filters change. Workspace task pagination is driven by the page watcher and URL state.
 - This batch intentionally does not replace TDesign tables or native semantic summary tables with wrappers. Source-level inventory is not enough to justify changing table semantics, responsive layouts, or data-loading contracts.
 
+### Batch C2 — join-task account/group selector race
+
+- Audited account, broadcast, and join-task form controls and their account/group watchers.
+- Found an asynchronous race in `workspace/Join.vue`: changing the execution-account selector starts an asynchronous group load, but an earlier account's slower response could arrive later and overwrite the group options for the newly selected account.
+- Added a request-generation guard and an account-ID check before applying loaded groups. Changing the selector invalidates any previous in-flight result.
+- Removed the top-level current-account watcher's redundant group reload/reset. The modal's explicit `phoneAccId` selector is the source of truth for invite-group options; changing the global account should not clear the user's explicit modal selection or reload a different account's groups.
+- The current-account watcher still refreshes the task list. The dedicated `phoneAccId` watcher owns group-option clearing and loading.
+- Native file inputs, checkboxes, datetime-local inputs, and selects in these workflows remain intentional where they provide browser-native file selection, checkbox semantics, or native mobile picker behavior; no blanket conversion to TDesign was made.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
