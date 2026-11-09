@@ -64,7 +64,9 @@ type Engine struct {
 	stopCh   chan struct{}
 	stopOnce sync.Once
 
-	// lifecycleMu serializes Start and Stop so Wait cannot race with startup Add calls.
+	// startMu serializes concurrent Start calls. lifecycleMu protects state and
+	// ensures Stop cancels startup before waiting for engine-owned goroutines.
+	startMu       sync.Mutex
 	lifecycleMu   sync.Mutex
 	started       bool
 	stopped       bool
@@ -331,30 +333,41 @@ func (e *Engine) startLogCleanup(ctx context.Context) {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	e.lifecycleMu.Lock()
-	defer e.lifecycleMu.Unlock()
+	e.startMu.Lock()
+	defer e.startMu.Unlock()
 
+	e.lifecycleMu.Lock()
 	if e.stopped {
+		e.lifecycleMu.Unlock()
 		return fmt.Errorf("task engine has already been stopped")
 	}
 	if e.started {
+		e.lifecycleMu.Unlock()
 		return nil
 	}
 
-	// Every engine-owned background loop shares a child context. Stop cancels it
-	// even when the parent context is still alive.
+	// Count startup itself before releasing the lifecycle lock. Stop may now
+	// cancel this context and wait without racing a zero-count WaitGroup.
+	e.wg.Add(1)
 	runtimeCtx, runtimeCancel := context.WithCancel(ctx)
 	e.runtimeCancel = runtimeCancel
 	stopShutdown := func() bool { return false }
 	if e.shutdownCtx != nil {
 		stopShutdown = context.AfterFunc(e.shutdownCtx, runtimeCancel)
-		if e.shutdownCtx.Err() != nil {
+	}
+	e.lifecycleMu.Unlock()
+
+	startupSucceeded := false
+	defer func() {
+		if !startupSucceeded {
 			stopShutdown()
 			runtimeCancel()
+			e.lifecycleMu.Lock()
 			e.runtimeCancel = nil
-			return fmt.Errorf("task engine has already been stopped")
+			e.lifecycleMu.Unlock()
 		}
-	}
+		e.wg.Done()
+	}()
 
 	// Load all active tenants and register their plan quotas.
 	if err := e.loadTenantQuotas(runtimeCtx); err != nil {
@@ -362,10 +375,15 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 
 	if err := e.startListen(runtimeCtx); err != nil {
-		stopShutdown()
-		runtimeCancel()
-		e.runtimeCancel = nil
 		return fmt.Errorf("start listen: %w", err)
+	}
+
+	// Startup may have been cancelled while acquiring the LISTEN connection.
+	// Do not launch any additional loops after Stop has begun.
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if e.stopped || runtimeCtx.Err() != nil {
+		return fmt.Errorf("task engine stopped during startup")
 	}
 
 	e.startLogCleanup(runtimeCtx)
@@ -388,6 +406,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.wg.Add(1)
 	safego.Go(func() { e.unblockExpiredLoop(runtimeCtx) })
 	e.started = true
+	startupSucceeded = true
 	return nil
 }
 
