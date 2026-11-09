@@ -106,11 +106,11 @@
         </div>
         <div>
           <label for="code-count" class="block text-sm text-text-secondary mb-1.5">数量</label>
-          <input v-model.number="generateForm.count" type="number" min="1" max="100" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="数量" />
+          <input v-model.number="generateForm.count" type="number" min="1" max="100" id="code-count" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" />
         </div>
         <div>
           <label for="code-days" class="block text-sm text-text-secondary mb-1.5">有效期（天，可选）</label>
-          <input v-model.number="generateForm.expires_days" type="number" min="1" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="数量" />
+          <input v-model.number="generateForm.expires_days" type="number" min="1" id="code-days" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" />
         </div>
       </div>
       <template #footer>
