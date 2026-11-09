@@ -28,7 +28,7 @@ for (const file of files) contents.set(file, await readFile(file, 'utf8'))
 
 const componentFiles = files.filter(file => file.endsWith('.vue') && relative(root, file).startsWith('components/'))
 const references = new Map(componentFiles.map(file => [file, new Set()]))
-const importPattern = /(?:from\\s*|import\\s*)['"]([^'"]+)['"]/g
+const importPattern = /(?:from\s*|import\s*)['"]([^'"]+)['"]/g
 
 for (const [source, text] of contents) {
   for (const match of text.matchAll(importPattern)) {
@@ -52,7 +52,7 @@ for (const file of componentFiles) {
 
 const mainFile = files.find(file => relative(root, file) === 'main.ts')
 const mainText = mainFile ? contents.get(mainFile) : ''
-const globalStyles = [...mainText.matchAll(/import\\s+['"]([^'"]+\\.css)['"]/g)].map(match => match[1])
+const globalStyles = [...mainText.matchAll(/import\s+['"]([^'"]+\.css)['"]/g)].map(match => match[1])
 
 console.log('Frontend component inventory')
 console.log('============================')
