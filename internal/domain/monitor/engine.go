@@ -282,7 +282,7 @@ func (e *Engine) EnsureSession(ctx context.Context, tenantID, accountID uuid.UUI
 }
 
 // StopAll cancels every session and waits for each monitor loop to drain.
-func (e *Engine) StopAll() {
+func (e *Engine) StopAll() error {
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
 	e.stopped = true
@@ -316,10 +316,13 @@ func (e *Engine) StopAll() {
 		select {
 		case <-done:
 		case <-timer.C:
-			log.Printf("[monitor] StopAll timed out waiting for %d/%d remaining sessions", len(doneChannels)-i, len(doneChannels))
-			return
+			remaining := len(doneChannels) - i
+			err := fmt.Errorf("monitor shutdown timed out with %d/%d sessions still running", remaining, len(doneChannels))
+			log.Printf("[monitor] StopAll: %v", err)
+			return err
 		}
 	}
+	return nil
 }
 
 // ReloadRules triggers rule reload for all active monitoring sessions of a tenant.
