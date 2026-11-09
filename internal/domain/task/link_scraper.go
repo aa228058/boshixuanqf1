@@ -58,8 +58,10 @@ type LinkScraper struct {
 	// Runtime state
 	handlersMu sync.Mutex
 	handlers   sync.Map // accountID(string) -> *accountHandler
-	stopped    bool
-	linkQueue  chan *rawLink
+	started       bool
+	stopped       bool
+	consumerDone  chan struct{}
+	linkQueue     chan *rawLink
 	dedupMap   map[string]time.Time
 	dedupMu    sync.RWMutex
 	batchLinks []*domain.ScrapedLink
@@ -80,26 +82,35 @@ func NewLinkScraper(cfg *config.Config, accEngine AccountEngine, linkRepo domain
 		linkQueue:   make(chan *rawLink, 10000), // Buffer 10k links
 		dedupMap:    make(map[string]time.Time),
 		stopCh:      make(chan struct{}),
+		consumerDone: make(chan struct{}),
 	}
 }
 
 // Start begins the link scraper background workers.
 func (ls *LinkScraper) Start(ctx context.Context) {
-	// Start the link consumer (async processing with rate limiting)
+	ls.handlersMu.Lock()
+	if ls.started || ls.stopped {
+		ls.handlersMu.Unlock()
+		return
+	}
+	// Serialize startup with Stop: every positive WaitGroup Add happens before
+	// Stop can mark the scraper stopped and begin waiting.
+	ls.started = true
+
+	// Start the consumer before the writer. The writer waits for consumerDone
+	// during shutdown so the final batch cannot race an in-flight processLink.
 	ls.wg.Add(1)
 	safego.Go(func() { ls.consumerLoop(ctx) })
 
-	// Start the batch writer (flush to DB periodically)
 	ls.wg.Add(1)
 	safego.Go(func() { ls.batchWriterLoop(ctx) })
 
-	// Start the dedup cleaner (remove old entries)
 	ls.wg.Add(1)
 	safego.Go(func() { ls.dedupCleanerLoop(ctx) })
 
-	// Start the account watcher (register handlers for online accounts)
 	ls.wg.Add(1)
 	safego.Go(func() { ls.accountWatcherLoop(ctx) })
+	ls.handlersMu.Unlock()
 
 	log.Printf("[link-scraper] 常驻链接采集服务已启动")
 }
@@ -306,6 +317,7 @@ func (ls *LinkScraper) UnregisterAccount(accountID uuid.UUID) {
 // consumerLoop processes links from the queue with rate limiting.
 func (ls *LinkScraper) consumerLoop(ctx context.Context) {
 	defer ls.wg.Done()
+	defer close(ls.consumerDone)
 	// Rate limiter: max 5 ResolvePeer per second
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -411,9 +423,13 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ls.stopCh:
+			// The consumer may still be finishing an in-flight ResolvePeer and
+			// appending its result. Drain it before taking the final batch snapshot.
+			<-ls.consumerDone
 			ls.flushBatch(ctx)
 			return
 		case <-ctx.Done():
+			<-ls.consumerDone
 			ls.flushBatch(ctx)
 			return
 		case <-ticker.C:
