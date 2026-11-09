@@ -175,7 +175,9 @@ type CreateBroadcastRequest struct {
 	Media   map[string]any   `json:"media,omitempty"`   // {"type":"photo|video","source":"url或路径"}
 	Buttons []map[string]any `json:"buttons,omitempty"` // [{"text":"...","url":"..."}]
 	// Priority 任务优先级 1-10(默认 5; 8=优先插队, ClaimTasks 按 priority DESC 排序)
-	Priority int `json:"priority,omitempty"`
+	Priority  int  `json:"priority,omitempty"`
+	AutoVary  bool `json:"auto_vary,omitempty"`
+	Obfuscate bool `json:"obfuscate,omitempty"`
 }
 
 // broadcastExtras 提取请求中的富媒体/URL按钮等扩展字段, 注入任务 payload
@@ -190,6 +192,13 @@ func broadcastExtras(req *CreateBroadcastRequest) map[string]any {
 	}
 	if req.Priority >= 1 && req.Priority <= 10 {
 		extra["priority"] = req.Priority
+	}
+	// Broadcast executor already supports these payload switches; preserve them through HTTP DTO parsing.
+	if req.AutoVary {
+		extra["auto_vary"] = true
+	}
+	if req.Obfuscate {
+		extra["obfuscate"] = true
 	}
 	if len(extra) == 0 {
 		return nil
