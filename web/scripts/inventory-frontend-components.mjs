@@ -115,4 +115,11 @@ for (const usage of buttonUsage) {
   for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
 }
 console.log('')
+console.log('')
+console.log('Form-control implementation usage (source-level matches)')
+for (const usage of formControlUsage) {
+  console.log(`- ${usage.label}: ${usage.total} matches across ${usage.files.length} files`)
+  for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
+}
+console.log('')
 console.log('Important: this is a review aid, not proof that a component or stylesheet is safe to delete.')
