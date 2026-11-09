@@ -58,6 +58,9 @@ func (r *TaskLogRepository) CountSuccessByDay(ctx context.Context, tenantID uuid
 		}
 		result[day] = n
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate success counts by day: %w", err)
+	}
 	return result, nil
 }
 
@@ -85,6 +88,9 @@ func (r *TaskLogRepository) StatsByAccount(ctx context.Context, tenantID uuid.UU
 		}
 		result[id] = map[string]int{"success": s, "failed": f, "skipped": k}
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task log account stats: %w", err)
+	}
 	return result, nil
 }
 
@@ -110,6 +116,9 @@ func (r *TaskLogRepository) StatsByAccountForTask(ctx context.Context, tenantID,
 			return nil, err
 		}
 		result[id] = map[string]int{"success": s, "failed": f, "skipped": k}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task account stats: %w", err)
 	}
 	return result, nil
 }
