@@ -199,6 +199,16 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Manual refresh captures its initiating account ID and request generation. A late poll from a previous account/modal session can no longer replace the active list or overwrite its loading/sync status; the original sync lock is still released when its operation ends.
 - This is a client-side account-context correction. Selection payload format and backend APIs are unchanged.
 
+### Batch E4 — Broadcast creation contract and async state isolation
+
+- The broadcast form previously sent `is_loop` on a normal `type: broadcast` request. The generic handler dispatches that request to `CreateBroadcast`, whose DTO does not include loop fields; the flag was silently discarded. Loop mode now uses the dedicated `type: scheduled_broadcast` contract and supplies the nested message payload, account/target IDs, and interval fields expected by `CreateScheduledBroadcast`.
+- The scheduled-broadcast handler does not accept scheduled start timestamps or media attachments, so the form now blocks those unsupported combinations instead of silently dropping them. Variation/obfuscation controls are hidden with an explicit explanation in loop mode.
+- Regular broadcast's executor already reads `auto_vary` and `obfuscate` from task payload, but the HTTP request DTO previously dropped both fields. The handler DTO and `broadcastExtras` now preserve those options.
+- Submission now has a business-layer duplicate-submit guard, snapshots/deduplicates account and target IDs, validates send and loop intervals, rejects past scheduled timestamps, and prevents submitting while media upload is pending.
+- Media upload responses are generation-guarded: clearing or replacing media while an upload is in flight prevents an older response from restoring the cleared file.
+- Group coverage loading, account group-cache loading, and task-list fetching now guard against stale responses after modal close or account switching.
+- Successful form reset now clears one-time targets, imported text, message, media, scheduling and loop state while intentionally retaining the selected execution-account pool. Failed creation leaves entered values intact for correction and retry.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
