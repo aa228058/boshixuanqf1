@@ -749,9 +749,9 @@ const vCountup = {
 }
 
 // 账号冷却倒计时：前台每秒刷新，后台暂停，避免隐藏页面持续唤醒。
-let nowTs = Date.now()
+const nowTs = ref(Date.now())
 const nowTick = setInterval(() => {
-  if (!document.hidden) nowTs = Date.now()
+  if (!document.hidden) nowTs.value = Date.now()
 }, 1000)
 // 状态自动刷新(2026-10-21 轮询根治):
 //   ① 间隔 15s→30s, 页面切后台(document.hidden)时暂停——手机切出去不再猛刷
@@ -773,7 +773,7 @@ function cooldownText(acc: Account): string {
   if (!until) return ''
   const untilTs = new Date(until).getTime()
   if (!Number.isFinite(untilTs)) return ''
-  const ms = untilTs - nowTs
+  const ms = untilTs - nowTs.value
   if (ms <= 0) return ''
   const seconds = Math.ceil(ms / 1000)
   if (seconds < 60) return `${seconds}秒`
