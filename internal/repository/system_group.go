@@ -99,7 +99,7 @@ func normalizeSystemGroupLink(value string) string {
 	if len(parts) != 2 {
 		return ""
 	}
-	host := strings.ToLower(strings.TrimPrefix(parts[0], "www."))
+	host := strings.TrimPrefix(strings.ToLower(parts[0]), "www.")
 	if host != "t.me" && host != "telegram.me" && host != "telegram.dog" {
 		return ""
 	}
