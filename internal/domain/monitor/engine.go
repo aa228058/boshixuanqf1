@@ -298,7 +298,8 @@ func (e *Engine) StopAll() error {
 			doneChannels = append(doneChannels, sess.done)
 		}
 	}
-	e.sessions = make(map[uuid.UUID]map[uuid.UUID]*monitorSession)
+	// Keep sessions registered until monitorLoop removes them after drain.
+	// A later StopAll call must still find sessions if this bounded wait times out.
 	select {
 	case <-e.done:
 	default:
