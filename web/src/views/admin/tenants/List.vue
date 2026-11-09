@@ -2,8 +2,8 @@
   <main class="space-y-4">
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '租户管理' }]" />
     <div class="flex items-center gap-2 overflow-x-auto pb-1">
-      <UiButton theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 创建租户
-      </UiButton>
+      <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 创建租户
+      </t-button>
       <t-select v-model="statusFilter" :options="[
         { label: '全部状态', value: '' },
         { label: '正常', value: 'active' },
@@ -93,8 +93,8 @@
       <div v-if="total > pageSize" class="flex items-center justify-between gap-3 pt-1">
         <span class="text-xs text-text-muted">共 {{ total }} 条 · 第 {{ page }} / {{ Math.ceil(total / pageSize) }} 页</span>
         <div class="flex items-center gap-2">
-          <UiButton size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="onPageChange({ current: page - 1 })">上一页</UiButton>
-          <UiButton size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / pageSize)" @click="onPageChange({ current: page + 1 })">下一页</UiButton>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page <= 1" @click="onPageChange({ current: page - 1 })">上一页</t-button>
+          <t-button size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="page >= Math.ceil(total / pageSize)" @click="onPageChange({ current: page + 1 })">下一页</t-button>
         </div>
       </div>
     </div>
@@ -120,8 +120,8 @@
         </div>
       </div>
       <template #footer>
-        <UiButton type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</UiButton>
-        <UiButton class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doCreate">创建</UiButton>
+        <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doCreate">创建</t-button>
       </template>
     </Modal>
 
@@ -131,7 +131,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import UiButton from '@/components/ui/UiButton.vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useRouter } from 'vue-router'
 import { Eye, KeyRound, Trash2 } from 'lucide-vue-next'
