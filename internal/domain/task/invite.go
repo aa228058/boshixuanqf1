@@ -42,6 +42,16 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 	if err != nil {
 		return fmt.Errorf("统计成员失败: %w", err)
 	}
+	// A prior worker may have died after claiming a member. Resolve only this
+	// task's old claims; never turn another tenant's active invite into unknown.
+	staleCount, err := e.repo.ResolveStaleInviteAttempts(ctx, task.TenantID, task.TaskID, time.Now().Add(-5*time.Minute))
+	if err != nil {
+		return fmt.Errorf("恢复陈旧邀请检查点失败: %w", err)
+	}
+	if staleCount > 0 {
+		taskLog.Printf("[invite] 任务 %s: %d 条陈旧邀请记录转为结果未知，禁止自动重试", task.TaskID, staleCount)
+	}
+
 	initProg := domain.TaskProgress{Total: total}
 	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, initProg); err != nil {
 		return fmt.Errorf("初始化邀请进度失败: %w", err)
