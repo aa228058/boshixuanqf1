@@ -85,6 +85,13 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - Retire obsolete selectors only after call-site and cascade verification.
 - Preserve theme parity and responsive behavior.
 
+### Batch D1 — dark-theme button cascade correction
+
+- `theme-dark.css` applied a generic `.t-button--variant-base` fallback after the TDesign skin and without excluding the project's semantic `.ui-t-button` buttons.
+- That selector could override the intended semantic primary/danger appearance in dark theme because it used a more specific selector and `!important`.
+- Scoped the dark-theme fallback to TDesign buttons that are not marked `.ui-t-button`, matching the existing exclusion in `tdesign-skin.css`.
+- Corrected the `tdesign-overrides.css` header comment: it loads after `ui-kit.css`, while `modal-system.css` is imported after it and owns project Modal positioning.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
