@@ -1,6 +1,9 @@
 <script lang="ts">
 import type { Ref } from 'vue'
 
+// 所有 Modal 实例共享一个 visualViewport 监听器，按打开实例数量引用计数。
+let activeKbGuards = 0
+
 // 只跟踪当前打开的弹窗；关闭/卸载后压紧序号，避免长期使用导致 z-index 无限增长。
 let modalCounter = 0
 const activeModalOrders = new Map<symbol, Ref<number>>()
@@ -121,9 +124,8 @@ let vv: VisualViewport | null = null
 if (typeof window !== 'undefined') vv = window.visualViewport
 
 // visualViewport is global, but multiple modal instances may be open at once.
-// A closed/hidden modal must not remove the shared listener while another modal
-// still needs keyboard compensation.
-let activeKbGuards = 0
+// Each component instance tracks its own attachment; the module counter owns
+// the shared listener lifetime.
 let kbGuardAttached = false
 
 function syncKbOffset() {
