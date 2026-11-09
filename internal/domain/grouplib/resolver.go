@@ -13,7 +13,7 @@ import (
 
 const resolveBatchSize = 30
 
-func (e *Engine) resolvePendingTitles(ctx context.Context) {
+func (e *Engine) resolvePendingTitles(ctx context.Context) error {
 	type row struct {
 		sgID     uuid.UUID
 		link     string
@@ -23,19 +23,22 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	}
 	rows, err := e.pool.Query(ctx, "SELECT sg_id,tme_link,COALESCE(username,''),gtype,COALESCE(title,'') FROM system_groups WHERE gtype IN ('private','unknown','public','group','supergroup','channel') AND (resolution_status='pending' OR (resolution_status='identity_pending' AND last_seen_at<NOW()-INTERVAL '30 minutes')) AND status='active' ORDER BY last_seen_at ASC LIMIT $1", resolveBatchSize)
 	if err != nil {
-		log.Printf("[grouplib] 扫描待解析群失败: %v", err)
-		return
+		return fmt.Errorf("scan pending group titles: %w", err)
 	}
+	defer rows.Close()
 	var pending []row
 	for rows.Next() {
 		var item row
-		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err == nil {
-			pending = append(pending, item)
+		if err := rows.Scan(&item.sgID, &item.link, &item.username, &item.gtype, &item.title); err != nil {
+			return fmt.Errorf("scan pending group title row: %w", err)
 		}
+		pending = append(pending, item)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate pending group titles: %w", err)
+	}
 	if len(pending) == 0 {
-		return
+		return nil
 	}
 
 	for _, p := range pending {
@@ -74,7 +77,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 				timer.Stop()
 			case <-timer.C:
 			}
-			return
+			return rateLimitErr
 		}
 		if resolveErr != nil {
 			permanent := isPermanentResolutionError(resolveErr, isInviteLink)
@@ -111,6 +114,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 	}
 
 	log.Printf("[grouplib] 本轮解析补名 %d 条(仅使用公开页面解析)", len(pending))
+	return nil
 }
 
 // deferResolutionRetry moves a failed candidate out of the hot pending queue.
