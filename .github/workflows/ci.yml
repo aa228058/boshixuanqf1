@@ -113,7 +113,6 @@ jobs:
 
       - name: Check formatting
         run: |
-          gofmt -d internal/domain/task/link_scraper.go
           UNFORMATTED=$(gofmt -l internal/ cmd/)
           if [ -n "$UNFORMATTED" ]; then
             echo "These files are not gofmt-formatted:"
