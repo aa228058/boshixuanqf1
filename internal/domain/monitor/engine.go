@@ -222,7 +222,7 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 	e.sessions[tenantID][accountID].lastMsgAt.Store(time.Now().Unix())
 	e.mu.Unlock()
 
-	monitorGo(ctx, func() { e.monitorLoop(monitorCtx, client, rules, tenantID, accountID, done) })
+	safego.Go(func() { e.monitorLoop(monitorCtx, client, rules, tenantID, accountID, done) })
 	return nil
 }
 
