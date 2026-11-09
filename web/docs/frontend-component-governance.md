@@ -56,6 +56,15 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - Normalize modal/dialog/drawer behavior, desktop centering, mobile viewport sizing, focus management, Escape/backdrop behavior, and scroll locking.
 - Consolidate confirmation flows without changing business semantics.
 
+
+### Batch B1 — confirmation content convergence
+
+- Added `components/ui/ConfirmPrompt.vue` as the shared presentation component for confirmation message/icon/detail content.
+- Updated both `ConfirmDialog.vue` (declarative + exposed `open()` API) and `ConfirmHost.vue` (promise-based `ask()` API) to reuse that shared content.
+- Kept the two invocation contracts separate intentionally: changing them into one API would risk breaking existing call sites and promise settlement semantics.
+- Kept button actions in each host for now because the two flows have different close/resolve behavior. Their visual variants continue to use the shared `.ui-t-button` styles.
+- No legacy component was deleted in this batch.
+
 ### Batch C — forms and data display
 - Normalize input/select/checkbox/switch/date-picker wrappers and validation behavior.
 - Normalize table, pagination, badges, tooltips and empty/loading states.
