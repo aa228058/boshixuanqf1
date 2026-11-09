@@ -678,55 +678,64 @@ onMounted(async () => {
     router.push(`/workspace/${route.params.accountId}/tasks`)
     return
   }
+
   await fetchTask()
+  if (!pageActive || !task.value) return
   await fetchLogs()
-  try {
-    const accs = await accountApi.list()
-    if (!pageActive) return
-    const accData = (accs as any).data || accs || []
-    accountMap.value = Object.fromEntries((accData).map((a: any) => [a.account_id, a.remark || a.phone]))
-  } catch (e: unknown) { /* ignore */ }
-  try {
-    // R87-M10: 不再按"当前账号"过滤 —— 任务可能跨账号执行, 按账号过滤会漏群导致日志显示原始ID。
-    // 群库是租户级数据, 全量拉取建立 群ID/群TG_ID → 群名 映射。
-    const grps = await groupApi.list()
-    if (!pageActive) return
-    // R86 热修: groupApi.list 返回 {list:[...], count} 结构, 原 (grps).data||grps 拿到对象,
-    // forEach 抛异常被静默吞掉 → groupMap 为空 → 日志全显示原始ID
-    const raw: any = grps
-    const grpData = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.data?.list) ? raw.data.list
-      : Array.isArray(raw?.list) ? raw.list : []
-    // 同时用 group_id 和 tg_chat_id 做 key，确保能匹配日志中的 target_id
-    const entries: [string, string][] = []
-    grpData.forEach((g: any) => {
-      const name = g.title || g.name || g.username || g.group_id
-      entries.push([normId(g.group_id), name])
-      if (g.tg_chat_id) entries.push([normId(g.tg_chat_id), name])
-      if (g.username) entries.push([g.username, name])
-    })
-    groupMap.value = Object.fromEntries(entries)
-  } catch (e: unknown) { /* ignore */ }
-  if (task.value && (task.value as any).type === 'scrape_members') fetchMembers()
+  if (!pageActive) return
+
+  if ((task.value as any).type === 'scrape_members') void fetchMembers()
+
+  // Start the task-scoped stream before loading optional display-name dictionaries.
   connectSSE()
-  // R118: 回前台立即补拉 —— 手机浏览器后台冻结 EventSource,
-  // 切回前台时立刻拉全量日志追平, 不用等重连周期
+
   const onVis = () => {
-    if (document.visibilityState === 'visible') {
-      fetchLogs()
-      if (connState.value !== 'connected') connectSSE()
-    }
+    if (!pageActive || document.visibilityState !== 'visible') return
+    void fetchLogs()
+    if (connState.value !== 'connected') void connectSSE()
   }
   document.addEventListener('visibilitychange', onVis)
   onVisCleanup = () => document.removeEventListener('visibilitychange', onVis)
-  // 精读修复: 断线轮询退避 1s→5s, 避免断线期间高频打接口
+
   refreshTimer = setInterval(() => {
-    if (!isConnected.value) {
-      fetchTask()
-      fetchLogs()
+    if (pageActive && !isConnected.value) {
+      void fetchTask()
+      void fetchLogs()
+      if (connState.value === 'disconnected') void connectSSE()
     }
   }, 5000)
+
+  // These dictionaries are supplementary. Their latency must not delay SSE or
+  // disconnect recovery, and each result is discarded after page unmount.
+  void (async () => {
+    try {
+      const accs = await accountApi.list()
+      if (!pageActive) return
+      const accData = (accs as any).data || accs || []
+      accountMap.value = Object.fromEntries(accData.map((a: any) => [a.account_id, a.remark || a.phone]))
+    } catch { /* optional labels */ }
+  })()
+
+  void (async () => {
+    try {
+      // Group library is tenant-wide because a task may span multiple accounts.
+      const grps = await groupApi.list()
+      if (!pageActive) return
+      const raw: any = grps
+      const grpData = Array.isArray(raw) ? raw
+        : Array.isArray(raw?.data) ? raw.data
+        : Array.isArray(raw?.data?.list) ? raw.data.list
+        : Array.isArray(raw?.list) ? raw.list : []
+      const entries: [string, string][] = []
+      grpData.forEach((g: any) => {
+        const name = g.title || g.name || g.username || g.group_id
+        if (g.group_id) entries.push([normId(g.group_id), name])
+        if (g.tg_chat_id) entries.push([normId(g.tg_chat_id), name])
+        if (g.username) entries.push([g.username, name])
+      })
+      groupMap.value = Object.fromEntries(entries)
+    } catch { /* optional labels */ }
+  })()
 })
 
 onUnmounted(() => {
@@ -737,8 +746,8 @@ onUnmounted(() => {
   eventSource?.close()
   eventSource = null
   clearInterval(refreshTimer)
-  if (reconnectTimer) clearTimeout(reconnectTimer)
-  if (sseWatchdog) clearTimeout(sseWatchdog)
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  if (sseWatchdog) { clearTimeout(sseWatchdog); sseWatchdog = null }
   if (onVisCleanup) onVisCleanup()
 })
 </script>
