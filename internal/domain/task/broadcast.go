@@ -38,6 +38,20 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	}
 }
 
+// reconcileBroadcastTimeoutProgress accounts for targets left unprocessed when
+// the broadcast's hard execution deadline expires. Completed checkpoints remain
+// successful; only the outstanding remainder is classified as failed.
+func reconcileBroadcastTimeoutProgress(total, done, failed int, timedOut bool) (int, bool) {
+	if !timedOut {
+		return failed, false
+	}
+	remaining := total - done - failed
+	if remaining > 0 {
+		failed += remaining
+	}
+	return failed, true
+}
+
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Overall timeout: max 30 minutes for a broadcast task to prevent indefinite hanging
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -821,6 +835,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		accProgList = append(accProgList, *ap)
 	}
 
+	// A hard execution deadline must never turn a partially processed broadcast
+	// into "completed". Durable successes are retained; unprocessed remainder is
+	// surfaced as failed so the final counters reconcile to Total.
+	var timedOut bool
+	failed, timedOut = reconcileBroadcastTimeoutProgress(total, done, failed, ctx.Err() == context.DeadlineExceeded)
+
 	// Set final exact progress and status
 	finalProgress := domain.TaskProgress{
 		Total:           total,
@@ -834,7 +854,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	finalStatus := domain.TaskStatusCompleted
-	if (failed == total && total > 0) || checkpointPersistErr != nil {
+	if timedOut || (failed == total && total > 0) || checkpointPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
 	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
