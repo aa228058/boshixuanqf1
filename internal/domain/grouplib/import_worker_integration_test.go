@@ -86,9 +86,10 @@ func readImportWorkerState(t *testing.T, pool *pgxpool.Pool, jobID uuid.UUID) (s
 	return
 }
 
-func TestImportWorkerBatchLimitAndProgress(t *testing.T) {
+func TestImportWorkerFairSchedulingProcessesOneChunkPerJob(t *testing.T) {
 	pool := importWorkerTestPool(t)
-	_, jobID, _ := createImportWorkerFixture(t, pool, 301, "pending", 0)
+	_, largeJobID, _ := createImportWorkerFixture(t, pool, 301, "pending", 0)
+	_, smallJobID, _ := createImportWorkerFixture(t, pool, 45, "pending", 0)
 	var calls atomic.Int32
 	engine := &Engine{pool: pool}
 	engine.workerImportOverride = func(_ context.Context, _, _ uuid.UUID, lines []string) (*ImportResult, error) {
@@ -99,9 +100,11 @@ func TestImportWorkerBatchLimitAndProgress(t *testing.T) {
 		return &ImportResult{Processed: len(lines)}, nil
 	}
 	engine.processImportJobs(context.Background())
-	status, processed, _, _, _, _ := readImportWorkerState(t, pool, jobID)
-	if status != "pending" || processed != 300 || calls.Load() != 10 {
-		t.Fatalf("after one scheduler pass status=%s processed=%d calls=%d; want pending/300/10", status, processed, calls.Load())
+	largeStatus, largeProcessed, _, _, _, _ := readImportWorkerState(t, pool, largeJobID)
+	smallStatus, smallProcessed, _, _, _, _ := readImportWorkerState(t, pool, smallJobID)
+	if largeStatus != "pending" || largeProcessed != 30 || smallStatus != "pending" || smallProcessed != 30 || calls.Load() != 2 {
+		t.Fatalf("one pass large=%s/%d small=%s/%d calls=%d; want pending/30 for both and 2 calls",
+			largeStatus, largeProcessed, smallStatus, smallProcessed, calls.Load())
 	}
 }
 
