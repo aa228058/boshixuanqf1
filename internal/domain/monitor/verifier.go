@@ -14,7 +14,6 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/ai"
 	"tg-sender/internal/domain"
-	"tg-sender/internal/safego"
 	securerand "tg-sender/internal/secure"
 )
 
