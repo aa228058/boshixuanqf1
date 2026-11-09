@@ -761,7 +761,7 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		defer e.runningTasks.Delete(taskKey)
 		// P1修复(精读发现): progressCache 只 Store 从不 Delete(注释承诺的删除并不存在),
 		// 每个任务永久泄漏一个 TaskProgress, sync.Map 随任务数无限增长。
-		defer e.progressCache.Delete(taskKey)
+		defer e.progressCache.Delete(task.TaskID)
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("task panic: %v\n%s\n", r, debug.Stack())
