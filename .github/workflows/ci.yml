@@ -120,12 +120,6 @@ jobs:
             exit 1
           fi
 
-      - name: Inspect MTGO inline button type (temporary diagnostic)
-        run: |
-          go doc github.com/mtgo-labs/mtgo/tg.KeyboardInlineButton
-          go doc github.com/mtgo-labs/mtgo/tg.KeyboardButtonCallback
-          go doc github.com/mtgo-labs/mtgo/tg.KeyboardButtonURL
-
       - name: Run go vet
         run: go vet ./...
 
