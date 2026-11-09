@@ -77,9 +77,7 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			return
 		}
 		if resolveErr != nil {
-			errText := strings.ToLower(resolveErr.Error())
-			permanent := (isInviteLink && (strings.Contains(errText, "过期") || strings.Contains(errText, "无效"))) ||
-				strings.Contains(errText, "返回 404") || strings.Contains(errText, "返回 410")
+			permanent := isPermanentResolutionError(resolveErr, isInviteLink)
 			if permanent {
 				if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
 					log.Printf("[grouplib] 标记永久失效链接失败 %s: %v", p.link, err)
@@ -143,4 +141,17 @@ func (e *Engine) finishResolution(ctx context.Context, sgID uuid.UUID, reason st
 	if tag.RowsAffected() != 1 {
 		log.Printf("[grouplib] 结束群组解析未更新记录 %s (%s)", sgID, reason)
 	}
+}
+
+// isPermanentResolutionError separates terminal link failures from transient
+// network/server errors, which must remain eligible for delayed retry.
+func isPermanentResolutionError(err error, inviteLink bool) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "返回 404") || strings.Contains(message, "返回 410") {
+		return true
+	}
+	return inviteLink && (strings.Contains(message, "过期") || strings.Contains(message, "无效"))
 }
