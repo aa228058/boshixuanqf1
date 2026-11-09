@@ -43,13 +43,20 @@ func filterImportLinks(payload string) importFilterResult {
 		if loc[1] < len(token) {
 			next := token[loc[1]]
 			if (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
-				(next >= '0' && next <= '9') || next == '_' || next == '-' {
+				(next >= '0' && next <= '9') || next == '_' || next == '-' || next == '.' || next == '%' ||
+				next == '&' || next == '#' || next == '?' || next == '/' {
 				continue
 			}
 		}
 		candidate := token[loc[0]:loc[1]]
 		normalized, key, ok := normalizeImportCandidate(candidate)
 		if !ok {
+			continue
+		}
+		// Bot usernames are syntactically valid Telegram handles but are not
+		// group/channel targets. Filter them before creating the resumable job
+		// payload so worker offsets always refer to one import candidate per line.
+		if strings.HasPrefix(key, "u:") && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(key, "u:")), "bot") {
 			continue
 		}
 		candidates++
@@ -73,18 +80,27 @@ func normalizeImportCandidate(candidate string) (normalized, key string, ok bool
 		if err != nil {
 			return "", "", false
 		}
+		if u.Opaque != "" || u.Path != "" || u.Fragment != "" || u.User != nil {
+			return "", "", false
+		}
+		query, err := url.ParseQuery(u.RawQuery)
+		if err != nil || len(query) != 1 {
+			return "", "", false
+		}
 		if strings.EqualFold(u.Host, "resolve") {
-			username := u.Query().Get("domain")
-			if len(username) < 5 || len(username) > 32 {
+			values, exists := query["domain"]
+			if !exists || len(values) != 1 || !telegramUsernameRe.MatchString(values[0]) {
 				return "", "", false
 			}
+			username := values[0]
 			return "https://t.me/" + username, "u:" + strings.ToLower(username), true
 		}
 		if strings.EqualFold(u.Host, "join") {
-			hash := u.Query().Get("invite")
-			if len(hash) < 5 || len(hash) > 64 {
+			values, exists := query["invite"]
+			if !exists || len(values) != 1 || !telegramInviteHashRe.MatchString(values[0]) {
 				return "", "", false
 			}
+			hash := values[0]
 			return "https://t.me/+" + hash, "p:" + hash, true
 		}
 		return "", "", false
