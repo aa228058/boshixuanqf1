@@ -33,6 +33,11 @@ var (
 // emailTLDs: @用户名 后跟这些域名段的视为邮箱地址, 不当 TG 用户名采集
 var emailTLDs = []string{".com", ".net", ".org", ".cn", ".io", ".me", ".edu", ".gov", ".info", ".biz", ".cc", ".xyz"}
 
+type aggregationCursor struct {
+	at time.Time
+	id uuid.UUID
+}
+
 type Engine struct {
 	repo     *repository.SystemGroupRepository
 	pool     *pgxpool.Pool
@@ -46,9 +51,9 @@ type Engine struct {
 	stopped     bool
 
 	mu  sync.Mutex
-	slW time.Time // scraped_links 水位
-	gW  time.Time // groups 水位
-	mW  time.Time // members 水位
+	slW aggregationCursor // scraped_links 复合游标
+	gW  aggregationCursor // groups 复合游标
+	mW  aggregationCursor // members 复合游标
 }
 
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
@@ -158,35 +163,33 @@ func (e *Engine) runOnce() {
 // aggregateScrapedLinks 增量聚合链接采集结果
 func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	e.mu.Lock()
-	wm := e.slW
+	cursor := e.slW
 	e.mu.Unlock()
 	// V27 审计修复: 原水位是裸 created_at 严格大于——并发写入同毫秒的行在
 	// 水位推进后会被永久漏掉。聚合是逐行 Upsert(幂等), 故采用 at-least-once
 	// 语义: 查询窗口回退 1 秒, 每轮最多重复归并最近 1 秒的行, 换取零漏单。
 	rows, err := e.pool.Query(ctx, `
-		SELECT tenant_id, full_url, link_type, COALESCE(NULLIF(resolved_title,''), NULLIF(source_chat_title,''), ''),
+		SELECT link_id, tenant_id, full_url, link_type, COALESCE(NULLIF(resolved_title,''), NULLIF(source_chat_title,''), ''),
 		       member_count, status, created_at, COALESCE(resolved_chat_id,0)
-		FROM scraped_links WHERE created_at > $1
-		ORDER BY created_at ASC LIMIT 5000`, wm.Add(-time.Second))
+		FROM scraped_links WHERE (created_at, link_id) > ($1, $2)
+		ORDER BY created_at ASC, link_id ASC LIMIT 5000`, cursor.at, cursor.id))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	var maxT time.Time
+	var last aggregationCursor
 	n := 0
 	upsertFailed := false
 	for rows.Next() {
-		var tenantID uuid.UUID
+		var linkID, tenantID uuid.UUID
 		var url, linkType, title, status string
 		var mc int
 		var chatID int64
 		var ct time.Time
-		if err := rows.Scan(&tenantID, &url, &linkType, &title, &mc, &status, &ct, &chatID); err != nil {
+		if err := rows.Scan(&linkID, &tenantID, &url, &linkType, &title, &mc, &status, &ct, &chatID); err != nil {
 			return err
 		}
-		if ct.After(maxT) {
-			maxT = ct
-		}
+		last = aggregationCursor{at: ct, id: linkID}
 		username := extractTmeUsername(url)
 		if strings.HasSuffix(strings.ToLower(username), "bot") {
 			continue
@@ -210,9 +213,9 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	if upsertFailed {
 		return errors.New("scraped links aggregation incomplete; watermark not advanced")
 	}
-	if !maxT.IsZero() {
+	if last.id != uuid.Nil {
 		e.mu.Lock()
-		e.slW = maxT
+		e.slW = last
 		e.mu.Unlock()
 	}
 	if n > 0 {
@@ -224,7 +227,7 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 // aggregateJoinedGroups 增量聚合所有租户已加入的公开群(私有群无 username, 别人也进不去, 不入库)
 func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	e.mu.Lock()
-	wm := e.gW
+	cursor := e.gW
 	e.mu.Unlock()
 	// V26 审计修复: 原水位只看 created_at——群改标题/人数或重新入群时 created_at
 	// 不变, 永不重新聚合, 群库永远是最初值。现用 updated_at(065 迁移 + trigger
@@ -232,31 +235,30 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	// V27 同款修复: 窗口回退 1 秒做 at-least-once 聚合(逐群 Upsert 幂等),
 	// 消除同毫秒并发写入被水位漏掉的可能。
 	rows, err := e.pool.Query(ctx, `
-		SELECT title, username, type, member_count, created_at, updated_at
+		SELECT group_id, title, username, type, member_count, created_at, updated_at
 		FROM groups
 		WHERE is_joined = TRUE AND username IS NOT NULL AND username <> ''
-		  AND GREATEST(created_at, updated_at) > $1
-		ORDER BY GREATEST(created_at, updated_at) ASC LIMIT 5000`, wm.Add(-time.Second))
+		  AND (GREATEST(created_at, updated_at), group_id) > ($1, $2)
+		ORDER BY GREATEST(created_at, updated_at) ASC, group_id ASC LIMIT 5000`, cursor.at, cursor.id))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	var maxT time.Time
+	var last aggregationCursor
 	n := 0
 	upsertFailed := false
 	for rows.Next() {
+		var groupID uuid.UUID
 		var title, username, gtype string
 		var mc int
 		var ct, ut time.Time
-		if err := rows.Scan(&title, &username, &gtype, &mc, &ct, &ut); err != nil {
+		if err := rows.Scan(&groupID, &title, &username, &gtype, &mc, &ct, &ut); err != nil {
 			return err
 		}
 		if ut.After(ct) {
 			ct = ut
 		}
-		if ct.After(maxT) {
-			maxT = ct
-		}
+		last = aggregationCursor{at: ct, id: groupID}
 		gt := "public"
 		if gtype == "channel" {
 			gt = "channel"
@@ -278,9 +280,9 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	if upsertFailed {
 		return errors.New("joined groups aggregation incomplete; watermark not advanced")
 	}
-	if !maxT.IsZero() {
+	if last.id != uuid.Nil {
 		e.mu.Lock()
-		e.gW = maxT
+		e.gW = last
 		e.mu.Unlock()
 	}
 	if n > 0 {
@@ -292,28 +294,27 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 // aggregateMemberBios 简介挖掘: 从成员 bio 里解析 t.me 链接和 @用户名
 func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	e.mu.Lock()
-	wm := e.mW
+	cursor := e.mW
 	e.mu.Unlock()
 	rows, err := e.pool.Query(ctx, `
-		SELECT bio, scraped_at FROM members
-		WHERE scraped_at > $1 AND bio IS NOT NULL AND bio <> ''
+		SELECT member_id, bio, scraped_at FROM members
+		WHERE (scraped_at, member_id) > ($1, $2) AND bio IS NOT NULL AND bio <> ''
 		  AND (bio ILIKE '%t.me%' OR bio ILIKE '%telegram%')
-		ORDER BY scraped_at ASC LIMIT 5000`, wm)
+		ORDER BY scraped_at ASC, member_id ASC LIMIT 5000`, cursor.at, cursor.id)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	var maxT time.Time
+	var last aggregationCursor
 	n := 0
 	for rows.Next() {
+		var memberID uuid.UUID
 		var bio string
 		var ct time.Time
-		if err := rows.Scan(&bio, &ct); err != nil {
+		if err := rows.Scan(&memberID, &bio, &ct); err != nil {
 			return err
 		}
-		if ct.After(maxT) {
-			maxT = ct
-		}
+		last = aggregationCursor{at: ct, id: memberID}
 		processed, bioErr := e.upsertBioLinks(ctx, bio)
 		n += processed
 		if bioErr != nil {
@@ -323,9 +324,9 @@ func (e *Engine) aggregateMemberBios(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if !maxT.IsZero() {
+	if last.id != uuid.Nil {
 		e.mu.Lock()
-		e.mW = maxT
+		e.mW = last
 		e.mu.Unlock()
 	}
 	if n > 0 {
