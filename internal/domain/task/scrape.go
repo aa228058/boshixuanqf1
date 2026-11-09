@@ -513,6 +513,8 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 	// including panic/early-return paths.
 	defer stopHandler()
 
+	// Avoid retaining the full task payload through the long-lived MTGO callback.
+	callbackTenantID, callbackTaskID := task.TenantID, task.TaskID
 	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		if !entry.enter() {
 			return
@@ -567,8 +569,8 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 				logMu.Lock()
 				batchLogs = append(batchLogs, &domain.TaskLog{
 					LogID:      uuid.New(),
-					TaskID:     task.TaskID,
-					TenantID:   task.TenantID,
+					TaskID:     callbackTaskID,
+					TenantID:   callbackTenantID,
 					AccountID:  accID, // 修复(2026-09-22): 缺失会导致 task_logs FK 冲突, 整批日志丢失
 					TargetID:   hash,
 					Action:     "scrape_private_link",
@@ -603,7 +605,7 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 
 				// Database deduplication: skip if already in groups table
 				if e.groupRepo != nil {
-					if existing, _ := e.groupRepo.GetByTGChatID(handlerCtx, task.TenantID, chatID); existing != nil {
+					if existing, _ := e.groupRepo.GetByTGChatID(handlerCtx, callbackTenantID, chatID); existing != nil {
 						continue
 					}
 				}
@@ -627,8 +629,8 @@ func (e *Engine) executeScrapeLinks(ctx context.Context, task *domain.Task) {
 				logMu.Lock()
 				batchLogs = append(batchLogs, &domain.TaskLog{
 					LogID:      uuid.New(),
-					TaskID:     task.TaskID,
-					TenantID:   task.TenantID,
+					TaskID:     callbackTaskID,
+					TenantID:   callbackTenantID,
 					AccountID:  accID,
 					TargetID:   username,
 					Action:     "scrape_public_group",
