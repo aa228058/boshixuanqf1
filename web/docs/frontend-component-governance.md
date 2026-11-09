@@ -75,8 +75,10 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - No claim is made that all current pages were migrated in this PR; page button markup is back on the established main baseline.
 
 ### Batch C — forms and data display
-- Normalize input/select/checkbox/switch/date-picker wrappers and validation behavior.
-- Normalize table, pagination, badges, tooltips and empty/loading states.
+- Keep TDesign Input, Textarea, InputNumber, Select, Checkbox, Switch, DatePicker and Table as the canonical primitives; native HTML controls remain valid where native semantics or specialized behavior is required.
+- Do not create generic wrappers around each TDesign component merely to make tags look uniform. Add a project wrapper only when it centralizes repeated validation, accessibility, layout or domain behavior used by multiple call sites.
+- Extend `npm run audit:components` to report TDesign and native form-control usage separately, so mixed implementations can be reviewed by page and semantic role before migration.
+- Normalize table, pagination, badges, tooltips and empty/loading states only after call-site and state-contract inventory.
 
 ### Batch D — stylesheet consolidation
 - Reduce overlapping TDesign overrides.
