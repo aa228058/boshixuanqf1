@@ -851,11 +851,14 @@ func extractCandidate(msg *tg.Message) *vcandidate {
 				continue
 			}
 			for _, btn := range row.Buttons {
-				switch b := btn.(type) {
-				case *tg.KeyboardButtonCallback:
-					c.buttons = append(c.buttons, vbutton{text: b.Text, data: b.Data})
-				case *tg.KeyboardButtonURL:
-					c.buttons = append(c.buttons, vbutton{text: b.Text, url: b.URL})
+				if btn == nil {
+					continue
+				}
+				switch b := btn.Type.(type) {
+				case *tg.InlineButtonTypeCallback:
+					c.buttons = append(c.buttons, vbutton{text: btn.Text, data: b.Data})
+				case *tg.InlineButtonTypeURL:
+					c.buttons = append(c.buttons, vbutton{text: btn.Text, url: b.URL})
 				}
 			}
 		}
