@@ -180,15 +180,11 @@ func TestImportWorkerCancellationPersistsCompletedPrefix(t *testing.T) {
 	}
 }
 
-func TestImportWorkerRateLimitSavesPrefixAndRequeues(t *testing.T) {
+func TestImportWorkerRateLimitDefersLeaseWithoutBlockingScheduler(t *testing.T) {
 	pool := importWorkerTestPool(t)
 	_, jobID, links := createImportWorkerFixture(t, pool, 3, "pending", 0)
-	started := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	engine := &Engine{pool: pool}
 	engine.workerImportOverride = func(_ context.Context, _, _ uuid.UUID, _ []string) (*ImportResult, error) {
-		close(started)
 		return &ImportResult{
 			Processed: 1,
 			Failed: []string{
@@ -197,32 +193,23 @@ func TestImportWorkerRateLimitSavesPrefixAndRequeues(t *testing.T) {
 			},
 		}, &TelegramRateLimitError{RetryAfter: 10 * time.Minute, Endpoint: "test"}
 	}
-	done := make(chan struct{})
-	go func() {
-		engine.processImportJobs(ctx)
-		close(done)
-	}()
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("worker did not hit rate-limit fixture")
-	}
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(8 * time.Second):
-		t.Fatal("worker did not exit rate-limit wait after shutdown")
-	}
-	status, processed, _, failed, _, _ := readImportWorkerState(t, pool, jobID)
+	started := time.Now()
+	engine.processImportJobs(context.Background())
+	elapsed := time.Since(started)
+	status, processed, _, failed, _, token := readImportWorkerState(t, pool, jobID)
 	var failureRows int
 	if err := pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM group_library_import_job_failures WHERE job_id=$1", jobID).Scan(&failureRows); err != nil {
 		t.Fatalf("count persisted prefix failures: %v", err)
 	}
-	if status != "pending" || processed != 1 || failed != 1 || failureRows != 1 {
-		t.Fatalf("rate-limit checkpoint status=%s processed=%d failed=%d failureRows=%d; want pending/1/1/1", status, processed, failed, failureRows)
+	var leaseExpiry time.Time
+	if err := pool.QueryRow(context.Background(), "SELECT lease_expires_at FROM group_library_import_jobs WHERE job_id=$1", jobID).Scan(&leaseExpiry); err != nil {
+		t.Fatalf("read deferred lease expiry: %v", err)
+	}
+	if elapsed > 5*time.Second || status != "processing" || processed != 1 || failed != 1 || failureRows != 1 || token == nil || !leaseExpiry.After(time.Now().Add(9*time.Minute)) {
+		t.Fatalf("rate-limit deferral elapsed=%s status=%s processed=%d failed=%d failureRows=%d token=%v expiry=%s",
+			elapsed, status, processed, failed, failureRows, token, leaseExpiry)
 	}
 }
-
 func TestImportWorkerFailedLinksRetryExactlyOnce(t *testing.T) {
 	pool := importWorkerTestPool(t)
 	tenantID, jobID, _ := createImportWorkerFixture(t, pool, 2, "pending", 0)
