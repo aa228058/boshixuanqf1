@@ -137,6 +137,13 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - The watcher now runs immediately, registering an initially open modal and preserving the same cleanup/compaction behavior on close and unmount.
 - Extended the inventory to distinguish TDesign `<Dialog>`, dynamic `resolveComponent("Dialog")`, render-function `h(Dialog)`, and global `app.use(Dialog)` registration from lowercase `<t-dialog>`. This is evidence gathering only; global registration remains until every usage path is reviewed.
 
+### Batch D8 — stacked modal keyboard viewport lifecycle
+
+- Found a shared-state race in `Modal.vue`: each instance independently attached `visualViewport` listeners but all wrote the document-level `--modal-kb` variable. Closing or unmounting one modal could reset the offset while another modal remained open.
+- Replaced per-instance listeners with a module-level registry keyed by modal instance. The first open modal attaches one shared listener; additional open modals register without duplicating listeners; closing one only unregisters that instance; the last close/unmount detaches listeners and resets the CSS variable.
+- The modal stack order registry remains separate from the keyboard registry because they represent different lifecycles.
+- No dedicated Modal unit/spec file exists in the current frontend tree; CI typecheck/unit tests and Browser UI audit are the next verification gates. This does not replace manual nested-modal testing on desktop/mobile.
+
 ### Batch D7 — first-render loading state correction
 
 - Follow-up verification found that the sessions page initialized `loading` to `false`, while the first `refresh()` runs from the mount lifecycle. The page could therefore render EmptyState for one frame before the request started.
