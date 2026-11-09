@@ -47,9 +47,9 @@ type Engine struct {
 	wg       sync.WaitGroup
 
 	mu  sync.Mutex
-	slW time.Time // scraped_links 水位
-	gW  time.Time // groups 水位
-	mW  time.Time // members 水位
+	slW aggregationCursor // scraped_links 复合游标
+	gW  aggregationCursor // groups 复合游标
+	mW  aggregationCursor // members 复合游标
 }
 
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
