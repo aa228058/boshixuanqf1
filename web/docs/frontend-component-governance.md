@@ -213,7 +213,7 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 
 - TargetSelector's manual group refresh now captures account ID + request generation, ignores stale results after account switch/modal close, waits for another in-flight sync without releasing its lock, and releases only a lock acquired by its own operation.
 - Removed a permanently disabled `if (false)` cache-refresh branch from TargetSelector; manual refresh now has one explicit sync path.
-- TargetSelector group/contact lists and GroupSelector group list render the first 200 matching rows, with an explicit incremental “load more” action. Search resets the visible window. Bulk select/deselect still applies to the entire filtered result set, not just rendered rows, so progressive rendering does not change selection semantics.
+- TargetSelector group/contact lists and GroupSelector group list render the first 200 matching rows, with an explicit incremental “load more” action. Search resets the visible window. Bulk select/deselect still applies to the entire filtered result set, not just rendered rows, so progressive rendering does not change selection semantics. GroupSelector's collected private-contact list uses the same progressive rendering so large member collections do not mount thousands of checkbox rows at once.
 - The selector changes reduce initial DOM work for large accounts while retaining access to all matches through search and incremental loading.
 
 ### Batch E — page migration and regression
