@@ -56,7 +56,6 @@ const globalStyles = [...mainText.matchAll(/import\s+['"]([^'"]+\.css)['"]/g)].m
 const buttonPatterns = [
   ['TDesign <t-button>', /<t-button\b/gi],
   ['Native <button>', /<button\b/gi],
-  ['Canonical <UiButton>', /<UiButton\b/g],
   ['Shared .ui-t-button class', /ui-t-button/g],
   ['Shared .ui-native-button class', /ui-native-button/g],
 ]
