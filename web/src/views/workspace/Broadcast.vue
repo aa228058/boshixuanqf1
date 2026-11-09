@@ -283,7 +283,7 @@
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { groupApi } from '@/api/group'
@@ -441,28 +441,43 @@ function insertVar(v: string) {
   }
 }
 
-// 草稿: 停止输入 800ms 后存 localStorage, 重新打开页面自动恢复(示例116)
-let draftTimer: any = null
-const DRAFT_KEY = 'broadcast_msg_draft'
-watch(message, (v) => {
-  draftSaved.value = false
-  clearTimeout(draftTimer)
-  draftTimer = setTimeout(() => {
-    try {
-      if (v.trim()) { localStorage.setItem(DRAFT_KEY, v); draftSaved.value = true }
-      else localStorage.removeItem(DRAFT_KEY)
-    } catch {}
-  }, 800)
-})
-// 恢复草稿(挂载时, 仅当当前内容为空)
-onMounted(() => {
+// 草稿按租户隔离：无已确认 tenant_id 时不读写，避免未知上下文共用固定 key。
+let draftTimer: ReturnType<typeof setTimeout> | null = null
+const draftKeyForTenant = (tenantId?: string | null) => tenantId ? `broadcast_msg_draft:${tenantId}` : null
+function restoreDraft(tenantId?: string | null) {
+  const key = draftKeyForTenant(tenantId)
+  if (!key || message.value.trim()) return
   try {
-    const d = localStorage.getItem(DRAFT_KEY)
-    if (d && d.trim() && !message.value.trim()) {
-      message.value = d
-      toast({ type: 'info', title: '草稿已恢复', message: '已恢复上次未发送的草稿' })
+    const draft = localStorage.getItem(key)
+    if (draft?.trim()) {
+      message.value = draft
+      toast({ type: 'info', title: '草稿已恢复', message: '已恢复当前工作区未发送的草稿' })
     }
   } catch {}
+}
+watch(message, (v) => {
+  draftSaved.value = false
+  if (draftTimer) clearTimeout(draftTimer)
+  const key = draftKeyForTenant(authStore.tenant?.tenant_id)
+  if (!key) return
+  draftTimer = setTimeout(() => {
+    try {
+      if (v.trim()) { localStorage.setItem(key, v); draftSaved.value = true }
+      else localStorage.removeItem(key)
+    } catch {}
+    draftTimer = null
+  }, 800)
+})
+// 租户切换时清除旧租户文案在内存中的残留，再恢复新租户自己的草稿。
+watch(() => authStore.tenant?.tenant_id, (tenantId, previousTenantId) => {
+  if (draftTimer) clearTimeout(draftTimer)
+  draftTimer = null
+  if (previousTenantId && previousTenantId !== tenantId) message.value = ''
+  restoreDraft(tenantId)
+}, { immediate: true })
+onUnmounted(() => {
+  if (draftTimer) clearTimeout(draftTimer)
+  draftTimer = null
 })
 // 默认 [5,12] 与后端强制下限及协议群发页一致；原先 [4,300] 会让协同任务
 // 平均 2.5 分钟才发一条，看起来像"群发没反应、账号全待机"
