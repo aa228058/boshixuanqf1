@@ -1,7 +1,9 @@
 package grouplib
 
 import (
+	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -138,5 +140,95 @@ func TestTelegramHTTPStatusErrorRateLimit(t *testing.T) {
 	}
 	if rateLimitErr.Endpoint != "test" {
 		t.Fatalf("Endpoint=%q, want test", rateLimitErr.Endpoint)
+	}
+
+}
+
+func TestTelegramResolverRejectsMalformedTargets(t *testing.T) {
+	for _, username := range []string{"", "abcd", "bad/name", "bad?name", "bad.name", "bad-name"} {
+		if telegramUsernameRe.MatchString(username) {
+			t.Errorf("username %q should be rejected", username)
+		}
+	}
+	for _, hash := range []string{"", "abcd", "bad/hash", "bad?hash", "bad.hash", strings.Repeat("a", 65)} {
+		if telegramInviteHashRe.MatchString(hash) {
+			t.Errorf("invite hash %q should be rejected", hash)
+		}
+	}
+	if !telegramUsernameRe.MatchString("Valid_Group123") {
+		t.Fatal("valid Telegram username was rejected")
+	}
+	if !telegramInviteHashRe.MatchString("AbCd_123-xy") {
+		t.Fatal("valid invite hash was rejected")
+	}
+}
+
+func TestTelegramRedirectRequiresSecureTelegramOrigin(t *testing.T) {
+	for _, target := range []string{
+		"http://t.me/groupname",
+		"https://evil.example/groupname",
+		"https://t.me:8443/groupname",
+		"https://user@t.me/groupname",
+	} {
+		req, err := http.NewRequest(http.MethodGet, target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := telegramWebClient.CheckRedirect(req, nil); err == nil {
+			t.Errorf("redirect to %q should be rejected", target)
+		}
+	}
+	for _, target := range []string{"https://t.me/groupname", "https://www.t.me/groupname", "https://t.me:443/groupname"} {
+		req, err := http.NewRequest(http.MethodGet, target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := telegramWebClient.CheckRedirect(req, nil); err != nil {
+			t.Errorf("redirect to %q should be allowed: %v", target, err)
+		}
+	}
+}
+
+func TestTelegramResolversRejectMalformedInputBeforeNetwork(t *testing.T) {
+	if _, _, _, err := resolvePublicGroupInfoViaWeb(context.Background(), "bad-name"); err == nil {
+		t.Fatal("expected malformed public username to be rejected")
+	}
+	if _, _, _, err := resolveInviteInfoViaWeb(context.Background(), "bad/hash"); err == nil {
+		t.Fatal("expected malformed invite hash to be rejected")
+	}
+}
+
+func TestTelegramHTTPStatusErrorRetryClassification(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		want   bool
+	}{
+		{http.StatusNotFound, false},
+		{http.StatusForbidden, false},
+		{http.StatusBadRequest, false},
+		{http.StatusRequestTimeout, true},
+		{http.StatusTooEarly, true},
+		{http.StatusBadGateway, true},
+		{http.StatusServiceUnavailable, true},
+	} {
+		err := &TelegramHTTPStatusError{StatusCode: tc.status, Endpoint: "test"}
+		if got := err.Retryable(); got != tc.want {
+			t.Errorf("status %d retryable=%v, want %v", tc.status, got, tc.want)
+		}
+	}
+}
+
+func TestIsTransientResolveError(t *testing.T) {
+	if !isTransientResolveError(&TelegramHTTPStatusError{StatusCode: http.StatusBadGateway}) {
+		t.Fatal("5xx should be transient")
+	}
+	if isTransientResolveError(&TelegramHTTPStatusError{StatusCode: http.StatusNotFound}) {
+		t.Fatal("404 should be permanent")
+	}
+	if isTransientResolveError(&TelegramRateLimitError{RetryAfter: time.Minute}) {
+		t.Fatal("429 is handled by the shared rate-limit path, not generic retries")
+	}
+	if !isTransientResolveError(&net.DNSError{Err: "timeout", IsTimeout: true}) {
+		t.Fatal("network timeout should be transient")
 	}
 }
