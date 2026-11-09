@@ -107,8 +107,7 @@
     </div>
 
     <!-- 导入弹窗 -->
-    <t-dialog attach="body" v-model:visible="showImport" header="导入协议号" :width="isMobile ? '95%' : '560px'"
-      :confirm-btn="{ content: '开始导入', loading: importing }" @confirm="doImport">
+    <Modal v-model="showImport" title="导入协议号" width="560px">
       <div class="space-y-3 max-h-[55vh] overflow-y-auto">
         <div class="text-xs text-text-secondary leading-relaxed">
           两种方式任选：<b>上传 .session 文件</b>（卡密商交付格式，推荐）或<b>粘贴 session 字符串</b>，单次最多 50 个。
@@ -144,11 +143,16 @@
           <div v-for="(e, i) in importResult.errors" :key="i" class="text-danger">{{ e }}</div>
         </div>
       </div>
-    </t-dialog>
+      <template #footer>
+        <div class="sessions-modal-actions">
+          <t-button type="button" theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showImport = false">取消</t-button>
+          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :loading="importing" :disabled="importing" @click="doImport">开始导入</t-button>
+        </div>
+      </template>
+    </Modal>
 
     <!-- 编辑资料弹窗 -->
-    <t-dialog attach="body" v-model:visible="showEdit" header="编辑资料" :width="isMobile ? '95%' : '480px'"
-      :confirm-btn="{ content: '保存', loading: saving }" @confirm="doSave">
+    <Modal v-model="showEdit" title="编辑资料" width="480px">
       <div class="space-y-3 max-h-[42vh] overflow-y-auto" v-if="editForm">
         <div class="flex flex-col sm:flex-row gap-3">
           <t-input v-model="editForm.first_name" label="名字" placeholder="名字" class="flex-1" />
@@ -159,8 +163,13 @@
         <t-input v-model="editForm.remark" label="本地备注" placeholder="仅自己可见的备注" />
         <t-input v-model="editForm.twofa" label="2FA密码" placeholder="二步验证密码（卖家2fa.txt，掉线重连用；留空=保持不变）" />
       </div>
-    </t-dialog>
-
+      <template #footer>
+        <div class="sessions-modal-actions">
+          <t-button type="button" theme="default" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showEdit = false">取消</t-button>
+          <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :loading="saving" :disabled="saving" @click="doSave">保存</t-button>
+        </div>
+      </template>
+    </Modal>
 
     <!-- 隐藏的文件选择 -->
     <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onAvatarPicked" />
@@ -177,6 +186,7 @@ import { toast } from '@/utils/toast'
 // doImport 实际依赖 importSessions/importSessionFiles/ImportResult
 import { importSessions, importSessionFiles, updateProfile, uploadAvatar, type ImportResult } from '@/api/account'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 
 const accountStore = useAccountStore()
 const { avatarOf } = useAccountAvatar()
@@ -184,9 +194,6 @@ const { avatarOf } = useAccountAvatar()
 // 避免正常号混入列表、批量删除误删正常号
 const accounts = computed(() => accountStore.protocolAccounts as any[])
 const loading = ref(false)
-const isMobile = ref(window.innerWidth < 768)
-// 精读修复: resize 监听挂到 onMounted 并在卸载时移除, 防重复进页面累积泄漏
-const onResize = () => { isMobile.value = window.innerWidth < 768 }
 
 const total = computed(() => accounts.value.length)
 const onlineCount = computed(() => accounts.value.filter((a: any) => a.status === 'online').length)
@@ -377,28 +384,32 @@ let statusPoll: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   refresh()
   statusPoll = setInterval(refresh, 15000)
-  window.addEventListener('resize', onResize)
 })
 onUnmounted(() => {
   if (statusPoll) clearInterval(statusPoll)
-  window.removeEventListener('resize', onResize)
 })
 </script>
 
 <style scoped>
-/* 弹窗底部按钮: 右对齐 + 统一间距(修复确认/取消不对齐/窄屏被挤竖排) */
-:deep(.t-dialog__footer) {
-  display: flex !important;
-  flex-direction: row !important;
-  justify-content: flex-end;
+.sessions-modal-actions {
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--t-space-2);
-  flex-wrap: nowrap;
 }
-:deep(.t-dialog__footer .t-button) {
+.sessions-modal-actions :deep(.t-button) {
   flex: none;
-  width: auto;
   min-width: 96px;
+}
+@media (max-width: 768px) {
+  .sessions-modal-actions {
+    flex-direction: column-reverse;
+  }
+  .sessions-modal-actions :deep(.t-button) {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
 }
 /* toast 浮在弹窗遮罩之上, 保存成功提示不被盖住 */
 :deep(.t-message) {
