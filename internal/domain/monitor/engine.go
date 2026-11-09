@@ -232,7 +232,7 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 }
 
 // StopMonitoring stops monitoring for a specific account.
-func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
+func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) error {
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
 	e.mu.Lock()
@@ -252,7 +252,9 @@ func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
 		select {
 		case <-done:
 		case <-time.After(35 * time.Second):
+			err := fmt.Errorf("monitor session did not stop within 35 seconds")
 			log.Printf("[monitor] 等待监听退出超时 tenant=%s account=%s", tenantID, accountID)
+			return err
 		}
 	}
 
@@ -263,6 +265,7 @@ func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
 	// channel 关闭后会一直可读，若 loop 尚未完全退出可能导致忙循环。
 	delete(e.reloadChs, clientKey)
 	e.reloadMu.Unlock()
+	return nil
 }
 
 // EnsureSession 会话已在线则跳过, 否则以给定规则启动(抽奖助手自动拉起用)。
