@@ -236,3 +236,11 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - No component or CSS file is removed solely because an automated search reports no direct reference.
 - `npm run typecheck`, `npm test`, `npm run check:design-tokens`, and `npm run build` pass.
 - Desktop and mobile browser checks cover dialogs, buttons, forms, tables, empty/loading states, themes, and overflow.
+
+
+### Batch E7 — task detail action and request lifecycle
+
+- Task detail pause, resume, cancel, and failed-target retry controls now share a single in-flight action guard. While one action is pending, all competing action buttons are disabled and the active action displays its loading state; this prevents rapid repeated clicks from issuing duplicate mutations.
+- Consolidated pause/resume/cancel request handling so success refresh, error feedback, and lock release follow one path.
+- Added a monotonically increasing task-detail fetch request ID. Only the newest active request may update task data, page errors, or loading state; responses arriving after unmount are ignored.
+- This is a client-side duplicate-submit guard, not a replacement for backend idempotency or state-transition validation. Server-side protection and manual browser verification remain required.
