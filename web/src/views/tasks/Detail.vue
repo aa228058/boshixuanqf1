@@ -515,7 +515,7 @@ async function fetchLogs(page = 1) {
     logs.value = [...merged.values()]
       .sort((a, b) => new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime())
     if (page > logsPage.value) logsPage.value = page
-    if (page === 1 || page === logsPage.value) {
+    if (page === logsPage.value) {
       hasMoreLogs.value = data.length === LOG_PAGE_SIZE
     }
     await nextTick()
