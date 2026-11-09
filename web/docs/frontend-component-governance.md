@@ -78,6 +78,7 @@ The inventory script `npm run audit:components` reports direct SFC imports and g
 - Keep TDesign Input, Textarea, InputNumber, Select, Checkbox, Switch, DatePicker and Table as the canonical primitives; native HTML controls remain valid where native semantics or specialized behavior is required.
 - Do not create generic wrappers around each TDesign component merely to make tags look uniform. Add a project wrapper only when it centralizes repeated validation, accessibility, layout or domain behavior used by multiple call sites.
 - Extend `npm run audit:components` to report TDesign and native form-control usage separately, so mixed implementations can be reviewed by page and semantic role before migration.
+- Extend the same inventory to count TDesign pagination and native table structure (`table`, `thead`, `tbody`, `tr`) separately. These are source-level indicators only; review each call site for semantics, responsive behavior, sorting, selection, and accessibility before migrating.
 - Normalize table, pagination, badges, tooltips and empty/loading states only after call-site and state-contract inventory.
 
 ### Batch D — stylesheet consolidation
