@@ -89,6 +89,7 @@ func (e *Engine) CancelImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 	err := e.pool.QueryRow(ctx, `
 		UPDATE group_library_import_jobs
 		SET status=CASE WHEN status='processing' THEN 'cancelling' ELSE 'cancelled' END,
+		    lease_expires_at=CASE WHEN status='processing' THEN NOW() ELSE lease_expires_at END,
 		    finished_at=CASE WHEN status='processing' THEN finished_at ELSE NOW() END,
 		    updated_at=NOW()
 		WHERE tenant_id=$1 AND job_id=$2 AND status IN ('review','pending','processing')
