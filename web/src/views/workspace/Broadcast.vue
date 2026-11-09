@@ -177,17 +177,20 @@
       </div>
 
       <!-- 消息混淆(两种模式共用) -->
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-        <input type="checkbox" v-model="obfuscate" class="accent-[var(--t-brand)] w-4 h-4" />
-        <span class="font-semibold">消息混淆</span>
-        <span class="text-text-muted">每条自动加随机表情+隐形字符, 内容不重复防风控</span>
-      </label>
-      <!-- 每条消息自动变化: 一键让措辞/标点各不相同, 不用写任何变量 -->
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-        <input type="checkbox" v-model="autoVary" class="accent-[var(--t-brand)] w-4 h-4" />
-        <span class="font-semibold">每条消息自动变化</span>
-        <span class="text-text-muted">自动换同义词、抖动标点, 千条消息千种写法</span>
-      </label>
+      <template v-if="!isLoop">
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
+          <input type="checkbox" v-model="obfuscate" class="accent-[var(--t-brand)] w-4 h-4" />
+          <span class="font-semibold">消息混淆</span>
+          <span class="text-text-muted">每条自动加随机表情+隐形字符</span>
+        </label>
+        <!-- 每条消息自动变化: 一键让措辞/标点各不相同, 不用写任何变量 -->
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
+          <input type="checkbox" v-model="autoVary" class="accent-[var(--t-brand)] w-4 h-4" />
+          <span class="font-semibold">每条消息自动变化</span>
+          <span class="text-text-muted">自动换同义词、抖动标点</span>
+        </label>
+      </template>
+      <p v-else class="text-xs text-text-muted mb-3">循环群发当前不支持消息混淆和自动变化设置。</p>
       <!-- 富媒体(可选) -->
       <div>
         <label class="block text-sm font-medium mb-2">附带媒体 <span class="text-text-muted font-normal">(可选)</span></label>
@@ -824,6 +827,7 @@ async function submit() {
         interval_min: minSeconds,
         interval_max: maxSeconds,
         auto_vary: autoVary.value,
+        obfuscate: obfuscate.value,
       }
       if (mediaSource) payload.media = { type: mediaType.value, source: mediaSource }
       if (scheduledAtTs.value) payload.scheduled_at = new Date(scheduledAtTs.value).toISOString()
