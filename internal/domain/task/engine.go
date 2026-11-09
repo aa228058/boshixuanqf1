@@ -1118,16 +1118,20 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	// Handler removal is added separately with the MTGO v0.25.0 dependency upgrade.
 	var callbackMu sync.Mutex
 	var callbackWG sync.WaitGroup
+	var stopCallbacksOnce sync.Once
 	acceptingCallbacks := true
-	defer func() {
-		callbackMu.Lock()
-		acceptingCallbacks = false
-		callbackMu.Unlock()
-		callbackWG.Wait()
-		countMu.Lock()
-		scrapedUsers = nil
-		countMu.Unlock()
-	}()
+	stopCallbacks := func() {
+		stopCallbacksOnce.Do(func() {
+			callbackMu.Lock()
+			acceptingCallbacks = false
+			callbackMu.Unlock()
+			callbackWG.Wait()
+			countMu.Lock()
+			scrapedUsers = nil
+			countMu.Unlock()
+		})
+	}
+	defer stopCallbacks()
 	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		callbackMu.Lock()
 		if !acceptingCallbacks {
@@ -1234,6 +1238,10 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	case <-maxReached:
 		reachedMax = true
 	}
+
+	// Stop new callback admission and wait for all accepted persistence writes
+	// before reading the final count or writing the terminal progress snapshot.
+	stopCallbacks()
 
 	// Finalize
 	countMu.Lock()
