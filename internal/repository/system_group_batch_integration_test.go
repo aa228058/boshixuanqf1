@@ -30,6 +30,10 @@ func TestSystemGroupUpsertBatchPersistsLinksAndContributions(t *testing.T) {
 	if err := repo.UpsertBatch(ctx, groups); err != nil {
 		t.Fatalf("upsert batch: %v", err)
 	}
+	// Replaying the same import chunk must not inflate the number of distinct links.
+	if err := repo.UpsertBatch(ctx, groups); err != nil {
+		t.Fatalf("replay batch: %v", err)
+	}
 
 	for _, group := range groups {
 		var count, refCount, contributionCount int
