@@ -457,7 +457,9 @@ func (h *MonitorHandler) autoManageMonitoring(ctx context.Context, tenantID uuid
 	if len(active) == 0 {
 		for _, acc := range accounts {
 			if h.engine.IsMonitoring(tenantID, acc.AccountID) {
-				h.engine.StopMonitoring(tenantID, acc.AccountID)
+				if err := h.engine.StopMonitoring(tenantID, acc.AccountID); err != nil {
+					log.Printf("[monitor] 自动管理: 停止账号监听失败 account=%s: %v", acc.AccountID, err)
+				}
 			}
 		}
 		return
@@ -639,6 +641,8 @@ func (h *MonitorHandler) StopMonitoring(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "账号不存在或无权限")
 	}
 
-	h.engine.StopMonitoring(tenantID, accountID)
+	if err := h.engine.StopMonitoring(tenantID, accountID); err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
 	return Success(c, map[string]string{"status": "monitoring_stopped"})
 }
