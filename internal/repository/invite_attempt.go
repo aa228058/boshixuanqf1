@@ -13,8 +13,8 @@ import (
 type InviteAttemptStatus string
 
 const (
-	InviteAttemptInProgress    InviteAttemptStatus = "in_progress"
-	InviteAttemptSucceeded     InviteAttemptStatus = "succeeded"
+	InviteAttemptInProgress     InviteAttemptStatus = "in_progress"
+	InviteAttemptSucceeded      InviteAttemptStatus = "succeeded"
 	InviteAttemptFailedDefinite InviteAttemptStatus = "failed_definite"
 	InviteAttemptOutcomeUnknown InviteAttemptStatus = "outcome_unknown"
 )
