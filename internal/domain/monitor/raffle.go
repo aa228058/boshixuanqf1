@@ -13,7 +13,6 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
-	"tg-sender/internal/safego"
 	securerand "tg-sender/internal/secure"
 )
 
