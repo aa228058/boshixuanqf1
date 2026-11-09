@@ -278,12 +278,12 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 
 			select {
 			case ls.linkQueue <- &rawLink{
-				TenantID:        tenantID,
-				AccountID:       accountID,
-				LinkType:        linkType,
-				LinkHash:        linkHash,
-				FullURL:         fullLink,
-				SourceChatID:    msg.ChatID,
+				TenantID:     tenantID,
+				AccountID:    accountID,
+				LinkType:     linkType,
+				LinkHash:     linkHash,
+				FullURL:      fullLink,
+				SourceChatID: msg.ChatID,
 				SourceChatTitle: func() string {
 					if msg.Chat != nil {
 						return msg.Chat.Title
