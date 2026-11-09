@@ -178,7 +178,8 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 		if sess, exists := tenantSessions[accountID]; exists {
 			sess.cancel()
 			oldDone = sess.done
-			delete(tenantSessions, accountID)
+			// Keep the old session registered until monitorLoop's defer removes it.
+			// If draining times out, StopAll must still be able to find it.
 		}
 	}
 	e.mu.Unlock()
@@ -240,7 +241,7 @@ func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
 		if sess, exists := tenantSessions[accountID]; exists {
 			sess.cancel()
 			done = sess.done
-			delete(tenantSessions, accountID)
+			// monitorLoop removes the entry only after callbacks and child work drain.
 		}
 	}
 	e.mu.Unlock()
