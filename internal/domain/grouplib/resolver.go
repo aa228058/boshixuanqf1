@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -42,7 +41,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 		isInviteLink := inviteHashFromLink(p.link) != ""
 		// Defensive cleanup for bot links inserted by older import/aggregation paths.
 		if !isInviteLink && strings.HasSuffix(strings.ToLower(strings.TrimPrefix(p.username, "@")), "bot") {
-			_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
+			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+				log.Printf("[grouplib] 标记机器人链接失效失败 %s: %v", p.link, err)
+			}
 			continue
 		}
 
@@ -60,11 +61,11 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 
 		var rateLimitErr *TelegramRateLimitError
 		if errors.As(resolveErr, &rateLimitErr) {
-            // The shared HTTP scheduler already opens a process-wide circuit until RetryAfter.
-            // Do not sleep here: this resolver runs on the aggregation goroutine, and holding it
-            // during a Telegram cooldown would stall unrelated aggregation work as well.
-            log.Printf("[grouplib] Telegram 网页限流，暂停本轮解析队列 %s: %v", rateLimitErr.RetryAfter, rateLimitErr)
-            return
+			// The shared HTTP scheduler already opens a process-wide circuit until RetryAfter.
+			// Do not sleep here: this resolver runs on the aggregation goroutine, and holding it
+			// during a Telegram cooldown would stall unrelated aggregation work as well.
+			log.Printf("[grouplib] Telegram 网页限流，暂停本轮解析队列 %s: %v", rateLimitErr.RetryAfter, rateLimitErr)
+			return
 		}
 		if resolveErr != nil {
 			errText := strings.ToLower(resolveErr.Error())
@@ -76,7 +77,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
-			_ = e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid")
+			if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+				log.Printf("[grouplib] 标记非群组链接失效失败 %s: %v", p.link, err)
+			}
 		} else if title != "" || count > 0 {
 			if pageType == "" || pageType == "unknown" {
 				pageType = p.gtype
@@ -84,9 +87,9 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) {
 			if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, pageType, 0); err != nil {
 				log.Printf("[grouplib] 回写群组资料失败 %s: %v", p.sgID, err)
 			} else {
-					if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "valid"); err != nil {
-                    log.Printf("[grouplib] 标记有效链接失败 %s: %v", p.link, err)
-                }
+				if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "valid"); err != nil {
+					log.Printf("[grouplib] 标记有效链接失败 %s: %v", p.link, err)
+				}
 			}
 		}
 	}
