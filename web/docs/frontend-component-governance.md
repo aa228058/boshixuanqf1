@@ -89,6 +89,13 @@ Migrated all TDesign button tags to the shared `UiButton.vue` adapter in these s
 
 Total: 95 TDesign button instances now use the canonical adapter. The adapter supports existing `theme`, `variant`, and size attributes while allowing new code to use semantic `tone` values. Native `button` elements remain native where they implement tabs, toggles, icon-only controls, or other specialized semantics; they are not blindly converted to generic buttons.
 
+
+### Batch B4 — expanded page migration wave
+
+Extended the adapter migration across workspace, authentication, administration, and shell pages, including `workspace/Join.vue`, `workspace/Monitor.vue`, `workspace/Scrape.vue`, `workspace/Tasks.vue`, `scrape/Links.vue`, `raffle/Index.vue`, `verifier/Logs.vue`, `accounts/List.vue`, `sessions/Index.vue`, `tasks/Detail.vue`, `workspace/Broadcast.vue`, `settings/Index.vue`, admin code/tenant/plan/probe/support/announcement/audit pages, login/register pages, and the main layout.
+
+Across the migrated views, 182 direct TDesign button instances now go through `UiButton.vue`. The adapter keeps TDesign's loading/disabled/event behavior and preserves legacy `theme`, `variant`, and size values. Native buttons remain in place for semantic controls such as tabs, toggles, icon actions, and custom selection controls.
+
 ### Batch C — forms and data display
 - Normalize input/select/checkbox/switch/date-picker wrappers and validation behavior.
 - Normalize table, pagination, badges, tooltips and empty/loading states.
