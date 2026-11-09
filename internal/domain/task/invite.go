@@ -228,8 +228,6 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 	return nil
 }
 
-
-
 // isDefiniteInviteRPCError only classifies explicit, non-server-error Telegram
 // RPC responses as definite rejection. Transport failures and server-side 5xx
 // responses remain ambiguous because Telegram may have applied the side effect.
