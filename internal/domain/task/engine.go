@@ -1074,6 +1074,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	scrapedCount := 0
 	scrapedUsers := make(map[string]bool)
 	var countMu sync.Mutex
+	// Stop accepting callbacks and wait for in-flight persistence before finalizing.
+	// The Telegram client API does not expose handler removal, so this gate prevents
+	// callbacks retained by the client from publishing after this task has exited.
+	var callbackMu sync.Mutex
+	var callbackWG sync.WaitGroup
+	acceptingCallbacks := true
 	maxReached := make(chan struct{})
 	var maxReachedOnce sync.Once
 	maxReachedFlag := false
@@ -1113,6 +1119,15 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		countMu.Unlock()
 	}()
 	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+		callbackMu.Lock()
+		if !acceptingCallbacks {
+			callbackMu.Unlock()
+			return
+		}
+		callbackWG.Add(1)
+		callbackMu.Unlock()
+		defer callbackWG.Done()
+
 		select {
 		case <-ctx.Done():
 			return
@@ -1215,7 +1230,14 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		reachedMax = true
 	}
 
-	// Finalize
+	// Close the callback gate before Wait: no new Add can race with Wait,
+	// and all callbacks already persisting members must finish before final progress.
+	callbackMu.Lock()
+	acceptingCallbacks = false
+	callbackMu.Unlock()
+	callbackWG.Wait()
+
+	// Finalize only after all in-flight callbacks have drained.
 	countMu.Lock()
 	finalCount := scrapedCount
 	countMu.Unlock()
