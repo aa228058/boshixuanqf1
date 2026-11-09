@@ -63,6 +63,8 @@ type Engine struct {
 	workerID string
 	stopCh   chan struct{}
 	stopOnce sync.Once
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
 	// GlobalLimitFn 返回当前全局并发上限(由 adaptive 内存调度注入, 按服务器内存动态调整).
 	// nil 表示不限. 领取任务前检查全局 running 数, 达到上限则本轮不领.
 	GlobalLimitFn func() int
@@ -80,6 +82,7 @@ type Engine struct {
 	// 读这里而不是每秒查库——N 个前端同时看进度时 DB QPS 归零。
 	// 任务结束时由 goroutine defer 删除。
 	progressCache sync.Map
+	progressMu    sync.Mutex // keeps concurrent callback progress snapshots monotonic
 	// scheduler provides resource-aware, plan-based dynamic concurrency control
 	scheduler *AutoScheduler
 
@@ -133,6 +136,7 @@ func (e *Engine) WarmAccounts(ctx context.Context, tenantID uuid.UUID, accountID
 
 // NewEngine creates a new task engine.
 func NewEngine(cfg *config.Config, db *database.DB, repo *repository.TaskRepository, logRepo *repository.TaskLogRepository, quotaRepo *repository.QuotaRepository, riskRepo *repository.RiskRepository) *Engine {
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	e := &Engine{
 		cfg:              cfg,
 		db:               db,
@@ -142,6 +146,8 @@ func NewEngine(cfg *config.Config, db *database.DB, repo *repository.TaskReposit
 		riskRepo:         riskRepo,
 		workerID:         fmt.Sprintf("worker-%s", uuid.New().String()[:8]),
 		stopCh:           make(chan struct{}),
+		shutdownCtx:      shutdownCtx,
+		shutdownCancel:   shutdownCancel,
 		scheduler:        NewAutoScheduler(int64(cfg.MemoryLimitMB)),
 		scrapeRegistered: make(map[string]bool),
 	}
@@ -239,6 +245,12 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 // Uses "events" topic to match frontend subscription via Handler("events").
 // 同时写入 progressCache，供 StreamProgress 免库读取。
 func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress domain.TaskProgress) {
+	e.progressMu.Lock()
+	if cached, ok := e.progressCache.Load(taskID); ok {
+		if previous, valid := cached.(domain.TaskProgress); valid && progress.Done < previous.Done {
+			progress = previous
+		}
+	}
 	e.progressCache.Store(taskID, progress)
 	if e.sseBroker != nil {
 		e.sseBroker.BroadcastToTenant(tenantID, "events", map[string]any{
@@ -247,6 +259,7 @@ func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress 
 			"time":     time.Now().UTC(),
 		})
 	}
+	e.progressMu.Unlock()
 }
 
 // GetProgress 返回任务最新进度（内存缓存）。第二返回值 false = 无缓存
@@ -427,7 +440,12 @@ func (e *Engine) RegisterTenantQuota(tenantID [16]byte, maxConcurrent int) {
 }
 
 func (e *Engine) Stop() {
-	e.stopOnce.Do(func() { close(e.stopCh) })
+	e.stopOnce.Do(func() {
+		close(e.stopCh)
+		if e.shutdownCancel != nil {
+			e.shutdownCancel()
+		}
+	})
 	if e.linkScraper != nil {
 		e.linkScraper.Stop()
 	}
@@ -761,7 +779,7 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		defer e.runningTasks.Delete(taskKey)
 		// P1修复(精读发现): progressCache 只 Store 从不 Delete(注释承诺的删除并不存在),
 		// 每个任务永久泄漏一个 TaskProgress, sync.Map 随任务数无限增长。
-		defer e.progressCache.Delete(taskKey)
+		defer e.progressCache.Delete(task.TaskID)
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("task panic: %v\n%s\n", r, debug.Stack())
@@ -773,8 +791,13 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 
 		// Create a cancellable context for this specific task
 		taskCtx, cancel := context.WithCancel(ctx)
+		stopShutdown := func() bool { return false }
+		if e.shutdownCtx != nil {
+			stopShutdown = context.AfterFunc(e.shutdownCtx, cancel)
+		}
 		e.taskCtxs.Store(taskKey, cancel)
 		defer func() {
+			stopShutdown()
 			cancel()
 			e.taskCtxs.Delete(taskKey)
 		}()
@@ -849,14 +872,16 @@ func (e *Engine) PauseTask(taskID uuid.UUID) {
 }
 
 func (e *Engine) CancelTask(taskID uuid.UUID) {
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbCancel()
 	// M-05: 取消立即落库(原只触发内存cancel, DB状态要等worker退出才更新,
 	// 取消后列表长时间显示running造成"取消没生效"的错觉; worker认领时的状态双查会跳过已取消任务)
-	if t, err := e.repo.GetByTaskIDAnyTenant(context.Background(), taskID); err == nil && t != nil {
-		if _, uerr := e.repo.CancelIfActive(context.Background(), t.TenantID, taskID); uerr != nil {
+	if t, err := e.repo.GetByTaskIDAnyTenant(dbCtx, taskID); err == nil && t != nil {
+		if _, uerr := e.repo.CancelIfActive(dbCtx, t.TenantID, taskID); uerr != nil {
 			taskLog.Printf("[task] cancel落库失败: %v", uerr)
 		}
 		if e.approvalRepo != nil {
-			if uerr := e.approvalRepo.CancelPendingForTask(context.Background(), t.TenantID, taskID); uerr != nil {
+			if uerr := e.approvalRepo.CancelPendingForTask(dbCtx, t.TenantID, taskID); uerr != nil {
 				taskLog.Printf("[task] cancel pending approval failed: %v", uerr)
 			}
 		}
@@ -1060,6 +1085,9 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	scrapedCount := 0
 	scrapedUsers := make(map[string]bool)
 	var countMu sync.Mutex
+	maxReached := make(chan struct{})
+	var maxReachedOnce sync.Once
+	maxReachedFlag := false
 
 	// Register OnMessage handler for real-time message listening
 	clientKey := task.TenantID.String() + ":" + accountID.String()
@@ -1068,8 +1096,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	if e.scrapeRegistered[clientKey] {
 		e.scrapeRegMu.Unlock()
 		taskLog.Printf("[monitor_scrape] client %s already has OnMessage registered, falling back to polling", clientKey)
-		// Fallback to polling if OnMessage already registered (by monitor engine or another task)
+		// The polling fallback is a placeholder, not an actual message fetcher.
+		// Fail explicitly rather than leaving a task in running until lease recovery.
 		e.runMonitorScrapePolling(ctx, task, group, matcher, durationMinutes, maxResults, &scrapedCount, scrapedUsers, &countMu)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] failed to mark unsupported monitor polling task as failed: %v", err)
+		}
 		return
 	}
 	e.scrapeRegistered[clientKey] = true
@@ -1082,15 +1114,29 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		e.scrapeRegMu.Unlock()
 	}()
 
-	// Register OnMessage callback
-	// P2止血(精读发现): OnMessage 无法摘除, 任务结束后把闭包拽住的
-	// scrapedUsers 置 nil(持 countMu, handler 访问同锁, 无竞争)。
+	// Gate new callbacks and drain in-flight writes before finalizing progress.
+	// Handler removal is added separately with the MTGO v0.25.0 dependency upgrade.
+	var callbackMu sync.Mutex
+	var callbackWG sync.WaitGroup
+	acceptingCallbacks := true
 	defer func() {
+		callbackMu.Lock()
+		acceptingCallbacks = false
+		callbackMu.Unlock()
+		callbackWG.Wait()
 		countMu.Lock()
 		scrapedUsers = nil
 		countMu.Unlock()
 	}()
 	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+		callbackMu.Lock()
+		if !acceptingCallbacks {
+			callbackMu.Unlock()
+			return
+		}
+		callbackWG.Add(1)
+		callbackMu.Unlock()
+		defer callbackWG.Done()
 		select {
 		case <-ctx.Done():
 			return
@@ -1114,13 +1160,17 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		// Deduplicate by sender ID
 		countMu.Lock()
 		key := fmt.Sprintf("%d", msg.FromID)
-		if scrapedUsers[key] {
+		if scrapedUsers == nil || maxReachedFlag || scrapedUsers[key] ||
+			(maxResults > 0 && scrapedCount >= int(maxResults)) {
 			countMu.Unlock()
 			return
 		}
 		scrapedUsers[key] = true
-		currentCount := scrapedCount + 1
-		scrapedCount = currentCount
+		scrapedCount++
+		currentCount := scrapedCount
+		if maxResults > 0 && currentCount >= int(maxResults) {
+			maxReachedFlag = true
+		}
 		countMu.Unlock()
 
 		// Save member to database (TGUserID only, username fetched if possible)
@@ -1133,6 +1183,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		}
 		if err := e.memberRepo.BatchCreate(ctx, []*domain.Member{member}); err != nil {
 			taskLog.Printf("[task] failed to save member: %v", err)
+			countMu.Lock()
+			delete(scrapedUsers, key)
+			scrapedCount--
+			maxReachedFlag = maxResults > 0 && scrapedCount >= int(maxResults)
+			countMu.Unlock()
+			return
 		}
 
 		// Update progress
@@ -1159,6 +1215,8 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		if maxResults > 0 && currentCount >= int(maxResults) {
 			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 				taskLog.Printf("[task] failed to update status to completed: %v", err)
+			} else {
+				maxReachedOnce.Do(func() { close(maxReached) })
 			}
 		}
 	})
@@ -1169,9 +1227,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		duration = 30 * time.Minute
 	}
 
+	reachedMax := false
 	select {
 	case <-time.After(duration):
 	case <-ctx.Done():
+	case <-maxReached:
+		reachedMax = true
 	}
 
 	// Finalize
@@ -1179,8 +1240,10 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	finalCount := scrapedCount
 	countMu.Unlock()
 
-	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
-		taskLog.Printf("[task] failed to update status to completed: %v", err)
+	if !reachedMax && ctx.Err() == nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
+			taskLog.Printf("[task] failed to update status to completed: %v", err)
+		}
 	}
 
 	e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
