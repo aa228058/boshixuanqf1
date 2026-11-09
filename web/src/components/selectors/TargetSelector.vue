@@ -60,9 +60,13 @@
           v-for="d in displayDialogs"
           :key="d.id"
           @click="toggleTarget(d.id)"
+          @keydown.enter.prevent.stop="toggleTarget(d.id)"
+          @keydown.space.prevent.stop="toggleTarget(d.id)"
+          :aria-checked="isTargetSelected(d.id)"
+          :aria-label="'选择私聊联系人 ' + d.title"
           class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
           :class="isTargetSelected(d.id) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="button">
+         tabindex="0" role="checkbox">
           <t-checkbox
             :model-value="isTargetSelected(d.id)"
             @click.stop
