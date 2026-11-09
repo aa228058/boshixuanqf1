@@ -60,6 +60,28 @@ const buttonPatterns = [
   ['Shared .ui-t-button class', /ui-t-button/g],
   ['Shared .ui-native-button class', /ui-native-button/g],
 ]
+const formControlPatterns = [
+  ['TDesign <t-input>', /<t-input\\b/gi],
+  ['TDesign <t-textarea>', /<t-textarea\\b/gi],
+  ['TDesign <t-input-number>', /<t-input-number\\b/gi],
+  ['TDesign <t-select>', /<t-select\\b/gi],
+  ['TDesign <t-checkbox>', /<t-checkbox\\b/gi],
+  ['TDesign <t-switch>', /<t-switch\\b/gi],
+  ['TDesign <t-date-picker>', /<t-date-picker\\b/gi],
+  ['TDesign <t-table>', /<t-table\\b/gi],
+  ['Native <input>', /<input\\b/gi],
+  ['Native <textarea>', /<textarea\\b/gi],
+  ['Native <select>', /<select\\b/gi],
+]
+const formControlUsage = formControlPatterns.map(([label, pattern]) => ({
+  label,
+  total: [...contents.values()].reduce((sum, source) => sum + [...source.matchAll(pattern)].length, 0),
+  files: [...contents.entries()]
+    .map(([file, source]) => ({ path: relative(root, file), count: [...source.matchAll(pattern)].length }))
+    .filter(entry => entry.count > 0)
+    .sort((a, b) => b.count - a.count),
+}))
+
 const buttonUsage = buttonPatterns.map(([label, pattern]) => ({
   label,
   total: [...contents.values()].reduce((sum, source) => sum + [...source.matchAll(pattern)].length, 0),
