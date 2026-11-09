@@ -768,7 +768,7 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisBack)
 })
 function cooldownText(acc: Account): string {
-  const until = (acc as any).blocked_until
+  const until = acc.blocked_until
   if (!until) return ''
   const ms = new Date(until).getTime() - nowTs
   if (ms <= 0) return ''

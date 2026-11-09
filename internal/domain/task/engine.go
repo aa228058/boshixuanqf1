@@ -120,6 +120,7 @@ type AccountEngine interface {
 	ReleaseClient(tenantID, accountID uuid.UUID, client *telegram.Client)
 	GetAccountLevel(ctx context.Context, tenantID, accountID uuid.UUID) domain.AccountLevel
 	UpdateAccountStatus(ctx context.Context, tenantID, accountID uuid.UUID, status domain.AccountStatus) error
+	UpdateAccountRestriction(ctx context.Context, tenantID, accountID uuid.UUID, blockedUntil time.Time) error
 	GetByID(ctx context.Context, tenantID, accountID uuid.UUID) (*domain.Account, error)
 	WarmClient(ctx context.Context, tenantID, accountID uuid.UUID)
 }
@@ -907,12 +908,8 @@ func (e *Engine) markAccountRestricted(ctx context.Context, tenantID, accountID 
 	if waitSec > 0 {
 		blockedUntil = time.Now().UTC().Add(time.Duration(waitSec) * time.Second)
 	}
-	if err := e.accEngine.UpdateAccountStatus(ctx, tenantID, accountID, domain.AccountStatusRestricted); err != nil {
-		log.Printf("[engine] 更新状态失败: %v", err)
-	}
-	if _, err := e.db.Pool.Exec(ctx, `UPDATE accounts SET blocked_until = $1 WHERE tenant_id = $2 AND account_id = $3`,
-		blockedUntil, tenantID, accountID); err != nil {
-		log.Printf("[engine] 更新封禁时间失败: %v", err)
+	if err := e.accEngine.UpdateAccountRestriction(ctx, tenantID, accountID, blockedUntil); err != nil {
+		log.Printf("[engine] 原子更新账号受限状态和冷却截止时间失败: %v", err)
 	}
 	e.sendTelegramAlert(fmt.Sprintf("⚠️ 账号受限告警\n账号ID: %s\n原因: %s\n冷却至: %s\n详情: %s",
 		accountID, eventType, blockedUntil.Format("01-02 15:04"), detail))
