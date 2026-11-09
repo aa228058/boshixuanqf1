@@ -190,7 +190,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 				case <-heartbeatStop:
 					return
 				case <-ticker.C:
-					heartbeatCtx, heartbeatCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					heartbeatCtx, heartbeatCancel := context.WithTimeout(ctx, 5*time.Second)
 					tag, heartbeatErr := e.pool.Exec(heartbeatCtx, `
 						UPDATE group_library_import_jobs SET updated_at=NOW()
 						WHERE job_id=$1 AND lease_token=$2 AND status='processing'`, jobID, leaseToken)
