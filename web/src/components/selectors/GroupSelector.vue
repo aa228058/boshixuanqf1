@@ -54,32 +54,34 @@
           </p>
         </div>
         <!-- 群组 tab: 普通群 + 超级群(频道已排除) -->
-        <div
-          v-else-if="activeTab !== 'dm'"
-          v-for="g in displayGroups"
-          :key="g.group_id"
-          @click="toggle(g)"
-          class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
-          :class="isSelected(g) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="button">
-          <t-checkbox
-            :model-value="isSelected(g)"
-            @click.stop
-            @update:model-value="toggle(g)"
-          />
-          <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
-            <Users v-if="g.type === 'group'" class="w-5 h-5 text-cyan" />
-            <Megaphone v-else-if="g.type === 'channel'" class="w-5 h-5 text-cyan" />
-            <UsersRound v-else class="w-5 h-5 text-amber" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm truncate max-w-[65ch]">{{ g.title }}</div>
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs text-text-muted">{{ g.member_count }} 成员</span>
-              <t-tag v-if="g.is_joined" theme="success" variant="light">已加入</t-tag>
+        <template v-else-if="activeTab !== 'dm'">
+          <div
+            v-for="g in displayGroups"
+            :key="g.group_id"
+            @click="toggle(g)"
+            class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
+            :class="isSelected(g) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
+           tabindex="0" role="button">
+            <t-checkbox
+              :model-value="isSelected(g)"
+              @click.stop
+              @update:model-value="toggle(g)"
+            />
+            <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
+              <Users v-if="g.type === 'group'" class="w-5 h-5 text-cyan" />
+              <Megaphone v-else-if="g.type === 'channel'" class="w-5 h-5 text-cyan" />
+              <UsersRound v-else class="w-5 h-5 text-amber" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm truncate max-w-[65ch]">{{ g.title }}</div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs text-text-muted">{{ g.member_count }} 成员</span>
+                <t-tag v-if="g.is_joined" theme="success" variant="light">已加入</t-tag>
+              </div>
             </div>
           </div>
-        </div>
+          <button v-if="displayGroups.length < filtered.length" type="button" @click="visibleGroupCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多群组（{{ displayGroups.length }} / {{ filtered.length }}）</button>
+        </template>
         <!-- 私聊 tab: 采集过的成员 -->
         <div
           v-else
@@ -122,7 +124,6 @@
             </p>
             <p v-else class="text-xs text-text-secondary">该账号尚未加入任何群组</p>
           </template>
-          <button v-if="displayGroups.length < filtered.length" type="button" @click="visibleGroupCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多群组（{{ displayGroups.length }} / {{ filtered.length }}）</button>
         </div>
       </div>
     </div>
