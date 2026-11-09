@@ -1083,14 +1083,34 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	}()
 
 	// Register OnMessage callback
-	// P2止血(精读发现): OnMessage 无法摘除, 任务结束后把闭包拽住的
-	// scrapedUsers 置 nil(持 countMu, handler 访问同锁, 无竞争)。
+	// Track callbacks admitted before shutdown so finalization cannot race with
+	// an in-flight database write or progress publication.
+	var callbackMu sync.Mutex
+	var callbackWG sync.WaitGroup
+	acceptingCallbacks := true
+
 	defer func() {
+		callbackMu.Lock()
+		acceptingCallbacks = false
+		callbackMu.Unlock()
+		client.RemoveHandler(handler)
+		callbackWG.Wait()
+
 		countMu.Lock()
 		scrapedUsers = nil
 		countMu.Unlock()
 	}()
-	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+
+	handler := client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+		callbackMu.Lock()
+		if !acceptingCallbacks {
+			callbackMu.Unlock()
+			return
+		}
+		callbackWG.Add(1)
+		callbackMu.Unlock()
+		defer callbackWG.Done()
+
 		select {
 		case <-ctx.Done():
 			return
