@@ -63,6 +63,9 @@ type Engine struct {
 	workerID string
 	stopCh   chan struct{}
 	stopOnce sync.Once
+	// shutdownCtx is cancelled by Stop so long-running task contexts cannot outlive the engine.
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
 	// GlobalLimitFn 返回当前全局并发上限(由 adaptive 内存调度注入, 按服务器内存动态调整).
 	// nil 表示不限. 领取任务前检查全局 running 数, 达到上限则本轮不领.
 	GlobalLimitFn func() int
@@ -133,6 +136,7 @@ func (e *Engine) WarmAccounts(ctx context.Context, tenantID uuid.UUID, accountID
 
 // NewEngine creates a new task engine.
 func NewEngine(cfg *config.Config, db *database.DB, repo *repository.TaskRepository, logRepo *repository.TaskLogRepository, quotaRepo *repository.QuotaRepository, riskRepo *repository.RiskRepository) *Engine {
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	e := &Engine{
 		cfg:              cfg,
 		db:               db,
@@ -142,6 +146,8 @@ func NewEngine(cfg *config.Config, db *database.DB, repo *repository.TaskReposit
 		riskRepo:         riskRepo,
 		workerID:         fmt.Sprintf("worker-%s", uuid.New().String()[:8]),
 		stopCh:           make(chan struct{}),
+		shutdownCtx:      shutdownCtx,
+		shutdownCancel:   shutdownCancel,
 		scheduler:        NewAutoScheduler(int64(cfg.MemoryLimitMB)),
 		scrapeRegistered: make(map[string]bool),
 	}
@@ -427,7 +433,12 @@ func (e *Engine) RegisterTenantQuota(tenantID [16]byte, maxConcurrent int) {
 }
 
 func (e *Engine) Stop() {
-	e.stopOnce.Do(func() { close(e.stopCh) })
+	e.stopOnce.Do(func() {
+		close(e.stopCh)
+		if e.shutdownCancel != nil {
+			e.shutdownCancel()
+		}
+	})
 	if e.linkScraper != nil {
 		e.linkScraper.Stop()
 	}
@@ -773,8 +784,13 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 
 		// Create a cancellable context for this specific task
 		taskCtx, cancel := context.WithCancel(ctx)
+		stopShutdown := func() bool { return false }
+		if e.shutdownCtx != nil {
+			stopShutdown = context.AfterFunc(e.shutdownCtx, cancel)
+		}
 		e.taskCtxs.Store(taskKey, cancel)
 		defer func() {
+			stopShutdown()
 			cancel()
 			e.taskCtxs.Delete(taskKey)
 		}()
