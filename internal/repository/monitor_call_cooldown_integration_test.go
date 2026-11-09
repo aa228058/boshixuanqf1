@@ -65,8 +65,15 @@ func TestCallCooldownIsDurableAtomicAndScoped(t *testing.T) {
 	`, tenantID, accountID, calleeID); err != nil {
 		t.Fatalf("expire cooldown: %v", err)
 	}
+	pruned, err := restarted.PruneExpired(ctx)
+	if err != nil {
+		t.Fatalf("prune expired cooldowns: %v", err)
+	}
+	if pruned != 1 {
+		t.Fatalf("pruned cooldown rows = %d, want 1", pruned)
+	}
 	if claimed, err := restarted.Claim(ctx, tenantID, accountID, calleeID); err != nil || !claimed {
-		t.Fatalf("claim after expiry = (%t, %v), want (true, nil)", claimed, err)
+		t.Fatalf("claim after expiry and pruning = (%t, %v), want (true, nil)", claimed, err)
 	}
 
 	var lastCalled time.Time
