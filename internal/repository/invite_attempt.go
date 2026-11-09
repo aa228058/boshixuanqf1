@@ -85,14 +85,15 @@ func (r *TaskRepository) FinishInviteAttempt(ctx context.Context, key InviteAtte
 // ResolveStaleInviteAttempts converts abandoned in-progress rows to unknown.
 // It deliberately does not make them claimable: a process may have crashed
 // after Telegram accepted the invite but before the result was persisted.
-func (r *TaskRepository) ResolveStaleInviteAttempts(ctx context.Context, olderThan time.Time) (int64, error) {
+func (r *TaskRepository) ResolveStaleInviteAttempts(ctx context.Context, tenantID, taskID uuid.UUID, olderThan time.Time) (int64, error) {
 	tag, err := r.db.Exec(ctx, `
 		UPDATE invite_member_attempts
 		SET status='outcome_unknown',
 		    last_error=COALESCE(last_error, 'worker stopped before invite outcome was persisted'),
 		    updated_at=NOW()
-		WHERE status='in_progress' AND updated_at < $1
-	`, olderThan)
+		WHERE tenant_id=$1 AND task_id=$2
+		  AND status='in_progress' AND updated_at < $3
+	`, tenantID, taskID, olderThan)
 	if err != nil {
 		return 0, fmt.Errorf("resolve stale invite attempts: %w", err)
 	}
