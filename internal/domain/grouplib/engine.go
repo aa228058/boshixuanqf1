@@ -294,12 +294,12 @@ func (e *Engine) aggregateScrapedLinks(ctx context.Context) error {
 	}
 	if upsertFailed {
 		if last.id != uuid.Nil {
-		if err := e.saveAggregationCursor(ctx, "scraped_links", last); err != nil {
-			return fmt.Errorf("save scraped_links aggregation cursor: %w", err)
-		}
-		e.mu.Lock()
-		e.slW = last
-		e.mu.Unlock()
+			if err := e.saveAggregationCursor(ctx, "scraped_links", last); err != nil {
+				return fmt.Errorf("save scraped_links aggregation cursor: %w", err)
+			}
+			e.mu.Lock()
+			e.slW = last
+			e.mu.Unlock()
 		}
 		return errors.New("scraped links aggregation incomplete; cursor stopped before failed row")
 	}
@@ -374,12 +374,12 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 	}
 	if upsertFailed {
 		if last.id != uuid.Nil {
-		if err := e.saveAggregationCursor(ctx, "groups", last); err != nil {
-			return fmt.Errorf("save groups aggregation cursor: %w", err)
-		}
-		e.mu.Lock()
-		e.gW = last
-		e.mu.Unlock()
+			if err := e.saveAggregationCursor(ctx, "groups", last); err != nil {
+				return fmt.Errorf("save groups aggregation cursor: %w", err)
+			}
+			e.mu.Lock()
+			e.gW = last
+			e.mu.Unlock()
 		}
 		return errors.New("joined groups aggregation incomplete; cursor stopped before failed row")
 	}
