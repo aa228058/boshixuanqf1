@@ -416,6 +416,7 @@ let onVisCleanup: (() => void) | null = null
 // onerror 永不触发导致日志假死。30秒无任何消息则判定假活, 主动断开重连。
 let sseWatchdog: ReturnType<typeof setTimeout> | null = null
 function scheduleSSEReconnect() {
+  if (!pageActive) return
   if (reconnectTimer) clearTimeout(reconnectTimer)
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
@@ -426,6 +427,7 @@ function scheduleSSEReconnect() {
 function resetSseWatchdog() {
   if (sseWatchdog) clearTimeout(sseWatchdog)
   sseWatchdog = setTimeout(() => {
+    if (!pageActive) return
     console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连')
     try { eventSource?.close() } catch { /* 忽略 */ }
     eventSource = null
@@ -538,12 +540,14 @@ async function connectSSE() {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
+    if (!pageActive) return
     if (!ticketResponse.ok) {
       connState.value = 'disconnected'
       scheduleSSEReconnect()
       return
     }
     const ticket = (await ticketResponse.json()).ticket || ''
+    if (!pageActive) return
     if (!ticket) {
       connState.value = 'disconnected'
       scheduleSSEReconnect()
@@ -552,6 +556,7 @@ async function connectSSE() {
 
     eventSource = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
     eventSource.onopen = () => {
+      if (!pageActive) return
       connState.value = 'connected'
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
       resetSseWatchdog()
@@ -560,6 +565,7 @@ async function connectSSE() {
       void fetchLogs()
     }
     eventSource.onmessage = (e) => {
+      if (!pageActive) return
       try {
         resetSseWatchdog()
         const data = JSON.parse(e.data)
@@ -589,6 +595,7 @@ async function connectSSE() {
       } catch (err) { /* ignore malformed SSE data */ }
     }
     eventSource.onerror = () => {
+      if (!pageActive) return
       connState.value = 'disconnected'
       const failedSource = eventSource
       eventSource = null
@@ -597,8 +604,10 @@ async function connectSSE() {
       scheduleSSEReconnect()
     }
   } catch {
-    connState.value = 'disconnected'
-    scheduleSSEReconnect()
+    if (pageActive) {
+      connState.value = 'disconnected'
+      scheduleSSEReconnect()
+    }
   } finally {
     sseConnecting = false
   }
