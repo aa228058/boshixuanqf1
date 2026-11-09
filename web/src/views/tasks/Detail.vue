@@ -299,7 +299,7 @@ watch(() => [(task.value as any)?.progress?.done, (task.value as any)?.progress?
     completionRefreshTimer = setTimeout(() => {
       completionRefreshTimer = null
       const cur = task.value as any
-      if (pageActive && cur && cur.status === 'running') void fetchTask()
+      if (pageActive && cur && cur.status === 'running') void fetchTask(true)
     }, 3000)
   }
 })
@@ -341,6 +341,9 @@ const filteredLogs = computed(() => {
 // R118: 等待倒计时态 —— task_wait 帧(每秒)更新, 不刷日志列表
 // {account_id, target_id, remaining, next_index, total}
 const waitState = ref<{ account_id: string; target_id: string; remaining: number; next_index: number; total: number } | null>(null)
+watch(() => task.value?.status, status => {
+  if (status !== 'running') waitState.value = null
+})
 
 function taskLogKey(log: TaskLog): string {
   if (log.log_id) return `id:${log.log_id}`
@@ -453,7 +456,7 @@ function formatTime(date: string | undefined | null) {
   return new Date(date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-async function fetchTask() {
+async function fetchTask(silent = false) {
   const requestId = ++taskFetchRequestId
   pageLoading.value = true
   pageError.value = ''
@@ -469,7 +472,7 @@ async function fetchTask() {
   } catch (e: unknown) {
     if (!pageActive || requestId !== taskFetchRequestId) return
     pageError.value = e instanceof Error ? e.message : '请稍后重试'
-    toast({ type: 'error', title: '获取任务失败', message: pageError.value })
+    if (!silent) toast({ type: 'error', title: '获取任务失败', message: pageError.value })
   } finally {
     if (pageActive && requestId === taskFetchRequestId) pageLoading.value = false
   }
@@ -589,7 +592,7 @@ async function connectSSE() {
           return
         }
         if (data.type === 'task_status') {
-          void fetchTask()
+          void fetchTask(true)
           return
         }
         const tp = task.value.progress || {}
@@ -680,7 +683,7 @@ onMounted(async () => {
   }
 
   await fetchTask()
-  if (!pageActive || !task.value) return
+  if (!pageActive) return
   await fetchLogs()
   if (!pageActive) return
 
@@ -699,7 +702,7 @@ onMounted(async () => {
 
   refreshTimer = setInterval(() => {
     if (pageActive && !isConnected.value) {
-      void fetchTask()
+      void fetchTask(true)
       void fetchLogs()
       if (connState.value === 'disconnected') void connectSSE()
     }
