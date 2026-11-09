@@ -1,6 +1,8 @@
 module tg-sender
 
-go 1.26.6
+go 1.26.7
+
+toolchain go1.26.7
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -9,7 +11,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/mtgo-labs/device-manager v0.3.0
-	github.com/mtgo-labs/mtgo v0.19.0
+	github.com/mtgo-labs/mtgo v0.25.0
 	github.com/mtgo-labs/session-converter v0.5.0
 	github.com/mtgo-labs/storage v0.5.0
 	github.com/pressly/goose/v3 v3.24.1
