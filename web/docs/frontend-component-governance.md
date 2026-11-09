@@ -263,3 +263,10 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Member-list requests now use a generation counter and page-lifecycle guard. A late response from an older refresh or an unmounted detail page cannot replace the visible member list, error, or loading state.
 - Account and group name-map requests check the page lifecycle immediately after their awaited API calls, preventing post-unmount state writes during the sequential detail-page bootstrap.
 - This batch is frontend lifecycle hardening only; it does not change task execution, log persistence, or backend APIs.
+
+
+### Batch E10 — task log fallback identity
+
+- Reviewed the task-log deduplication key used when the API does not provide `log_id`.
+- Replaced delimiter-joined fields with JSON-encoded field tuples and included `target_name`, preventing log message text containing the delimiter from creating accidental key collisions.
+- Logs without a stable server ID can still be indistinguishable if every fallback field is identical. The durable fix for that case is a unique backend log identifier; this frontend fallback does not pretend to manufacture one.
