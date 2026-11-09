@@ -1110,15 +1110,9 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		e.scrapeRegMu.Unlock()
 	}()
 
-	// Register OnMessage callback
-	// P2止血(精读发现): OnMessage 无法摘除, 任务结束后把闭包拽住的
-	// scrapedUsers 置 nil(持 countMu, handler 访问同锁, 无竞争)。
-	defer func() {
-		countMu.Lock()
-		scrapedUsers = nil
-		countMu.Unlock()
-	}()
-	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+	// OnMessage returns the registered Handler. Keep it so the task can
+	// unregister itself when monitoring ends and release the callback closure.
+	handler := client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		callbackMu.Lock()
 		if !acceptingCallbacks {
 			callbackMu.Unlock()
@@ -1235,6 +1229,10 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	callbackMu.Lock()
 	acceptingCallbacks = false
 	callbackMu.Unlock()
+	// RemoveHandler is supported by the pinned mtgo v0.19.0 API. Remove the
+	// dispatcher reference before waiting; a dispatch already holding a snapshot
+	// may still call the handler, but the closed gate makes that call a no-op.
+	client.RemoveHandler(handler)
 	callbackWG.Wait()
 
 	// Finalize only after all in-flight callbacks have drained.
