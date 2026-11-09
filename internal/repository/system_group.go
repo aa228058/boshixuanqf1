@@ -78,6 +78,12 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			if err != nil {
 				return err
 			}
+			// ref_count represents distinct tenant/link contributions, not Upsert calls.
+			// Re-importing the same URL is idempotent because the contribution row is unique.
+			_, err = tx.Exec(ctx, "UPDATE system_groups SET ref_count=GREATEST(1,(SELECT COUNT(*)::int FROM system_group_contributions WHERE sg_id=$1)) WHERE sg_id=$1", sgID)
+			if err != nil {
+				return err
+			}
 			_, err = tx.Exec(ctx, "UPDATE system_groups SET first_contributor_tenant_id=first_contribution.tenant_id, first_contributor_tenant_name=first_contribution.tenant_name_snapshot FROM (SELECT tenant_id,tenant_name_snapshot FROM system_group_contributions WHERE sg_id=$1 AND tenant_id IS NOT NULL ORDER BY created_at ASC, contribution_id ASC LIMIT 1) AS first_contribution WHERE system_groups.sg_id=$1", sgID)
 			if err != nil {
 				return err
@@ -145,6 +151,12 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 			return err
 		}
 		_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source,created_at) SELECT $1,tenant_id,tenant_name_snapshot,submitted_link,source,created_at FROM system_group_contributions WHERE sg_id=$2 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", canonicalID, sgID)
+		if err != nil {
+			return err
+		}
+		// Rebuild the aggregate from deduplicated contribution rows after moving
+		// aliases/contributors; never add the two cached counters together.
+		_, err = tx.Exec(ctx, "UPDATE system_groups SET ref_count=GREATEST(1,(SELECT COUNT(*)::int FROM system_group_contributions WHERE sg_id=$1)) WHERE sg_id=$1", canonicalID)
 		if err != nil {
 			return err
 		}
