@@ -83,3 +83,12 @@ func TestParseBroadcastMappingsRejectsInvalidInput(t *testing.T) {
 		})
 	}
 }
+
+func TestDedupeAccountIDsRemovesDuplicatesAndNil(t *testing.T) {
+	first := uuid.New()
+	second := uuid.New()
+	got := dedupeAccountIDs([]uuid.UUID{first, first, uuid.Nil, second, second})
+	if want := []uuid.UUID{first, second}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("account IDs=%v, want %v", got, want)
+	}
+}
