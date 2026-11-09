@@ -126,6 +126,11 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Fixed the initial empty-list flash: while the first account request is pending and there are no cached accounts, the page now shows the shared Loading component; only after loading completes does it show EmptyState. Refreshes with existing rows keep the table visible.
 - Added `role="status"` and `aria-live="polite"` to the shared Loading root and marked its decorative spinner as hidden from assistive technology.
 
+### Batch D5 — confirmation usage inventory
+
+- Extended the component inventory to report native `window.confirm()` and `window.alert()` separately from shared `ask()` calls.
+- This gives the next cleanup pass a measurable way to find browser-native prompts that bypass the project's themed confirmation host; source-level counts still require call-site review before migration.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
