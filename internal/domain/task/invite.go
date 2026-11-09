@@ -42,7 +42,9 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 		return fmt.Errorf("统计成员失败: %w", err)
 	}
 	initProg := domain.TaskProgress{Total: total, Done: 0, Failed: 0}
-	_ = e.repo.UpdateProgress(ctx, task.TenantID, task.TaskID, initProg)
+	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, initProg); err != nil {
+		return fmt.Errorf("初始化邀请进度失败: %w", err)
+	}
 	e.publishProgress(task.TenantID, task.TaskID, initProg)
 	taskLog.Printf("[invite] 任务 %s: 邀请 %s 的 %d 名成员进 %s", task.TaskID, source.Title, total, target.Title)
 
@@ -56,31 +58,47 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 
 	invited, failed := 0, 0
 	const pageSize = 200
-	saveProgress := func() {
+	saveProgress := func() error {
 		prog := domain.TaskProgress{Total: total, Done: invited, Failed: failed, CurrentTarget: fmt.Sprintf("已邀 %d / 失败 %d", invited, failed)}
-		_ = e.repo.UpdateProgress(ctx, task.TenantID, task.TaskID, prog)
+		// Progress values are cumulative snapshots, not increments. Persist with
+		// UpdateProgressExact and an independent bounded context so pause/cancel
+		// cannot discard the last durable checkpoint.
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := e.repo.UpdateProgressExact(persistCtx, task.TenantID, task.TaskID, prog); err != nil {
+			return fmt.Errorf("保存邀请进度失败: %w", err)
+		}
 		e.publishProgress(task.TenantID, task.TaskID, prog)
+		return nil
 	}
 
 	for offset := 0; ; offset += pageSize {
 		select {
 		case <-ctx.Done():
-			saveProgress()
+			if err := saveProgress(); err != nil {
+				return err
+			}
 			return ctx.Err()
 		default:
 		}
 		members, err := e.memberRepo.ListByGroup(ctx, task.TenantID, sourceID, pageSize, offset)
-		if err != nil || len(members) == 0 {
+		if err != nil {
+			return fmt.Errorf("读取来源群成员分页 offset=%d 失败: %w", offset, err)
+		}
+		if len(members) == 0 {
 			break
 		}
 		for _, m := range members {
 			select {
 			case <-ctx.Done():
-				saveProgress()
+				if err := saveProgress(); err != nil {
+					return err
+				}
 				return ctx.Err()
 			default:
 			}
 			if m.TGUserID == 0 {
+				failed++ // 缺少 Telegram 用户 ID，无法执行邀请
 				continue
 			}
 			if m.AccessHash == 0 {
@@ -97,7 +115,9 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 				if strings.Contains(errStr, "flood") || strings.Contains(errStr, "ban") || strings.Contains(errStr, "restricted") {
 					waitSec := extractFloodSeconds(errStr)
 					e.markAccountRestricted(ctx, task.TenantID, accID, "invite_flood", err.Error(), waitSec)
-					saveProgress()
+					if saveErr := saveProgress(); saveErr != nil {
+						return fmt.Errorf("账号被限流且保存进度失败: %w (原始错误: %v)", saveErr, err)
+					}
 					return fmt.Errorf("账号被限流/封禁, 已冷却: %w", err)
 				}
 				failed++ // 个体原因(已是群员/隐私拒绝等), 记失败继续
@@ -105,18 +125,24 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 				invited++
 			}
 			if (invited+failed)%20 == 0 {
-				saveProgress()
+				if err := saveProgress(); err != nil {
+					return err
+				}
 			}
 			// 邀请比发消息敏感, 间隔放宽: 1.5~3.5s 抖动
 			select {
 			case <-ctx.Done():
-				saveProgress()
+				if err := saveProgress(); err != nil {
+					return err
+				}
 				return ctx.Err()
 			case <-time.After(time.Duration(1500+securerand.IntN(2000)) * time.Millisecond):
 			}
 		}
 	}
-	saveProgress()
+	if err := saveProgress(); err != nil {
+		return err
+	}
 	taskLog.Printf("[invite] 任务 %s 完成: 成功 %d / 失败 %d", task.TaskID, invited, failed)
 	return nil
 }
