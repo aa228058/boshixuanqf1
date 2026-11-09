@@ -46,6 +46,24 @@ func TestIsGlobalFlood(t *testing.T) {
 	}
 }
 
+func TestIsAccountBanned(t *testing.T) {
+	cases := []struct {
+		err  string
+		want bool
+	}{
+		{"PHONE_NUMBER_BANNED", true},
+		{"USER_DEACTIVATED", true},
+		{"AUTH_KEY_UNREGISTERED", true},
+		{"USER_RESTRICTED", false},
+		{"CHANNEL_RESTRICTED", false},
+	}
+	for _, tc := range cases {
+		if got := isAccountBanned(errString(tc.err)); got != tc.want {
+			t.Errorf("isAccountBanned(%q) = %v, want %v", tc.err, got, tc.want)
+		}
+	}
+}
+
 func TestIsInviteRequestSent(t *testing.T) {
 	if isInviteRequestSent(nil) {
 		t.Error("nil error must not be treated as invite-sent")

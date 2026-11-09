@@ -93,12 +93,17 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 			})
 			if err != nil {
 				errStr := strings.ToLower(err.Error())
-				// 账号级风险: 邀请过频/被封 → 停止任务并冷却账号
-				if strings.Contains(errStr, "flood") || strings.Contains(errStr, "ban") || strings.Contains(errStr, "restricted") {
+				// 账号级 Flood 限制与账号封禁分开处理，避免把群级限制误判成账号受限。
+				if isGlobalFlood(err) || strings.Contains(errStr, "user_restricted") {
 					waitSec := extractFloodSeconds(errStr)
 					e.markAccountRestricted(ctx, task.TenantID, accID, "invite_flood", err.Error(), waitSec)
 					saveProgress()
-					return fmt.Errorf("账号被限流/封禁, 已冷却: %w", err)
+					return fmt.Errorf("账号被限流, 已进入冷却: %w", err)
+				}
+				if isAccountBanned(err) {
+					e.markAccountBanned(ctx, task.TenantID, accID, "invite_account_banned", err.Error())
+					saveProgress()
+					return fmt.Errorf("账号已被封禁, 已停止邀请: %w", err)
 				}
 				failed++ // 个体原因(已是群员/隐私拒绝等), 记失败继续
 			} else {
