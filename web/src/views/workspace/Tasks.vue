@@ -56,7 +56,7 @@
             <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
             <div class="text-xs text-text-muted mt-1">群组链接导入 · {{ formatDate(job.created_at) }}</div>
           </div>
-          <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
+          <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : job.status === 'cancelled' ? 'text-text-muted bg-bg-hover' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
             {{ importStatusLabel(job.status) }}
           </span>
         </div>
