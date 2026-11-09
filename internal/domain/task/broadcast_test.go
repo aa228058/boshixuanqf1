@@ -30,11 +30,11 @@ func TestAcquireBroadcastSlotAcquiresAvailableSlot(t *testing.T) {
 
 func TestReconcileBroadcastTimeoutProgress(t *testing.T) {
 	tests := []struct {
-		name                 string
-		total, done, failed  int
-		timedOut             bool
-		wantFailed           int
-		wantTimedOut         bool
+		name                string
+		total, done, failed int
+		timedOut            bool
+		wantFailed          int
+		wantTimedOut        bool
 	}{
 		{name: "timeout accounts for unprocessed targets", total: 10, done: 4, failed: 2, timedOut: true, wantFailed: 6, wantTimedOut: true},
 		{name: "timeout preserves fully reconciled counters", total: 10, done: 10, failed: 0, timedOut: true, wantFailed: 0, wantTimedOut: true},
