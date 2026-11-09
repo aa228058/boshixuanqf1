@@ -13,19 +13,19 @@
         <span>已跨页选中 <strong class="font-semibold text-text-primary tabular-nums">{{ selected.size }}</strong> 条</span>
       </div>
       <div class="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
-        <UiButton class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!aggregatedList.length" @click="toggleCurrentPage">
           {{ currentPageAllSelected ? '取消本页全选' : '本页全选' }}
-        </UiButton>
-        <UiButton class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名，自动解析群名">
+        </t-button>
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" @click="importModalVisible = true" title="批量导入 t.me 链接/@用户名，自动解析群名">
           导入链接
-        </UiButton>
-        <UiButton v-if="selected.size > 0" class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1" size="small" variant="text" @click="selected.clear()" title="清空所有勾选（含其他页）">
+        </t-button>
+        <t-button v-if="selected.size > 0" class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1" size="small" variant="text" @click="selected.clear()" title="清空所有勾选（含其他页）">
           清空已选
-        </UiButton>
-        <UiButton class="ui-t-button ui-t-button--primary col-span-2 sm:col-span-1 sm:ml-auto w-full sm:w-auto" theme="primary" :disabled="selected.size === 0 || joining" :loading="joining" @click="joinModalVisible = true">
+        </t-button>
+        <t-button class="ui-t-button ui-t-button--primary col-span-2 sm:col-span-1 sm:ml-auto w-full sm:w-auto" theme="primary" :disabled="selected.size === 0 || joining" :loading="joining" @click="joinModalVisible = true">
           <CheckSquare class="w-4 h-4 mr-1" />
           加入所选（{{ selected.size }}）
-        </UiButton>
+        </t-button>
       </div>
     </section>
 
@@ -64,13 +64,13 @@
           <option value="search">Telegram 搜索</option>
         </select>
         <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
-        <UiButton class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</UiButton>
-        <UiButton class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
           <Loader2 v-if="kwSearching" class="w-3.5 h-3.5 animate-spin mr-1" />
           TG全网搜
-        </UiButton>
+        </t-button>
         <span class="hidden sm:block flex-1" />
-        <UiButton class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</UiButton>
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
       </div>
 
       <!-- 群列表: 窄屏可横向滑动, 不再挤压变形 -->
@@ -190,8 +190,8 @@
         <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-border">
           <span class="text-xs text-text-secondary">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
           <div class="flex gap-2">
-            <UiButton class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</UiButton>
-            <UiButton class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page >= totalPages" @click="nextPage">下一页</UiButton>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page >= totalPages" @click="nextPage">下一页</t-button>
           </div>
         </div>
       </div>
@@ -204,7 +204,7 @@
       <p class="text-sm text-text-secondary max-w-md mx-auto">
         用你自己的账号做定向采集：监听指定群/频道里的 t.me 链接、挖成员简介，采集结果自动汇入系统群库。
       </p>
-      <UiButton theme="primary" class="whitespace-nowrap ui-t-button ui-t-button--primary" @click="goDiy">去工作区采集</UiButton>
+      <t-button theme="primary" class="whitespace-nowrap ui-t-button ui-t-button--primary" @click="goDiy">去工作区采集</t-button>
     </div>
 
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
@@ -236,8 +236,8 @@
         </div>
       </div>
       <template #footer>
-        <UiButton class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="importModalVisible = false">关闭</UiButton>
-        <UiButton class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</UiButton>
+        <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
       </template>
     </Modal>
 
@@ -273,11 +273,11 @@
         </div>
       </div>
       <template #footer>
-        <UiButton class="ui-t-button ui-t-button--secondary" variant="outline" @click="joinModalVisible = false">取消</UiButton>
-        <UiButton class="ui-t-button ui-t-button--primary" theme="primary" :disabled="joinAccounts.length === 0 || joining" @click="doJoin">
+        <t-button class="ui-t-button ui-t-button--secondary" variant="outline" @click="joinModalVisible = false">取消</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" :disabled="joinAccounts.length === 0 || joining" @click="doJoin">
           <Loader2 v-if="joining" class="w-4 h-4 animate-spin" />
           开始加入
-        </UiButton>
+        </t-button>
       </template>
     </Modal>
   </div>
@@ -291,7 +291,6 @@ import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryG
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
-import UiButton from '@/components/ui/UiButton.vue'
 import type { SystemGroup } from '@/types/models'
 
 const router = useRouter()
