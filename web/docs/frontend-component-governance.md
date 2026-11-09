@@ -209,6 +209,13 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - Group coverage loading, account group-cache loading, and task-list fetching now guard against stale responses after modal close or account switching.
 - Successful form reset now clears one-time targets, imported text, message, media, scheduling and loop state while intentionally retaining the selected execution-account pool. Failed creation leaves entered values intact for correction and retry.
 
+### Batch E5 — Selector large-list rendering and refresh isolation
+
+- TargetSelector's manual group refresh now captures account ID + request generation, ignores stale results after account switch/modal close, waits for another in-flight sync without releasing its lock, and releases only a lock acquired by its own operation.
+- Removed a permanently disabled `if (false)` cache-refresh branch from TargetSelector; manual refresh now has one explicit sync path.
+- TargetSelector group/contact lists and GroupSelector group list render the first 200 matching rows, with an explicit incremental “load more” action. Search resets the visible window. Bulk select/deselect still applies to the entire filtered result set, not just rendered rows, so progressive rendering does not change selection semantics.
+- The selector changes reduce initial DOM work for large accounts while retaining access to all matches through search and incremental loading.
+
 ### Batch E — page migration and regression
 - Migrate pages in coherent groups.
 - Run automated checks and real-browser desktop/mobile visual review.
