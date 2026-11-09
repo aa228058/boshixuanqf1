@@ -171,6 +171,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	defer flushTicker.Stop()
 	flushDone := make(chan struct{})
 	flushExited := make(chan struct{})
+	var flushStopOnce sync.Once
+	stopFlush := func() {
+		flushStopOnce.Do(func() { close(flushDone) })
+		<-flushExited
+	}
+	defer stopFlush()
 	safego.Go(func() {
 		defer close(flushExited)
 		for {
@@ -207,7 +213,15 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	sseTicker := time.NewTicker(100 * time.Millisecond)
 	defer sseTicker.Stop()
 	sseDone := make(chan struct{})
+	sseExited := make(chan struct{})
+	var sseStopOnce sync.Once
+	stopSSE := func() {
+		sseStopOnce.Do(func() { close(sseDone) })
+		<-sseExited
+	}
+	defer stopSSE()
 	safego.Go(func() {
+		defer close(sseExited)
 		for {
 			select {
 			case <-sseTicker.C:
@@ -780,9 +794,8 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		})
 	}
 	wg.Wait()
-	close(flushDone)
-	<-flushExited // Ensure an in-flight periodic flush has either committed or requeued its batch.
-	close(sseDone)
+	stopFlush() // Ensure an in-flight periodic flush has either committed or requeued its batch.
+	stopSSE()   // Drain the aggregator before taking the final pending snapshot.
 
 	// Final SSE flush: push any remaining pending data
 	mu.Lock()
