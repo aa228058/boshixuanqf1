@@ -107,7 +107,7 @@ func TestResolveStaleInviteAttemptsNeverMakesThemRetryable(t *testing.T) {
 	}
 
 	repo := NewTaskRepository(pool)
-	n, err := repo.ResolveStaleInviteAttempts(ctx, time.Now().Add(-5*time.Minute))
+	n, err := repo.ResolveStaleInviteAttempts(ctx, tenantID, taskID, time.Now().Add(-5*time.Minute))
 	if err != nil || n != 1 {
 		t.Fatalf("resolve stale = (%d, %v), want (1, nil)", n, err)
 	}
