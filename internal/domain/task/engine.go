@@ -1088,6 +1088,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	var callbackMu sync.Mutex
 	var callbackWG sync.WaitGroup
 	acceptingCallbacks := true
+	var handler telegram.Handler
 
 	defer func() {
 		callbackMu.Lock()
@@ -1101,7 +1102,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		countMu.Unlock()
 	}()
 
-	handler := client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+	handler = client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		callbackMu.Lock()
 		if !acceptingCallbacks {
 			callbackMu.Unlock()
