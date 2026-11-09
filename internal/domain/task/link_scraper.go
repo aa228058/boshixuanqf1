@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"tg-sender/internal/safego"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +14,7 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/config"
+	"tg-sender/internal/safego"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/repository"
 )
@@ -480,11 +480,11 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 			// The consumer may still be finishing an in-flight ResolvePeer and
 			// appending its result. Drain it before taking the final batch snapshot.
 			<-ls.consumerDone
-			ls.flushBatch(ctx)
+			ls.flushBatchOnShutdown(ctx)
 			return
 		case <-ctx.Done():
 			<-ls.consumerDone
-			ls.flushBatch(ctx)
+			ls.flushBatchOnShutdown(ctx)
 			return
 		case <-ticker.C:
 			ls.flushBatch(ctx)
@@ -493,11 +493,11 @@ func (ls *LinkScraper) batchWriterLoop(ctx context.Context) {
 }
 
 // flushBatch writes accumulated links to DB and clears the batch.
-func (ls *LinkScraper) flushBatch(ctx context.Context) {
+func (ls *LinkScraper) flushBatch(ctx context.Context) bool {
 	ls.batchMu.Lock()
 	if len(ls.batchLinks) == 0 {
 		ls.batchMu.Unlock()
-		return
+		return true
 	}
 	batch := make([]*domain.ScrapedLink, len(ls.batchLinks))
 	copy(batch, ls.batchLinks)
@@ -522,10 +522,30 @@ func (ls *LinkScraper) flushBatch(ctx context.Context) {
 		pending = append(pending, ls.batchLinks...)
 		ls.batchLinks = pending
 		ls.batchMu.Unlock()
-		return
+		return false
 	}
 	atomic.AddInt64(&ls.pendingLinkCount, -int64(len(batch)))
 	log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
+	return true
+}
+
+// Shutdown gets a small bounded retry window because a transient PostgreSQL
+// outage during process teardown must not discard the retained in-memory batch.
+func (ls *LinkScraper) flushBatchOnShutdown(ctx context.Context) {
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if ls.flushBatch(ctx) {
+			return
+		}
+		if attempt < maxAttempts {
+			timer := time.NewTimer(time.Duration(attempt) * time.Second)
+			<-timer.C
+		}
+	}
+	ls.batchMu.Lock()
+	remaining := len(ls.batchLinks)
+	ls.batchMu.Unlock()
+	log.Printf("[link-scraper] shutdown persistence exhausted retries; %d links remain unpersisted", remaining)
 }
 
 // dedupCleanerLoop removes old entries from the dedup map to prevent memory growth.
