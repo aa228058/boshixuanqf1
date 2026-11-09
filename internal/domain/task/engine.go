@@ -218,20 +218,32 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 		return fmt.Errorf("query tenants: %w", err)
 	}
 	defer rows.Close()
-	count := 0
-	for rows.Next() {
-		var tenantID uuid.UUID
-		var maxConcurrent int
-		if err := rows.Scan(&tenantID, &maxConcurrent); err != nil {
-			continue
-		}
-		if maxConcurrent <= 0 {
-			maxConcurrent = 1
-		}
-		e.scheduler.RegisterTenant(tenantID, maxConcurrent)
-		count++
+
+	// Stage the complete snapshot before mutating the scheduler. A scan/iteration
+	// error must not leave a partially refreshed set of tenant quotas in memory.
+	type tenantQuota struct {
+		tenantID      uuid.UUID
+		maxConcurrent int
 	}
-	log.Printf("[engine] 已加载 %d 个租户配额到调度器", count)
+	quotas := make([]tenantQuota, 0)
+	for rows.Next() {
+		var quota tenantQuota
+		if err := rows.Scan(&quota.tenantID, &quota.maxConcurrent); err != nil {
+			return fmt.Errorf("scan tenant concurrency quota: %w", err)
+		}
+		if quota.maxConcurrent <= 0 {
+			quota.maxConcurrent = 1
+		}
+		quotas = append(quotas, quota)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate tenant concurrency quotas: %w", err)
+	}
+
+	for _, quota := range quotas {
+		e.scheduler.RegisterTenant(quota.tenantID, quota.maxConcurrent)
+	}
+	log.Printf("[engine] 已加载 %d 个租户配额到调度器", len(quotas))
 	return nil
 }
 
@@ -314,11 +326,12 @@ func (e *Engine) startLogCleanup(ctx context.Context) {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	e.startLogCleanup(ctx)
-	// Load all active tenants and register their plan quotas
+	// Do not start queue workers with an incomplete tenant-quota snapshot.
+	// Otherwise a transient DB read error silently degrades scheduling limits.
 	if err := e.loadTenantQuotas(ctx); err != nil {
-		log.Printf("[engine] 加载租户配额失败: %v", err)
+		return fmt.Errorf("load tenant concurrency quotas: %w", err)
 	}
+	e.startLogCleanup(ctx)
 
 	if err := e.startListen(ctx); err != nil {
 		return fmt.Errorf("start listen: %w", err)
@@ -377,7 +390,13 @@ func (e *Engine) unblockExpiredLoop(ctx context.Context) {
 				}
 				recovered = append(recovered, ra)
 			}
+			iterationErr := rows.Err()
 			rows.Close()
+			if iterationErr != nil {
+				// UPDATE ... RETURNING has already committed; still publish all rows
+				// successfully scanned, but make the incomplete notification visible.
+				log.Printf("[engine] 恢复账号结果迭代不完整: %v", iterationErr)
+			}
 			for _, ra := range recovered {
 				if err := e.accEngine.UpdateAccountStatus(ctx, ra.tenantID, ra.accountID, domain.AccountStatusOnline); err != nil {
 					log.Printf("[engine] 恢复账号广播状态失败 %s: %v", ra.accountID, err)
