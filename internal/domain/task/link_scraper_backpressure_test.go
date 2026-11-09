@@ -48,8 +48,8 @@ func TestLinkScraperPendingLimitIsPositiveAndBounded(t *testing.T) {
 
 type flakyScrapedLinkRepository struct {
 	domain.ScrapedLinkRepository
-	failuresRemaining int
-	calls int
+	failuresRemaining        int
+	calls                    int
 	receivedCancelledContext bool
 }
 
