@@ -32,3 +32,17 @@ func (r *CallCooldownRepository) Claim(ctx context.Context, tenantID, accountID 
 	}
 	return tag.RowsAffected() == 1, nil
 }
+
+ 
+// PruneExpired removes cooldown rows that can no longer block a call.
+// Unlike DM action idempotency keys, expired cooldown rows are safe to delete.
+func (r *CallCooldownRepository) PruneExpired(ctx context.Context) (int64, error) {
+	tag, err := r.db.Exec(ctx, `
+		DELETE FROM monitor_call_cooldowns
+		WHERE last_called_at < NOW() - INTERVAL '10 minutes'
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("prune expired monitor call cooldowns: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
