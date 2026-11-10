@@ -74,7 +74,7 @@ describe('modalRuntime', () => {
 
     runtime.deactivateKeyboardGuard(firstId)
     expect(viewport.removeEventListener).not.toHaveBeenCalled()
-    expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '300px')
+    expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '180px')
 
     runtime.deactivateKeyboardGuard(secondId)
     expect(viewport.removeEventListener).toHaveBeenCalledTimes(2)
