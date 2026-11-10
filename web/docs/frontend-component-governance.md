@@ -423,3 +423,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - The same inventory confirmed `components/ui/Loading.vue` is used by `views/sessions/Index.vue`; it is retained. All other UI components in the inventory have direct import sites. No duplicate component basenames were found.
 - CSS ownership is now recorded from the actual `main.ts` import order: tokens/theme files own semantic values and theme surfaces; Tailwind is the utility layer; `ui-kit.css` owns shared component primitives; TDesign skin/theme/overrides own vendor adaptation; `modal-system.css` owns Vue Final Modal geometry; `animations.css` owns reusable motion primitives. `ui-polish.css` and `ui-refined.css` remain legacy refinement layers with overlapping selectors. They are intentionally not bulk-deleted: selector overlap alone does not prove identical cascade behavior. This is the remaining stylesheet consolidation candidate and requires computed-style/browser regression before removing rules.
 - No behavior or route changes were made by this cleanup. The component inventory is a CI review aid and deliberately does not auto-delete dynamic/runtime components.
+
+
+### Batch F1 — mobile action touch-target consistency
+
+- The component inventory reports 190 TDesign `<t-button>` matches and 106 native `<button>` matches. The shared `.ui-t-button` class is already widely adopted (446 source matches), while `.ui-native-button` currently has no source call sites. These are source-level counts, not proof that every native button should be replaced: file inputs, selector rows, modal close controls, and other semantic actions have different behavior.
+- Standardized the compact shared TDesign/native button variants to a 44px minimum height at the mobile breakpoint. This preserves their visual compact variant on desktop while keeping touch targets consistent on phones.
+- Enlarged the VueFinalModal close control to a 44px square on mobile without changing its icon, event handler, desktop geometry, or modal positioning.
+- Kept the broader migration of 106 native button call sites out of this change. It requires classifying each control as an action, icon affordance, selector row, or structural control before changing semantics or styling.
+- Verification target: CI, frontend typecheck/unit tests, build, and Browser UI audit. Automated screenshots/viewport assertions do not replace manual review on real iOS/Android devices.
