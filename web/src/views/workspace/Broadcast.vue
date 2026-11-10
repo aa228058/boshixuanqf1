@@ -540,23 +540,31 @@ function resetCreateForm() {
   // 执行账号选择保留为下一次创建的默认账号池；目标和消息等一次性内容全部清空。
 }
 const validating = ref(false)
+let precheckRequestId = 0
 
-// 发送前目标预检: 剔除无效目标(未同步/已退出的群、格式错误的用户名), 创建时失败率大降
+// 发送前目标预检：只允许结果作用于发起时的同一组目标，避免用户编辑目标期间旧结果误删新选择。
 async function precheckTargets() {
-  if (!selectedTargets.value.length) return
+  if (validating.value || !selectedTargets.value.length) return
+  const requestId = ++precheckRequestId
+  const targetSnapshot = [...selectedTargets.value]
   validating.value = true
   try {
-    const res = await taskApi.validateTargets(selectedTargets.value)
+    const res = await taskApi.validateTargets(targetSnapshot)
+    const unchanged = targetSnapshot.length === selectedTargets.value.length &&
+      targetSnapshot.every((target, index) => target === selectedTargets.value[index])
+    if (requestId !== precheckRequestId || !unchanged) return
     if (res.invalid?.length) {
       const invalidSet = new Set(res.invalid.map(i => i.target))
-      selectedTargets.value = selectedTargets.value.filter(t => !invalidSet.has(t))
+      selectedTargets.value = targetSnapshot.filter(t => !invalidSet.has(t))
       toast({ type: 'warning', title: `已剔除 ${res.invalid.length} 个无效目标`, message: res.invalid.slice(0, 5).map(i => `${i.target}(${i.reason})`).join('；') + (res.invalid.length > 5 ? '…' : '') })
     } else {
       toast({ type: 'success', title: `全部 ${res.total} 个目标有效` })
     }
   } catch {
-    toast({ type: 'error', title: '预检失败', message: '可忽略预检直接创建' })
-  } finally { validating.value = false }
+    if (requestId === precheckRequestId) toast({ type: 'error', title: '预检失败', message: '可忽略预检直接创建' })
+  } finally {
+    if (requestId === precheckRequestId) validating.value = false
+  }
 }
 const showPreview = ref(false)
 
