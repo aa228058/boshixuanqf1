@@ -155,6 +155,7 @@ import { groupApi } from '@/api/group'
 import { syncLock, markSyncing } from '@/utils/syncLock'
 import { useGroupStore } from '@/stores/group'
 import Modal from '@/components/ui/Modal.vue'
+import { toggleSelectionByKey } from './selection'
 import type { Group } from '@/types'
 
 const props = defineProps<{
@@ -307,29 +308,13 @@ const allDmSelected = computed(() =>
   dmFiltered.value.length > 0 && dmFiltered.value.every(user => isSelected(user))
 )
 
-function toggleSelectionForItems<T extends { group_id: string }>(candidates: T[]) {
-  const candidateIds = new Set(candidates.map(item => item.group_id))
-  const everySelected = candidates.length > 0 && candidates.every(item => selected.value.some(s => s.group_id === item.group_id))
-  if (everySelected) {
-    // 只移除当前筛选结果，不影响其他搜索结果或其他类型的已选项。
-    selected.value = selected.value.filter(item => !candidateIds.has(item.group_id))
-    return
-  }
-  const existing = new Set(selected.value.map(item => item.group_id))
-  for (const item of candidates) {
-    if (!existing.has(item.group_id)) {
-      selected.value.push(item as Group)
-      existing.add(item.group_id)
-    }
-  }
-}
 
 function selectAll() {
-  toggleSelectionForItems(filtered.value)
+  selected.value = toggleSelectionByKey(selected.value, filtered.value, item => item.group_id)
 }
 
 function selectAllDm() {
-  toggleSelectionForItems(dmFiltered.value)
+  selected.value = toggleSelectionByKey(selected.value, dmFiltered.value, item => item.group_id)
 }
 
 function isSelected(g: Group) {
