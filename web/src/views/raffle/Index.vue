@@ -122,7 +122,7 @@
             <t-button
               @click="savePing(pingEnabled, pingText)"
               :disabled="pingSaving"
-              class="ui-t-button--primary ui-t-button disabled:opacity-50 whitespace-nowrap shrink-0"
+              class="ui-t-button ui-t-button--primary disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ pingSaving ? '保存中…' : '保存' }}
             </t-button>
