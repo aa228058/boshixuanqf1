@@ -4,7 +4,7 @@
       type="button"
       theme="default"
       variant="outline"
-      class="ui-t-button ui-t-button--secondary"
+      class="ui-t-button ui-t-button--secondary ui-t-button--sm"
       @click="emit('cancel')"
     >
       {{ cancelText }}
