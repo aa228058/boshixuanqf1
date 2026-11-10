@@ -188,11 +188,11 @@
           </div>
         </div>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
-          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)>重试</t-button>
+          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
+          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                      size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
-          <t-button class="ui-t-button ui-t-button--secondary" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
+          <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
         </div>
       </div>
       </pull-down-refresh>
