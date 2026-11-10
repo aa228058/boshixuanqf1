@@ -383,3 +383,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
   - Join 邀请群组加载现在显式处理失败，只允许当前账号请求写入错误状态，避免未处理 Promise rejection。
 - 上述 Scrape/Join 追加修复分别落在 `78cbc2d`、`2557789`、`cb174b8`；最新 PR head 为 `cb174b8d03f773b197bd048f3df6cf0b56fd601f`。等待该 head 的 CI 与 Browser UI audit 结果后再记录最终门禁状态。
 - 群组缓存层再补一处并发保护：`groupStore.refresh(accountId)` 为每个账号维护请求代次与失效 epoch；只允许最新且未被 mutation/invalidate 作废的请求写入 sessionStorage 缓存，防止较早请求迟到后覆盖较新群列表，或在群组写操作清缓存后把旧数据重新填回。修复提交：`f2b8f75`、`429f4c7`。
+
+
+### Legacy success/error button class audit automation（2026-11-10）
+
+- 新增 `web/scripts/audit-legacy-button-classes.mjs`，扫描 `web/src` 下 Vue/TS/JS 与 CSS/SCSS 文件，分别列出 `.btn-success`、`.btn-error` 的样式定义、源码静态引用、`useAsyncBtn` 引用和疑似动态 class 表达式。
+- 新增 `npm run audit:legacy-css`，并接入 CI 的 frontend job，避免仅凭人工抽查或 GitHub 默认分支搜索判断旧样式是否可删。
+- 对 PR 分支源码的逐项抽查中，已检查全部 Vue SFC、主要业务组件、选择器、composables 和相关样式；目前未发现这两个 class 的模板/组件调用点，CSS 定义仍在 `ui-refined.css`。完整结果以本次 CI 输出为准。
+- 该扫描器是保守审计工具，不会自动删除 CSS；动态拼接、外部运行时注入和第三方集成仍需人工审查。R2 在取得 CI 扫描结果并复核所有候选后再决定是否删除，暂不关闭。
