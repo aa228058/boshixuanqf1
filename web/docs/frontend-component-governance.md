@@ -503,3 +503,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Extended modal runtime tests to exercise visual-viewport resize events and verify the shared keyboard offset is recalculated while a modal remains open.
 - Existing admin tables already use dedicated mobile card layouts where applicable; desktop action columns remain icon-button based, with shared 36px desktop / 44px mobile action targets. Task table remains horizontally scrollable on desktop/tablet and uses its existing mobile card layout.
 - Automated CI and Browser UI audit are required. The automated browser suite does not replace real-device verification of iOS keyboard, safe-area insets, and Android browser chrome.
+
+
+### Batch B4 — icon-button accessibility and source-audit precision
+
+- The CI inventory identified a password-visibility icon in registration without an accessible name. It now exposes a state-aware label (显示密码/隐藏密码) and aria-pressed so assistive technology can announce both the action and current toggle state.
+- Added an explicit accessible name to the account-selection exit icon, in addition to its visual tooltip title.
+- Corrected the component inventory opening-tag scanner: Vue expressions may contain a greater-than operator inside a quoted attribute, so a simple less-than-anything-to-greater-than matcher could truncate a TDesign button before its class attribute and report false governance gaps. The scanner now respects quoted attribute values for both TDesign and native buttons.
+- The icon-button check now rejects empty aria-label/title values while accepting static or bound non-empty names. It remains review-only and does not auto-edit source.
+- CI output is the source of truth for the refreshed repository-wide inventory; this source-level audit does not replace screen-reader or keyboard interaction testing.
