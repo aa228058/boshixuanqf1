@@ -79,11 +79,29 @@ app.use(router)
 // ===== 全局错误探针: 运行时错误红条置顶显示(诊断用) =====
 // 8 秒自动消失 + 点击立即关闭, 避免一次报错永久驻留污染所有页面观感
 let errBannerTimer: ReturnType<typeof setTimeout> | undefined
+let lastBannerMessage = ''
+let lastBannerAt = 0
+
 function showErrBanner(msg: string) {
-  // 业务性 403(套餐不含此功能)不算系统错误: 琥珀色友好提示, 不刷红色堆栈
+  // 业务性 403(套餐不含此功能)不算系统错误: 只展示友好提示。
   const friendly = /plan feature not available|feature not available|套餐/i.test(msg)
-  // P1-15: 原硬编码 hex(#b45309/#b91c1c)不随主题——注入一次性样式, 走 CSS 变量,
-  // 切主题时横幅颜色跟随(tailwind.css 的 --color-amber 等定义)
+  const resourceFailure = /资源加载失败/.test(msg)
+  const crossOriginFailure = /Script error/.test(msg)
+  // 不把异常堆栈、服务器响应、内部路径、资源 URL 或查询参数显示给租户。
+  const displayMessage = friendly
+    ? 'ℹ 当前套餐不含此功能 —— 请联系管理员升级套餐后使用'
+    : resourceFailure
+      ? '⚠ 页面资源加载失败，请刷新页面；如果问题持续，请联系管理员。'
+      : crossOriginFailure
+        ? '⚠ 页面脚本运行异常，请刷新页面；如果问题持续，请联系管理员。'
+        : '⚠ 页面遇到异常，请刷新页面；如果问题持续，请联系管理员。'
+
+  // 同类错误短时间重复触发时不反复重置横幅/计时器，避免高频错误刷屏。
+  const now = Date.now()
+  if (displayMessage === lastBannerMessage && now - lastBannerAt < 3000) return
+  lastBannerMessage = displayMessage
+  lastBannerAt = now
+
   if (!document.getElementById('err-banner-css')) {
     const st = document.createElement('style')
     st.id = 'err-banner-css'
@@ -94,17 +112,25 @@ function showErrBanner(msg: string) {
   if (!el) {
     el = document.createElement('div')
     el.id = 'err-banner'
+    el.setAttribute('role', 'alert')
+    el.setAttribute('aria-live', 'assertive')
+    el.setAttribute('aria-atomic', 'true')
     el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:var(--t-z-toast);color:var(--t-brand-ink);font-size:var(--t-font-xs);line-height:var(--t-leading-normal);padding:var(--t-space-2) 36px var(--t-space-2) var(--t-space-3);white-space:pre-wrap;word-break:break-all;max-height:45vh;overflow:auto;box-shadow:var(--t-shadow-md);cursor:pointer;'
     el.title = '点击关闭'
-    el.onclick = () => el?.remove()
+    el.onclick = () => {
+      el?.remove()
+      if (errBannerTimer) clearTimeout(errBannerTimer)
+      errBannerTimer = undefined
+    }
     document.body.appendChild(el)
   }
   el.className = friendly ? 'err-banner-friendly' : ''
-  el.textContent = friendly
-    ? 'ℹ 当前套餐不含此功能 —— 请联系管理员升级套餐后使用'
-    : '⚠ 运行错误: ' + msg.slice(0, 800)
+  el.textContent = displayMessage
   if (errBannerTimer) clearTimeout(errBannerTimer)
-  errBannerTimer = setTimeout(() => el?.remove(), 8000)
+  errBannerTimer = setTimeout(() => {
+    el?.remove()
+    errBannerTimer = undefined
+  }, 8000)
 }
 // 捕获阶段也监听: 资源加载失败(script/img 404)和跨域错误只有 capture 阶段能拿到 target
 window.addEventListener('error', (e) => {
