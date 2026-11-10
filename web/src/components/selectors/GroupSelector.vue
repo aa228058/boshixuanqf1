@@ -184,8 +184,6 @@ const activeTab = ref('group')
 const search = ref('')
 const selected = ref<Group[]>([])
 const loading = ref(false)
-const hasAutoRefreshed = ref(false)
-const syncFailCount = ref(0)
 const syncStatus = ref<'idle' | 'syncing' | 'done' | 'timeout' | 'error'>('idle')
 const localGroups = ref<Group[]>([])
 const groupStore = useGroupStore()
@@ -368,7 +366,6 @@ async function onRefresh() {
     return
   }
 
-  syncFailCount.value = 0
   if (!accountId) {
     if (isCurrent()) emit('refresh')
     return
@@ -427,77 +424,6 @@ watch(() => props.modelValue, (v) => {
     loading.value = false
   }
 })
-
-async function autoSync() {
-  // 防御性检查：必须有 accountId
-  if (!props.accountId) {
-    return
-  }
-  // 全局同步锁检查
-  if (syncLock.isSyncing(props.accountId)) {
-    loading.value = true
-    syncStatus.value = 'syncing'
-    await waitForGlobalSync()
-    try {
-      const raw: any = await groupApi.list(props.accountId)
-      const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-        emit('refresh')
-      }
-    } catch (e) {
-      console.error('[GroupSelector] autoSync list error:', e)
-    }
-    loading.value = false
-    return
-  }
-  if (!syncLock.acquire(props.accountId)) {
-    return
-  }
-  loading.value = true
-  syncStatus.value = 'syncing'
-  try {
-    await groupApi.sync(props.accountId)
-  } catch (e: unknown) {
-    console.error('[GroupSelector] autoSync sync failed:', e)
-    syncStatus.value = 'error'
-    loading.value = false
-    syncLock.release()
-    return
-  }
-  // 指数退避轮询：直接调用API检查同步结果
-  let delay = 1000
-  const start = Date.now()
-  let pollCount = 0
-  while (Date.now() - start < 30000) {
-    // 如果弹窗已关闭，停止轮询
-    if (!visible.value) {
-      break
-    }
-    pollCount++
-    try {
-      const raw: any = await groupApi.list(props.accountId)
-      const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        syncStatus.value = 'done'
-        localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-        emit('refresh')
-        await nextTick()
-        break
-      }
-    } catch (e) {
-      console.error('[GroupSelector] autoSync poll error:', e)
-    }
-    await new Promise(r => setTimeout(r, delay))
-    delay = Math.min(delay * 2, 8000)
-  }
-  if (syncStatus.value !== 'done' && visible.value) {
-    syncStatus.value = 'timeout'
-  }
-  await nextTick()
-  loading.value = false
-  syncLock.release()
-}
 
 // Wait for another component to finish syncing, then return
 async function waitForGlobalSync(): Promise<void> {
