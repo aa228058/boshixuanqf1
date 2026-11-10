@@ -399,3 +399,10 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - `TargetSelector.vue` 中未接入界面的 `syncAllAccounts()`、`syncAllLoading`，以及只写不读的 `fromCache` 状态已移除；现有按账号读取联系人缓存、按当前账号刷新群组的行为保持不变。
 - 两个选择器继续采用最多首批渲染 200 条、搜索过滤后增量加载；GroupSelector 的全选/反选继续复用 Set-based `toggleSelectionByKey`，其 10,000 项语义压力测试已存在。
 - 这批改动是已确认无调用的局部死代码清理，不删除任何样式、API 或用户可见功能。大数据量真实浏览器滚动/搜索体验仍需 R5 手工压力验收。
+
+
+### R2 legacy button selectors removal（2026-11-10）
+
+- 最新全仓审计在 124 个 Vue/TS/JS/CSS/SCSS 文件中得到：两个旧选择器 CSS 定义各 1 处；源码静态引用 0；`useAsyncBtn` 只在旧 CSS 注释中出现 1 次；动态 class 候选仅 1 处，位于任务日志错误状态的 Tailwind 令牌 class，与旧按钮选择器无关。
+- 因为已经同时检查了静态引用、动态 class 候选和旧 helper 标记，现从 `ui-refined.css` 删除这两条无调用规则及过时注释，不影响当前按钮体系。
+- R2 的这两个遗留选择器已完成代码清理；删除后的 CI 再次扫描必须确认定义、静态引用和 helper 标记均为 0，之后关闭该项。
