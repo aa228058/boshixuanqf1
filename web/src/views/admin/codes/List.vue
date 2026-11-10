@@ -110,7 +110,7 @@
         </div>
         <div>
           <label for="code-days" class="block text-sm text-text-secondary mb-1.5">有效期（天，可选）</label>
-          <input v-model.number="generateForm.expires_days" type="number" min="1" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="数量" />
+          <input v-model.number="generateForm.expires_days" type="number" min="1" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="有效期天数" />
         </div>
       </div>
       <template #footer>
