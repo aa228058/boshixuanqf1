@@ -446,6 +446,6 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 
 - Migrated the five notification/SMTP text controls in `views/settings/Index.vue` from repeated one-off Tailwind field styling to the shared `.ui-input` primitive. Grid placement, flex sizing, password/number/email types, and model bindings are preserved.
 - Added explicit accessible names to the email, SMTP username, password, host, and port controls; placeholders are retained as visual hints rather than the only accessible name.
-- Added a visible keyboard-focus outline and a consistent disabled affordance to `.ui-input`. The existing token-based border/background focus treatment remains intact.
+- Added a consistent disabled affordance to `.ui-input`. Keyboard focus continues to use the existing global soft focus ring; a second outline was deliberately avoided to prevent a double-ring effect.
 - This batch intentionally does not convert checkboxes, hidden file inputs, or switches into text-field styles. Native controls retain their semantics.
 - Verification target: frontend typecheck/unit tests, build, and Browser UI audit. Manual keyboard and mobile visual QA remain distinct acceptance steps.
