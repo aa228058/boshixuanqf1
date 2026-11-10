@@ -60,7 +60,7 @@
         <div v-if="scrapeMode === 'history'" class="mt-2 flex items-center gap-2">
           <span class="text-xs text-text-secondary shrink-0">扫描消息数上限</span>
           <input v-model.number="maxMessages" type="number" min="100" max="10000" step="100"
-            class="w-28 px-3 py-1.5 rounded-lg bg-bg-card border border-border text-sm" />
+            class="ui-input !w-28 !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="扫描消息数上限" />
         </div>
       </div>
       <!-- 采集过滤: 死号/无头像不入库(仅普通模式) -->
