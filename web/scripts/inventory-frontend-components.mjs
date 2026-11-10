@@ -68,6 +68,15 @@ const ungovernedTButtons = files
       .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\n').length }))
   })
 
+const iconButtonsMissingName = files
+  .filter(file => file.endsWith('.vue'))
+  .flatMap(file => {
+    const source = contents.get(file)
+    return [...source.matchAll(/<button\b[^>]*>/gs)]
+      .filter(match => /\bui-icon-btn\b/.test(match[0]) && !/\b(?:aria-label|title)\s*=/.test(match[0]))
+      .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\n').length }))
+  })
+
 const formControlPatterns = [
   ['TDesign <t-input>', /<t-input\b/gi],
   ['TDesign <t-textarea>', /<t-textarea\b/gi],
@@ -168,6 +177,10 @@ console.log('')
 console.log('TDesign button governance gaps (review-only)')
 if (!ungovernedTButtons.length) console.log('- none')
 for (const button of ungovernedTButtons) console.log(`- ${button.path}:${button.line}`)
+console.log('')
+console.log('Icon-only button accessible-name gaps (review-only)')
+if (!iconButtonsMissingName.length) console.log('- none')
+for (const button of iconButtonsMissingName) console.log(`- ${button.path}:${button.line}`)
 console.log('')
 console.log('Form-control implementation usage (source-level matches)')
 for (const usage of formControlUsage) {
