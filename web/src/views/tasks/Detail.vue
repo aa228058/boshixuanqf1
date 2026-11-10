@@ -206,6 +206,7 @@ import { useAuthStore } from '@/stores/auth'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import type { Task, TaskLog } from '@/types'
+import { getTaskLogPageState, mergeTaskLogs, taskLogKey } from './taskLogRuntime'
 
 const route = useRoute()
 const router = useRouter()
@@ -343,21 +344,6 @@ const waitState = ref<{ account_id: string; target_id: string; remaining: number
 watch(() => task.value?.status, status => {
   if (status !== 'running') waitState.value = null
 })
-
-function taskLogKey(log: TaskLog): string {
-  if (log.log_id) return `id:${log.log_id}`
-  // JSON 编码避免日志正文包含分隔符时产生身份键碰撞。
-  return JSON.stringify([
-    log.executed_at || '',
-    log.action || '',
-    log.status || '',
-    log.target_id || '',
-    log.target_name || '',
-    log.tg_message_id ?? '',
-    log.error_code || '',
-    log.message || '',
-  ])
-}
 
 const filteredDisplayLogs = computed(() => {
   const visibleKeys = new Set(filteredLogs.value.map(taskLogKey))
@@ -501,26 +487,16 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
         : Array.isArray(payload.data?.list) ? payload.data.list : []
     }
 
-    // Merge persisted rows with any live events received while this request was in flight.
-    const merged = new Map<string, TaskLog>()
-    for (const log of logs.value) merged.set(taskLogKey(log), log)
-    for (const log of data) merged.set(taskLogKey(log), log)
+    // Preserve live SSE rows received while this HTTP page was in flight.
+    logs.value = mergeTaskLogs(logs.value, data)
     logKeys.clear()
-    for (const key of merged.keys()) logKeys.add(key)
-    logs.value = [...merged.values()].sort((a, b) => {
-      const timeDiff = new Date(a.executed_at || 0).getTime() - new Date(b.executed_at || 0).getTime()
-      return timeDiff || String(a.log_id || '').localeCompare(String(b.log_id || ''))
-    })
+    for (const log of logs.value) logKeys.add(taskLogKey(log))
 
-    if (data.length && data[data.length - 1].log_id) {
-      logPageCursors.set(page, data[data.length - 1].log_id!)
-    } else {
-      logPageCursors.delete(page)
-    }
+    const pageState = getTaskLogPageState(data, LOG_PAGE_SIZE)
+    if (pageState.cursor) logPageCursors.set(page, pageState.cursor)
+    else logPageCursors.delete(page)
     if (page > logsPage.value) logsPage.value = page
-    if (page === logsPage.value) {
-      hasMoreLogs.value = data.length === LOG_PAGE_SIZE && !!logPageCursors.get(page)
-    }
+    if (page === logsPage.value) hasMoreLogs.value = pageState.hasMore
 
     await nextTick()
     if (pageActive && logContainer.value) {
