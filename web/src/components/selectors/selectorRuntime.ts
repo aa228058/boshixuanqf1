@@ -36,7 +36,7 @@ export function toggleAllSelectorKeys<T>(
 }
 
 export function createSelectorTitleLookup<
-  TGroup extends { tg_chat_id: string | number; username?: string | null; title: string },
+  TGroup extends { tg_chat_id?: string | number | null; username?: string | null; title: string },
   TDialog extends { id: string; title: string },
 >(
   groups: readonly TGroup[],
@@ -44,7 +44,7 @@ export function createSelectorTitleLookup<
 ): Map<string, string> {
   const titles = new Map<string, string>()
   for (const group of groups) {
-    titles.set(String(group.tg_chat_id), group.title)
+    if (group.tg_chat_id != null) titles.set(String(group.tg_chat_id), group.title)
     if (group.username) {
       titles.set(group.username, group.title)
       titles.set(`@${group.username}`, group.title)
