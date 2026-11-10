@@ -167,7 +167,7 @@
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
 import { toast } from '@/utils/toast'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { useGroupStore } from '@/stores/group'
@@ -206,19 +206,35 @@ const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
 const tasksError = ref('')
 
+let taskListRequestId = 0
+let joinPageActive = true
+
 async function fetchTasks() {
-  if (!currentAccount.value) { tasks.value = []; return }
+  const accountId = currentAccount.value?.account_id || ''
+  const requestId = ++taskListRequestId
+  if (!accountId) {
+    tasks.value = []
+    tasksError.value = ''
+    tasksLoading.value = false
+    return
+  }
   tasksLoading.value = true
   try {
     const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any)
+    if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
+    if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasksError.value = e?.message || '加载失败, 点击重试'
   } finally {
-    tasksLoading.value = false
+    if (joinPageActive && requestId === taskListRequestId) tasksLoading.value = false
   }
 }
+onUnmounted(() => {
+  joinPageActive = false
+  taskListRequestId++
+})
 useAutoRefresh(fetchTasks, 15000)
 
 // SSE 实时: 进度事件即时更新对应卡片, 状态事件刷新列表——亚秒级, 不再等轮询
