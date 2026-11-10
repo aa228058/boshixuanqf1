@@ -1,42 +1,5 @@
 <script lang="ts">
-import type { Ref } from 'vue'
-
-// 只跟踪当前打开的弹窗；关闭/卸载后压紧序号，避免长期使用导致 z-index 无限增长。
-let modalCounter = 0
-const activeModalOrders = new Map<symbol, Ref<number>>()
-function compactModalOrders() {
-  const active = [...activeModalOrders.entries()]
-  active.forEach(([, order], index) => { order.value = index + 1 })
-  modalCounter = active.length
-}
-
-// 所有 Modal 实例共享一个 visualViewport 监听；任一弹窗关闭时不能提前清除其他弹窗的键盘偏移。
-const activeKeyboardModalIds = new Set<symbol>()
-const KB_VAR = '--modal-kb'
-let keyboardViewport: VisualViewport | null = null
-function syncSharedKeyboardOffset() {
-  const viewport = keyboardViewport
-  if (!viewport || typeof window === 'undefined' || typeof document === 'undefined') return
-  const kb = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-  document.documentElement.style.setProperty(KB_VAR, kb > 80 ? `${kb}px` : '0px')
-}
-function activateKeyboardGuard(id: symbol) {
-  if (typeof window === 'undefined' || !window.visualViewport || activeKeyboardModalIds.has(id)) return
-  activeKeyboardModalIds.add(id)
-  if (activeKeyboardModalIds.size === 1) {
-    keyboardViewport = window.visualViewport
-    keyboardViewport.addEventListener('resize', syncSharedKeyboardOffset)
-    keyboardViewport.addEventListener('scroll', syncSharedKeyboardOffset)
-  }
-  syncSharedKeyboardOffset()
-}
-function deactivateKeyboardGuard(id: symbol) {
-  if (!activeKeyboardModalIds.delete(id) || activeKeyboardModalIds.size > 0) return
-  keyboardViewport?.removeEventListener('resize', syncSharedKeyboardOffset)
-  keyboardViewport?.removeEventListener('scroll', syncSharedKeyboardOffset)
-  keyboardViewport = null
-  if (typeof document !== 'undefined') document.documentElement.style.setProperty(KB_VAR, '0px')
-}
+import { modalRuntime } from './modalRuntime'
 </script>
 
 <template>
@@ -103,29 +66,15 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
 }>()
 
-// 本实例最近一次打开序位; 使用单调递增序号，避免关闭/卸载顺序导致层级计数错乱
+// 层级序号由独立 runtime 管理，z-index 查询保持纯函数。
 const order = ref(0)
-
-// P2-02 审计修复: 原实现在 zIndexFn 里 +1——该函数渲染期会被多次调用,
-// 每次渲染计数器都涨(打开期间 N 次渲染 = +N 次), 而卸载只 -1 一次,
-// 计数器单调膨胀, z-index 随渲染次数无限抬高( eventually 盖过 toast)。
-// 改为 watch 打开瞬间 +1 一次; zIndexFn 退化为纯查询。序号单调递增，避免卸载顺序影响仍打开的弹窗层级。
 const modalId = Symbol('modal')
 watch(() => props.modelValue, (v) => {
-  if (v) {
-    if (!activeModalOrders.has(modalId)) {
-      modalCounter += 1
-      activeModalOrders.set(modalId, order)
-    }
-    order.value = modalCounter
-  } else {
-    activeModalOrders.delete(modalId)
-    compactModalOrders()
-    order.value = 0
-  }
+  if (v) modalRuntime.registerModal(modalId, order)
+  else modalRuntime.unregisterModal(modalId, order)
 }, { immediate: true })
 function zIndexFn() {
-  return props.zIndex ?? (2500 + order.value * 20)
+  return modalRuntime.getZIndex(order.value, props.zIndex)
 }
 
 function close() {
@@ -141,17 +90,16 @@ function onFocusIn(e: FocusEvent) {
   }
 }
 
-// 键盘偏移是 document 级共享状态；按实例注册/注销，只有最后一个打开的 Modal 关闭才复位。
+// 键盘偏移是 document 级共享状态；最后一个打开的 Modal 关闭才复位。
 watch(() => props.modelValue, v => {
-  if (v) activateKeyboardGuard(modalId)
-  else deactivateKeyboardGuard(modalId)
+  if (v) modalRuntime.activateKeyboardGuard(modalId)
+  else modalRuntime.deactivateKeyboardGuard(modalId)
 }, { immediate: true })
 
-// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时释放本实例的键盘监听引用。
+// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时释放栈与键盘监听引用。
 onUnmounted(() => {
-  deactivateKeyboardGuard(modalId)
-  activeModalOrders.delete(modalId)
-  compactModalOrders()
+  modalRuntime.deactivateKeyboardGuard(modalId)
+  modalRuntime.unregisterModal(modalId, order)
 })
 // 关闭和卸载时压紧仍打开的弹窗序号，层级只取决于当前弹窗栈。
 </script>
