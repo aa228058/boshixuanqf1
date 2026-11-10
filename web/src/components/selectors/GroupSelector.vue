@@ -17,11 +17,18 @@
           </div>
           <div class="flex items-center gap-2">
             <button type="button"
-              v-if="props.mode === 'multiple' && filtered.length > 0"
+              v-if="props.mode === 'multiple' && activeTab !== 'dm' && filtered.length > 0"
               @click="selectAll"
               class="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors"
             >
               {{ allSelected ? '取消全选' : '全选' }}
+            </button>
+            <button type="button"
+              v-else-if="props.mode === 'multiple' && activeTab === 'dm' && dmFiltered.length > 0"
+              @click="selectAllDm"
+              class="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors"
+            >
+              {{ allDmSelected ? '取消全选' : '全选' }}
             </button>
             <button type="button"
               @click="onRefresh"
@@ -296,20 +303,33 @@ const allSelected = computed(() => {
   return filtered.value.length > 0 && filtered.value.every(g => isSelected(g))
 })
 
-function selectAll() {
-  if (allSelected.value) {
-    // 取消全选：只取消当前 filtered 中的
-    const ids = new Set(filtered.value.map(g => g.group_id))
-    selected.value = selected.value.filter(s => !ids.has(s.group_id))
-  } else {
-    // 全选：把当前 filtered 中未选的加入
-    const existing = new Set(selected.value.map(s => s.group_id))
-    for (const g of filtered.value) {
-      if (!existing.has(g.group_id)) {
-        selected.value.push(g)
-      }
+const allDmSelected = computed(() =>
+  dmFiltered.value.length > 0 && dmFiltered.value.every(user => isSelected(user))
+)
+
+function toggleSelectionForItems<T extends { group_id: string }>(candidates: T[]) {
+  const candidateIds = new Set(candidates.map(item => item.group_id))
+  const everySelected = candidates.length > 0 && candidates.every(item => selected.value.some(s => s.group_id === item.group_id))
+  if (everySelected) {
+    // 只移除当前筛选结果，不影响其他搜索结果或其他类型的已选项。
+    selected.value = selected.value.filter(item => !candidateIds.has(item.group_id))
+    return
+  }
+  const existing = new Set(selected.value.map(item => item.group_id))
+  for (const item of candidates) {
+    if (!existing.has(item.group_id)) {
+      selected.value.push(item as Group)
+      existing.add(item.group_id)
     }
   }
+}
+
+function selectAll() {
+  toggleSelectionForItems(filtered.value)
+}
+
+function selectAllDm() {
+  toggleSelectionForItems(dmFiltered.value)
 }
 
 function isSelected(g: Group) {
