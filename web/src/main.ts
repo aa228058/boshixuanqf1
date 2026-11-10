@@ -39,7 +39,6 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   DatePicker,
-  Dialog,
   // 注意: 不要在这里加 PullDownRefresh——它是 TDesign 移动端组件, 桌面版
   // tdesign-vue-next 不导出, import 会让 vite 构建失败。下拉刷新用手写组件
   // (下方 import + app.component 注册), 见 components/ui/PullDownRefresh.vue。
@@ -70,7 +69,6 @@ app.use(Button)
   .use(Breadcrumb)
   .use(BreadcrumbItem)
   .use(DatePicker)
-  .use(Dialog)
   // P0-01: 下拉刷新——5 个工作区页面 <pull-down-refresh v-model @refresh> 的真正实现
   // (桌面版 tdesign-vue-next 无此组件导出, 手写版见 components/ui/PullDownRefresh.vue)
 app.component('PullDownRefresh', PullDownRefresh)
