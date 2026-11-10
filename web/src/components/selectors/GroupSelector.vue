@@ -139,8 +139,8 @@
     <template #footer>
       <span class="text-xs text-text-secondary">已选 {{ selected.length }} 个</span>
       <div class="flex gap-3">
-        <t-button variant="outline" theme="default" @click="visible = false">取消</t-button>
-        <t-button theme="primary" @click="confirm">确认</t-button>
+        <t-button variant="outline" theme="default" class="ui-t-button ui-t-button--secondary" @click="visible = false">取消</t-button>
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="confirm">确认</t-button>
       </div>
     </template>
   </Modal>
