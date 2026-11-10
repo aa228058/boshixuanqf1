@@ -649,7 +649,7 @@
         <input
           v-model="cloneSource"
           placeholder="输入对方用户名, 如 duofan_bot 或 @duofan_bot"
-          class="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:border-[color:var(--t-brand)] focus:outline-none"
+          class="ui-input !text-sm" aria-label="资料来源用户名"
           @keyup.enter="runClone"
         />
         <div class="flex items-center justify-between text-xs text-text-muted">
