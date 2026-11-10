@@ -26,7 +26,7 @@ export default defineConfig({
     ...(process.env.E2E_PRODUCTION_AUDIT === '1' && (hasAuthState || hasTenantCredentials) ? [
       {
         name: 'production-desktop',
-        testMatch: /production\\.spec\\.ts/,
+        testMatch: /production\.spec\.ts/,
         use: { ...devices['Desktop Chrome'], ...(hasAuthState ? { storageState: authState } : {}) },
       },
       {
