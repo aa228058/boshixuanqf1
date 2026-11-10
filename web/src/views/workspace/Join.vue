@@ -166,6 +166,7 @@
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
+import { findInvalidJoinLinks, normalizeJoinLinks } from '@/utils/joinLinks'
 import { toast } from '@/utils/toast'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -357,27 +358,8 @@ function onImportFile(e: Event) {
 // 2026-09-22 宽松识别+归一化：缺协议头的 t.me/telegram.me、@开头 都接受，
 // 统一归一为 https://t.me/... 再提交。此前严格 startsWith 会把 "t.me/xxx" 等常见写法
 // 静默滤掉——用户明明填了链接，validLinks 却是 0，建出零目标任务（服务端日志实证）。
-const validLinks = computed(() => {
-  return linksInput.value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-    if (l.startsWith('@')) return 'https://t.me/' + l.slice(1)
-    // 2026-09-22 补: 手机端从 TG 应用内分享复制的邀请链接是 tg://join?invite= 格式,
-    // 此前会被归一化判空, 用户明明天天填了链接却建出零目标任务(实证: https://t.me/+llE9x5nvZpQ0Nzk9 案例)
-    const tg = l.match(/^tg:\/\/join\?invite=([A-Za-z0-9_-]+)$/i)
-    if (tg) return 'https://t.me/+' + tg[1]
-    const m = l.match(/^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\/(.+)$/i)
-    if (m) return 'https://t.me/' + m[1]
-    return ''
-  }).filter(Boolean)
-})
-
-const invalidLinks = computed(() => {
-  const all = linksInput.value.split('\n').map(l => l.trim()).filter(Boolean)
-  return all.filter(l => {
-    if (l.startsWith('@')) return false
-    if (/^tg:\/\/join\?invite=[A-Za-z0-9_-]+$/i.test(l)) return false
-    return !/^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\//i.test(l)
-  })
-})
+const validLinks = computed(() => normalizeJoinLinks(linksInput.value))
+const invalidLinks = computed(() => findInvalidJoinLinks(linksInput.value))
 // R128 无效链接展开查看(模板引用, 编译必需)
 const showInvalidLinks = ref(false)
 

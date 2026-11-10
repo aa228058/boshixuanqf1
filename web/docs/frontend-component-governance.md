@@ -552,3 +552,10 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Added an authenticated Playwright regression for the broadcast creation flow: open the modal, import/parse two target formats, insert a message variable at the cursor, preview the rendered template, and cancel.
 - The test explicitly counts POST requests to `/api/v1/tasks` and asserts that form exploration never creates a real task. It does not send Telegram messages or mutate backend records.
 - This adds repeatable browser coverage for the pre-submit workflow only. Actual task submission/execution and live Telegram behavior remain outside CI and are reserved for the final acceptance phase.
+
+
+### Batch R6 — 加群链接解析回归覆盖（2026-11-11）
+
+- Extracted the existing Join-page URL normalization and invalid-line reporting into a pure utility used by the live form.
+- Added tests for `@username`, bare/HTTPS Telegram links, `telegram.me`, private `tg://join?invite=` hashes, malformed lines, blank lines, and stable input order.
+- This exercises the same parser used by the UI without submitting join tasks or contacting Telegram.
