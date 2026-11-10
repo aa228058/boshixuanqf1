@@ -32,3 +32,14 @@ describe('toggleSelectionByKey', () => {
     expect(toggleSelectionByKey(selected, [], item => item.id)).toEqual(selected)
   })
 })
+
+  it('handles a 10,000-item filtered result without changing selection semantics', () => {
+    const selected = Array.from({ length: 5_000 }, (_, index) => ({ id: `item-${index}` }))
+    const candidates = Array.from({ length: 10_000 }, (_, index) => ({ id: `item-${index}` }))
+
+    const added = toggleSelectionByKey(selected, candidates, item => item.id)
+    expect(added).toHaveLength(10_000)
+
+    const removed = toggleSelectionByKey(added, candidates, item => item.id)
+    expect(removed).toEqual([])
+  })
