@@ -270,27 +270,12 @@ function onManualImportFile(e: Event) {
 }
 const dialogs = ref<DialogItem[]>([])
 const loading = ref(false)
-const syncAllLoading = ref(false)
 // 每次打开/切换账号/手动刷新都会递增，旧账号的慢响应不得覆盖当前选择器。
 let selectorRequestId = 0
 const isCurrentSelectorRequest = (requestId: number, accountId: string) =>
   requestId === selectorRequestId && visible.value && props.accountId === accountId
 
-// 批量同步: 后台逐个同步全部在线账号的群组(后端串行3秒间隔), 30秒防重复点击
-async function syncAllAccounts() {
-  if (syncAllLoading.value) return
-  syncAllLoading.value = true
-  try {
-    await groupApi.syncAll()
-    toast({ type: 'success', title: '批量同步已启动', message: '后台逐个同步在线账号, 约3秒/账号; 同步完成后再打开选择器即可看到最新群组' })
-  } catch (e: unknown) {
-    toast({ type: 'error', title: '批量同步启动失败', message: (e instanceof Error ? e.message : '请稍后重试') })
-  } finally {
-    setTimeout(() => { syncAllLoading.value = false }, 30000)
-  }
-}
 const syncStatus = ref<'idle' | 'syncing' | 'done' | 'timeout' | 'error'>('idle')
-const fromCache = ref(false)
 const syncHint = ref('')
 
 // 长列表性能: 最多渲染 200 条, 超出用搜索过滤(搜索框已是主要查找手段)
@@ -548,8 +533,7 @@ async function openSelector() {
     // 这类内部话术会困惑
     if (import.meta.env.DEV) syncHint.value = `缓存检查: 库里 ${cl.length} 个群`
     if (cl.length) {
-      fromCache.value = true
-      await groupStore.refresh(accountId)
+        await groupStore.refresh(accountId)
       if (!isCurrentSelectorRequest(requestId, accountId)) return
       syncStatus.value = 'done'
       emit('refresh')
