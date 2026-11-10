@@ -113,6 +113,8 @@
 .ui-input::placeholder { color: var(--t-text-3); }
 .ui-input:hover { background: color-mix(in srgb, var(--t-surface-2) 80%, var(--t-text-1) 4%); }
 .ui-input:focus { border-color: var(--t-brand); background: var(--t-surface-1); }
+.ui-input:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+.ui-input:disabled { opacity: 0.55; cursor: not-allowed; }
 textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 
 /* ---------- .ui-badge 状态徽章: 半透明浅底 + 同色文字 ---------- */
