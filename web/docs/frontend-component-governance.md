@@ -490,3 +490,16 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Extended the component inventory with a review-only check for icon-only `.ui-icon-btn` native buttons missing both `aria-label` and `title`. This complements the TDesign button governance-gap report; neither check auto-rewrites source.
 - Mobile icon-button touch targets remain 44×44px for ordinary actions. The intentionally compact `--xs` affordance remains excluded and must not be used for essential mobile actions.
 - Browser UI audit and CI are still required; keyboard focus, destructive hover contrast, and mobile touch behavior need visual/manual acceptance in addition to static checks.
+
+
+### Batch B3 — modal, table actions, pagination and mobile safe-area alignment
+
+- Desktop modal geometry remains viewport-centered with a 560px maximum content width and bounded height; mobile remains a bottom-anchored drawer with an independently scrolling body and a non-scrolling footer.
+- Reworked mobile keyboard handling: the visual-viewport keyboard offset now adjusts the drawer's bottom anchor and available height instead of translating the entire card upward. This prevents long dialogs from being pushed beyond the visible area while retaining body scrolling. Focused controls use immediate nearest scrolling rather than smooth scrolling during keyboard animation.
+- Modal footer actions retain compact desktop sizing and meet the 44px mobile touch-target baseline. Shared confirmation actions use the same small-button semantic class on both breakpoints.
+- Bottom navigation now sits above the device safe area. Main page content reserves matching bottom space, and account/code batch-action bars are lifted above the safe-area-aware navigation bar.
+- Task pagination now wraps instead of forcing the page row wider than the viewport; its controls use 36px desktop geometry and at least 44px touch targets on mobile.
+- Tenant-create modal footer buttons now use explicit shared secondary/primary variants.
+- Extended modal runtime tests to exercise visual-viewport resize events and verify the shared keyboard offset is recalculated while a modal remains open.
+- Existing admin tables already use dedicated mobile card layouts where applicable; desktop action columns remain icon-button based, with shared 36px desktop / 44px mobile action targets. Task table remains horizontally scrollable on desktop/tablet and uses its existing mobile card layout.
+- Automated CI and Browser UI audit are required. The automated browser suite does not replace real-device verification of iOS keyboard, safe-area insets, and Android browser chrome.
