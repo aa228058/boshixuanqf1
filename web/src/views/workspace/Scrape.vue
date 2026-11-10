@@ -192,7 +192,7 @@ function progressPct(task: any): number {
   return p.total > 0 ? Math.round(p.done / p.total * 100) : 0
 }
 
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 // R111 已删 ProtocolPicker/campaignApi/CAMPAIGN_STATUS 导入(协议协同死代码)
@@ -249,6 +249,8 @@ function relTime(iso: string): string {
 }
 
 const tasks = ref<any[]>([])
+let taskListRequestId = 0
+let pageActive = true
 const taskLoading = ref(false)
 const expanded = ref<Record<string, boolean>>({})
 const members = ref<Record<string, any[]>>({})
@@ -391,15 +393,22 @@ async function onPullRefresh() {
 }
 
 async function fetchTasks() {
-  if (!scrapeAccId.value) return
+  const accountId = scrapeAccId.value
+  const requestId = ++taskListRequestId
+  if (!accountId) {
+    tasks.value = []
+    taskLoading.value = false
+    return
+  }
   taskLoading.value = true
   try {
-    const res = await taskApi.list({ type: 'scrape_members', account_id: scrapeAccId.value })
+    const res = await taskApi.list({ type: 'scrape_members', account_id: accountId })
+    if (!pageActive || requestId !== taskListRequestId || accountId !== scrapeAccId.value) return
     tasks.value = res.list || []
   } catch {
-    tasks.value = []
+    if (pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) tasks.value = []
   } finally {
-    taskLoading.value = false
+    if (pageActive && requestId === taskListRequestId) taskLoading.value = false
   }
 }
 
@@ -445,6 +454,7 @@ watch(() => route.params.accountId, () => {
 }, { immediate: true })
 
 onMounted(() => {
+  pageActive = true
   if (!authStore.tenant?.plan_features?.scrape_members) {
     toast({ type: 'error', title: '当前套餐不支持成员采集，请联系客服升级套餐' })
     router.push('/dashboard')
@@ -453,4 +463,9 @@ onMounted(() => {
   fetchGroups()
   fetchTasks()
 })
+onUnmounted(() => {
+  pageActive = false
+  taskListRequestId++
+})
+
 </script>
