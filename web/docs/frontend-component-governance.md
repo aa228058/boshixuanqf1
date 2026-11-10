@@ -391,3 +391,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - 新增 `npm run audit:legacy-css`，并接入 CI 的 frontend job，避免仅凭人工抽查或 GitHub 默认分支搜索判断旧样式是否可删。
 - 对 PR 分支源码的逐项抽查中，已检查全部 Vue SFC、主要业务组件、选择器、composables 和相关样式；目前未发现这两个 class 的模板/组件调用点，CSS 定义仍在 `ui-refined.css`。完整结果以本次 CI 输出为准。
 - 该扫描器是保守审计工具，不会自动删除 CSS；动态拼接、外部运行时注入和第三方集成仍需人工审查。R2 在取得 CI 扫描结果并复核所有候选后再决定是否删除，暂不关闭。
+
+
+### Selector dead-code and large-list cleanup（2026-11-10）
+
+- `GroupSelector.vue` 中 `autoSync()` 没有任何调用点；其整套重复同步/轮询实现已移除，保留当前实际使用的 `loadAccountGroups()`、`onRefresh()` 与共享同步锁流程。同步失败计数变量和未使用的轮询计数也一并删除。
+- `TargetSelector.vue` 中未接入界面的 `syncAllAccounts()`、`syncAllLoading`，以及只写不读的 `fromCache` 状态已移除；现有按账号读取联系人缓存、按当前账号刷新群组的行为保持不变。
+- 两个选择器继续采用最多首批渲染 200 条、搜索过滤后增量加载；GroupSelector 的全选/反选继续复用 Set-based `toggleSelectionByKey`，其 10,000 项语义压力测试已存在。
+- 这批改动是已确认无调用的局部死代码清理，不删除任何样式、API 或用户可见功能。大数据量真实浏览器滚动/搜索体验仍需 R5 手工压力验收。
