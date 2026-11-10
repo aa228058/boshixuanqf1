@@ -528,3 +528,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - The runtime now owns reconnect coalescing, active-page checks, current-source identity checks, open/message watchdog refresh, stale-source error rejection, watchdog disconnect, and timer disposal.
 - Added fake-timer tests for reconnect coalescing, reconnect cancellation on open, stale EventSource error callbacks, watchdog reset on messages, watchdog timeout recovery, and unmount disposal.
 - This is deterministic lifecycle automation, not a claim of end-to-end network fault injection or live long-running task acceptance. Browser/real-task verification remains in the final acceptance phase.
+
+
+### CI cache restore correction（2026-11-11）
+
+- The build job used both `actions/setup-go`'s built-in module cache and a separate `actions/cache` step against the same `~/go/pkg/mod` path.
+- On the Ubuntu 26 runner, the second restore attempted to extract files already populated by the first restore and emitted repeated `tar: Cannot open: File exists` errors.
+- Disabled the built-in cache for that one setup-go invocation; the explicit cache step remains the single owner of the module-cache restore/save lifecycle.
+- This is CI infrastructure hardening. It does not change Go versions, dependencies, build commands, or production artifacts.
