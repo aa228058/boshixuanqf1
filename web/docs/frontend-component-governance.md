@@ -432,3 +432,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Enlarged the VueFinalModal close control to a 44px square on mobile without changing its icon, event handler, desktop geometry, or modal positioning.
 - Kept the broader migration of 106 native button call sites out of this change. It requires classifying each control as an action, icon affordance, selector row, or structural control before changing semantics or styling.
 - Verification target: CI, frontend typecheck/unit tests, build, and Browser UI audit. Automated screenshots/viewport assertions do not replace manual review on real iOS/Android devices.
+
+
+### Batch F2 — animation ownership consolidation
+
+- `main.ts` imports `tailwind.css` before `animations.css`. The later animation layer already defined the effective `.animate-float`, `.animate-shimmer`, and `.animate-fade-in-scale` utilities, shadowing the earlier Tailwind-layer copies.
+- Removed only the shadowed `float`/`shimmer` keyframes and utility rules plus the unused-by-cascade `fadeInScale` keyframe/utility from `tailwind.css`. The canonical implementations remain in `animations.css`.
+- Kept Tailwind's distinct `pulse-ring` and other utility animations; this is not a blanket animation cleanup.
+- This is cascade-equivalent under the verified import order. CI and Browser UI audit are required to catch build/runtime regressions.
