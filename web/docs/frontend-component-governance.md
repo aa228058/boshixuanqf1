@@ -347,3 +347,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - 最新分支 HEAD：`eb87ad76bc7d3db948f6cb0bcbecfe0ba94de8e3`。该 SHA 的 CI 与 Browser UI audit 均为 completed/success；Playwright 自动化结果不等同于人工视觉验收。
 - R2 继续保持未关闭：本次确认分支树中不存在独立的 `useAsyncBtn` 源文件，且 CSS 中仍保留 `.btn-success`/`.btn-error` 规则；尚未取得完整的模板动态绑定/运行时注入零引用证据，因此不删除旧规则。
 - 当前仍需人工/真实浏览器验收：R1、R3、R4、R5、R6；R7 的人工可访问性检查并入 R1。
+
+
+### Modal runtime lifecycle test update（2026-11-10）
+
+- 在 `103d20bcaf176fe0a86a4c03c52b7ae0cf5a71fc` 中，将 Modal 的弹窗栈和共享 VisualViewport 键盘保护生命周期抽取到 `components/ui/modalRuntime.ts`，Modal.vue 改为调用统一 runtime。
+- 新增 `modalRuntime.test.ts` 的 3 项 Vitest 测试：弹窗 z-index/关闭后顺序压缩、多弹窗共享 viewport 监听且最后一个关闭时统一清理、重复注册及小视口偏移边界。
+- 该提交的 CI（包括 Frontend Typecheck + Unit Tests、frontend、integration、sql-audit、secrets、build）与 Browser UI audit 均 completed/success。
+- R3 仍不关闭：单元测试和自动化审计不能替代真实浏览器的焦点陷阱、Esc/遮罩、嵌套弹窗、软键盘与滚动锁定验收；这些继续并入 R1 的桌面/移动端手工验收。
+- 测试文件数量由此前复核时的 6 个增加为至少 7 个；后续统计以分支当前文件树为准。
