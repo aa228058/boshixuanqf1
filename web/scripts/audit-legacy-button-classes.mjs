@@ -50,7 +50,7 @@ for (const file of files) {
       }
     }
     if (/useAsyncBtn/i.test(line)) helperReferences.push({ path, line: index + 1, text: line.trim() })
-    if (/(?:^|[^\\w])(?:class|className|classList|setAttribute)\\b|:class\\b/.test(line) && /btn|success|error/i.test(line)) {
+    if (/(?:^|[^\w])(?:class|className|classList|setAttribute)\b|:class\b/.test(line) && /btn|success|error/i.test(line)) {
       dynamicCandidates.push({ path, line: index + 1, text: line.trim() })
     }
   }
