@@ -414,3 +414,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Every PR CI run now records the current direct component import map, possible unreferenced SFC candidates, duplicate component filenames, global CSS import order, button/form-control usage, confirmation API usage, and Modal/Empty/Loading/Dialog usage.
 - This remains an informational inventory: no component is deleted and no build is failed merely because a component has no direct import. Dynamic/runtime references and template semantics still require review before removal.
 - The standalone project `components/ui/Loading.vue` remains a removal candidate only; no deletion is included in this batch because a zero direct-import count alone is not enough evidence to rule out runtime references.
+
+
+### Batch D8 — final dead-component sweep and stylesheet ownership inventory
+
+- The CI component inventory for the pre-cleanup tree found exactly one component with no direct import: `components/AppShell.vue`. Repository code search also returned no `AppShell` references; there is no Vue auto-component registration in `vite.config.ts`. Removed this orphan SFC rather than keeping an unreachable second application shell beside the routed `views/Layout.vue` shell.
+- Removed the unused `WifiOff` import from `App.vue`; the network banner uses text only and did not render that icon.
+- The same inventory confirmed `components/ui/Loading.vue` is used by `views/sessions/Index.vue`; it is retained. All other UI components in the inventory have direct import sites. No duplicate component basenames were found.
+- CSS ownership is now recorded from the actual `main.ts` import order: tokens/theme files own semantic values and theme surfaces; Tailwind is the utility layer; `ui-kit.css` owns shared component primitives; TDesign skin/theme/overrides own vendor adaptation; `modal-system.css` owns Vue Final Modal geometry; `animations.css` owns reusable motion primitives. `ui-polish.css` and `ui-refined.css` remain legacy refinement layers with overlapping selectors. They are intentionally not bulk-deleted: selector overlap alone does not prove identical cascade behavior. This is the remaining stylesheet consolidation candidate and requires computed-style/browser regression before removing rules.
+- No behavior or route changes were made by this cleanup. The component inventory is a CI review aid and deliberately does not auto-delete dynamic/runtime components.
