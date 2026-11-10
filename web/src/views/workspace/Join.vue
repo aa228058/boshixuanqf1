@@ -66,7 +66,7 @@
       <!-- R108: 执行账号选择(普通号模式) —— 不再依赖顶栏切换器 -->
       <div v-if="joinMode === 'invite'">
         <label class="block text-sm font-medium mb-2">执行账号</label>
-        <select v-model="phoneAccId" class="input-box w-full h-10 px-3 text-sm rounded-lg">
+        <select v-model="phoneAccId" class="ui-input !text-sm" aria-label="执行账号">
           <option v-for="a in onlineAccounts" :key="a.account_id" :value="a.account_id">{{ a.first_name || a.phone }}</option>
         </select>
       </div>
@@ -81,7 +81,7 @@
         </div>
         <div v-if="joinAccounts.length > 1" class="space-y-1">
           <label class="block text-xs text-text-secondary">多账号分配方式</label>
-          <select v-model="joinDistribution" class="input-box w-full h-9 px-3 text-sm rounded-lg"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
+          <select v-model="joinDistribution" class="ui-input !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="多账号分配方式"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
         </div>
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
@@ -121,7 +121,7 @@
       <div>
         <label class="block text-sm font-medium mb-2">群链接 / 邀请链接</label>
         <textarea v-model="linksInput" rows="6" placeholder="每行一个链接，如:&#10;https://t.me/groupname&#10;https://t.me/+AbCdEfGhIjK"
-                  class="w-full px-4 py-3 rounded-[var(--t-r-md)] glow-input resize-none font-mono text-sm" />
+                  class="ui-input !min-h-[144px] resize-none font-mono text-sm" aria-label="群链接或邀请链接" />
         <div class="flex items-center justify-between mt-2">
           <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
             导入文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
