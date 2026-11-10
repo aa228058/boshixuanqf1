@@ -256,6 +256,7 @@ const expanded = ref<Record<string, boolean>>({})
 const members = ref<Record<string, any[]>>({})
 const memberLoading = ref<Record<string, boolean>>({})
 const skippedBots = ref<Record<string, number>>({})
+const memberRequestIds: Record<string, number> = {}
 
 // 判断是否为机器人账号(is_bot 字段或 username 以 bot 结尾)
 function isBot(m: any): boolean {
@@ -265,18 +266,23 @@ function isBot(m: any): boolean {
 // 清空当前账号的全部采集任务记录(进行中的任务不会删除)
 const clearing = ref(false)
 async function clearLogs() {
+  if (clearing.value) return
+  const accountId = scrapeAccId.value
   const finished = tasks.value.filter(t => t.status !== 'running' && t.status !== 'queued')
-  if (!finished.length) return
-  if (!await ask(`确定清空 ${finished.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })) return
+  const taskIds = finished.map(t => t.task_id)
+  if (!accountId || !taskIds.length) return
+  if (!await ask(`确定清空 ${taskIds.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })) return
+  if (accountId !== scrapeAccId.value) return
   clearing.value = true
   try {
-    await taskApi.batchDelete(finished.map(t => t.task_id))
+    await taskApi.batchDelete(taskIds)
+    if (accountId !== scrapeAccId.value) return
     expanded.value = {}
     members.value = {}
     skippedBots.value = {}
     await fetchTasks()
   } catch (e: any) {
-    toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
+    if (accountId === scrapeAccId.value) toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
   } finally {
     clearing.value = false
   }
@@ -308,23 +314,29 @@ function toggleExpand(taskId: string) {
 }
 
 async function loadMembers(taskId: string) {
+  const requestId = (memberRequestIds[taskId] || 0) + 1
+  memberRequestIds[taskId] = requestId
+  const accountId = scrapeAccId.value
+  const task = tasks.value.find(t => t.task_id === taskId)
+  const groupId = (task?.payload as any)?.group_id || task?.target_ids?.[0]
+  const isCurrent = () => memberRequestIds[taskId] === requestId &&
+    accountId === scrapeAccId.value && tasks.value.some(t => t.task_id === taskId)
   memberLoading.value[taskId] = true
   try {
-    const task = tasks.value.find(t => t.task_id === taskId)
-    const groupId = (task?.payload as any)?.group_id || task?.target_ids?.[0]
     if (!groupId) {
-      members.value[taskId] = []
+      if (isCurrent()) members.value[taskId] = []
       return
     }
     const res = await groupApi.getMembers(groupId)
+    if (!isCurrent()) return
     const raw = (res as any).members || res.list || res || []
     // 自动跳过机器人结果(源头已在采集时过滤, 这里兜底处理历史数据)
     skippedBots.value[taskId] = raw.filter(isBot).length
     members.value[taskId] = raw.filter((m: any) => !isBot(m))
   } catch {
-    members.value[taskId] = []
+    if (isCurrent()) members.value[taskId] = []
   } finally {
-    memberLoading.value[taskId] = false
+    if (isCurrent()) memberLoading.value[taskId] = false
   }
 }
 
@@ -415,31 +427,40 @@ async function fetchTasks() {
 async function submit() {
   // R111: 协议协同死分支已删
   // R109: 走下拉所选账号(原绑全局切换器)
-  if (!scrapeAccId.value || !selectedGroup.value) return
+  if (submitting.value || !scrapeAccId.value || !selectedGroup.value) return
+  const accountId = scrapeAccId.value
+  const group = { ...selectedGroup.value }
+  const mode = scrapeMode.value
+  const maxMessagesSnapshot = maxMessages.value
+  const recentEnabled = filterRecent.value
+  const recentDays = filterRecentDays.value
+  const photoEnabled = filterPhoto.value
   submitting.value = true
   try {
     await taskApi.create({
       type: 'scrape_members',
-      account_id: scrapeAccId.value,
-      target_ids: [selectedGroup.value.group_id],
+      account_id: accountId,
+      target_ids: [group.group_id],
       config: {
-        group_id: selectedGroup.value.group_id,
-        group_title: selectedGroup.value.title,
+        group_id: group.group_id,
+        group_title: group.title,
       },
       payload: {
-        mode: scrapeMode.value,
-        ...(scrapeMode.value === 'history' ? { max_messages: maxMessages.value } : {}),
-        ...(scrapeMode.value === 'members' ? {
+        mode,
+        ...(mode === 'history' ? { max_messages: maxMessagesSnapshot } : {}),
+        ...(mode === 'members' ? {
           filter: {
-            ...(filterRecent.value ? { recent_days: filterRecentDays.value } : {}),
-            ...(filterPhoto.value ? { has_photo: true } : {}),
+            ...(recentEnabled ? { recent_days: recentDays } : {}),
+            ...(photoEnabled ? { has_photo: true } : {}),
           },
         } : {}),
       },
     })
-    showCreate.value = false
-    selectedGroup.value = null
-    await fetchTasks()
+    if (scrapeAccId.value === accountId && selectedGroup.value?.group_id === group.group_id) {
+      showCreate.value = false
+      selectedGroup.value = null
+    }
+    if (scrapeAccId.value === accountId) await fetchTasks()
     toast({ type: 'success', title: '任务创建成功', message: '成员采集已开始，进度见任务列表' })
   } catch (e: any) {
     toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
