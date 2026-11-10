@@ -286,7 +286,7 @@ test('群发创建表单可导入目标、插入变量并预览，且不提交�
   const preview = page.locator('.modal-card:visible').last()
   await expect(preview.getByText('原始内容:')).toBeVisible()
   await expect(preview.getByText('你好，{{first_name}}')).toBeVisible()
-  await preview.getByRole('button', { name: '关闭' }).click()
+  await preview.getByRole('button', { name: '关闭', exact: true }).click()
 
   await modal.getByRole('button', { name: '取消' }).click()
   expect(createRequests, '仅编辑和预览时不应创建真实任务').toBe(0)
