@@ -218,7 +218,15 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 // R108: 执行账号下拉 —— 群列表/任务列表/提交全部跟随所选账号, 不依赖顶栏切换器
 const scrapeAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !scrapeAccId.value) scrapeAccId.value = acc.account_id }, { immediate: true })
-watch(scrapeAccId, () => { fetchGroups(); fetchTasks() })
+watch(scrapeAccId, () => {
+  for (const taskId of Object.keys(memberRequestIds)) memberRequestIds[taskId]++
+  members.value = {}
+  memberLoading.value = {}
+  skippedBots.value = {}
+  expanded.value = {}
+  fetchGroups()
+  fetchTasks()
+})
 
 const selectedGroup = ref<any>(null)
 // 采集过滤: 死号/无头像不入库
