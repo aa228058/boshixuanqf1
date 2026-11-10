@@ -9,7 +9,8 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run src",
     "check:design-tokens": "node scripts/check-design-tokens.mjs",
-    "audit:components": "node scripts/inventory-frontend-components.mjs"
+    "audit:components": "node scripts/inventory-frontend-components.mjs",
+    "audit:legacy-css": "node scripts/audit-legacy-button-classes.mjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
