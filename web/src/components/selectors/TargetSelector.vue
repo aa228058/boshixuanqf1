@@ -190,7 +190,7 @@
                 class="px-4 py-2 rounded-lg text-sm bg-bg-hover text-text-secondary hover:text-text-primary transition-colors">
           取消
         </button>
-        <t-button theme="primary" @click="confirm" >确认 ({{ allTargets.length }})</t-button>
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="confirm" >确认 ({{ allTargets.length }})</t-button>
       </div>
     </template>
   </Modal>
