@@ -320,7 +320,7 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 | R4 | P2 | `views/tasks/Detail.vue` | 任务详情的 SSE 重连、等待倒计时、实时日志、历史游标和滚动锚定有代码防护；需要运行中的任务才能验证事件交错和断线恢复 | 用持续产生日志的测试任务验证断线重连、旧 EventSource 回调、翻页时插入新日志和到达最旧页 |
 | R5 | P2 | `components/selectors/TargetSelector.vue`、`GroupSelector.vue` | 大列表已限制首屏渲染 200 项并支持增量加载；全量筛选/全选语义由代码保留，但极大数据量下的滚动、搜索和交互响应未实测 | 用数千/数万群组/联系人数据验证搜索、全选、反选、分页渲染、刷新与切换账号 |
 | R6 | P2 | `views/workspace/Broadcast.vue`、`Join.vue`、`Scrape.vue`、`Tasks.vue` 等关键业务表单 | 发现并修复过多项请求竞态和表单状态问题；全流程浏览器回归仍未完成 | 逐项走通创建、校验、取消、失败重试、账号切换、媒体上传中提交、循环模式限制和任务刷新 |
-| R7 | P3（代码已修） | `web/src/main.ts` 全局错误探针 | 已改为仅显示通用错误提示，不再把异常堆栈、服务器响应、内部路径、资源 URL 或查询参数展示给租户；同类提示 3 秒内去重；横幅增加 `role=alert`/`aria-live`，点击关闭同步清理计时器 | 等待最新 CI；浏览器验证横幅显示、读屏播报、关闭与自动消失 |
+| R7 | P3（代码与自动化验证已通过） | `web/src/main.ts` 全局错误探针 | 已改为仅显示通用错误提示，不再把异常堆栈、服务器响应、内部路径、资源 URL 或查询参数展示给租户；同类提示 3 秒内去重；横幅增加 `role=alert`/`aria-live`，点击关闭同步清理计时器；最新提交 `eb87ad7` 的 CI 与 Browser UI audit 均通过 | 代码与自动化门禁关闭；人工验证横幅显示、读屏播报、关闭与自动消失仍并入 R1 |
 | R8 | P2（已关闭） | `internal/repository/task_integration_test.go` | 测试夹具缺少 `task_logs` 表的问题已通过最小表结构和清理逻辑修复；提交 `470421c` 上 CI build、Go tests 已通过 | 已由 CI 验证通过，关闭 |
 
 ### 验证状态
@@ -329,7 +329,7 @@ The layers are not interchangeable: `tdesign-theme.css` maps TDesign semantic va
 - 同一 SHA 的 `build` Job 中 `gofmt`、`go vet`、`gosec` 成功，但 `go test` 因 R8 的测试夹具缺表失败；日志已定位到具体失败测试和 SQL relation，不是笼统的 Runner 启动故障。
 - R8 修复先提交于 `8287fb5`，并在后续 `470421c` 的 CI 中通过；CI 的 `build` Job（含 Go tests）、integration、secrets、sql-audit、Frontend Typecheck + Unit Tests、frontend 全部成功。
 - Browser UI audit 在 `470421c` 上成功，生成 Playwright 报告 artifact（`tg-sender-playwright-report`）；该结果不代表人工浏览器验收，也不代表所有主题/设备组合都被覆盖。
-- 后续 `580903e` 收敛全局错误横幅：展示内容脱敏、同类错误 3 秒去重、ARIA alert 语义和关闭时清理计时器；该提交后的 CI 尚待运行。
+- `580903e` 收敛全局错误横幅：展示内容脱敏、同类错误 3 秒去重、ARIA alert 语义和关闭时清理计时器；后续最新提交 `eb87ad7` 的 CI 与 Browser UI audit 均已成功，R7 的代码与自动化验证条件满足。
 - 尚未删除任何组件、样式文件或依赖；没有证据支持的删除候选继续保留。
 - 未合并 PR、未部署生产。
 
@@ -344,4 +344,6 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - `470421c` 的 Browser UI audit Job 成功，Playwright 报告已上传为 `tg-sender-playwright-report` artifact。自动化成功仍不等同于人工视觉验收。
 - R7 已在后续提交 `580903e` 修复：横幅不再把 stack、内部路径、服务器响应和资源 URL 展示给用户；相同类别提示 3 秒内去重；增加 ARIA alert 属性，并在手动关闭时清除计时器。等待该提交 CI 验证。
 - R2 暂不关闭：`.btn-success`/`.btn-error` CSS 仍存在；GitHub Code Search 返回 0 结果但标记 `incomplete_results=true`，且搜索索引针对默认分支，不能证明 PR 分支及运行时拼接无引用。需要本地完整仓库检索与动态调用追踪。
-- 当前仍需人工/真实浏览器验收：R1、R3、R4、R5、R6；R7 也需在浏览器验证可见性与读屏体验。
+- 最新分支 HEAD：`eb87ad76bc7d3db948f6cb0bcbecfe0ba94de8e3`。该 SHA 的 CI 与 Browser UI audit 均为 completed/success；Playwright 自动化结果不等同于人工视觉验收。
+- R2 继续保持未关闭：本次确认分支树中不存在独立的 `useAsyncBtn` 源文件，且 CSS 中仍保留 `.btn-success`/`.btn-error` 规则；尚未取得完整的模板动态绑定/运行时注入零引用证据，因此不删除旧规则。
+- 当前仍需人工/真实浏览器验收：R1、R3、R4、R5、R6；R7 的人工可访问性检查并入 R1。
