@@ -469,3 +469,14 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Existing admin plan numeric fields, support configuration fields, audit date inputs, and tenant list search/create fields were already on `.ui-input`; they were verified and left unchanged.
 - Native checkboxes, hidden file inputs, color pickers, date/time controls, and switches remain native/semantic controls. They are not text fields and should not be forced into the text-input primitive. Task status remains a native `select` to preserve the mobile system picker, while its appearance now follows the shared field primitive.
 - This batch is a source-level control consistency pass, not a claim of manual visual acceptance. Keyboard focus, native picker presentation, safe-area behavior, and real-device viewport checks remain explicit manual QA items.
+
+
+### Batch B1 — shared button governance and responsive touch targets
+
+- Audited all Vue SFCs for TDesign button call sites. Remaining ungoverned calls were brought under the shared `.ui-t-button` base and semantic variants, including selector modal actions, task-log pagination, broadcast import, and raffle save actions.
+- Added a shared warning variant for retry-failed and authentication-required actions. Task stop/cancel actions now use the shared danger variant; retry uses primary; retry-failed uses warning; statistics/pagination use secondary/text variants.
+- Preserved native button semantics for segmented tabs, switches, file-input labels, menu actions, and other controls that are not ordinary action buttons. Existing `.ui-icon-btn` remains the icon-only action primitive with its mobile 44px target.
+- Fixed the native small-button mobile override: a later 40px rule had silently overridden the earlier 44px touch-target baseline. Both TDesign and shared native small action buttons now retain 44px on mobile.
+- Added disabled-state feedback for shared native action buttons and ensured active transforms do not apply to disabled controls.
+- Extended `audit:components` inventory output with a review-only list of TDesign buttons missing the shared `.ui-t-button` class. It reports source locations without failing or rewriting code, so exceptions can be reviewed instead of blindly converted.
+- Automated checks and Browser UI audit are required for this batch. CI cannot replace manual desktop/mobile visual acceptance or real-device touch testing.
