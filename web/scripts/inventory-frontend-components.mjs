@@ -63,9 +63,9 @@ const ungovernedTButtons = files
   .filter(file => file.endsWith('.vue'))
   .flatMap(file => {
     const source = contents.get(file)
-    return [...source.matchAll(/<t-button\\b[^>]*>/gs)]
-      .filter(match => !/\\bclass\\s*=\\s*["'][^"']*\\bui-t-button\\b/.test(match[0]))
-      .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\\n').length }))
+    return [...source.matchAll(/<t-button\b[^>]*>/gs)]
+      .filter(match => !/\bclass\s*=\s*["'][^"']*\bui-t-button\b/.test(match[0]))
+      .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\n').length }))
   })
 
 const formControlPatterns = [
