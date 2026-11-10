@@ -172,6 +172,17 @@ onUnmounted(() => {
   color: var(--td-text-color-primary, #1a1a2e);
 }
 
+/* Keep the close affordance comfortably tappable on touch screens. */
+@media (max-width: 768px) {
+  .modal-close {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+}
+
 /* 内容区 */
 .modal-body {
   flex: 1 1 auto;
