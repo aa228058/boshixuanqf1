@@ -146,7 +146,7 @@
       <div class="mt-2">
         <t-button type="button" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="showImport = !showImport">批量导入目标（粘贴列表/上传文件）</t-button>
         <div v-if="showImport" class="mt-2 space-y-2">
-          <textarea v-model="importText" rows="4" class="w-full bg-bg-card border border-border rounded-lg px-3 py-2 text-sm"
+          <textarea v-model="importText" rows="4" class="ui-input !text-sm" aria-label="批量导入群组目标"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
           <div class="flex gap-2">
             <t-button theme="primary" size="sm" variant="outline" @click="applyImportText">解析添加</t-button>
