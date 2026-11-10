@@ -62,6 +62,10 @@ jobs:
         working-directory: ./web
         run: npm run check:design-tokens
 
+      - name: Legacy button class reference audit
+        working-directory: ./web
+        run: npm run audit:legacy-css
+
       - name: Typecheck
         working-directory: ./web
         run: npm run typecheck
