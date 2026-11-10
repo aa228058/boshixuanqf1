@@ -47,7 +47,7 @@
                 class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
           克隆资料
         </t-button>
-        <button type="button" @click="exitSelecting" title="退出多选"
+        <button type="button" @click="exitSelecting" title="退出多选" aria-label="退出多选"
                 class="ui-icon-btn shrink-0">
           ✕
         </button>
