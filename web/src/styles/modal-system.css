@@ -83,7 +83,7 @@
     position: fixed !important;
     top: auto !important;
     right: 0 !important;
-    bottom: 0 !important;
+    bottom: var(--modal-kb, 0px) !important;
     left: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -92,8 +92,8 @@
        显式给内容容器一个视口内的可用高度，长内容由 .modal-body 自己滚动。 */
     height: min(88vh, 900px) !important;
     height: min(88dvh, 900px) !important;
-    max-height: 100vh !important;
-    max-height: 100dvh !important;
+    height: min(88dvh, calc(100dvh - var(--modal-kb, 0px))) !important;
+    max-height: calc(100dvh - var(--modal-kb, 0px)) !important;
     margin: 0 !important;
     /* vue-final-modal 默认会给内容节点保留 12px 底部内边距；
        抽屉卡片作为唯一可视面板时必须清零，否则卡片会比视口短 12px。 */
@@ -114,12 +114,11 @@
   }
 }
 
-/* ---- 键盘弹起适配(规范 §8.2): 变量由 Modal.vue 的
-   visualViewport 监听写入 --modal-kb, 弹窗整体上移同样距离 ----
-   写在 .modal-card 而非 .modal-content: 避免和进入动画的 transform 冲突 */
+/* 键盘弹起时缩小抽屉可用高度并上移底边，不再整体 translateY，
+   避免长弹窗被键盘顶出视口；内部 .modal-body 保持独立滚动。 */
 @media (max-width: 768px) {
-  .modal-card {
-    transform: translateY(calc(-1 * var(--modal-kb, 0px)));
-    transition: transform 0.15s ease-out;
-  }
+  .modal-content { transition: height 0.15s ease-out, bottom 0.15s ease-out; }
+  .modal-card { transform: none; }
+  .modal-footer > .t-button,
+  .modal-footer > button { min-height: 44px; }
 }
