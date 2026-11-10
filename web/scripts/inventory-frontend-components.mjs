@@ -64,7 +64,7 @@ const ungovernedTButtons = files
   .flatMap(file => {
     const source = contents.get(file)
     return [...source.matchAll(/<t-button\b[^>]*>/gs)]
-      .filter(match => !/\bclass\s*=\s*["'][^"']*\bui-t-button\b/.test(match[0]))
+      .filter(match => !match[0].includes('ui-t-button'))
       .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\n').length }))
   })
 
