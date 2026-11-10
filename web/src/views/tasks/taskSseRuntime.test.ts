@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTaskSseRuntime } from './taskSseRuntime'
 
-type FakeSource = { close: ReturnType<typeof vi.fn> }
+type FakeSource = { close: () => void }
 
 function createRuntime() {
   let active = true
