@@ -149,7 +149,7 @@
           <textarea v-model="importText" rows="4" class="ui-input !text-sm" aria-label="批量导入群组目标"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
           <div class="flex gap-2">
-            <t-button theme="primary" size="sm" variant="outline" @click="applyImportText">解析添加</t-button>
+            <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="applyImportText">解析添加</t-button>
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               选择文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
             </label>
