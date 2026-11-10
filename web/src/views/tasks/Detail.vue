@@ -138,7 +138,7 @@
         </button>
       </div>
       <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
-        <t-button size="small" variant="text" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
+        <t-button size="small" variant="text" class="ui-t-button ui-t-button--text ui-t-button--sm" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
       </div>
       <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
         <div
