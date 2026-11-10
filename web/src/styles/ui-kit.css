@@ -321,6 +321,29 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
 .t-button.ui-t-button.t-is-disabled { opacity: .45; }
 
+/* Pagination controls keep a predictable row and touch-sized buttons across viewports. */
+.ui-pagination {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--t-space-1);
+}
+.ui-pagination button,
+.ui-pagination .t-button {
+  min-width: 36px;
+  min-height: 36px;
+}
+@media (max-width: 768px) {
+  .ui-pagination button,
+  .ui-pagination .t-button {
+    min-width: 40px;
+    min-height: 44px;
+  }
+}
+
 /* Account action menu: consistent compact rows across desktop popover/mobile sheet. */
 .ui-menu-item {
   display: flex;
