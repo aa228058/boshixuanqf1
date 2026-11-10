@@ -359,6 +359,7 @@ const invalidLinks = computed(() => {
 const showInvalidLinks = ref(false)
 
 async function submit() {
+  if (submitting.value) return
   // R111: 协议协同死分支已删
   // ===== 邀请成员入群模式 =====
   if (joinMode.value === 'invite') {
@@ -366,14 +367,17 @@ async function submit() {
       toast({ type: 'warning', title: '请选择执行账号、目标群和来源群' })
       return
     }
+    const accountId = phoneAccId.value
+    const targetGroupId = inviteTargetId.value
+    const sourceGroupId = inviteSourceId.value
     submitting.value = true
     try {
       await taskApi.create({
         type: 'invite_members',
-        account_id: phoneAccId.value,
+        account_id: accountId,
         payload: {
-          target_group_id: inviteTargetId.value,
-          source_group_id: inviteSourceId.value,
+          target_group_id: targetGroupId,
+          source_group_id: sourceGroupId,
         },
       })
       toast({ type: 'success', title: '邀请入群任务已创建', message: '成员邀请已排队执行' })
@@ -397,25 +401,31 @@ async function submit() {
     toast({ type: 'warning', title: '请先添加有效的群链接' })
     return
   }
+  // Freeze the complete batch before the first await. Edits made while requests are
+  // in flight must apply to the next batch, not produce inconsistent per-account tasks.
+  const accountIds = [...new Set(joinAccounts.value)]
+  const links = [...new Set(validLinks.value)]
+  const distribution = joinDistribution.value
+  const intervalMin = joinIntervalMin.value || undefined
+  const intervalMax = joinIntervalMax.value || undefined
+  const assignments = distribution === 'round_robin' && accountIds.length > 1
+    ? accountIds.map((accountId, accountIndex) => ({ accountId, links: links.filter((_, linkIndex) => linkIndex % accountIds.length === accountIndex) })).filter(x => x.links.length > 0)
+    : accountIds.map(accountId => ({ accountId, links }))
   submitting.value = true
   try {
-    const links = [...new Set(validLinks.value)]
-    const assignments = joinDistribution.value === 'round_robin' && joinAccounts.value.length > 1
-      ? joinAccounts.value.map((accountId, accountIndex) => ({ accountId, links: links.filter((_, linkIndex) => linkIndex % joinAccounts.value.length === accountIndex) })).filter(x => x.links.length > 0)
-      : joinAccounts.value.map(accountId => ({ accountId, links }))
     let created = 0
     const errors: string[] = []
     for (const assignment of assignments) {
       try {
         await taskApi.create({ type: 'join_groups', account_id: assignment.accountId, links: assignment.links,
-          interval_min_minutes: joinIntervalMin.value || undefined, interval_max_minutes: joinIntervalMax.value || undefined })
+          interval_min_minutes: intervalMin, interval_max_minutes: intervalMax })
         created++
       } catch (err: any) { errors.push(err?.message || '任务创建失败') }
     }
     if (created === 0) throw new Error(errors[0] || '所有账号任务创建失败')
     linksInput.value = ''
     showCreate.value = false
-    toast({ type: errors.length ? 'warning' : 'success', title: '已创建 ' + created + '/' + assignments.length + ' 个加群任务', message: (joinDistribution.value === 'round_robin' ? '链接已按账号均分' : '每个账号执行全部链接') + (errors.length ? '；失败：' + errors.join('；') : '') })
+    toast({ type: errors.length ? 'warning' : 'success', title: '已创建 ' + created + '/' + assignments.length + ' 个加群任务', message: (distribution === 'round_robin' ? '链接已按账号均分' : '每个账号执行全部链接') + (errors.length ? '；失败：' + errors.join('；') : '') })
     fetchTasks()
   } catch (e: any) {
     toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
