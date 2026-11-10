@@ -135,13 +135,13 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
-              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
+              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
+              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
-                         class="ui-t-button" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
+                         class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
-                <t-button class="ui-t-button ui-t-button--secondary" size="small" variant="outline" @click.stop="showAccStats(row)" title="每账号统计">
+                <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(row)" title="每账号统计">
                   <BarChart3 class="w-3.5 h-3.5" />
                 </t-button>
               </t-tooltip>
@@ -191,7 +191,7 @@
           <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
           <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
-                     size="small" theme="warning" class="ui-t-button" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
+                     size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
           <t-button class="ui-t-button ui-t-button--secondary" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
         </div>
       </div>
