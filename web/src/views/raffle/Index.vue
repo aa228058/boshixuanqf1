@@ -79,7 +79,7 @@
             <t-button
               @click="saveReply(replyEnabled, replyText)"
               :disabled="replySaving"
-              class="ui-t-button--primary ui-t-button disabled:opacity-50 whitespace-nowrap shrink-0"
+              class="ui-t-button ui-t-button--primary disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ replySaving ? '保存中…' : '保存' }}
             </t-button>
