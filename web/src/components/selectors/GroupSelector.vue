@@ -294,6 +294,10 @@ const dmFiltered = computed(() => {
   const s = search.value.toLowerCase()
   return dmUsers.value.filter(u => u.title.toLowerCase().includes(s) || (u.username && u.username.toLowerCase().includes(s)))
 })
+
+const allDmSelected = computed(() =>
+  dmFiltered.value.length > 0 && dmFiltered.value.every(user => selectedGroupIds.value.has(user.group_id))
+)
 const dmVisibleCount = ref(200)
 const dmDisplay = computed(() => dmFiltered.value.slice(0, dmVisibleCount.value))
 watch(search, () => { dmVisibleCount.value = 200 })
@@ -304,10 +308,6 @@ const selectedGroupIds = computed(() => new Set(selected.value.map(item => item.
 
 const allSelected = computed(() =>
   filtered.value.length > 0 && filtered.value.every(group => selectedGroupIds.value.has(group.group_id))
-)
-
-const allDmSelected = computed(() =>
-  dmFiltered.value.length > 0 && dmFiltered.value.every(user => selectedGroupIds.value.has(user.group_id))
 )
 
 
