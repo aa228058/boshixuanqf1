@@ -74,9 +74,9 @@ const iconButtonsMissingName = files
     const source = contents.get(file)
     return [...source.matchAll(/<button\b(?:"[^"]*"|'[^']*'|[^'">])*>/gs)]
       .filter(match => {
-        if (!/\\bui-icon-btn\\b/.test(match[0])) return false
+        if (!/\bui-icon-btn\b/.test(match[0])) return false
         // Accept literal or bound labels/titles, but reject empty attributes.
-        return !/\\b(?:aria-label|:aria-label|title|:title)\\s*=\\s*(?:"[^"]*\\S[^"]*"|'[^']*\\S[^']*')/.test(match[0])
+        return !/\b(?:aria-label|:aria-label|title|:title)\s*=\s*(?:"[^"]*\S[^"]*"|'[^']*\S[^']*')/.test(match[0])
       })
       .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\n').length }))
   })
