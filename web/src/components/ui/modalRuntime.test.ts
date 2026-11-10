@@ -98,4 +98,60 @@ describe('modalRuntime', () => {
     expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '0px')
     runtime.deactivateKeyboardGuard(id)
   })
+  it('preserves stack order when a middle modal closes and later reopens', () => {
+    const runtime = createModalRuntime(() => ({}))
+    const firstId = Symbol('first')
+    const middleId = Symbol('middle')
+    const lastId = Symbol('last')
+    const firstOrder = ref(0)
+    const middleOrder = ref(0)
+    const lastOrder = ref(0)
+
+    runtime.registerModal(firstId, firstOrder)
+    runtime.registerModal(middleId, middleOrder)
+    runtime.registerModal(lastId, lastOrder)
+    runtime.unregisterModal(middleId, middleOrder)
+
+    expect([firstOrder.value, middleOrder.value, lastOrder.value]).toEqual([1, 0, 2])
+
+    runtime.registerModal(middleId, middleOrder)
+    expect([firstOrder.value, lastOrder.value, middleOrder.value]).toEqual([1, 2, 3])
+
+    // A repeated close/unmount cleanup must not disturb the remaining stack.
+    runtime.unregisterModal(middleId, middleOrder)
+    runtime.unregisterModal(middleId, middleOrder)
+    expect([firstOrder.value, lastOrder.value, middleOrder.value]).toEqual([1, 2, 0])
+  })
+
+  it('keeps keyboard listeners registered once for duplicate activation of one modal', () => {
+    const { environment, viewport, listeners, setProperty } = createKeyboardEnvironment()
+    const runtime = createModalRuntime(() => environment)
+    const id = Symbol('modal')
+
+    runtime.activateKeyboardGuard(id)
+    runtime.activateKeyboardGuard(id)
+    expect(viewport.addEventListener).toHaveBeenCalledTimes(2)
+    expect(listeners.get('resize')?.size).toBe(1)
+
+    runtime.deactivateKeyboardGuard(id)
+    runtime.deactivateKeyboardGuard(id)
+    expect(viewport.removeEventListener).toHaveBeenCalledTimes(2)
+    expect(listeners.get('resize')?.size).toBe(0)
+    expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '0px')
+  })
+
+  it('does not attach keyboard listeners when the visual viewport is unavailable', () => {
+    const setProperty = vi.fn()
+    const runtime = createModalRuntime(() => ({
+      window: { innerHeight: 800, visualViewport: undefined } as unknown as Window,
+      document: { documentElement: { style: { setProperty } } } as unknown as Document,
+    }))
+    const id = Symbol('modal')
+
+    runtime.activateKeyboardGuard(id)
+    runtime.deactivateKeyboardGuard(id)
+
+    expect(setProperty).not.toHaveBeenCalled()
+  })
+
 })

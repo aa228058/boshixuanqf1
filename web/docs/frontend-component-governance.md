@@ -512,3 +512,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Corrected the component inventory opening-tag scanner: Vue expressions may contain a greater-than operator inside a quoted attribute, so a simple less-than-anything-to-greater-than matcher could truncate a TDesign button before its class attribute and report false governance gaps. The scanner now respects quoted attribute values for both TDesign and native buttons.
 - The icon-button check now rejects empty aria-label/title values while accepting static or bound non-empty names. It remains review-only and does not auto-edit source.
 - CI output is the source of truth for the refreshed repository-wide inventory; this source-level audit does not replace screen-reader or keyboard interaction testing.
+
+
+### Batch D9 — modal runtime lifecycle regression coverage（2026-11-11）
+
+- Expanded isolated `modalRuntime` unit coverage for closing a middle modal, compacting the remaining stack, reopening the same modal at the top, and repeated close/unmount cleanup.
+- Added keyboard-guard idempotency coverage: activating the same modal twice must attach only one shared listener pair, and repeated deactivation must clean up exactly once.
+- Added the no-`visualViewport` environment case to ensure unsupported browser contexts do not attach listeners or write document-level keyboard state.
+- These tests strengthen deterministic runtime coverage only. They do not claim mounted Vue component integration, nested-dialog browser interaction, or real iOS/Android keyboard acceptance; those remain in the final acceptance phase.
