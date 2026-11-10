@@ -480,3 +480,13 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Added disabled-state feedback for shared native action buttons and ensured active transforms do not apply to disabled controls.
 - Extended `audit:components` inventory output with a review-only list of TDesign buttons missing the shared `.ui-t-button` class. It reports source locations without failing or rewriting code, so exceptions can be reviewed instead of blindly converted.
 - Automated checks and Browser UI audit are required for this batch. CI cannot replace manual desktop/mobile visual acceptance or real-device touch testing.
+
+
+### Batch B2 — icon-only action states and task-detail consistency
+
+- Fixed shared icon-button hover cascade: the generic hover style no longer overrides the danger variant, so destructive icon actions retain error color/surface on hover.
+- Icon buttons now suppress active transforms while disabled and expose a consistent disabled opacity/cursor state.
+- Standardized task-detail actions: reload, pause/resume, cancel, retry-failed, refresh-members, clear-log, and log pagination now carry explicit shared semantic variants and compact sizing where appropriate.
+- Extended the component inventory with a review-only check for icon-only `.ui-icon-btn` native buttons missing both `aria-label` and `title`. This complements the TDesign button governance-gap report; neither check auto-rewrites source.
+- Mobile icon-button touch targets remain 44×44px for ordinary actions. The intentionally compact `--xs` affordance remains excluded and must not be used for essential mobile actions.
+- Browser UI audit and CI are still required; keyboard focus, destructive hover contrast, and mobile touch behavior need visual/manual acceptance in addition to static checks.
