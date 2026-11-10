@@ -31,7 +31,7 @@
     <!-- 批量操作悬浮栏(R141 新皮肤适配): 实底浮层(深色模式不透字) + 令牌阴影 + 主题感知按钮底 -->
     <Transition name="batch-bar">
       <!-- 避开底部 Tab: 移动端 bottom-[92px](Tab 上方留隙), 桌面端 bottom-5 -->
-      <div v-if="selectedIds.size" class="fixed bottom-[92px] md:bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 pl-4 pr-2 py-2 rounded-[var(--t-r-lg)] whitespace-nowrap max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-hide"
+      <div v-if="selectedIds.size" class="fixed bottom-[calc(92px+env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 pl-4 pr-2 py-2 rounded-[var(--t-r-lg)] whitespace-nowrap max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-hide"
            style="background: var(--t-card); border: 1px solid var(--t-line-strong); box-shadow: var(--t-shadow-pop);">
         <span class="text-xs font-semibold whitespace-nowrap" style="color: var(--t-text-1);">已选 <b class="tabular-nums" style="color: var(--t-brand);">{{ selectedIds.size }}</b> 项</span>
         <span class="w-px h-4 shrink-0" style="background: var(--t-line-strong);" />
