@@ -26,7 +26,7 @@
         <!-- R128 原生 select: t-select 的 tdesign 下拉面板在移动端定位滑到页面底部(用户反馈),
              原生 select 视觉已令牌化且系统自带可靠下拉 -->
         <select v-model="statusFilter"
-                class="w-32 px-3 py-2 rounded-[var(--t-r-md)] text-xs font-medium outline-none cursor-pointer"
+                class="ui-input !w-32 !min-h-[36px] !px-3 !py-1.5 !text-xs font-medium cursor-pointer"
                 style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);">
           <option value="">全部状态</option>
           <option value="running">运行中</option>
