@@ -66,6 +66,10 @@ jobs:
         working-directory: ./web
         run: npm run audit:legacy-css
 
+      - name: Frontend component and stylesheet inventory
+        working-directory: ./web
+        run: npm run audit:components
+
       - name: Typecheck
         working-directory: ./web
         run: npm run typecheck
