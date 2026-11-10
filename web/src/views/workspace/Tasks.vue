@@ -199,10 +199,10 @@
     </div>
 
     <!-- 分页 -->
-    <div v-if="total > pageSize" class="flex items-center justify-between mt-6">
+    <div v-if="total > pageSize" class="flex flex-wrap items-center justify-between gap-3 mt-6">
       <span class="text-xs text-text-secondary">共 {{ total }} 条</span>
       <!-- P0-07: TDesign total 是总条数不是页数, 原传 totalPages 导致分页严重错误 -->
-      <t-pagination :page="page" :total="total" :page-size="pageSize" @change="(p: any) => page = p.current" />
+      <t-pagination class="ui-pagination" :page="page" :total="total" :page-size="pageSize" @change="(p: any) => page = p.current" />
     </div>
 
     <!-- 每账号统计弹层: 任务内各账号成功/失败/跳过 -->
