@@ -520,3 +520,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Added keyboard-guard idempotency coverage: activating the same modal twice must attach only one shared listener pair, and repeated deactivation must clean up exactly once.
 - Added the no-`visualViewport` environment case to ensure unsupported browser contexts do not attach listeners or write document-level keyboard state.
 - These tests strengthen deterministic runtime coverage only. They do not claim mounted Vue component integration, nested-dialog browser interaction, or real iOS/Android keyboard acceptance; those remain in the final acceptance phase.
+
+
+### Batch R4 — task SSE lifecycle extraction and unit coverage（2026-11-11）
+
+- Extracted task-detail SSE reconnect/watchdog timer ownership into `views/tasks/taskSseRuntime.ts`; the view retains ticket acquisition, EventSource creation, event parsing, and task-specific state updates.
+- The runtime now owns reconnect coalescing, active-page checks, current-source identity checks, open/message watchdog refresh, stale-source error rejection, watchdog disconnect, and timer disposal.
+- Added fake-timer tests for reconnect coalescing, reconnect cancellation on open, stale EventSource error callbacks, watchdog reset on messages, watchdog timeout recovery, and unmount disposal.
+- This is deterministic lifecycle automation, not a claim of end-to-end network fault injection or live long-running task acceptance. Browser/real-task verification remains in the final acceptance phase.

@@ -207,6 +207,7 @@ import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import type { Task, TaskLog } from '@/types'
 import { getTaskLogPageState, mergeTaskLogs, taskLogKey } from './taskLogRuntime'
+import { createTaskSseRuntime } from './taskSseRuntime'
 
 const route = useRoute()
 const router = useRouter()
@@ -384,33 +385,17 @@ const groupMap = ref<Record<string, string>>({})
 const normId = (id: any): string => String(id ?? '').replace(/^-100/, '')
 let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let sseConnecting = false
 let onVisCleanup: (() => void) | null = null
-// R87-M9: SSE 看门狗 —— 某些代理/网络下连接"假活"(不断开也不推数据),
-// onerror 永不触发导致日志假死。30秒无任何消息则判定假活, 主动断开重连。
-let sseWatchdog: ReturnType<typeof setTimeout> | null = null
-function scheduleSSEReconnect() {
-  if (!pageActive) return
-  if (reconnectTimer) clearTimeout(reconnectTimer)
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null
-    void connectSSE()
-  }, 3000)
-}
 
-function resetSseWatchdog(source: EventSource) {
-  if (sseWatchdog) clearTimeout(sseWatchdog)
-  sseWatchdog = setTimeout(() => {
-    if (!pageActive || eventSource !== source) return
-    console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连')
-    try { source.close() } catch { /* 忽略 */ }
-    eventSource = null
-    sseWatchdog = null
-    connState.value = 'disconnected'
-    scheduleSSEReconnect()
-  }, 45000)
-}
+const sseRuntime = createTaskSseRuntime({
+  isActive: () => pageActive,
+  getSource: () => eventSource,
+  setSource: source => { eventSource = source },
+  setConnectionState: state => { connState.value = state },
+  connect: () => { void connectSSE() },
+  onWatchdogTimeout: () => console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连'),
+})
 
 const // 2026-10-21 修正: 进度按"已处理"(成功+失败)计算——失败也是处理结果, 不应让进度条永远卡住
 progressPercent = computed(() => {
@@ -523,7 +508,7 @@ async function connectSSE() {
     const token = authStore.token
     if (!token) {
       connState.value = 'disconnected'
-      scheduleSSEReconnect()
+      sseRuntime.scheduleReconnect()
       return
     }
 
@@ -542,7 +527,7 @@ async function connectSSE() {
       if (!pageActive) return
       if (!ticketResponse.ok) {
         connState.value = 'disconnected'
-        scheduleSSEReconnect()
+        sseRuntime.scheduleReconnect()
         return
       }
       ticket = (await ticketResponse.json()).ticket || ''
@@ -552,24 +537,20 @@ async function connectSSE() {
     if (!pageActive) return
     if (!ticket) {
       connState.value = 'disconnected'
-      scheduleSSEReconnect()
+      sseRuntime.scheduleReconnect()
       return
     }
 
     const source = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
     eventSource = source
     source.onopen = () => {
-      if (!pageActive || eventSource !== source) return
-      connState.value = 'connected'
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-      resetSseWatchdog(source)
+      if (!sseRuntime.handleOpen(source)) return
       // This stream has no replay cursor; reconcile persisted rows after every reconnect.
       void fetchLogs()
     }
     source.onmessage = (e) => {
-      if (!pageActive || eventSource !== source) return
+      if (!sseRuntime.handleMessage(source)) return
       try {
-        resetSseWatchdog(source)
         const data = JSON.parse(e.data)
         if (!data || !task.value) return
 
@@ -614,17 +595,12 @@ async function connectSSE() {
       } catch (err) { /* ignore malformed SSE data */ }
     }
     source.onerror = () => {
-      if (!pageActive || eventSource !== source) return
-      connState.value = 'disconnected'
-      eventSource = null
-      source.close()
-      if (sseWatchdog) { clearTimeout(sseWatchdog); sseWatchdog = null }
-      scheduleSSEReconnect()
+      sseRuntime.handleError(source)
     }
   } catch {
     if (pageActive) {
       connState.value = 'disconnected'
-      scheduleSSEReconnect()
+      sseRuntime.scheduleReconnect()
     }
   } finally {
     sseConnecting = false
@@ -753,8 +729,7 @@ onUnmounted(() => {
   eventSource?.close()
   eventSource = null
   clearInterval(refreshTimer)
-  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-  if (sseWatchdog) { clearTimeout(sseWatchdog); sseWatchdog = null }
+  sseRuntime.dispose()
   if (onVisCleanup) onVisCleanup()
 })
 </script>
