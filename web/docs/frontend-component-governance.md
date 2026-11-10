@@ -373,3 +373,5 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - 在 `ca3ceff` 中，Join 提交增加重复提交保护；邀请任务捕获账号/目标群/来源群快照；多账号批量进群在首个 await 前快照去重后的账号、链接、分配策略与间隔，整个批次使用同一配置，避免用户中途编辑表单造成批次配置漂移。
 - `ca3ceff41654c8e1728fb878f9d7d0e76a40c8bc` 的 CI 全部 6 个 Job（build、integration、frontend、Frontend Typecheck + Unit Tests、sql-audit、secrets）均 completed/success；Browser UI audit completed/success。
 - R6 仍不关闭：自动化门禁通过不能替代关键业务流程人工回归；仍需覆盖账号切换、预检期间增删目标、Join 连续点击/中途编辑、失败重试与任务刷新等桌面/移动端场景。
+
+- 后续复核发现 Join 任务列表仍缺少请求代次与页面卸载保护：15 秒轮询、SSE 状态刷新和手动刷新可能交错。已在 `edbe987` 中增加 request generation、当前账号快照校验和卸载失效保护；仅最新有效请求可以更新列表/错误/loading。该修复等待最新 SHA 自动化验证。
