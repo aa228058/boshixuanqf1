@@ -86,7 +86,7 @@ function close() {
 function onFocusIn(e: FocusEvent) {
   const t = e.target as HTMLElement | null
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) {
-    t.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    t.scrollIntoView({ block: 'nearest', behavior: 'auto' })
   }
 }
 
