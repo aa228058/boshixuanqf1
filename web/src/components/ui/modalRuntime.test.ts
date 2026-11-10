@@ -65,6 +65,13 @@ describe('modalRuntime', () => {
     expect(listeners.get('scroll')?.size).toBe(1)
     expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '300px')
 
+    ;(viewport as unknown as { height: number }).height = 620
+    for (const listener of listeners.get('resize') || []) {
+      if (typeof listener === 'function') listener(new Event('resize'))
+      else listener.handleEvent(new Event('resize'))
+    }
+    expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '180px')
+
     runtime.deactivateKeyboardGuard(firstId)
     expect(viewport.removeEventListener).not.toHaveBeenCalled()
     expect(setProperty).toHaveBeenLastCalledWith('--modal-kb', '300px')
