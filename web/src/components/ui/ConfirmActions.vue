@@ -12,7 +12,7 @@
     <t-button
       type="button"
       :theme="danger ? 'danger' : 'primary'"
-      :class="['ui-t-button', danger ? 'ui-t-button--danger' : 'ui-t-button--primary']"
+      :class="['ui-t-button', danger ? 'ui-t-button--danger' : 'ui-t-button--primary', 'ui-t-button--sm']"
       @click="emit('confirm')"
     >
       {{ confirmText }}
