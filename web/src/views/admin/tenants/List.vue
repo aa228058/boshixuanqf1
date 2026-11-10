@@ -120,8 +120,8 @@
         </div>
       </div>
       <template #footer>
-        <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doCreate">创建</t-button>
+        <t-button type="button" variant="outline" @click="showCreate = false" class="ui-t-button ui-t-button--secondary">取消</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doCreate">创建</t-button>
       </template>
     </Modal>
 
