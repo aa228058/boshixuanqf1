@@ -5,16 +5,16 @@ export function toggleSelectionByKey<T>(
 ): T[] {
   if (candidates.length === 0) return [...selected]
 
+  // Build the lookup once: using selected.some() inside candidates.every()
+  // becomes quadratic for large group/contact libraries.
+  const selectedKeys = new Set(selected.map(getKey))
   const candidateKeys = new Set(candidates.map(getKey))
-  const allSelected = candidates.every(item =>
-    selected.some(current => getKey(current) === getKey(item)),
-  )
+  const allSelected = candidates.every(item => selectedKeys.has(getKey(item)))
 
   if (allSelected) {
     return selected.filter(item => !candidateKeys.has(getKey(item)))
   }
 
-  const selectedKeys = new Set(selected.map(getKey))
   const next = [...selected]
   for (const item of candidates) {
     const key = getKey(item)
