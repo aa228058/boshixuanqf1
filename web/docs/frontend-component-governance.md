@@ -449,3 +449,13 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Added a consistent disabled affordance to `.ui-input`. Keyboard focus continues to use the existing global soft focus ring; a second outline was deliberately avoided to prevent a double-ring effect.
 - This batch intentionally does not convert checkboxes, hidden file inputs, or switches into text-field styles. Native controls retain their semantics.
 - Verification target: frontend typecheck/unit tests, build, and Browser UI audit. Manual keyboard and mobile visual QA remain distinct acceptance steps.
+
+
+### Batch F4 — Join/Scrape/Monitor form-control alignment
+
+- Migrated the remaining Join task form's account and distribution selects, plus the multiline group-link field, to the shared `.ui-input` primitive. Existing v-model bindings, select options, textarea row sizing intent, and link-import behavior remain unchanged.
+- Migrated Scrape's history-message numeric limit to `.ui-input`; its bounded numeric semantics and 36px compact layout are preserved.
+- Migrated Monitor's page-level account selector to `.ui-input`, matching the rule editor's existing selects and text fields. Added an explicit accessible name.
+- Left checkboxes and the compact native recent-days picker native: these controls have native checkbox semantics and the picker intentionally invokes the mobile system selection UI. They should not be forced into text-field styling.
+- Rechecked `modal-system.css` and `Modal.vue`: desktop wrapper uses centered flex alignment and a bounded 560px content width; mobile uses a bottom-anchored dynamic-viewport container, a constrained drawer height, and a flex-column card with the body as the scroll container and footer fixed outside that scroll region. No geometry rewrite was justified by the source audit; real-device keyboard/safe-area behavior remains a separate visual acceptance item.
+- Verification target: frontend typecheck/unit tests, production build, and Browser UI audit. Automated checks do not constitute manual desktop/mobile visual sign-off.
