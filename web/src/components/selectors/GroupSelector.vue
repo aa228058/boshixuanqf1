@@ -300,12 +300,14 @@ watch(search, () => { dmVisibleCount.value = 200 })
 
 watch(activeTab, t => { if (t === 'dm') loadDmUsers() })
 
-const allSelected = computed(() => {
-  return filtered.value.length > 0 && filtered.value.every(g => isSelected(g))
-})
+const selectedGroupIds = computed(() => new Set(selected.value.map(item => item.group_id)))
+
+const allSelected = computed(() =>
+  filtered.value.length > 0 && filtered.value.every(group => selectedGroupIds.value.has(group.group_id))
+)
 
 const allDmSelected = computed(() =>
-  dmFiltered.value.length > 0 && dmFiltered.value.every(user => isSelected(user))
+  dmFiltered.value.length > 0 && dmFiltered.value.every(user => selectedGroupIds.value.has(user.group_id))
 )
 
 
@@ -318,7 +320,7 @@ function selectAllDm() {
 }
 
 function isSelected(g: Group) {
-  return selected.value.some(s => s.group_id === g.group_id)
+  return selectedGroupIds.value.has(g.group_id)
 }
 
 function toggle(g: Group) {
