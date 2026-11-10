@@ -406,3 +406,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - 最新全仓审计在 124 个 Vue/TS/JS/CSS/SCSS 文件中得到：两个旧选择器 CSS 定义各 1 处；源码静态引用 0；`useAsyncBtn` 只在旧 CSS 注释中出现 1 次；动态 class 候选仅 1 处，位于任务日志错误状态的 Tailwind 令牌 class，与旧按钮选择器无关。
 - 因为已经同时检查了静态引用、动态 class 候选和旧 helper 标记，现从 `ui-refined.css` 删除这两条无调用规则及过时注释，不影响当前按钮体系。
 - R2 的这两个遗留选择器已完成代码清理；删除后的 CI 再次扫描必须确认定义、静态引用和 helper 标记均为 0，之后关闭该项。
+
+
+### Batch D7 — inventory becomes a CI-visible guard
+
+- Added `npm run audit:components` to the frontend CI job after the design-token and legacy-button audits.
+- Every PR CI run now records the current direct component import map, possible unreferenced SFC candidates, duplicate component filenames, global CSS import order, button/form-control usage, confirmation API usage, and Modal/Empty/Loading/Dialog usage.
+- This remains an informational inventory: no component is deleted and no build is failed merely because a component has no direct import. Dynamic/runtime references and template semantics still require review before removal.
+- The standalone project `components/ui/Loading.vue` remains a removal candidate only; no deletion is included in this batch because a zero direct-import count alone is not enough evidence to rule out runtime references.
