@@ -349,8 +349,10 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
     min-height: 44px;
   }
 
-  .t-button.ui-t-button--sm {
-    min-height: 40px;
+  /* Small visual variants must still meet the 44px mobile touch-target baseline. */
+  .t-button.ui-t-button--sm,
+  .ui-native-button--sm {
+    min-height: 44px;
   }
 }
 
