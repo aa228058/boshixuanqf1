@@ -268,10 +268,17 @@ async function loadInviteGroups() {
     return
   }
   const requestId = ++inviteGroupRequest
-  const groups = await groupStore.ensure(accountId)
-  // 账号切换期间旧请求可能后返回；只允许当前选择账号的结果更新下拉。
-  if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
-    inviteGroups.value = groups
+  try {
+    const groups = await groupStore.ensure(accountId)
+    // 账号切换期间旧请求可能后返回；只允许当前选择账号的结果更新下拉。
+    if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+      inviteGroups.value = groups
+    }
+  } catch {
+    if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+      inviteGroups.value = []
+      toast({ type: 'error', title: '群组加载失败', message: '请检查账号连接后重试' })
+    }
   }
 }
 watch(phoneAccId, () => {
