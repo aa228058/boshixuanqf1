@@ -356,3 +356,11 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - 该提交的 CI（包括 Frontend Typecheck + Unit Tests、frontend、integration、sql-audit、secrets、build）与 Browser UI audit 均 completed/success。
 - R3 仍不关闭：单元测试和自动化审计不能替代真实浏览器的焦点陷阱、Esc/遮罩、嵌套弹窗、软键盘与滚动锁定验收；这些继续并入 R1 的桌面/移动端手工验收。
 - 测试文件数量由此前复核时的 6 个增加为至少 7 个；后续统计以分支当前文件树为准。
+
+### Task log runtime test update（2026-11-10）
+
+- 在 `d0ab3dd513ebfe90d102c560227b4c15bf807385` 中，将任务日志稳定身份键、HTTP/SSE 合并去重、按时间与 log_id 稳定排序、历史页游标状态抽取到 `views/tasks/taskLogRuntime.ts`。
+- 新增 `taskLogRuntime.test.ts` 的 5 项测试：持久化 ID 去重、无 ID 结构化身份避免分隔符碰撞、实时与历史日志合并、同时间戳稳定排序、分页游标边界。
+- `Detail.vue` 的历史页加载现在复用同一合并函数；保留请求 ID 防止旧分页响应覆盖新状态，并继续使用后端 keyset cursor。
+- 提交 `d0ab3dd` 的 CI 全部 Job completed/success（build、integration、frontend、Frontend Typecheck + Unit Tests、sql-audit、secrets）；Browser UI audit completed/success。
+- R4 仍不关闭：这些测试覆盖纯运行时数据逻辑，不模拟真实 EventSource 生命周期、断线重连和浏览器滚动锚定。需要在持续产生日志的任务中完成桌面/移动浏览器验收。
