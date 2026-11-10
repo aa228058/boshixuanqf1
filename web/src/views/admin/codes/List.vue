@@ -24,7 +24,7 @@
         :columns="tdColumns"
         :data="codes"
         hover
-        :pagination="{ current: page, pageSize: 20, total: total, onChange: (p: any) => page = p.current }"
+        :pagination="{ current: page, pageSize: 20, total: total, onChange: onPageChange }"
       >
         <template #select="{ row }">
           <input type="checkbox" :value="row.code_id" v-model="selectedIds" class="accent-[var(--t-brand)]" @click.stop />
@@ -106,11 +106,11 @@
         </div>
         <div>
           <label for="code-count" class="block text-sm text-text-secondary mb-1.5">数量</label>
-          <input v-model.number="generateForm.count" type="number" min="1" max="100" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="数量" />
+          <input v-model.number="generateForm.count" type="number" min="1" max="100" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="生成数量" />
         </div>
         <div>
           <label for="code-days" class="block text-sm text-text-secondary mb-1.5">有效期（天，可选）</label>
-          <input v-model.number="generateForm.expires_days" type="number" min="1" class="w-full px-2.5 py-1.5 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="数量" />
+          <input v-model.number="generateForm.expires_days" type="number" min="1" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="有效期天数" />
         </div>
       </div>
       <template #footer>
@@ -139,7 +139,7 @@
   <!-- 批量操作吸底栏：选中卡密时弹出 -->
   <Teleport to="body">
     <Transition name="batch-bar">
-      <div v-if="selectedIds.length" class="fixed bottom-[92px] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
+      <div v-if="selectedIds.length" class="fixed bottom-[calc(92px_+_env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
         <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke">批量作废</t-button>
         <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete">批量删除</t-button>
@@ -204,6 +204,12 @@ const tdColumns = computed(() => columns.map(c => ({ colKey: c.key, title: c.tit
 // P0-22 审计修复: 原 statusFilter 无任何 watch——下拉切换不触发查询, 列表纹丝不动。
 // 切换即重置到第 1 页并重新拉取(状态筛选走后端, 页码不重置会看不到结果)。
 watch(statusFilter, () => { page.value = 1; fetchCodes() })
+
+function onPageChange(p: { current: number }) {
+  if (p.current === page.value) return
+  page.value = p.current
+  void fetchCodes()
+}
 
 async function fetchCodes() {
   try {

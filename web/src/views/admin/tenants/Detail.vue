@@ -69,7 +69,7 @@
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">到期时间</label>
-          <input v-model="editForm.expires_at" type="datetime-local" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="选择时间" />
+          <input v-model="editForm.expires_at" type="datetime-local" class="ui-input !text-sm" aria-label="套餐到期时间" />
         </div>
       </div>
       <template #footer>

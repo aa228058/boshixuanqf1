@@ -71,15 +71,15 @@
             maxlength="200"
             :disabled="replySaving"
             placeholder="感谢群主, 中奖{奖品}已收到!"
-            class="mt-3 w-full px-3 py-2 rounded-[var(--t-r-md)] text-sm resize-none disabled:opacity-50"
-            style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+            class="ui-input mt-3 !min-h-[64px] !text-sm resize-none disabled:opacity-50" aria-label="中奖回复内容"
+            
           />
           <div class="flex items-center justify-between mt-2">
             <span class="text-xs" style="color: var(--t-text-3);">{奖品} 自动替换为中奖金额 · 上限 200 字</span>
             <t-button
               @click="saveReply(replyEnabled, replyText)"
               :disabled="replySaving"
-              class="ui-t-button--primary ui-t-button disabled:opacity-50 whitespace-nowrap shrink-0"
+              class="ui-t-button ui-t-button--primary disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ replySaving ? '保存中…' : '保存' }}
             </t-button>
@@ -116,13 +116,13 @@
               v-model="pingText"
               :disabled="pingSaving"
               placeholder="/start"
-              class="flex-1 px-3 py-2 rounded-[var(--t-r-md)] text-sm disabled:opacity-50"
-              style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+              class="ui-input flex-1 !min-w-0 !text-sm disabled:opacity-50" aria-label="机器人激活语"
+              
             />
             <t-button
               @click="savePing(pingEnabled, pingText)"
               :disabled="pingSaving"
-              class="ui-t-button--primary ui-t-button disabled:opacity-50 whitespace-nowrap shrink-0"
+              class="ui-t-button ui-t-button--primary disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {{ pingSaving ? '保存中…' : '保存' }}
             </t-button>

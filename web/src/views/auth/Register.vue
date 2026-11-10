@@ -45,6 +45,8 @@
               <button
                 type="button"
                 class="ui-icon-btn absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                :aria-pressed="showPassword"
                 @click="showPassword = !showPassword"
               >
                 <Eye v-if="showPassword" class="w-5 h-5" stroke-width="1.5" />
