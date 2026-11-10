@@ -364,3 +364,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - `Detail.vue` 的历史页加载现在复用同一合并函数；保留请求 ID 防止旧分页响应覆盖新状态，并继续使用后端 keyset cursor。
 - 提交 `d0ab3dd` 的 CI 全部 Job completed/success（build、integration、frontend、Frontend Typecheck + Unit Tests、sql-audit、secrets）；Browser UI audit completed/success。
 - R4 仍不关闭：这些测试覆盖纯运行时数据逻辑，不模拟真实 EventSource 生命周期、断线重连和浏览器滚动锚定。需要在持续产生日志的任务中完成桌面/移动浏览器验收。
+
+
+### Workspace request and form snapshot hardening（2026-11-10）
+
+- 在 `0416993` 中，Scrape 任务列表请求捕获 accountId 与 request generation；账号切换、页面卸载或后续请求启动后，旧响应/错误/finally 不再覆盖当前列表或 loading 状态。
+- 在 `b640049` 中，Broadcast 目标预检加入单飞保护，并在请求前快照目标 ID；只有当前选择仍与快照完全一致时才应用预检结果，避免旧预检响应删除用户后来新增的目标。
+- 在 `ca3ceff` 中，Join 提交增加重复提交保护；邀请任务捕获账号/目标群/来源群快照；多账号批量进群在首个 await 前快照去重后的账号、链接、分配策略与间隔，整个批次使用同一配置，避免用户中途编辑表单造成批次配置漂移。
+- `ca3ceff41654c8e1728fb878f9d7d0e76a40c8bc` 的 CI 全部 6 个 Job（build、integration、frontend、Frontend Typecheck + Unit Tests、sql-audit、secrets）均 completed/success；Browser UI audit completed/success。
+- R6 仍不关闭：自动化门禁通过不能替代关键业务流程人工回归；仍需覆盖账号切换、预检期间增删目标、Join 连续点击/中途编辑、失败重试与任务刷新等桌面/移动端场景。
