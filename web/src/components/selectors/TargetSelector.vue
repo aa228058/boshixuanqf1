@@ -207,6 +207,7 @@ import { groupApi } from '@/api/group'
 import { contactApi } from '@/api/contact'
 import { syncLock } from '@/utils/syncLock'
 import { toast } from '@/utils/toast'
+import { areAllSelectorKeysSelected, createSelectorTitleLookup, filterSelectorItems, toggleAllSelectorKeys } from './selectorRuntime'
 import { useGroupStore } from '@/stores/group'
 
 const groupStore = useGroupStore()
@@ -288,33 +289,25 @@ const groupSearch = ref('')
 
 const filteredDialogs = computed(() => {
   const list = dialogs.value.filter(d => d.type === 'user')
-  if (!search.value) return list
-  const q = search.value.toLowerCase()
-  return list.filter(d => d.title.toLowerCase().includes(q))
+  return filterSelectorItems(list, search.value, d => d.title)
 })
 
 const filteredGroups = computed(() => {
   if (activeTab.value === 'user') return []
-  let list = props.groups.filter(g => activeTab.value === 'group' ? (g.type === 'group' || g.type === 'supergroup') : g.type === activeTab.value)
-  if (groupSearch.value) {
-    const q = groupSearch.value.toLowerCase()
-    list = list.filter(g => g.title.toLowerCase().includes(q))
-  }
-  return list
+  const list = props.groups.filter(g => activeTab.value === 'group' ? (g.type === 'group' || g.type === 'supergroup') : g.type === activeTab.value)
+  return filterSelectorItems(list, groupSearch.value, g => g.title)
 })
 watch(search, () => { dialogVisibleCount.value = 200 })
 watch(groupSearch, () => { groupVisibleCount.value = 200 })
 
-const allDialogsSelected = computed(() => {
-  const ids = filteredDialogs.value.map(d => d.id)
-  return ids.length > 0 && ids.every(id => selectedTargets.value.has(id))
-})
+const allDialogsSelected = computed(() =>
+  areAllSelectorKeysSelected(filteredDialogs.value, selectedTargets.value, d => d.id)
+)
 
-const allGroupsSelected = computed(() => {
+const allGroupsSelected = computed(() =>
   // 统一存数字 chat_id(配合库里的 AccessHash 直发); username 解析失败率极高(FloodWait/改名/未加入)
-  const ids = filteredGroups.value.map(g => String(g.tg_chat_id))
-  return ids.length > 0 && ids.every(id => selectedTargets.value.has(id))
-})
+  areAllSelectorKeysSelected(filteredGroups.value, selectedTargets.value, g => String(g.tg_chat_id))
+)
 
 const manualTargets = computed(() => {
   const lines = manualInput.value.split(/\n/).map(l => l.trim()).filter(Boolean)
@@ -345,12 +338,12 @@ const manualInvalid = computed(() => {
 
 const allTargets = computed(() => Array.from(selectedTargets.value))
 
+const targetTitleLookup = computed(() =>
+  createSelectorTitleLookup(props.groups, dialogs.value)
+)
+
 function getTargetTitle(id: string): string {
-  const g = props.groups.find(g => String(g.tg_chat_id) === id || g.username === id.replace(/^@/, ''))
-  if (g) return g.title
-  const d = dialogs.value.find(d => d.id === id)
-  if (d) return d.title
-  return id
+  return targetTitleLookup.value.get(id) || id
 }
 
 function isTargetSelected(t: string) {
@@ -363,23 +356,21 @@ function toggleTarget(t: string) {
 }
 
 function selectAllDialogs() {
-  const ids = filteredDialogs.value.map(d => d.id)
-  if (allDialogsSelected.value) {
-    ids.forEach(id => selectedTargets.value.delete(id))
-  } else {
-    ids.forEach(id => selectedTargets.value.add(id))
-  }
+  selectedTargets.value = toggleAllSelectorKeys(
+    filteredDialogs.value,
+    selectedTargets.value,
+    d => d.id,
+  )
 }
 
 function selectAllGroups() {
   // 统一存 TG chat ID(数字字符串): 用户名解析 FloodWait 高发且易失效,
   // chat_id 是同步时落库的永久 ID, 配合库中 AccessHash 可直发零解析
-  const ids = filteredGroups.value.map(g => String(g.tg_chat_id))
-  if (allGroupsSelected.value) {
-    ids.forEach(id => selectedTargets.value.delete(id))
-  } else {
-    ids.forEach(id => selectedTargets.value.add(id))
-  }
+  selectedTargets.value = toggleAllSelectorKeys(
+    filteredGroups.value,
+    selectedTargets.value,
+    g => String(g.tg_chat_id),
+  )
 }
 
 function removeTarget(t: string) {

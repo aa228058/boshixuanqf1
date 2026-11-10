@@ -536,3 +536,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - On the Ubuntu 26 runner, the second restore attempted to extract files already populated by the first restore and emitted repeated `tar: Cannot open: File exists` errors.
 - Disabled the built-in cache for that one setup-go invocation; the explicit cache step remains the single owner of the module-cache restore/save lifecycle.
 - This is CI infrastructure hardening. It does not change Go versions, dependencies, build commands, or production artifacts.
+
+
+### Batch R5 — selector 大列表查找与批量选择优化（2026-11-11）
+
+- Extracted reusable selector helpers for case-insensitive filtering, early-exit all-selected checks, filtered-key bulk toggling, and target-title indexing.
+- Replaced per-render `find()` lookups for every selected chip with a computed Map index, avoiding repeated linear scans when many targets are selected.
+- Removed temporary key-array allocations from all-selected checks and select-all toggles; selections outside the current filtered result remain intact.
+- Added deterministic 10,000-item tests for filtering, select-all / deselect-all semantics, empty results, and title lookup precedence.
+- The existing 200-row render window remains in place. This is code-level and unit-test coverage, not a claim of real browser scroll/typing performance; that interaction check stays in the final acceptance phase.
