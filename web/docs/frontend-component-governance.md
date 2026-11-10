@@ -440,3 +440,12 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Removed only the shadowed `float`/`shimmer` keyframes and utility rules plus the unused-by-cascade `fadeInScale` keyframe/utility from `tailwind.css`. The canonical implementations remain in `animations.css`.
 - Kept Tailwind's distinct `pulse-ring` and other utility animations; this is not a blanket animation cleanup.
 - This is cascade-equivalent under the verified import order. CI and Browser UI audit are required to catch build/runtime regressions.
+
+
+### Batch F3 — notification settings form-control alignment
+
+- Migrated the five notification/SMTP text controls in `views/settings/Index.vue` from repeated one-off Tailwind field styling to the shared `.ui-input` primitive. Grid placement, flex sizing, password/number/email types, and model bindings are preserved.
+- Added explicit accessible names to the email, SMTP username, password, host, and port controls; placeholders are retained as visual hints rather than the only accessible name.
+- Added a visible keyboard-focus outline and a consistent disabled affordance to `.ui-input`. The existing token-based border/background focus treatment remains intact.
+- This batch intentionally does not convert checkboxes, hidden file inputs, or switches into text-field styles. Native controls retain their semantics.
+- Verification target: frontend typecheck/unit tests, build, and Browser UI audit. Manual keyboard and mobile visual QA remain distinct acceptance steps.
