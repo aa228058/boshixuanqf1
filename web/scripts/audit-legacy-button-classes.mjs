@@ -38,19 +38,19 @@ for (const file of files) {
     const path = relative(root, file)
     if (isStyle) {
       for (const name of candidates) {
-        if (new RegExp('\\\\.' + name + '(?![\\w-])').test(line)) {
+        if (line.includes('.' + name) && line.split(/[^A-Za-z0-9_-]+/).includes(name)) {
           definitions.push({ path, line: index + 1, name, text: line.trim() })
         }
       }
     } else {
       for (const name of candidates) {
-        if (new RegExp('(?<![\\w-])' + name + '(?![\\w-])').test(line)) {
+        if (line.split(/[^A-Za-z0-9_-]+/).includes(name)) {
           sourceReferences.push({ path, line: index + 1, name, text: line.trim() })
         }
       }
     }
     if (/useAsyncBtn/i.test(line)) helperReferences.push({ path, line: index + 1, text: line.trim() })
-    if (/(?:^|[^\w])(?:class|className|classList|setAttribute)\b|:class\b/.test(line) && /btn|success|error/i.test(line)) {
+    if (/(:class\b|v-bind:class\b|classList\.(?:add|remove|toggle)\s*\(|className\s*=|setAttribute\s*\(\s*['"]class['"])/i.test(line) && /btn|success|error/i.test(line)) {
       dynamicCandidates.push({ path, line: index + 1, text: line.trim() })
     }
   }
