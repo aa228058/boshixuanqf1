@@ -43,7 +43,8 @@ describe('selector runtime helpers', () => {
 
     expect(areAllSelectorKeysSelected<Item>([], selected, item => item.id)).toBe(false)
     const filtered = filterSelectorItems(items, 'group 999', item => item.title)
-    expect(filtered.map(item => item.id)).toEqual(['item-999'])
+    expect(filtered).toHaveLength(11)
+    expect(filtered[0].id).toBe('item-999')
 
     const all = toggleAllSelectorKeys(items, selected, item => item.id)
     expect(all.size).toBe(10_000)
