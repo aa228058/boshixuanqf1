@@ -63,7 +63,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { Toaster } from 'vue-sonner'
 // 2026-10-22 审计修复: 此前此处有一套重复的 online 状态+两个 window 监听器
 // 且从未 removeEventListener(监听器泄漏)——已删除, 统一用下方 isOnline 一套
-import { WifiOff } from 'lucide-vue-next'
 import { globalLoading } from '@/utils/request'
 import SupportFloat from '@/components/ui/SupportFloat.vue'
 import ConfirmHost from '@/components/ui/ConfirmHost.vue'
