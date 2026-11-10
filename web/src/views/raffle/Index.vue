@@ -72,7 +72,7 @@
             :disabled="replySaving"
             placeholder="感谢群主, 中奖{奖品}已收到!"
             class="ui-input mt-3 !min-h-[64px] !text-sm resize-none disabled:opacity-50" aria-label="中奖回复内容"
-            style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+            
           />
           <div class="flex items-center justify-between mt-2">
             <span class="text-xs" style="color: var(--t-text-3);">{奖品} 自动替换为中奖金额 · 上限 200 字</span>
@@ -117,7 +117,7 @@
               :disabled="pingSaving"
               placeholder="/start"
               class="ui-input flex-1 !min-w-0 !text-sm disabled:opacity-50" aria-label="机器人激活语"
-              style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
+              
             />
             <t-button
               @click="savePing(pingEnabled, pingText)"
