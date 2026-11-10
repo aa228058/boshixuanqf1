@@ -459,3 +459,13 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Left checkboxes and the compact native recent-days picker native: these controls have native checkbox semantics and the picker intentionally invokes the mobile system selection UI. They should not be forced into text-field styling.
 - Rechecked `modal-system.css` and `Modal.vue`: desktop wrapper uses centered flex alignment and a bounded 560px content width; mobile uses a bottom-anchored dynamic-viewport container, a constrained drawer height, and a flex-column card with the body as the scroll container and footer fixed outside that scroll region. No geometry rewrite was justified by the source audit; real-device keyboard/safe-area behavior remains a separate visual acceptance item.
 - Verification target: frontend typecheck/unit tests, production build, and Browser UI audit. Automated checks do not constitute manual desktop/mobile visual sign-off.
+
+
+### Batch F5 — cross-workspace and admin form-control alignment
+
+- Completed another route-wide pass over the remaining tenant and admin views. Broadcast target import, Scrape link-listener account, task status filter, raffle reply/activation text, and account-profile clone input now use the shared `.ui-input` primitive.
+- The raffle fields no longer carry inline background/border declarations that would override shared focus styling. Their v-model, disabled states, max length, and compact sizing are retained.
+- Admin announcement title/target, generated-code count/expiry, probe test account/private invite/public link, and tenant expiry datetime fields now use `.ui-input`. Explicit accessible names were added where the controls were not already labelled by their surrounding label elements.
+- Existing admin plan numeric fields, support configuration fields, audit date inputs, and tenant list search/create fields were already on `.ui-input`; they were verified and left unchanged.
+- Native checkboxes, hidden file inputs, color pickers, date/time controls, and switches remain native/semantic controls. They are not text fields and should not be forced into the text-input primitive. Task status remains a native `select` to preserve the mobile system picker, while its appearance now follows the shared field primitive.
+- This batch is a source-level control consistency pass, not a claim of manual visual acceptance. Keyboard focus, native picker presentation, safe-area behavior, and real-device viewport checks remain explicit manual QA items.
