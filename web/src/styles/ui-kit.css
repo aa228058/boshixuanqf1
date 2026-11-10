@@ -88,13 +88,18 @@
   transition: color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease;
 }
 .ui-icon-btn--danger { color: var(--t-err); }
-.ui-icon-btn--danger:hover { color: var(--t-err); background: var(--t-err-dim); border-color: color-mix(in srgb, var(--t-err) 25%, transparent); }
-.ui-icon-btn:hover {
+.ui-icon-btn:not(:disabled):hover {
   color: var(--t-brand);
   background: var(--t-brand-dim);
   border-color: var(--t-line);
 }
-.ui-icon-btn:active { transform: scale(0.96); }
+.ui-icon-btn--danger:not(:disabled):hover {
+  color: var(--t-err);
+  background: var(--t-err-dim);
+  border-color: color-mix(in srgb, var(--t-err) 25%, transparent);
+}
+.ui-icon-btn:active:not(:disabled) { transform: scale(0.96); }
+.ui-icon-btn:disabled { opacity: .45; cursor: not-allowed; }
 .ui-icon-btn:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
 
 /* ---------- .ui-input 输入框: 无边框实底, 聚焦只亮边 ---------- */
