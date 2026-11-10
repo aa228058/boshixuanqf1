@@ -259,7 +259,7 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
 test('群发创建表单可导入目标、插入变量并预览，且不提交任务', async ({ page }) => {
   const accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || 'none')
   let createRequests = 0
-  await page.route(/\\/api\\/v1\\/tasks(?:\\?.*)?$/, async route => {
+  await page.route(/\/api\/v1\/tasks(?:\?.*)?$/, async route => {
     const request = route.request()
     if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/tasks')) {
       createRequests++
