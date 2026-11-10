@@ -382,3 +382,4 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
   - Scrape 创建任务加入单飞保护并快照账号、群组、模式和过滤配置；创建完成后仅在账号/群组仍匹配时关闭当前创建上下文，避免清空用户新选择。
   - Join 邀请群组加载现在显式处理失败，只允许当前账号请求写入错误状态，避免未处理 Promise rejection。
 - 上述 Scrape/Join 追加修复分别落在 `78cbc2d`、`2557789`、`cb174b8`；最新 PR head 为 `cb174b8d03f773b197bd048f3df6cf0b56fd601f`。等待该 head 的 CI 与 Browser UI audit 结果后再记录最终门禁状态。
+- 群组缓存层再补一处并发保护：`groupStore.refresh(accountId)` 为每个账号维护请求代次与失效 epoch；只允许最新且未被 mutation/invalidate 作废的请求写入 sessionStorage 缓存，防止较早请求迟到后覆盖较新群列表，或在群组写操作清缓存后把旧数据重新填回。修复提交：`f2b8f75`、`429f4c7`。
