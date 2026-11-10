@@ -59,6 +59,15 @@ const buttonPatterns = [
   ['Shared .ui-t-button class', /ui-t-button/g],
   ['Shared .ui-native-button class', /ui-native-button/g],
 ]
+const ungovernedTButtons = files
+  .filter(file => file.endsWith('.vue'))
+  .flatMap(file => {
+    const source = contents.get(file)
+    return [...source.matchAll(/<t-button\\b[^>]*>/gs)]
+      .filter(match => !/\\bclass\\s*=\\s*["'][^"']*\\bui-t-button\\b/.test(match[0]))
+      .map(match => ({ path: relative(root, file), line: source.slice(0, match.index).split('\\n').length }))
+  })
+
 const formControlPatterns = [
   ['TDesign <t-input>', /<t-input\b/gi],
   ['TDesign <t-textarea>', /<t-textarea\b/gi],
@@ -155,6 +164,10 @@ for (const usage of buttonUsage) {
   console.log(`- ${usage.label}: ${usage.total} matches across ${usage.files.length} files`)
   for (const file of usage.files) console.log(`  - ${file.path}: ${file.count}`)
 }
+console.log('')
+console.log('TDesign button governance gaps (review-only)')
+if (!ungovernedTButtons.length) console.log('- none')
+for (const button of ungovernedTButtons) console.log(`- ${button.path}:${button.line}`)
 console.log('')
 console.log('Form-control implementation usage (source-level matches)')
 for (const usage of formControlUsage) {
