@@ -71,7 +71,7 @@
             maxlength="200"
             :disabled="replySaving"
             placeholder="感谢群主, 中奖{奖品}已收到!"
-            class="mt-3 w-full px-3 py-2 rounded-[var(--t-r-md)] text-sm resize-none disabled:opacity-50"
+            class="ui-input mt-3 !min-h-[64px] !text-sm resize-none disabled:opacity-50" aria-label="中奖回复内容"
             style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
           />
           <div class="flex items-center justify-between mt-2">
@@ -116,7 +116,7 @@
               v-model="pingText"
               :disabled="pingSaving"
               placeholder="/start"
-              class="flex-1 px-3 py-2 rounded-[var(--t-r-md)] text-sm disabled:opacity-50"
+              class="ui-input flex-1 !min-w-0 !text-sm disabled:opacity-50" aria-label="机器人激活语"
               style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);"
             />
             <t-button
