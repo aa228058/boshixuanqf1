@@ -545,3 +545,10 @@ R1、R3、R4、R5、R6 必须有桌面/移动真实浏览器记录；R2 必须�
 - Removed temporary key-array allocations from all-selected checks and select-all toggles; selections outside the current filtered result remain intact.
 - Added deterministic 10,000-item tests for filtering, select-all / deselect-all semantics, empty results, and title lookup precedence.
 - The existing 200-row render window remains in place. This is code-level and unit-test coverage, not a claim of real browser scroll/typing performance; that interaction check stays in the final acceptance phase.
+
+
+### Batch R6 — 核心业务表单的安全浏览器回归（2026-11-11）
+
+- Added an authenticated Playwright regression for the broadcast creation flow: open the modal, import/parse two target formats, insert a message variable at the cursor, preview the rendered template, and cancel.
+- The test explicitly counts POST requests to `/api/v1/tasks` and asserts that form exploration never creates a real task. It does not send Telegram messages or mutate backend records.
+- This adds repeatable browser coverage for the pre-submit workflow only. Actual task submission/execution and live Telegram behavior remain outside CI and are reserved for the final acceptance phase.
