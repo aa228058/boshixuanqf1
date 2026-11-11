@@ -178,13 +178,32 @@ func (r *TaskRepository) GetByNumber(ctx context.Context, tenantID uuid.UUID, ta
 	).Scan(&t.TaskID, &t.TaskNumber, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
 		&lockedAt, &workerID, &t.RetryCount, &scheduledAt, &startedAt, &completedAt, &t.CreatedAt,
 		&t.IsLoop, &t.LoopIntervalMinutes, &t.MinIntervalSeconds, &t.MaxIntervalSeconds, &nextRunAt)
-	if err != nil { return nil, fmt.Errorf("get task by number: %w", err) }
-	if lockedAt.Valid { tt := lockedAt.Time; t.LockedAt = &tt }
-	if workerID.Valid { t.WorkerID = &workerID.String }
-	if scheduledAt.Valid { tt := scheduledAt.Time; t.ScheduledAt = &tt }
-	if startedAt.Valid { tt := startedAt.Time; t.StartedAt = &tt }
-	if completedAt.Valid { tt := completedAt.Time; t.CompletedAt = &tt }
-	if nextRunAt.Valid { tt := nextRunAt.Time; t.NextRunAt = &tt }
+	if err != nil {
+		return nil, fmt.Errorf("get task by number: %w", err)
+	}
+	if lockedAt.Valid {
+		tt := lockedAt.Time
+		t.LockedAt = &tt
+	}
+	if workerID.Valid {
+		t.WorkerID = &workerID.String
+	}
+	if scheduledAt.Valid {
+		tt := scheduledAt.Time
+		t.ScheduledAt = &tt
+	}
+	if startedAt.Valid {
+		tt := startedAt.Time
+		t.StartedAt = &tt
+	}
+	if completedAt.Valid {
+		tt := completedAt.Time
+		t.CompletedAt = &tt
+	}
+	if nextRunAt.Valid {
+		tt := nextRunAt.Time
+		t.NextRunAt = &tt
+	}
 	return &t, nil
 }
 func (r *TaskRepository) Create(ctx context.Context, t *domain.Task) error {
