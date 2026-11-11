@@ -38,6 +38,22 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	}
 }
 
+// waitBroadcastDelay waits for a pacing interval without trapping a worker after
+// task cancellation, pause, or engine shutdown.
+func waitBroadcastDelay(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
 func dedupeAccountIDs(accountIDs []uuid.UUID) []uuid.UUID {
 	seen := make(map[uuid.UUID]bool, len(accountIDs))
 	result := make([]uuid.UUID, 0, len(accountIDs))
@@ -67,6 +83,32 @@ func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][
 		result[accountID] = unique
 	}
 	return result
+}
+
+// countBroadcastTargetProgress keeps already successful account-target pairs
+// out of the failure count when an account is skipped during task recovery.
+func countBroadcastTargetProgress(accountID uuid.UUID, targets []string, successSet map[string]bool) (done, pending int) {
+	for _, target := range targets {
+		if successSet[accountID.String()+"|"+target] {
+			done++
+		} else {
+			pending++
+		}
+	}
+	return done, pending
+}
+
+// reconcileBroadcastTimeoutProgress accounts for targets left unprocessed when
+// the broadcast's hard execution deadline expires.
+func reconcileBroadcastTimeoutProgress(total, done, failed int, timedOut bool) (int, bool) {
+	if !timedOut {
+		return failed, false
+	}
+	remaining := total - done - failed
+	if remaining > 0 {
+		failed += remaining
+	}
+	return failed, true
 }
 
 func parseBroadcastMappings(raw any, allowedAccounts []uuid.UUID) (map[uuid.UUID][]string, error) {
@@ -356,7 +398,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Always reset the progress snapshot, including a zero-success restart, so
 	// stale failures from the previous attempt are not shown while retrying.
 	resumedProgress := domain.TaskProgress{Total: total, Done: done}
-	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+	if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), resumedProgress); err != nil {
 		taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
 		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 			taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
@@ -410,11 +452,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				}
 				taskLog.Printf("[task] skip account %s: status=%s (not active)", accID, status)
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -423,11 +466,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			if acc.BlockedUntil != nil && acc.BlockedUntil.After(time.Now().UTC()) {
 				taskLog.Printf("[task] skip account %s: blocked_until=%s", accID, acc.BlockedUntil.Format(time.RFC3339))
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -437,11 +481,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			client, err := e.accEngine.GetClient(ctx, task.TenantID, accID)
 			if err != nil {
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -484,7 +529,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				case <-e.stopCh:
 					// Flush pending progress before pausing
 					if progressAccum.Total > 0 {
-						if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progressAccum); err != nil {
+						if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), progressAccum); err != nil {
 							log.Printf("[broadcast] 更新进度失败: %v", err)
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
@@ -496,7 +541,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				case <-ctx.Done():
 					// Flush pending progress before cancel exit
 					if progressAccum.Total > 0 {
-						if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progressAccum); err != nil {
+						if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), progressAccum); err != nil {
 							log.Printf("[broadcast] 更新进度失败: %v", err)
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
@@ -606,7 +651,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					} else if chatID < 0 {
 						_, _ = client.Raw().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: &tg.InputPeerChat{ChatID: chatID}, Action: &tg.SendMessageTypingAction{}})
 					}
-					time.Sleep(time.Duration(1000+securerand.IntN(2000)) * time.Millisecond)
+					if !waitBroadcastDelay(ctx, time.Duration(1000+securerand.IntN(2000))*time.Millisecond) {
+						return
+					}
 
 					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax/变量/混淆已全部解析,
 					// 转义后的 \{ \} 不再参与语法匹配, 用户写的 {你好|Hi} 能正常随机取值)
@@ -784,7 +831,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					accum := progressAccum
 					progressAccum = domain.TaskProgress{} // reset
 					mu.Unlock()
-					if err := e.repo.UpdateProgress(ctx, task.TenantID, task.TaskID, accum); err != nil {
+					if err := e.repo.UpdateProgressOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), accum); err != nil {
 						taskLog.Printf("progress update failed: %v\n", err)
 					}
 				}
@@ -877,6 +924,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		accProgList = append(accProgList, *ap)
 	}
 
+	// A hard execution deadline must never turn a partially processed broadcast
+	// into "completed". Durable successes are retained; unprocessed remainder is
+	// surfaced as failed so the final counters reconcile to Total.
+	var timedOut bool
+	failed, timedOut = reconcileBroadcastTimeoutProgress(total, done, failed, ctx.Err() == context.DeadlineExceeded)
+
 	// Set final exact progress and status
 	finalProgress := domain.TaskProgress{
 		Total:           total,
@@ -884,13 +937,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		Failed:          failed,
 		AccountProgress: accProgList,
 	}
-	if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
+	if err := e.repo.UpdateProgressExactOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalProgress); err != nil {
 		log.Printf("[broadcast] 更新进度失败: %v", err)
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	finalStatus := domain.TaskStatusCompleted
-	if (failed == total && total > 0) || checkpointPersistErr != nil {
+	if timedOut || (failed == total && total > 0) || checkpointPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
 	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
