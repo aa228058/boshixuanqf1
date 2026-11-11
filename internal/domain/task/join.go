@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	securerand "tg-sender/internal/secure"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 )
@@ -165,13 +167,25 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		// Distinguish private invite link vs public group link
 		if strings.Contains(link, "+") || strings.Contains(link, "joinchat") {
 			// Private group: use ImportChatInvite with hash
-			// Deduplication: skip if already pending approval for this link
-			if e.approvalRepo != nil {
-				if existing, _ := e.approvalRepo.GetByAccountAndLink(ctx, accID, link); existing != nil {
-					status = "pending_approval"
-					errCode = "already_pending"
-					goto logAndContinue
-				}
+			// Fail closed when the approval store cannot be checked: otherwise a retry
+			// could submit the same private join request again after an earlier request.
+			if e.approvalRepo == nil {
+				status = "failed"
+				errCode = "approval_repository_unavailable"
+				errMsg = "pending approval repository is unavailable"
+				goto logAndContinue
+			}
+			existing, lookupErr := e.approvalRepo.GetByAccountAndLink(ctx, accID, link)
+			if lookupErr == nil && existing != nil {
+				status = "pending_approval"
+				errCode = "already_pending"
+				goto logAndContinue
+			}
+			if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+				status = "failed"
+				errCode = "approval_lookup_failed"
+				errMsg = lookupErr.Error()
+				goto logAndContinue
 			}
 			hash := extractInviteHash(link)
 			req := &tg.MessagesImportChatInviteRequest{Hash: hash}
@@ -183,13 +197,11 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 				if isInviteRequestSent(joinErr) {
 					// Join request automatically sent by Telegram server
 					status = "pending_approval"
-					// A pending UI state is valid only when the background checker can
-					// actually find a persisted approval record.
-					if e.approvalRepo == nil {
-						status = "failed"
-						errCode = "approval_repository_unavailable"
-						errMsg = "pending approval repository is unavailable"
-					} else if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
+					// The Telegram side effect may already have happened. Persist the
+					// approval record with an independent bounded context so task cancellation
+					// cannot erase the only durable evidence of the pending request.
+					approvalCtx, approvalCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					approvalErr := e.approvalRepo.Create(approvalCtx, &domain.PendingApproval{
 						TaskID:     task.TaskID,
 						TenantID:   task.TenantID,
 						AccountID:  accID,
@@ -198,11 +210,13 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 						TargetLink: link,
 						Status:     "pending",
 						MaxChecks:  12,
-					}); err != nil {
+					})
+					approvalCancel()
+					if approvalErr != nil {
 						status = "failed"
 						errCode = "approval_record_create_failed"
-						errMsg = err.Error()
-						log.Printf("[join] 创建待审批记录失败: %v", err)
+						errMsg = approvalErr.Error()
+						log.Printf("[join] 创建待审批记录失败: %v", approvalErr)
 					}
 					// A pending private invite has no confirmed Telegram chat identity yet.
 					// Keep only the PendingApproval row; create the groups row after membership is confirmed.
