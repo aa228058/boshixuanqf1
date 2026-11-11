@@ -106,11 +106,11 @@
         </div>
         <div>
           <label for="code-count" class="block text-sm text-text-secondary mb-1.5">数量</label>
-          <input v-model.number="generateForm.count" type="number" min="1" max="100" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="生成数量" />
+          <input v-model.number="generateForm.count" type="number" min="1" max="100" id="code-count" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="生成数量" />
         </div>
         <div>
           <label for="code-days" class="block text-sm text-text-secondary mb-1.5">有效期（天，可选）</label>
-          <input v-model.number="generateForm.expires_days" type="number" min="1" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="有效期天数" />
+          <input v-model.number="generateForm.expires_days" type="number" min="1" id="code-days" class="ui-input !min-h-[36px] !px-2.5 !py-1.5 !text-sm" aria-label="有效期天数" />
         </div>
       </div>
       <template #footer>
