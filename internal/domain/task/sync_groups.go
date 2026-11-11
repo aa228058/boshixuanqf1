@@ -196,10 +196,11 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 		}
 		// #nosec G115 -- page length is explicitly bounded to MaxInt32 above.
 		offset += int32(len(dialogs))
-		// Safety limit: max 200 batches (约 2 万个会话), 防止极端情况下无限分页
+		// Safety limit: max 200 batches (约 2 万个会话). A capped scan is
+		// incomplete, so abort before prune; otherwise unseen joined groups
+		// would be incorrectly marked as left.
 		if batchCount >= 200 {
-			log.Printf("[sync] 达到最大批次数量（200），停止")
-			break
+			return fmt.Errorf("get dialogs reached safety limit after %d batches; skip prune to preserve joined groups", batchCount)
 		}
 	}
 
@@ -210,34 +211,30 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 	// 反向 diff: 分页遍历本地该账号的全部已加入群, 不在 seenIDs 里的标 left。
 	pruned := 0
 	const prunePage = 500
+	var localSnapshot []*domain.Group
 	for off := 0; ; off += prunePage {
 		localGroups, err := e.groupRepo.ListByAccount(ctx, tenantID, accountID, prunePage, off)
 		if err != nil {
-			log.Printf("[sync] prune 阶段读取本地群组失败(offset=%d): %v", off, err)
-			break
+			// Do not partially prune when the snapshot could not be read completely.
+			return fmt.Errorf("prune snapshot list groups (offset %d): %w", off, err)
 		}
-		if len(localGroups) == 0 {
-			break
-		}
-		for _, lg := range localGroups {
-			if lg == nil || !lg.IsJoined {
-				continue
-			}
-			if seenIDs[lg.TGChatID] {
-				continue // 本次同步见到了, 保持已加入
-			}
-			if err := e.groupRepo.UpdateJoinStatus(ctx, tenantID, lg.GroupID, false); err != nil {
-				log.Printf("[sync] prune 标记群 %d left 失败: %v", lg.TGChatID, err)
-				continue
-			}
-			if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, lg.GroupID, false); err != nil {
-				log.Printf("[sync] prune 更新关联表失败 group=%s: %v", lg.GroupID, err)
-			}
-			pruned++
-		}
+		localSnapshot = append(localSnapshot, localGroups...)
 		if len(localGroups) < prunePage {
-			break // 最后一页
+			break
 		}
+	}
+	for _, lg := range localSnapshot {
+		if lg == nil || !lg.IsJoined || seenIDs[lg.TGChatID] {
+			continue
+		}
+		if err := e.groupRepo.UpdateJoinStatus(ctx, tenantID, lg.GroupID, false); err != nil {
+			log.Printf("[sync] prune 标记群 %d left 失败: %v", lg.TGChatID, err)
+			continue
+		}
+		if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, lg.GroupID, false); err != nil {
+			log.Printf("[sync] prune 更新关联表失败 group=%s: %v", lg.GroupID, err)
+		}
+		pruned++
 	}
 	if pruned > 0 {
 		log.Printf("[sync] prune 完成：标记 %d 个已退出群组", pruned)
