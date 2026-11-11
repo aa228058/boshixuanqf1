@@ -164,3 +164,84 @@ func (r *TextDictRepository) PickWord(ctx context.Context, tenantID uuid.UUID, n
 		ORDER BY -ln(random()) / e.weight LIMIT 1`, tenantID, name).Scan(&word)
 	return word, err
 }
+
+
+// CreateFull creates a named dictionary with independently enabled message entries.
+func (r *TextDictRepository) CreateFull(ctx context.Context, tenantID uuid.UUID, name string, enabled bool, entries []domain.TextDictEntry) (*domain.TextDict, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	d := &domain.TextDict{TenantID: tenantID, Name: name, Enabled: enabled, Items: []string{}, Entries: []domain.TextDictEntry{}}
+	if err = tx.QueryRow(ctx, `INSERT INTO text_dicts (tenant_id, name, enabled)
+		VALUES ($1, $2, $3) RETURNING dict_id, created_at`, tenantID, name, enabled).Scan(&d.DictID, &d.CreatedAt); err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		entry.EntryID = uuid.New()
+		entry.DictID = d.DictID
+		if _, err = tx.Exec(ctx, `INSERT INTO text_dict_entries (entry_id, dict_id, word, weight, enabled)
+			VALUES ($1, $2, $3, 1, $4)`, entry.EntryID, d.DictID, entry.Word, entry.Enabled); err != nil {
+			return nil, err
+		}
+		entry.Weight = 1
+		d.Entries = append(d.Entries, entry)
+		d.Items = append(d.Items, entry.Word)
+		d.WordCount++
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// UpdateFull replaces a dictionary's editable message list while preserving dictionary-level activation.
+func (r *TextDictRepository) UpdateFull(ctx context.Context, tenantID, dictID uuid.UUID, name string, enabled bool, entries []domain.TextDictEntry) error {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	res, err := tx.Exec(ctx, `UPDATE text_dicts SET name = $3, enabled = $4
+		WHERE dict_id = $1 AND tenant_id = $2`, dictID, tenantID, name, enabled)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM text_dict_entries WHERE dict_id = $1`, dictID); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if _, err = tx.Exec(ctx, `INSERT INTO text_dict_entries (dict_id, word, weight, enabled)
+			VALUES ($1, $2, 1, $3)`, dictID, entry.Word, entry.Enabled); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// PickEnabledMessage selects one complete message from an enabled dictionary.
+func (r *TextDictRepository) PickEnabledMessage(ctx context.Context, tenantID, dictID uuid.UUID) (string, error) {
+	var message string
+	err := r.db.QueryRow(ctx, `SELECT e.word
+		FROM text_dicts d JOIN text_dict_entries e ON e.dict_id = d.dict_id
+		WHERE d.tenant_id = $1 AND d.dict_id = $2 AND d.enabled = TRUE
+		  AND e.enabled = TRUE AND length(btrim(e.word)) > 0
+		ORDER BY random() LIMIT 1`, tenantID, dictID).Scan(&message)
+	return message, err
+}
+
+// CountEnabledMessages is used to reject automatic-message tasks with an empty dictionary.
+func (r *TextDictRepository) CountEnabledMessages(ctx context.Context, tenantID, dictID uuid.UUID) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `SELECT count(*)
+		FROM text_dicts d JOIN text_dict_entries e ON e.dict_id = d.dict_id
+		WHERE d.tenant_id = $1 AND d.dict_id = $2 AND d.enabled = TRUE
+		  AND e.enabled = TRUE AND length(btrim(e.word)) > 0`, tenantID, dictID).Scan(&count)
+	return count, err
+}
