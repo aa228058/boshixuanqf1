@@ -12,7 +12,6 @@ func TestExtractFloodSeconds(t *testing.T) {
 		{"telegram native format", "FLOOD_WAIT_420", 420},
 		{"embedded in sentence", "rpc error: FLOOD_WAIT_75: too many requests", 75},
 		{"lowercase", "flood_wait_30", 30},
-		{"flood test phone wait", "FLOOD_TEST_PHONE_WAIT_10", 10},
 		{"colon but underscore missing", "flood wait 420", 0},
 		{"unrelated error", "connection reset by peer", 0},
 		{"empty", "", 0},

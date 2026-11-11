@@ -197,7 +197,9 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 					}
 					if isAccountBanned(inviteErr) {
 						e.markAccountBanned(ctx, task.TenantID, accID, "invite_account_banned", inviteErr.Error())
-						if saveErr := saveProgress(); saveErr != nil { return fmt.Errorf("账号封禁且保存进度失败: %w (原始错误: %v)", saveErr, inviteErr) }
+						if saveErr := saveProgress(); saveErr != nil {
+							return fmt.Errorf("账号封禁且保存进度失败: %w (原始错误: %v)", saveErr, inviteErr)
+						}
 						return fmt.Errorf("账号已被封禁, 已停止邀请: %w", inviteErr)
 					}
 				} else {

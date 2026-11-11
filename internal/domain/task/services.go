@@ -41,7 +41,7 @@ func isAccountBanned(err error) bool {
 }
 
 // floodWaitRe is compiled once at package init to avoid recompilation on every error.
-var floodWaitRe = regexp.MustCompile(`(?:flood_wait|flood_test_phone_wait)_(\d+)`)
+var floodWaitRe = regexp.MustCompile(`flood_wait_(\d+)`)
 
 // extractFloodSeconds extracts wait seconds from FLOOD_WAIT error string.
 
