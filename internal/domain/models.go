@@ -287,6 +287,7 @@ func (a Account) MarshalJSON() ([]byte, error) {
 // Task represents a task to be executed.
 type Task struct {
 	TaskID      uuid.UUID      `json:"task_id" db:"task_id"`
+	TaskNumber  int64          `json:"task_number" db:"task_number"`
 	TenantID    uuid.UUID      `json:"tenant_id" db:"tenant_id"`
 	Type        TaskType       `json:"type" db:"type"`
 	Status      TaskStatus     `json:"status" db:"status"`
