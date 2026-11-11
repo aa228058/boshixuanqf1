@@ -224,7 +224,15 @@ func (h *SettingsHandler) DeleteTextDict(c echo.Context) error {
 	if err:=h.dicts.Delete(c.Request().Context(),tenantID,id);err!=nil{return echo.NewHTTPError(http.StatusNotFound,"分组不存在")};return NoContent(c)
 }
 func cleanTextDictItems(items []string) []string {
-	out:=make([]string,0,len(items));for _,item:=range items { item=strings.TrimSpace(item);if item!="" { if len(item)>512 { item=item[:512] };out=append(out,item) } };return out
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" { continue }
+		runes := []rune(item)
+		if len(runes) > 512 { item = string(runes[:512]) }
+		out = append(out, item)
+	}
+	return out
 }
 
 // === Message Templates ===
