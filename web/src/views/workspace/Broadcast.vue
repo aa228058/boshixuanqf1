@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-3xl mx-auto">
+  <div class="p-3 sm:p-5 md:p-6 max-w-3xl mx-auto">
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="min-w-0">
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">群发消息</h1>
@@ -46,7 +46,7 @@
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
       <div v-else class="space-y-3 mb-4">
         <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
-        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
+        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-3 sm:p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="px-2 py-0.5 rounded text-xs shrink-0 inline-flex items-center gap-1.5" :class="statusClass(t.status)">
@@ -92,7 +92,7 @@
 
     <!-- 新建模态框: 表单全部内容, 统一全站弹窗组件(留在 tab 容器外, 任何 tab 可开) -->
     <Modal v-model="showCreate" title="新建群发任务">
-    <div class="space-y-4">
+    <div class="space-y-3 sm:space-y-4">
       <!-- R110: 协议号协同死分支已删(isProtocol 恒 false)。统一多号池流程见下 -->
       <!-- 目标选择 -->
       <div>
