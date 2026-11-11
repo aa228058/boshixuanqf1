@@ -148,8 +148,14 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 	// 不能用 len(allMembers) 判断成败(否则整千数会被误判为失败)。
 	totalScraped := 0
 	const memberBatchSize = 1000
+	var flushErr error
 	flushMembers := func(batch []domain.Member) {
-		if len(batch) == 0 || e.memberRepo == nil {
+		if len(batch) == 0 || flushErr != nil {
+			return
+		}
+		if e.memberRepo == nil {
+			flushErr = fmt.Errorf("member repository is not configured")
+			taskLog.Printf("[task] BatchCreate members failed: %v", flushErr)
 			return
 		}
 		membersPtr := make([]*domain.Member, len(batch))
@@ -157,6 +163,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 			membersPtr[i] = &batch[i]
 		}
 		if err := e.memberRepo.BatchCreate(ctx, membersPtr); err != nil {
+			flushErr = fmt.Errorf("persist scraped members: %w", err)
 			taskLog.Printf("[task] BatchCreate members failed: %v", err)
 		}
 	}
@@ -257,7 +264,11 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 				if len(allMembers) > 0 {
 					flushMembers(allMembers)
 				}
-				if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusPaused); err != nil {
+				status := domain.TaskStatusPaused
+				if flushErr != nil {
+					status = domain.TaskStatusFailed
+				}
+				if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), status); err != nil {
 					taskLog.Printf("[task] UpdateStatus failed: %v", err)
 				}
 				return
@@ -265,6 +276,11 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 				// P2-42 审计修复: 同 stopCh——取消前 flush 剩余成员, 不丢数据
 				if len(allMembers) > 0 {
 					flushMembers(allMembers)
+				}
+				if flushErr != nil {
+					if err := e.repo.UpdateStatusOwned(context.Background(), task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+						taskLog.Printf("[task] UpdateStatus after member persistence failure: %v", err)
+					}
 				}
 				return
 			default:
@@ -345,6 +361,13 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 
 	memberCount := totalScraped
 	flushMembers(allMembers)
+	if flushErr != nil {
+		// Never report a successful scrape when any member batch failed to persist.
+		if err := e.repo.UpdateStatusOwned(context.Background(), task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] UpdateStatus after member persistence failure: %v", err)
+		}
+		return
+	}
 
 	if memberCount == 0 {
 		// P2-43 审计修复: 空群(0 成员)是合法采集结果——原来标 failed, 空群永远显示失败。
