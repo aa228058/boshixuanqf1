@@ -797,7 +797,7 @@ var validTransitions = map[domain.TaskStatus]map[domain.TaskStatus]bool{
 	domain.TaskStatusFailed:    {domain.TaskStatusQueued: true},
 	domain.TaskStatusCompleted: {},
 	domain.TaskStatusCancelled: {},
-	domain.TaskStatusPending:   {domain.TaskStatusQueued: true, domain.TaskStatusCancelled: true},
+	domain.TaskStatusPending:   {domain.TaskStatusQueued: true, domain.TaskStatusPaused: true, domain.TaskStatusCancelled: true},
 	domain.TaskStatusScheduled: {domain.TaskStatusPaused: true, domain.TaskStatusCancelled: true, domain.TaskStatusQueued: true},
 }
 
