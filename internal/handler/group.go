@@ -139,7 +139,7 @@ func (h *GroupHandler) List(c echo.Context) error {
 		total, countErr = h.svc.CountByAccount(c.Request().Context(), tenantID, accountID)
 		if countErr != nil {
 			log.Printf("[handler] CountByAccount failed: %v", countErr)
-			total = 0
+			return echo.NewHTTPError(http.StatusInternalServerError, "获取群组总数失败")
 		}
 		log.Printf("[handler] ListByAccount返回%d个群组，总计=%d，错误=%v", len(groups), total, err)
 	} else {
