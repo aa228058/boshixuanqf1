@@ -8,11 +8,11 @@ import (
 	"log"
 	"regexp"
 	"runtime/debug"
+
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"tg-sender/internal/safego"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,8 +20,10 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram/params"
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
+
 	"tg-sender/internal/config"
 	"tg-sender/internal/domain"
+	"tg-sender/internal/safego"
 	"tg-sender/internal/sse"
 )
 
@@ -59,15 +61,22 @@ type RuleRepository interface {
 
 // Engine manages message monitoring and auto-reply for a tenant's accounts.
 type Engine struct {
-	cfg         *config.Config
-	accEngine   AccountEngine
-	ruleRepo    RuleRepository
-	sseBroker   *sse.Broker
-	mu          sync.RWMutex
-	rateLimiter *RateLimiter
-	msgPushMu   sync.Mutex
-	lastMsgPush map[int64]time.Time
-	done        chan struct{}
+	cfg       *config.Config
+	accEngine AccountEngine
+	ruleRepo  RuleRepository
+	sseBroker *sse.Broker
+	mu        sync.RWMutex
+	// lifecycleMu serializes StartMonitoring/StopMonitoring so concurrent
+	// requests cannot register multiple handlers for the same account.
+	lifecycleMu     sync.Mutex
+	stopped         bool // protected by lifecycleMu; StopAll permanently closes this engine
+	rateLimiter     *RateLimiter
+	msgPushMu       sync.Mutex
+	lastMsgPush     map[string]time.Time
+	messageDedupMu  sync.Mutex
+	seenMessages    map[messageDedupKey]time.Time
+	messageDedupOps uint64
+	done            chan struct{}
 	// Rule cache: tenantID -> []MonitorRule + lastUpdate
 	ruleCache   map[uuid.UUID][]domain.MonitorRule
 	ruleCacheMu sync.RWMutex
@@ -101,13 +110,14 @@ type Engine struct {
 
 	// 语音振铃冷却: key=tenantID:accountID:calleeID → 上次拨打时间。
 	// 通话是强打扰动作, 同一监控号对同一目标 10 分钟内最多拨一次, 防风控封号和恶意骚扰。
-	callMu   sync.Mutex
-	lastCall map[string]time.Time
+	callMu            sync.Mutex
+	lastCall          map[string]time.Time
+	callCooldownStore CallCooldownStore
 
-	// dm 动作"同一用户同一规则只触发一次"去重表(规则重载/引擎重启后重新计数,
-	// 与 lastMsgPush 同款内存级语义; 通话另有 10 分钟冷却双保险)。
-	dmFiredMu sync.Mutex
-	dmFired   map[string]struct{}
+	// DM 子动作状态按租户/账号/规则/目标/动作隔离，避免部分成功被整体去重吞掉。
+	dmActionMu    sync.Mutex
+	dmActions     map[dmActionKey]dmActionStatus
+	dmActionStore DMActionStore
 }
 
 // monitorSession tracks one account's monitoring goroutine.
@@ -121,20 +131,21 @@ type monitorSession struct {
 // NewEngine creates a new monitor engine.
 func NewEngine(cfg *config.Config, accEngine AccountEngine, ruleRepo RuleRepository, sseBroker *sse.Broker) *Engine {
 	e := &Engine{
-		cfg:         cfg,
-		accEngine:   accEngine,
-		ruleRepo:    ruleRepo,
-		sseBroker:   sseBroker,
-		lastMsgPush: make(map[int64]time.Time),
-		rateLimiter: NewRateLimiter(),
-		ruleCache:   make(map[uuid.UUID][]domain.MonitorRule),
-		ruleCacheTS: make(map[uuid.UUID]time.Time),
-		sessions:    make(map[uuid.UUID]map[uuid.UUID]*monitorSession),
-		raffleWatch: newRaffleWatcher(),
-		done:        make(chan struct{}),
-		reloadChs:   make(map[string]chan struct{}),
-		lastCall:    make(map[string]time.Time),
-		dmFired:     make(map[string]struct{}),
+		cfg:          cfg,
+		accEngine:    accEngine,
+		ruleRepo:     ruleRepo,
+		sseBroker:    sseBroker,
+		lastMsgPush:  make(map[string]time.Time),
+		seenMessages: make(map[messageDedupKey]time.Time),
+		rateLimiter:  NewRateLimiter(),
+		ruleCache:    make(map[uuid.UUID][]domain.MonitorRule),
+		ruleCacheTS:  make(map[uuid.UUID]time.Time),
+		sessions:     make(map[uuid.UUID]map[uuid.UUID]*monitorSession),
+		raffleWatch:  newRaffleWatcher(),
+		done:         make(chan struct{}),
+		reloadChs:    make(map[string]chan struct{}),
+		lastCall:     make(map[string]time.Time),
+		dmActions:    make(map[dmActionKey]dmActionStatus),
 	}
 	// P1-35 审计修复(2026-10-22): 原实现每秒 ticker 调 rateLimiter.Reset()——把
 	// "每分钟 100 条"的限速计数每秒清零, 实际宽松 60 倍。RateLimiter 内部自带每分钟
@@ -154,6 +165,11 @@ func (e *Engine) IsMonitoring(tenantID, accountID uuid.UUID) bool {
 }
 
 func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.UUID, rules []domain.MonitorRule) error {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if e.stopped {
+		return fmt.Errorf("monitor engine is stopped")
+	}
 	// 先停掉同账号的旧会话, 并等待其 goroutine 完全退出——否则旧 goroutine
 	// 的清理逻辑可能在新 goroutine 注册 OnMessage 之后执行, 造成双注册/竞态。
 	e.mu.Lock()
@@ -162,7 +178,8 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 		if sess, exists := tenantSessions[accountID]; exists {
 			sess.cancel()
 			oldDone = sess.done
-			delete(tenantSessions, accountID)
+			// Keep the old session registered until monitorLoop's defer removes it.
+			// If draining times out, StopAll must still be able to find it.
 		}
 	}
 	e.mu.Unlock()
@@ -215,14 +232,16 @@ func (e *Engine) StartMonitoring(ctx context.Context, tenantID, accountID uuid.U
 }
 
 // StopMonitoring stops monitoring for a specific account.
-func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
+func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) error {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
 	e.mu.Lock()
 	var done chan struct{}
 	if tenantSessions, ok := e.sessions[tenantID]; ok {
 		if sess, exists := tenantSessions[accountID]; exists {
 			sess.cancel()
 			done = sess.done
-			delete(tenantSessions, accountID)
+			// monitorLoop removes the entry only after callbacks and child work drain.
 		}
 	}
 	e.mu.Unlock()
@@ -233,7 +252,9 @@ func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
 		select {
 		case <-done:
 		case <-time.After(35 * time.Second):
+			err := fmt.Errorf("monitor session did not stop within 35 seconds")
 			log.Printf("[monitor] 等待监听退出超时 tenant=%s account=%s", tenantID, accountID)
+			return err
 		}
 	}
 
@@ -244,6 +265,7 @@ func (e *Engine) StopMonitoring(tenantID, accountID uuid.UUID) {
 	// channel 关闭后会一直可读，若 loop 尚未完全退出可能导致忙循环。
 	delete(e.reloadChs, clientKey)
 	e.reloadMu.Unlock()
+	return nil
 }
 
 // EnsureSession 会话已在线则跳过, 否则以给定规则启动(抽奖助手自动拉起用)。
@@ -263,22 +285,59 @@ func (e *Engine) EnsureSession(ctx context.Context, tenantID, accountID uuid.UUI
 	return e.StartMonitoring(ctx, tenantID, accountID, rules)
 }
 
-// StopAll stops all monitoring sessions.
-func (e *Engine) StopAll() {
+// StopAll cancels every session and waits for each monitor loop to drain.
+func (e *Engine) StopAll() error {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	e.stopped = true
+
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	doneChannels := make([]chan struct{}, 0)
 	for _, tenantSessions := range e.sessions {
 		for _, sess := range tenantSessions {
+			if sess == nil {
+				continue
+			}
 			sess.cancel()
+			doneChannels = append(doneChannels, sess.done)
 		}
 	}
+	// Keep sessions registered until monitorLoop removes them after drain.
+	// A later StopAll call must still find sessions if this bounded wait times out.
 	select {
 	case <-e.done:
-		// already closed
 	default:
 		close(e.done)
 	}
-	e.sessions = make(map[uuid.UUID]map[uuid.UUID]*monitorSession)
+	e.mu.Unlock()
+
+	if e.raffleWatch != nil {
+		e.raffleWatch.Stop()
+	}
+
+	timer := time.NewTimer(135 * time.Second)
+	defer timer.Stop()
+	for _, done := range doneChannels {
+		select {
+		case <-done:
+		case <-timer.C:
+			remaining := 0
+			for _, pending := range doneChannels {
+				select {
+				case <-pending:
+				default:
+					remaining++
+				}
+			}
+			if remaining == 0 {
+				return nil
+			}
+			err := fmt.Errorf("monitor shutdown timed out with %d/%d sessions still running", remaining, len(doneChannels))
+			log.Printf("[monitor] StopAll: %v", err)
+			return err
+		}
+	}
+	return nil
 }
 
 // ReloadRules triggers rule reload for all active monitoring sessions of a tenant.
@@ -308,13 +367,32 @@ func (e *Engine) ReloadRules(ctx context.Context, tenantID uuid.UUID) error {
 }
 
 func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initialRules []domain.MonitorRule, tenantID, accountID uuid.UUID, done chan struct{}) {
+	tracker := newMonitorWorkTracker()
+	ctx = context.WithValue(ctx, monitorWorkTrackerKey{}, tracker)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[monitor] loop panic: %v\n%s", r, debug.Stack())
 		}
 	}()
-	// 通知 StartMonitoring/StopMonitoring 本 goroutine 已完全退出。
-	defer close(done)
+	// Close admission and drain callbacks plus child work before signaling exit.
+	defer func() {
+		tracker.stopAndWait()
+		e.mu.Lock()
+		if tenantSessions := e.sessions[tenantID]; tenantSessions != nil {
+			if current := tenantSessions[accountID]; current != nil && current.done == done {
+				delete(tenantSessions, accountID)
+				if len(tenantSessions) == 0 {
+					delete(e.sessions, tenantID)
+				}
+			}
+		}
+		e.mu.Unlock()
+		clientKey := tenantID.String() + ":" + accountID.String()
+		e.reloadMu.Lock()
+		delete(e.reloadChs, clientKey)
+		e.reloadMu.Unlock()
+		close(done)
+	}()
 
 	clientKey := tenantID.String() + ":" + accountID.String()
 
@@ -358,6 +436,10 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 	// registerOn 把消息处理逻辑挂到指定客户端上, 可被重复调用于换线重挂。
 	registerOn := func(cl *telegram.Client) {
 		cl.OnMessage(func(c *telegram.Client, msg *types.Message) {
+			if !tracker.enter() {
+				return
+			}
+			defer tracker.leave()
 			select {
 			case <-ctx.Done():
 				return
@@ -373,18 +455,24 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			if msg.ChatID == 0 || msg.ID == 0 {
 				return
 			}
+			// Deduplicate the same Telegram update across overlapping handlers/reconnects.
+			if !e.markMessageSeen(tenantID, accountID, msg.ChatID, msg.ID) {
+				return
+			}
 			// 入群验证: 命中验证消息时自动处理(详见 verifier.go / verifier_tap.go)
 			// R153: 登录验证码捕获(TG官方777000/私聊), 异步处理不阻塞消息循环
 			if code := extractLoginCode(msg.Text, msg.FromID, msg.ChatID); code != "" && e.loginCodeNotify != nil {
-				safego.Go(func() { e.loginCodeNotify(tenantID, accountID, code) })
+				monitorGo(ctx, func() { e.loginCodeNotify(tenantID, accountID, code) })
 			}
 			e.tapVerification(ctx, cl, tenantID, accountID, msg.ChatID, "", fmt.Sprint(msg.FromID), msg.Text, rawTG(msg))
 			// 抽奖助手: 命中抽奖公告自动参与(raffle.go)。
-			// 多号抢答并行: 各账号 OnMessage 天然独立; 发送丢 goroutine 不阻塞消息循环(第一时间)
-			safego.Go(func() { e.tapRaffle(ctx, cl, tenantID, accountID, msg) })
+			// 消息包装对象由 Telegram 客户端管理，不跨 goroutine 捕获原指针；
+			// 复制包装结构后再异步处理，避免回调返回后对象被复用导致字段错乱。
+			msgSnapshot := *msg
+			monitorGo(ctx, func() { e.tapRaffle(ctx, cl, tenantID, accountID, &msgSnapshot) })
 			// 抽奖结果追踪: 开奖解析(text_mention实体) + 参与回执确认(2026-10-20)
 			// + 中奖自动回复(060, 需 cl 发送)
-			e.watchRaffleMessage(tenantID, accountID, msg.ChatID, msg, cl)
+			e.watchRaffleMessage(ctx, tenantID, accountID, msg.ChatID, msg, cl)
 			textPreview := msg.Text
 			if len(textPreview) > 30 {
 				textPreview = textPreview[:30] + "..."
@@ -398,16 +486,16 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 
 			// 节流: 同群 1 秒内最多推 1 条, 避免高频消息刷爆前端
 			now := time.Now()
+			pushKey := fmt.Sprintf("%s:%s:%d", tenantID, accountID, msg.ChatID)
 			e.msgPushMu.Lock()
-			if now.Sub(e.lastMsgPush[msg.ChatID]) < time.Second {
-				e.msgPushMu.Unlock()
-				return
+			shouldPush := now.Sub(e.lastMsgPush[pushKey]) >= time.Second
+			if shouldPush {
+				e.lastMsgPush[pushKey] = now
 			}
-			e.lastMsgPush[msg.ChatID] = now
 			// 防内存泄漏：map 只增不减，监控账号漫游大量群组后无界增长。
 			// 超过阈值时重建并丢弃过期条目（保留最近 5 分钟），摊销清理成本。
 			if len(e.lastMsgPush) > 10000 {
-				fresh := make(map[int64]time.Time, len(e.lastMsgPush))
+				fresh := make(map[string]time.Time, len(e.lastMsgPush))
 				for k, v := range e.lastMsgPush {
 					if now.Sub(v) < 5*time.Minute {
 						fresh[k] = v
@@ -416,14 +504,17 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 				e.lastMsgPush = fresh
 			}
 			e.msgPushMu.Unlock()
-			// Forward to tenant SSE
-			e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
-				"chat_id":    msg.ChatID,
-				"message_id": msg.ID,
-				"text":       msg.Text,
-				"from_id":    msg.FromID,
-				"date":       msg.Date,
-			})
+			// 仅节流前端预览推送；绝不能 return，否则会跳过后续规则匹配和自动动作。
+			if shouldPush {
+				e.sseBroker.BroadcastToTenant(tenantID, "new_message", map[string]any{
+					"account_id": accountID.String(),
+					"chat_id":    msg.ChatID,
+					"message_id": msg.ID,
+					"text":       msg.Text,
+					"from_id":    msg.FromID,
+					"date":       msg.Date,
+				})
+			}
 
 			// 匹配+动作整体异步：规则多时匹配循环在回调里同步跑会阻塞消息消费，
 			// 与动作执行同款问题。先拷贝标量字段（msg 指针由 mtgo 库管理），整体移入 goroutine。
@@ -431,7 +522,7 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 			msgID2 := msg.ID
 			msgText2 := msg.Text
 			msgHasMedia2 := msg.Media != nil
-			safego.Go(func() {
+			monitorGo(ctx, func() {
 				// Read rules with lock
 				rulesMu.RLock()
 				currentRules := rules
@@ -511,13 +602,13 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 							}
 						}
 					default:
-						log.Printf("[monitor] 规则 %s 不支持匹配类型 %s", rule.MatchType, rule.RuleID)
+						log.Printf("[monitor] 规则 %s 不支持匹配类型 %s", rule.RuleID, rule.MatchType)
 					}
 					if !matched {
 						continue
 					}
 
-					log.Printf("[monitor] 规则命中: rule=%s type=%s chat=%d text=%q", rule.Name, rule.Type, msg.ChatID, func() string {
+					log.Printf("[monitor] 规则命中: rule=%s type=%s chat=%d text=%q", rule.Name, rule.Type, msgChatID2, func() string {
 						t := msgText2
 						if len(t) > 30 {
 							t = t[:30] + "..."
@@ -533,7 +624,7 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 	}
 
 	// Start goroutine to reload rules periodically or on demand
-	safego.Go(func() {
+	monitorGo(ctx, func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("[monitor] 规则重载异常: %v", r)
@@ -543,17 +634,18 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 		defer ticker.Stop()
 		// 保活: OnMessage 回调不会刷新客户端 lastUsed, 若不加保活,
 		// 池清理器(默认5分钟)会把监听依附的连接当空闲连接回收。
-		keepAlive := func() {
+		keepAlive := func() bool {
 			// R159: 账号已被删除 → 停止本监控会话(否则僵尸会话会继续向池要连接,
 			// 对不存在的会话反复重连, 刷 401 AUTH_KEY_UNREGISTERED)
 			if e.accountExists != nil && !e.accountExists(tenantID, accountID) {
 				log.Printf("[monitor] 账号 %s 已删除, 停止监控会话", accountID)
-				e.StopMonitoring(tenantID, accountID)
-				return
+				// Let this loop exit; its deferred cleanup removes only its own
+				// session (never a newer replacement session).
+				return false
 			}
 			cl, _, err := e.accEngine.GetClientByAccount(ctx, tenantID, accountID)
 			if err != nil {
-				return
+				return true
 			}
 			e.accEngine.ReleaseClient(tenantID, accountID, cl)
 			// 底层连接被回收后重建了新实例: 把 OnMessage 重挂到新连接上。
@@ -573,15 +665,18 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 					log.Printf("[monitor] 账号 %s 疑似假在线(30分钟无消息流过), 已告警", accountID)
 					_sess.lastMsgAt.Store(time.Now().Unix()) // 防 tick 风暴
 					if e.flowDeadNotify != nil {
-						safego.Go(func() { e.flowDeadNotify(tenantID, accountID) })
+						monitorGo(ctx, func() { e.flowDeadNotify(tenantID, accountID) })
 					}
 				}
 			}
+			return true
 		}
 		for {
 			select {
 			case <-ticker.C:
-				keepAlive()
+				if !keepAlive() {
+					return
+				}
 				if e.ruleRepo != nil {
 					newRules, err := e.ruleRepo.ListByTenant(ctx, tenantID)
 					if err == nil {
@@ -624,10 +719,18 @@ func (e *Engine) monitorLoop(ctx context.Context, client *telegram.Client, initi
 // 动作是联网调用，若在消息回调里同步执行，高频群消息会互相阻塞、拖垮整个监听会话。
 // 参数只传标量副本（msg 指针生命周期由 mtgo 库管理，不可跨 goroutine 捕获）。
 func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, msgChatID, msgFromID int64, msgID int, msgText string, msgHasMedia bool) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 	switch rule.Type {
 	case "forward":
 		// Forward message to target chats
 		for _, targetChatID := range rule.TargetChatIDs {
+			if ctx.Err() != nil {
+				return
+			}
 			fwdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			var tgtID int64
 			if parsed, err := strconv.ParseInt(targetChatID, 10, 64); err == nil {
@@ -683,7 +786,7 @@ func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tena
 		cancel()
 	case "dm":
 		// 私聊触达: 监控号对触发人执行规则勾选的子动作(私聊文本/联系人名片/语音振铃), 可任意组合
-		executeDM(ctx, e, c, tenantID, accountID, rule, msgFromID)
+		executeDM(ctx, e, c, tenantID, accountID, rule, msgFromID, msgChatID, msgID)
 	default:
 		log.Printf("[monitor] 规则 %s 不支持的规则类型 %s", rule.Type, rule.RuleID)
 	}
@@ -693,119 +796,126 @@ func (e *Engine) executeRuleAction(ctx context.Context, c *telegram.Client, tena
 const anonymousSenderID = 1087968824
 
 // executeDM 执行 type=dm 规则的三个子动作。
-func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, targetUser int64) {
+func executeDM(ctx context.Context, e *Engine, c *telegram.Client, tenantID, accountID uuid.UUID, rule domain.MonitorRule, targetUser, sourceChatID int64, sourceMessageID int) {
+	if ctx.Err() != nil {
+		return
+	}
 	if targetUser <= 0 || targetUser == anonymousSenderID {
 		log.Printf("[monitor] dm 动作跳过: 触发人不可触达(from=%d)", targetUser)
 		return
 	}
-	// 同一用户同一 dm 规则只触发一次(避免同一人反复命中关键词被连发私聊/连拨)
-	key := rule.RuleID.String() + ":" + strconv.FormatInt(targetUser, 10)
-	e.dmFiredMu.Lock()
-	if _, ok := e.dmFired[key]; ok {
-		e.dmFiredMu.Unlock()
+	// 每个子动作独立领取和记录结果，避免一个动作失败阻断其他动作。
+	// ① 私聊文本
+	if ctx.Err() != nil {
 		return
 	}
-	e.dmFired[key] = struct{}{}
-	// 防内存泄漏: 超限重建(10 万条 ≈ 百万级群监控下的上限, 正常规模远达不到)
-	if len(e.dmFired) > 100000 {
-		e.dmFired = make(map[string]struct{}, 1024)
-	}
-	e.dmFiredMu.Unlock()
-	// ① 私聊文本
 	if rule.DMContent != "" {
-		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		if _, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{}); err != nil {
-			log.Printf("[monitor] 私聊文本发送失败 target=%d: %v", targetUser, err)
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "text")
+		if e.claimDMAction(ctx, key) {
+			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			_, err := c.SendMessage(dmCtx, targetUser, rule.DMContent, &params.SendMessage{})
+			cancel()
+			if err != nil {
+				e.finishDMAction(ctx, key, dmActionOutcomeUnknown, err.Error())
+				log.Printf("[monitor] 私聊文本发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
+			} else {
+				e.finishDMAction(ctx, key, dmActionSucceeded)
+			}
 		}
-		cancel()
 	}
 	// ② 联系人名片(即客户端回形针→联系人生成的绿色卡片: inputMediaContact)
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMContact {
-		dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-
-		cleanPhone := strings.Map(func(r rune) rune {
-			if r >= '0' && r <= '9' {
-				return r
-			}
-			return -1
-		}, rule.DMContactPhone)
-
-		firstName := rule.DMContactFirst
-		if firstName == "" {
-			firstName = "User"
-		}
-		lastName := rule.DMContactLast
-
-		peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
-		if perr != nil {
-			log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
-		} else {
-			// 1. 尝试把号码导入到监控号的通讯录（已存在则秒过，不删除）
-			imported, ierr := c.Raw().ContactsImportContacts(dmCtx, &tg.ContactsImportContactsRequest{
-				Contacts: []*tg.InputPhoneContact{
-					{
-						ClientID:  time.Now().UnixNano(),
-						Phone:     cleanPhone,
-						FirstName: firstName,
-						LastName:  lastName,
-					},
-				},
-			})
-
-			if ierr == nil && len(imported.Users) > 0 {
-				if u, ok := imported.Users[0].(*tg.User); ok {
-					log.Printf("[monitor] 确认联系人(复用): %s (TG ID: %d)", firstName, u.ID)
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "contact")
+		if e.claimDMAction(ctx, key) {
+			dmCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			cleanPhone := strings.Map(func(r rune) rune {
+				if r >= '0' && r <= '9' {
+					return r
 				}
-			} else if ierr != nil {
-				log.Printf("[monitor] 导入联系人失败: %v", ierr)
+				return -1
+			}, rule.DMContactPhone)
+
+			firstName := rule.DMContactFirst
+			if firstName == "" {
+				firstName = "User"
 			}
-
-			// 2. 发送联系人名片
-			ridBytes := make([]byte, 8)
-			if _, rerr := crand.Read(ridBytes); rerr == nil {
-				mediaContact := &tg.InputMediaContact{
-					PhoneNumber: cleanPhone,
-					FirstName:   firstName,
-					LastName:    lastName,
-					Vcard:       "",
-				}
-
-				_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
-					Peer:     peer,
-					Media:    mediaContact,
-					RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
-				})
-
-				if merr != nil {
-					log.Printf("[monitor] 联系人名片发送失败 target=%d: %v", targetUser, merr)
+			lastName := rule.DMContactLast
+			peer, perr := c.ResolvePeer(dmCtx, strconv.FormatInt(targetUser, 10))
+			if perr != nil {
+				e.finishDMAction(ctx, key, dmActionFailedDefinite, perr.Error())
+				log.Printf("[monitor] 名片发送失败(解析目标) target=%d: %v", targetUser, perr)
+			} else {
+				// Sending an inputMediaContact does not require importing this
+				// phone number into the sender's own address book. Avoid the
+				// unrelated contacts.importContacts side effect here.
+				ridBytes := make([]byte, 8)
+				if _, rerr := crand.Read(ridBytes); rerr != nil {
+					e.finishDMAction(ctx, key, dmActionFailedDefinite, rerr.Error())
+					log.Printf("[monitor] 名片发送失败(生成随机 ID) target=%d: %v", targetUser, rerr)
 				} else {
-					log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
+					_, merr := c.Raw().MessagesSendMedia(dmCtx, &tg.MessagesSendMediaRequest{
+						Peer: peer,
+						Media: &tg.InputMediaContact{
+							PhoneNumber: cleanPhone, FirstName: firstName,
+							LastName: lastName, Vcard: "",
+						},
+						RandomID: int64(binary.LittleEndian.Uint64(ridBytes) >> 1),
+					})
+					if merr != nil {
+						e.finishDMAction(ctx, key, dmActionOutcomeUnknown, merr.Error())
+						log.Printf("[monitor] 联系人名片发送失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, merr)
+					} else {
+						e.finishDMAction(ctx, key, dmActionSucceeded)
+						log.Printf("[monitor] ✅ 联系人名片发送成功 target=%d", targetUser)
+					}
 				}
 			}
+			cancel()
 		}
-		cancel()
 	}
 
 	// ③ 语音振铃(只振铃不接通, 走通话信令: requestCall→响 N 秒→discardCall)
+	if ctx.Err() != nil {
+		return
+	}
 	if rule.DMCall {
-		if !e.callAllowed(tenantID, accountID, targetUser) {
-			log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
-			return
-		}
-		secs := rule.DMCallSeconds
-		if secs <= 0 {
-			secs = 5
-		}
-		if err := ringUser(ctx, c, targetUser, secs); err != nil {
-			// USER_PRIVACY_RESTRICTED = 触发人在隐私设置里禁止陌生人来电, 服务端拒绝, 代码无解
-			log.Printf("[monitor] 语音振铃失败 target=%d: %v", targetUser, err)
+		key := e.dmActionKey(tenantID, accountID, rule.RuleID, targetUser, sourceChatID, sourceMessageID, "call")
+		if e.claimDMAction(ctx, key) {
+			if !e.callAllowed(ctx, tenantID, accountID, targetUser) {
+				e.finishDMAction(ctx, key, dmActionFailedDefinite)
+				log.Printf("[monitor] 语音振铃冷却中, 跳过 target=%d", targetUser)
+				return
+			}
+			secs := rule.DMCallSeconds
+			if secs <= 0 {
+				secs = 5
+			}
+			if err := ringUser(ctx, c, targetUser, secs); err != nil {
+				e.finishDMAction(ctx, key, dmActionOutcomeUnknown, err.Error())
+				log.Printf("[monitor] 语音振铃失败(结果可能不确定，不自动重试) target=%d: %v", targetUser, err)
+			} else {
+				e.finishDMAction(ctx, key, dmActionSucceeded)
+			}
 		}
 	}
 }
 
 // callAllowed 语音振铃冷却: 同一(租户,监控号,被叫) 10 分钟内只允许拨一次。
 // 通话是强打扰动作, 不加冷却高频触发极易被风控封号或遭对方举报。
-func (e *Engine) callAllowed(tenantID, accountID uuid.UUID, callee int64) bool {
+func (e *Engine) callAllowed(ctx context.Context, tenantID, accountID uuid.UUID, callee int64) bool {
+	if e.callCooldownStore != nil {
+		allowed, err := e.callCooldownStore.Claim(ctx, tenantID, accountID, callee)
+		if err != nil {
+			log.Printf("[monitor] 语音振铃冷却领取失败，安全跳过拨号 tenant=%s account=%s callee=%d: %v", tenantID, accountID, callee, err)
+			return false
+		}
+		return allowed
+	}
+
+	// In-memory fallback is retained for isolated unit tests. Production always injects PostgreSQL.
 	key := tenantID.String() + ":" + accountID.String() + ":" + strconv.FormatInt(callee, 10)
 	e.callMu.Lock()
 	defer e.callMu.Unlock()
@@ -813,7 +923,6 @@ func (e *Engine) callAllowed(tenantID, accountID uuid.UUID, callee int64) bool {
 		return false
 	}
 	e.lastCall[key] = time.Now()
-	// 防内存泄漏: 超限重建, 仅保留冷却期内的条目(与 lastMsgPush 同款思路)
 	if len(e.lastCall) > 10000 {
 		fresh := make(map[string]time.Time, len(e.lastCall))
 		cutoff := time.Now().Add(-10 * time.Minute)
@@ -888,18 +997,39 @@ func ringUser(ctx context.Context, c *telegram.Client, userID int64, ringSeconds
 		return fmt.Errorf("requestCall 响应缺少通话句柄: %T", res)
 	}
 
-	// 振铃 ringSeconds 秒; 监控会话被停止时立即挂断, 不留悬挂呼叫
+	// 振铃 ringSeconds 秒; 监控会话被停止时立即挂断, 不留悬挂呼叫。
+	// requestCall 一旦超时或响应缺少句柄，无法安全地猜测 callID 并挂机；
+	// 上层必须将其记为 outcome_unknown，且禁止自动重试。
+	ringStarted := time.Now()
+	ringTimer := time.NewTimer(time.Duration(ringSeconds) * time.Second)
 	select {
-	case <-time.After(time.Duration(ringSeconds) * time.Second):
+	case <-ringTimer.C:
 	case <-ctx.Done():
+		if !ringTimer.Stop() {
+			select {
+			case <-ringTimer.C:
+			default:
+			}
+		}
 	}
+	elapsedSeconds := int64(time.Since(ringStarted) / time.Second)
+	const maxPhoneDurationSeconds int64 = 1<<31 - 1
+	if elapsedSeconds < 0 {
+		elapsedSeconds = 0
+	}
+	if elapsedSeconds > maxPhoneDurationSeconds {
+		elapsedSeconds = maxPhoneDurationSeconds
+	}
+	// The explicit bounds above make this narrowing conversion safe for Telegram's int32 field.
+	ringDuration := int32(elapsedSeconds)
 
-	// 挂断 → 对端收到未接来电。用 Background 派生, 避免监控停止导致电话挂不掉
-	disCtx, disCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// 挂断 → 对端收到未接来电。保留上下文 values，但忽略会话取消，
+	// 给挂机请求独立的 15 秒窗口，避免停止监控时跳过挂机。
+	disCtx, disCancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer disCancel()
 	if _, err := c.Raw().PhoneDiscardCall(disCtx, &tg.PhoneDiscardCallRequest{
 		Peer:         &tg.InputPhoneCall{ID: callID, AccessHash: callAccess},
-		Duration:     int32(ringSeconds),
+		Duration:     ringDuration,
 		Reason:       &tg.PhoneCallDiscardReasonHangup{},
 		ConnectionID: 0,
 	}); err != nil {

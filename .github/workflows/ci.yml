@@ -3,7 +3,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, integration-grouplib-import-worker-lease]
+    branches: [main, master, integration-grouplib-import-worker-lease, stage-2-task-monitor-invite-reliability]
   pull_request:
 
 jobs:

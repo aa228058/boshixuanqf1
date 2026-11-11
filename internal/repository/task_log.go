@@ -258,11 +258,15 @@ func (r *TaskLogRepository) CreateBatch(ctx context.Context, logs []*domain.Task
 
 	// 2026-10-21 修正: 原列清单(10)与 Values(11)数量不匹配, COPY 每次都报错走 fallback;
 	// 且缺 target_name/message —— 群名和耗时从未写进过库。补齐 13 列与 Values 严格对齐
+	// copyFromLogs consumes its slice as pgx requests rows. Keep the original
+	// batch intact so the fallback can still insert every row if COPY fails.
+	copyRows := append([]*domain.TaskLog(nil), logs...)
 	_, err = conn.CopyFrom(ctx, []string{"task_logs"},
 		[]string{"log_id", "task_id", "tenant_id", "account_id", "target_id", "target_name", "action", "status", "tg_response", "error_code", "message", "tg_message_id", "executed_at"},
-		(*copyFromLogs)(&logs))
+		(*copyFromLogs)(&copyRows))
 	if err != nil {
-		// Fallback to individual inserts if COPY fails
+		// Fallback to individual inserts if COPY fails. The failed COPY statement
+		// is atomic; logs remains the untouched source batch.
 		for _, l := range logs {
 			if err := r.Create(ctx, l); err != nil {
 				return fmt.Errorf("batch fallback insert failed: %w", err)

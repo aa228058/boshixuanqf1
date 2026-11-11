@@ -13,7 +13,6 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/telegram/types"
 	"github.com/mtgo-labs/mtgo/tg"
-	"tg-sender/internal/safego"
 	securerand "tg-sender/internal/secure"
 )
 
@@ -338,8 +337,8 @@ func (e *Engine) tapRaffle(ctx context.Context, cl *telegram.Client, tenantID, a
 	raffleG.lastJoin[ak] = now
 	raffleG.mu.Unlock()
 
-	safego.Go(func() {
-		rctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	monitorGo(ctx, func() {
+		rctx, cancel := context.WithTimeout(ctx, 40*time.Second)
 		defer cancel()
 		// 持久化防重已移除(2026-10-21): 旧"chat+keyword 永久跳过"会把同关键词新活动挡死,
 		// 活动级判定全部由 activities 标记承担(创建公告重置), 重启后旧活动不会重推, 无重复风险
@@ -355,7 +354,7 @@ func (e *Engine) tapRaffle(ctx context.Context, cl *telegram.Client, tenantID, a
 		// 原实现等 bot "已参与成功" 回执才触发, 回执丢失会"参与了但邮件漏发"。
 		// 活动标记已在上面打上, 回执到达时因 activityJoined 去重会跳过, 不会重复触发。
 		if e.raffleWatch != nil && e.raffleWatch.onResult != nil {
-			safego.Go(func() { e.raffleWatch.onResult(tenantID, accountID, chatID, "joined", kw, "", "") })
+			monitorGo(ctx, func() { e.raffleWatch.onResult(tenantID, accountID, chatID, "joined", kw, "", "") })
 		}
 		log.Printf("[raffle] 账号 %s 群 %d 已自动参与抽奖, 关键词: %q (创建公告=%v)", accountID, chatID, kw, isCreation)
 
@@ -366,9 +365,13 @@ func (e *Engine) tapRaffle(ctx context.Context, cl *telegram.Client, tenantID, a
 			if pingOn, pingText := e.raffleBotPing(tenantID); pingOn && strings.TrimSpace(pingText) != "" {
 				if raw, ok := msg.Raw.(*tg.Message); ok && raw != nil && raw.FromID != nil {
 					if pu, ok := raw.FromID.(*tg.PeerUser); ok && pu.UserID != 0 {
-						safego.Go(func() {
-							// 不可用 rctx: dispatch 返回即取消, 激活是异步长任务(2026-10-21 context canceled 实锤)
-							e.pingRaffleBot(context.Background(), cl, chatID, raw.ID, pu.UserID, strings.TrimSpace(pingText))
+						messageID, botUserID := raw.ID, pu.UserID
+						monitorGo(ctx, func() {
+							// 激活任务独立于 joinRaffle 的短生命周期, 但仍绑定监控会话,
+							// 停止监听时取消, 避免后台继续触发 Telegram 私聊动作。
+							pingCtx, pingCancel := context.WithTimeout(ctx, 40*time.Second)
+							defer pingCancel()
+							e.pingRaffleBot(pingCtx, cl, chatID, messageID, botUserID, strings.TrimSpace(pingText))
 						})
 					}
 				}

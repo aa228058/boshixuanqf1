@@ -38,6 +38,75 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	}
 }
 
+func dedupeAccountIDs(accountIDs []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]bool, len(accountIDs))
+	result := make([]uuid.UUID, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID == uuid.Nil || seen[accountID] {
+			continue
+		}
+		seen[accountID] = true
+		result = append(result, accountID)
+	}
+	return result
+}
+
+func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][]string {
+	result := make(map[uuid.UUID][]string, len(accountTargets))
+	for accountID, targets := range accountTargets {
+		seen := make(map[string]bool, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			if target == "" || seen[target] {
+				continue
+			}
+			seen[target] = true
+			unique = append(unique, target)
+		}
+		result[accountID] = unique
+	}
+	return result
+}
+
+func parseBroadcastMappings(raw any, allowedAccounts []uuid.UUID) (map[uuid.UUID][]string, error) {
+	mappings, ok := raw.([]any)
+	if !ok || len(mappings) == 0 {
+		return nil, fmt.Errorf("mapping mode requires a non-empty mappings array")
+	}
+	allowed := make(map[uuid.UUID]bool, len(allowedAccounts))
+	for _, id := range allowedAccounts {
+		allowed[id] = true
+	}
+	result := make(map[uuid.UUID][]string, len(mappings))
+	for i, item := range mappings {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("mapping[%d] must be an object", i)
+		}
+		accountText, ok := entry["account_id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("mapping[%d] account_id must be a UUID string", i)
+		}
+		accountID, err := uuid.Parse(accountText)
+		if err != nil || !allowed[accountID] {
+			return nil, fmt.Errorf("mapping[%d] account_id is invalid or not selected", i)
+		}
+		targetValues, ok := entry["targets"].([]any)
+		if !ok || len(targetValues) == 0 {
+			return nil, fmt.Errorf("mapping[%d] targets must be a non-empty array", i)
+		}
+		for j, value := range targetValues {
+			target, ok := value.(string)
+			if !ok || strings.TrimSpace(target) == "" {
+				return nil, fmt.Errorf("mapping[%d] targets[%d] must be a non-empty string", i, j)
+			}
+			result[accountID] = append(result[accountID], target)
+		}
+	}
+	return dedupeAccountTargets(result), nil
+}
+
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Overall timeout: max 30 minutes for a broadcast task to prevent indefinite hanging
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -104,6 +173,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		log.Printf("[broadcast] 任务 %s 执行器收到 %d 个按钮", task.TaskID, len(urlButtons))
 	}
 
+	// Duplicate account IDs would otherwise launch duplicate workers for the
+	// same (account,target) pair while the progress total counts it only once.
+	task.AccountIDs = dedupeAccountIDs(task.AccountIDs)
+
 	// Determine broadcast mode
 	modeStr, _ := task.Payload["mode"].(string)
 	mode := domain.BroadcastMode(modeStr)
@@ -111,50 +184,31 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		mode = domain.BroadcastModeCartesian // default to legacy mode
 	}
 
-	// Build account -> targets mapping
+	// Build account -> targets mapping. Invalid mapping input must fail closed:
+	// silently falling back to cartesian can send to groups the user did not select.
 	accountTargets := make(map[uuid.UUID][]string)
 	var total int
-
-	if mode == domain.BroadcastModeMapping {
-		// Parse mappings from payload
-		var mappingsData []any
-		if v, ok := task.Payload["mappings"]; ok {
-			switch val := v.(type) {
-			case []any:
-				mappingsData = val
+	switch mode {
+	case domain.BroadcastModeMapping:
+		var mappingErr error
+		accountTargets, mappingErr = parseBroadcastMappings(task.Payload["mappings"], task.AccountIDs)
+		if mappingErr != nil {
+			taskLog.Printf("[broadcast] invalid account-target mapping task=%s: %v", task.TaskID, mappingErr)
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+				taskLog.Printf("[broadcast] failed to mark invalid mapping task failed: %v", err)
 			}
+			return
 		}
-		for _, m := range mappingsData {
-			mMap, ok := m.(map[string]any)
-			if !ok {
-				continue
-			}
-			accIDStr, _ := mMap["account_id"].(string)
-			accID, err := uuid.Parse(accIDStr)
-			if err != nil {
-				continue
-			}
-			targetsRaw, _ := mMap["targets"].([]any)
-			var targets []string
-			for _, t := range targetsRaw {
-				if ts, ok := t.(string); ok {
-					targets = append(targets, ts)
-				}
-			}
-			accountTargets[accID] = targets
-			total += len(targets)
-		}
-		// Fallback: if no valid mappings parsed, use cartesian
-		if len(accountTargets) == 0 {
-			mode = domain.BroadcastModeCartesian
-		}
-	}
-
-	if mode == domain.BroadcastModeCartesian {
+	case domain.BroadcastModeCartesian:
 		for _, accID := range task.AccountIDs {
 			accountTargets[accID] = task.TargetIDs
 		}
-		total = len(task.TargetIDs) * len(task.AccountIDs)
+	default:
+		taskLog.Printf("[broadcast] unsupported broadcast mode task=%s mode=%q", task.TaskID, mode)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] failed to mark unsupported mode task failed: %v", err)
+		}
+		return
 	}
 
 	done := 0
@@ -250,17 +304,19 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	semaphore := make(chan struct{}, maxConcurrentAccounts)
 	var wg sync.WaitGroup
 
-	// Deduplicate targets globally to prevent multiple accounts sending to the same target
-	seenTargets := make(map[string]bool)
-	for accID := range accountTargets {
-		unique := make([]string, 0, len(accountTargets[accID]))
-		for _, t := range accountTargets[accID] {
-			if !seenTargets[t] {
-				seenTargets[t] = true
-				unique = append(unique, t)
-			}
+	// Deduplicate repeated targets within each account only. The same target
+	// assigned to different accounts remains distinct work.
+	accountTargets = dedupeAccountTargets(accountTargets)
+	total = 0
+	for _, targets := range accountTargets {
+		total += len(targets)
+	}
+	if total == 0 {
+		taskLog.Printf("[broadcast] task %s has no valid account-target work", task.TaskID)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] failed to mark empty task failed: %v", err)
 		}
-		accountTargets[accID] = unique
+		return
 	}
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
