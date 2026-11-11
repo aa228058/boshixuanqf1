@@ -51,8 +51,8 @@
     </div>
 
     <!-- 功能矩阵 -->
-    <div class="glass rounded-[var(--t-r-md)] overflow-hidden lift">
-      <table class="w-full text-sm">
+    <div class="glass rounded-[var(--t-r-md)] overflow-x-auto lift">
+      <table class="w-full min-w-[720px] text-sm">
         <thead>
           <tr class="border-b border-border text-left">
             <th class="px-4 py-3 text-text-secondary font-medium w-56">功能</th>
@@ -67,7 +67,7 @@
             <td v-for="p in plans" :key="p.plan_id" class="px-3 py-2.5 text-center">
               <input type="checkbox" class="accent-[var(--t-brand)] w-4 h-4 cursor-pointer"
                 :checked="hasFeature(p, f.key)"
-                @change="toggleFeature(p, f.key)" />
+                @change="toggleFeature(p, f.key)" :aria-label="p.name + ' plan: ' + f.label" />
             </td>
           </tr>
         </tbody>
