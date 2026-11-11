@@ -124,8 +124,26 @@
             {{ acc.first_name || acc.phone }}
           </button>
         </div>
+        <div v-if="!isLoop" class="mt-3">
+          <label class="block text-xs font-semibold text-text-secondary mb-2">发送策略</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" @click="sendStrategy = 'assign'"
+              class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
+              :class="sendStrategy === 'assign' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
+              <span class="block font-semibold">分配发送</span>
+              <span class="block mt-1 opacity-75">每个群分配给一个已加入的账号</span>
+            </button>
+            <button type="button" @click="sendStrategy = 'all'"
+              class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
+              :class="sendStrategy === 'all' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
+              <span class="block font-semibold">全部账号发送</span>
+              <span class="block mt-1 opacity-75">每个已加入该群的账号各发送一次</span>
+            </button>
+          </div>
+        </div>
         <p v-if="selectedTargets.length && execAccounts.length" class="text-[10.5px] text-text-muted mt-1.5">
-          预计发送 {{ selectedTargets.length * execAccounts.length }} 条 = {{ selectedTargets.length }} 目标 × {{ execAccounts.length }} 账号
+          按账号入群情况预计发送 <strong class="text-text-primary">{{ coverage.ok }}</strong> 条
+          <span v-if="coverage.unreachable.length"> · {{ coverage.unreachable.length }} 个群没有所选账号加入</span>
           · 约需 {{ estMinutes }} 分钟
         </p>
         <!-- R101 P1-第二刀: 覆盖预览 -->
@@ -380,30 +398,45 @@ function groupNameOf(t: string): string {
     String(x.group_id) === t || String(x.tg_chat_id) === t || x.username === t)
   return g ? (g.title || g.username || t) : t
 }
+const sendStrategy = ref<'assign' | 'all'>('assign')
 const coverage = computed(() => {
   const joinedBy = new Map<string, Set<string>>()
   for (const g of _allGroups.value as any[]) {
     const keys = [g.group_id, g.tg_chat_id, g.username, g.tg_link].filter(Boolean).map(String)
     for (const k of keys) {
       if (!joinedBy.has(k)) joinedBy.set(k, new Set())
-      joinedBy.get(k)!.add(g.account_id)
+      joinedBy.get(k)!.add(String(g.account_id))
     }
   }
   const selected = new Set(execAccounts.value)
-  let ok = 0, fail = 0
+  const targetsByAccount = new Map<string, string[]>()
+  let ok = 0
+  let assignmentCursor = 0
   const unreachable: string[] = []
-  for (const t of selectedTargets.value) {
-    const joined = joinedBy.get(String(t))
-    if (!joined || joined.size === 0) { unreachable.push(groupNameOf(t)); continue }
-    const cand = [...joined].filter(id => selected.has(id)).length
-    ok += cand
-    fail += execAccounts.value.length - cand
+  for (const target of selectedTargets.value) {
+    const eligible = [...(joinedBy.get(String(target)) || [])]
+      .filter(id => selected.has(id))
+      .sort((a, b) => execAccounts.value.indexOf(a) - execAccounts.value.indexOf(b))
+    if (!eligible.length) {
+      unreachable.push(groupNameOf(target))
+      continue
+    }
+    const assigned = sendStrategy.value === 'all'
+      ? eligible
+      : [eligible[assignmentCursor++ % eligible.length]]
+    for (const accountId of assigned) {
+      const list = targetsByAccount.get(accountId) || []
+      list.push(target)
+      targetsByAccount.set(accountId, list)
+      ok++
+    }
   }
-  return { ok, fail, unreachable }
+  const mappings = [...targetsByAccount.entries()].map(([account_id, targets]) => ({ account_id, targets }))
+  return { ok, unreachable, mappings }
 })
 // R102: 预计耗时 = 总条数 × 平均间隔(秒) / 60, 向上取整
 const estMinutes = computed(() => {
-  const total = selectedTargets.value.length * execAccounts.value.length
+  const total = coverage.value.ok
   if (!total) return 0
   const avgSec = (intervalMin.value + intervalMax.value) / 2
   return Math.max(1, Math.ceil((total * avgSec) / 60))
@@ -537,6 +570,7 @@ function resetCreateForm() {
   clearMedia()
   obfuscate.value = false
   autoVary.value = true
+  sendStrategy.value = 'assign'
   // 执行账号选择保留为下一次创建的默认账号池；目标和消息等一次性内容全部清空。
 }
 const validating = ref(false)
@@ -834,6 +868,7 @@ async function submit() {
         message: messageText,
         interval_min: minSeconds,
         interval_max: maxSeconds,
+        ...(coverage.value.mappings.length ? { mappings: coverage.value.mappings } : {}),
         auto_vary: autoVary.value,
         obfuscate: obfuscate.value,
       }
