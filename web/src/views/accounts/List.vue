@@ -1,5 +1,10 @@
 <template>
   <main class="min-w-0 w-full space-y-3 sm:space-y-4">
+    <PageHeader
+      eyebrow="运营控制中心 · 账号"
+      title="账号管理"
+      :subtitle="`共 ${(accountStore.accounts || []).length} 个账号`"
+    />
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
     <div class="grid gap-2 mb-3.5">
       <div class="flex gap-2">
@@ -727,6 +732,7 @@ import { taskApi } from '@/api/task'
 import { settingsApi } from '@/api/settings'
 import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import { getHealthBg } from '@/utils/health'
 
