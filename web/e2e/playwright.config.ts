@@ -31,7 +31,7 @@ export default defineConfig({
       },
       {
         name: 'production-mobile',
-        testMatch: /production\\.spec\\.ts/,
+        testMatch: /production\.spec\.ts/,
         use: { ...devices['iPhone 13'], browserName: 'chromium', ...(hasAuthState ? { storageState: authState } : {}) },
       },
     ] : []),
