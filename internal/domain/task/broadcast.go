@@ -111,6 +111,12 @@ func reconcileBroadcastTimeoutProgress(total, done, failed int, timedOut bool) (
 	return failed, true
 }
 
+// shouldSendBroadcastTarget prevents sends after an account-level failure or
+// when peer resolution did not produce a usable chat ID.
+func shouldSendBroadcastTarget(status string, chatID int64) bool {
+	return status != "failed" && chatID != 0
+}
+
 func parseBroadcastMappings(raw any, allowedAccounts []uuid.UUID) (map[uuid.UUID][]string, error) {
 	mappings, ok := raw.([]any)
 	if !ok || len(mappings) == 0 {
@@ -631,14 +637,15 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						chatID = p.ChannelID
 					}
 				}
-				if status == "failed" {
+				if !shouldSendBroadcastTarget(status, chatID) {
 					// A prior account cooldown or peer-resolution failure is terminal
 					// for this target. Do not attempt a send with an unresolved chatID.
-				} else if chatID == 0 {
-					status = "failed"
-					errCode = "unsupported peer type"
-					accFailed++
-					e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					if status != "failed" {
+						status = "failed"
+						errCode = "unsupported peer type"
+						accFailed++
+						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					}
 				} else {
 					// Replace template variables with target info before sending
 					// 先 spintax 随机语法(每个目标独立), 再变量替换
