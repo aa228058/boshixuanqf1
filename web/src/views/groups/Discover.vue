@@ -327,10 +327,8 @@ const accountStore = useAccountStore()
 const tab = ref<'library' | 'diy'>('library')
 const list = ref<SystemGroup[]>([])
 
-// ===== 同群聚合(2026-10-21): 同一群多个邀请链接合并为一行 =====
-// 现象: "汤臣社区-核销"等群被采集到 6+ 条不同邀请链接, 列表全是重复行。
-// 规则: 按群标题合并, 成员数取最大(入口数不同采集值不同), 已加入任一入口视为已加入,
-//       勾选/加入用首个入口的 sg_id, 徽标显示入口数。
+// 同群聚合：只按已确认的 Telegram chat_id 或公开 username 归并。
+// 未解析的私密邀请链接没有可靠身份，不按相同群名猜测合并。
 const aggregatedList = computed<SystemGroup[]>(() => {
   const groups = new Map<string, SystemGroup>()
   for (const group of list.value) {
@@ -348,7 +346,7 @@ const aggregatedList = computed<SystemGroup[]>(() => {
       groups.set(identity, { ...group, entries: [...ownEntries], entry_count: ownEntries.length })
       continue
     }
-    const links = new Set((existing.entries || []).map(entry => (entry.tme_link || '').trim().toLowerCase()))
+    const links = new Set((existing.entries || []).map(entry => (entry.tme_link || '').trim()))
     for (const entry of ownEntries) {
       const key = (entry.tme_link || '').trim().toLowerCase()
       if (!key || !links.has(key)) {
