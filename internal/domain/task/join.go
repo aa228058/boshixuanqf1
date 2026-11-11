@@ -721,8 +721,15 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 		if lookupErr == nil && existing != nil {
 			existing.AccessHash = accessHash
 			existing.IsJoined = true
+			existing.Title = title
+			existing.Type = gtype
+			existing.MemberCount = memberCount
 			if username != "" {
 				existing.Username = username
+			}
+			if existing.JoinedAt == nil {
+				now := time.Now()
+				existing.JoinedAt = &now
 			}
 			if err := e.groupRepo.Update(ctx, existing); err != nil {
 				log.Printf("[join] 更新群组失败: %v", err)
