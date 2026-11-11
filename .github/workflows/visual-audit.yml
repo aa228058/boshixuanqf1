@@ -30,7 +30,10 @@ jobs:
         working-directory: web/e2e
         run: |
           npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          # GitHub-hosted runners already include Chromium system libraries.
+          # Avoid apt-based --with-deps because transient Ubuntu mirror DNS failures
+          # can prevent browser tests from starting.
+          npx playwright install chromium
       - name: Capture accounts page screenshots
         working-directory: web/e2e
         env:
