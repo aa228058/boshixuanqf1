@@ -141,6 +141,7 @@ export interface TaskLog {
 
 export interface Task {
   task_id: string
+  task_number: number
   tenant_id: string
   account_id: string
   account_ids?: string[]
