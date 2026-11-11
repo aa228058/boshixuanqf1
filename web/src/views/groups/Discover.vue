@@ -320,6 +320,7 @@ import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
 import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, deleteGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
 
@@ -480,6 +481,14 @@ async function retryFailedImportJob(jobId: string) {
 }
 
 async function deleteImportJob(jobId: string) {
+  const confirmed = await ask('确定删除这条导入任务记录？', {
+    title: '删除导入记录',
+    detail: '只删除任务历史和失败明细，不影响已入库群组。',
+    danger: true,
+    confirmText: '删除',
+  })
+  if (!confirmed) return
+
   try {
     await deleteGroupLibraryImportJob(jobId)
     importJobs.value = importJobs.value.filter((item: any) => item.job_id !== jobId)
