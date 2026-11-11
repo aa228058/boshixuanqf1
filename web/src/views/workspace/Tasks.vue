@@ -271,7 +271,7 @@ import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import { toast } from '@/utils/toast'
 import { ask } from '@/utils/confirm'
-import { ListTodo, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { ListTodo, RefreshCw, Trash2, Search, X } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
