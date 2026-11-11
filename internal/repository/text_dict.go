@@ -51,6 +51,7 @@ func (r *TextDictRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*d
 		}
 		if word != nil {
 			item.Items = append(item.Items, *word)
+			item.WordCount++
 		}
 	}
 	return list, rows.Err()
@@ -74,6 +75,7 @@ func (r *TextDictRepository) Create(ctx context.Context, tenantID uuid.UUID, nam
 			return nil, err
 		}
 		d.Items = append(d.Items, item)
+		d.WordCount++
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
