@@ -143,6 +143,19 @@ func (h *TaskHandler) List(c echo.Context) error {
 		since = &t
 	}
 
+	// 精确编号搜索：保留 UUID 作为详情/执行主键，编号仅作为全局展示索引。
+	if numberStr := strings.TrimSpace(c.QueryParam("task_number")); numberStr != "" {
+		number, parseErr := strconv.ParseInt(numberStr, 10, 64)
+		if parseErr != nil || number <= 0 { return echo.NewHTTPError(http.StatusBadRequest, "任务编号格式错误") }
+		found, findErr := h.svc.GetByNumber(c.Request().Context(), tenantID, number)
+		if findErr != nil {
+			if errors.Is(findErr, pgx.ErrNoRows) { return SuccessList(c, []*domain.Task{}, 0, 1, 20) }
+			log.Printf("[handler] 按编号查询任务失败: %v", findErr)
+			return echo.NewHTTPError(http.StatusInternalServerError, "服务器内部错误")
+		}
+		return SuccessList(c, []*domain.Task{found}, 1, 1, 1)
+	}
+
 	tasks, err := h.svc.List(c.Request().Context(), tenantID, status, accountID, taskType, hideLoops, since, page, pageSize)
 	if err != nil {
 		log.Printf("[handler] 获取任务列表失败: %v", err)
