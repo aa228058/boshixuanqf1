@@ -341,8 +341,12 @@ func (s *TaskService) CreateScheduledBroadcast(ctx context.Context, tenantID uui
 func (s *TaskService) CreateScheduledBroadcastWithMapping(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool, maxRounds int, endAt *time.Time) (*domain.Task, error) {
 	now := time.Now()
 	extraPayload := map[string]any{}
-	if maxRounds > 0 { extraPayload["max_rounds"] = maxRounds }
-	if endAt != nil { extraPayload["end_at"] = endAt.UTC().Format(time.RFC3339) }
+	if maxRounds > 0 {
+		extraPayload["max_rounds"] = maxRounds
+	}
+	if endAt != nil {
+		extraPayload["end_at"] = endAt.UTC().Format(time.RFC3339)
+	}
 	task, err := s.CreateBroadcastWithMapping(ctx, tenantID, mappings, accountIDs, targetIDs, message, &now, intervalMin, intervalMax, extraPayload)
 	if err != nil {
 		return nil, err
