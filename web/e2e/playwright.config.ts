@@ -3,13 +3,50 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const authState = resolve(process.cwd(), '.auth/user.json')
+const generatedAuthState = resolve(process.cwd(), '.auth/e2e-user.json')
 const hasAuthState = existsSync(authState)
 const hasAdminCredentials = Boolean(process.env.E2E_ADMIN_USERNAME && process.env.E2E_ADMIN_PASSWORD)
 const hasTenantCredentials = Boolean(process.env.E2E_TENANT_USERNAME && process.env.E2E_TENANT_PASSWORD)
 
+const tenantAuthProjects = hasTenantCredentials
+  ? [
+      {
+        name: 'tenant-auth-setup',
+        testMatch: /auth\.setup\.ts/,
+        use: { ...devices['Desktop Chrome'], storageState: { cookies: [], origins: [] } },
+      },
+      {
+        name: 'authenticated-desktop',
+        testMatch: /authenticated\.spec\.ts/,
+        dependencies: ['tenant-auth-setup'],
+        use: { ...devices['Desktop Chrome'], storageState: generatedAuthState },
+      },
+      {
+        name: 'authenticated-mobile',
+        testMatch: /authenticated\.spec\.ts/,
+        dependencies: ['tenant-auth-setup'],
+        use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: generatedAuthState },
+      },
+    ]
+  : hasAuthState
+    ? [
+        {
+          name: 'authenticated-desktop',
+          testMatch: /authenticated\.spec\.ts/,
+          use: { ...devices['Desktop Chrome'], storageState: authState },
+        },
+        {
+          name: 'authenticated-mobile',
+          testMatch: /authenticated\.spec\.ts/,
+          use: { ...devices['iPhone 13'], browserName: 'chromium', storageState: authState },
+        },
+      ]
+    : []
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
+  workers: process.env.CI ? 1 : undefined,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
@@ -33,18 +70,7 @@ export default defineConfig({
       testMatch: /public\.spec\.ts/,
       use: { ...devices['iPhone 13'], browserName: 'chromium' },
     },
-    ...(hasAuthState || hasTenantCredentials ? [
-      {
-        name: 'authenticated-desktop',
-        testMatch: /authenticated\.spec\.ts/,
-        use: { ...devices['Desktop Chrome'], ...(hasAuthState ? { storageState: authState } : {}) },
-      },
-      {
-        name: 'authenticated-mobile',
-        testMatch: /authenticated\.spec\.ts/,
-        use: { ...devices['iPhone 13'], browserName: 'chromium', ...(hasAuthState ? { storageState: authState } : {}) },
-      },
-    ] : []),
+    ...tenantAuthProjects,
     ...(hasAdminCredentials ? [
       {
         name: 'admin-desktop',
