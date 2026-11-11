@@ -130,7 +130,7 @@
 import { riskTypeLabel, severityLabel, auditActionLabel, targetLabel } from '@/utils/labels'
 
 
-import { ref, onMounted, computed, onUnmounted, onBeforeUnmount, watch } from 'vue'
+import { defineAsyncComponent, ref, onMounted, computed, onUnmounted, onBeforeUnmount, watch } from 'vue'
 
 let scrollObserver: IntersectionObserver | null = null
 let scrollRafId: number | null = null
@@ -143,7 +143,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 import { AlertTriangle, Activity, Shield, Clock } from 'lucide-vue-next'
 
 import { dashboardApi } from '@/api/dashboard'
-import LottieAnim from '@/components/ui/LottieAnim.vue'
+const LottieAnim = defineAsyncComponent(() => import('@/components/ui/LottieAnim.vue'))
 import { toast } from '@/utils/toast'
 import { useAccountStore } from '@/stores/account'
 

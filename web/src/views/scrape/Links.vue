@@ -43,7 +43,7 @@
       <p v-if="listening" class="text-xs font-bold" style="color: var(--t-ok);">● 监听中, 结果在"采集结果"Tab 查看与导出</p>
       <p v-else class="text-xs text-text-muted">
         账号:
-        <select v-model="linksAccId" class="input-box h-8 px-2 text-xs rounded-lg ml-1 align-middle">
+        <select v-model="linksAccId" class="ui-input !w-auto !min-h-[36px] !px-2 !py-1.5 !text-xs ml-1 align-middle" aria-label="链接监听账号">
           <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ a.first_name || a.phone }}</option>
         </select>
       </p>

@@ -1,5 +1,5 @@
 /* ============ TDesign 覆盖层 ============
-   必须在 tdesign-vue-next 样式之后加载(main.ts 里最后引入)。
+   在 TDesign 默认样式及项目 ui-kit.css 之后加载；main.ts 中 modal-system.css 随后加载并负责项目 Modal 定位。
    关键声明一律 !important, 防止被组件库默认样式(更高特异性)覆盖。 */
 
 /* ===== 移动端弹窗: 底部抽屉式 =====

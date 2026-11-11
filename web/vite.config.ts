@@ -37,7 +37,10 @@ export default defineConfig({
       output: {
         manualChunks: {
           'echarts': ['echarts'],
-          'vue-vendor': ['vue', 'vue-router', 'pinia']
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          // TDesign 是按需注册的组件集合; 单独分块便于缓存与诊断,
+          // 避免组件库代码与应用入口/业务模块混在同一个大 chunk。
+          'tdesign-vendor': ['tdesign-vue-next']
         }
       }
     }

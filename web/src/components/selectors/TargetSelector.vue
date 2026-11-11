@@ -76,6 +76,7 @@
             <div class="text-xs text-text-muted">{{ d.typeLabel }}</div>
           </div>
         </div>
+          <button v-if="displayDialogs.length < filteredDialogs.length" type="button" @click="dialogVisibleCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多联系人（{{ displayDialogs.length }} / {{ filteredDialogs.length }}）</button>
         </div>
       </div>
 
@@ -111,7 +112,7 @@
           <p v-else>暂无{{ tabLabelMap[activeTab] }}</p>
         </div>
         <div
-          v-for="g in filteredGroups"
+          v-for="g in displayGroups"
           :key="g.group_id"
           @click="toggleTarget(String(g.tg_chat_id))"
           class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
@@ -140,6 +141,7 @@
             </div>
           </div>
         </div>
+          <button v-if="displayGroups.length < filteredGroups.length" type="button" @click="groupVisibleCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多群组（{{ displayGroups.length }} / {{ filteredGroups.length }}）</button>
         </div>
       </div>
 
@@ -188,7 +190,7 @@
                 class="px-4 py-2 rounded-lg text-sm bg-bg-hover text-text-secondary hover:text-text-primary transition-colors">
           取消
         </button>
-        <t-button theme="primary" @click="confirm" >确认 ({{ allTargets.length }})</t-button>
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="confirm" >确认 ({{ allTargets.length }})</t-button>
       </div>
     </template>
   </Modal>
@@ -205,6 +207,7 @@ import { groupApi } from '@/api/group'
 import { contactApi } from '@/api/contact'
 import { syncLock } from '@/utils/syncLock'
 import { toast } from '@/utils/toast'
+import { areAllSelectorKeysSelected, createSelectorTitleLookup, filterSelectorItems, toggleAllSelectorKeys } from './selectorRuntime'
 import { useGroupStore } from '@/stores/group'
 
 const groupStore = useGroupStore()
@@ -268,57 +271,43 @@ function onManualImportFile(e: Event) {
 }
 const dialogs = ref<DialogItem[]>([])
 const loading = ref(false)
-const syncAllLoading = ref(false)
+// 每次打开/切换账号/手动刷新都会递增，旧账号的慢响应不得覆盖当前选择器。
+let selectorRequestId = 0
+const isCurrentSelectorRequest = (requestId: number, accountId: string) =>
+  requestId === selectorRequestId && visible.value && props.accountId === accountId
 
-// 批量同步: 后台逐个同步全部在线账号的群组(后端串行3秒间隔), 30秒防重复点击
-async function syncAllAccounts() {
-  if (syncAllLoading.value) return
-  syncAllLoading.value = true
-  try {
-    await groupApi.syncAll()
-    toast({ type: 'success', title: '批量同步已启动', message: '后台逐个同步在线账号, 约3秒/账号; 同步完成后再打开选择器即可看到最新群组' })
-  } catch (e: unknown) {
-    toast({ type: 'error', title: '批量同步启动失败', message: (e instanceof Error ? e.message : '请稍后重试') })
-  } finally {
-    setTimeout(() => { syncAllLoading.value = false }, 30000)
-  }
-}
 const syncStatus = ref<'idle' | 'syncing' | 'done' | 'timeout' | 'error'>('idle')
-const fromCache = ref(false)
 const syncHint = ref('')
 
 // 长列表性能: 最多渲染 200 条, 超出用搜索过滤(搜索框已是主要查找手段)
-const displayDialogs = computed(() => filteredDialogs.value.slice(0, 200))
+const dialogVisibleCount = ref(200)
+const groupVisibleCount = ref(200)
+const displayDialogs = computed(() => filteredDialogs.value.slice(0, dialogVisibleCount.value))
+const displayGroups = computed(() => filteredGroups.value.slice(0, groupVisibleCount.value))
 const search = ref('')
 const groupSearch = ref('')
 
 const filteredDialogs = computed(() => {
   const list = dialogs.value.filter(d => d.type === 'user')
-  if (!search.value) return list
-  const q = search.value.toLowerCase()
-  return list.filter(d => d.title.toLowerCase().includes(q))
+  return filterSelectorItems(list, search.value, d => d.title)
 })
 
 const filteredGroups = computed(() => {
   if (activeTab.value === 'user') return []
-  let list = props.groups.filter(g => activeTab.value === 'group' ? (g.type === 'group' || g.type === 'supergroup') : g.type === activeTab.value)
-  if (groupSearch.value) {
-    const q = groupSearch.value.toLowerCase()
-    list = list.filter(g => g.title.toLowerCase().includes(q))
-  }
-  return list
+  const list = props.groups.filter(g => activeTab.value === 'group' ? (g.type === 'group' || g.type === 'supergroup') : g.type === activeTab.value)
+  return filterSelectorItems(list, groupSearch.value, g => g.title)
 })
+watch(search, () => { dialogVisibleCount.value = 200 })
+watch(groupSearch, () => { groupVisibleCount.value = 200 })
 
-const allDialogsSelected = computed(() => {
-  const ids = filteredDialogs.value.map(d => d.id)
-  return ids.length > 0 && ids.every(id => selectedTargets.value.has(id))
-})
+const allDialogsSelected = computed(() =>
+  areAllSelectorKeysSelected(filteredDialogs.value, selectedTargets.value, d => d.id)
+)
 
-const allGroupsSelected = computed(() => {
+const allGroupsSelected = computed(() =>
   // 统一存数字 chat_id(配合库里的 AccessHash 直发); username 解析失败率极高(FloodWait/改名/未加入)
-  const ids = filteredGroups.value.map(g => String(g.tg_chat_id))
-  return ids.length > 0 && ids.every(id => selectedTargets.value.has(id))
-})
+  areAllSelectorKeysSelected(filteredGroups.value, selectedTargets.value, g => String(g.tg_chat_id))
+)
 
 const manualTargets = computed(() => {
   const lines = manualInput.value.split(/\n/).map(l => l.trim()).filter(Boolean)
@@ -349,12 +338,12 @@ const manualInvalid = computed(() => {
 
 const allTargets = computed(() => Array.from(selectedTargets.value))
 
+const targetTitleLookup = computed(() =>
+  createSelectorTitleLookup(props.groups, dialogs.value)
+)
+
 function getTargetTitle(id: string): string {
-  const g = props.groups.find(g => String(g.tg_chat_id) === id || g.username === id.replace(/^@/, ''))
-  if (g) return g.title
-  const d = dialogs.value.find(d => d.id === id)
-  if (d) return d.title
-  return id
+  return targetTitleLookup.value.get(id) || id
 }
 
 function isTargetSelected(t: string) {
@@ -367,35 +356,37 @@ function toggleTarget(t: string) {
 }
 
 function selectAllDialogs() {
-  const ids = filteredDialogs.value.map(d => d.id)
-  if (allDialogsSelected.value) {
-    ids.forEach(id => selectedTargets.value.delete(id))
-  } else {
-    ids.forEach(id => selectedTargets.value.add(id))
-  }
+  selectedTargets.value = toggleAllSelectorKeys(
+    filteredDialogs.value,
+    selectedTargets.value,
+    d => d.id,
+  )
 }
 
 function selectAllGroups() {
   // 统一存 TG chat ID(数字字符串): 用户名解析 FloodWait 高发且易失效,
   // chat_id 是同步时落库的永久 ID, 配合库中 AccessHash 可直发零解析
-  const ids = filteredGroups.value.map(g => String(g.tg_chat_id))
-  if (allGroupsSelected.value) {
-    ids.forEach(id => selectedTargets.value.delete(id))
-  } else {
-    ids.forEach(id => selectedTargets.value.add(id))
-  }
+  selectedTargets.value = toggleAllSelectorKeys(
+    filteredGroups.value,
+    selectedTargets.value,
+    g => String(g.tg_chat_id),
+  )
 }
 
 function removeTarget(t: string) {
   selectedTargets.value.delete(t)
 }
 
-async function fetchDialogs() {
-  if (!props.accountId) return
+async function fetchDialogs(requestId = ++selectorRequestId, accountId = props.accountId || '') {
+  if (!accountId) {
+    dialogs.value = []
+    return
+  }
   loading.value = true
   try {
     // 读 contacts 表缓存(同步群组时写入), 秒开; 不再实时拉 TG(慢且每次重复)
-    const res: any = await contactApi.list(props.accountId)
+    const res: any = await contactApi.list(accountId)
+    if (!isCurrentSelectorRequest(requestId, accountId)) return
     const data = res.data || res || []
     dialogs.value = data.map((d: any) => ({
       id: String(d.tg_user_id),
@@ -404,9 +395,9 @@ async function fetchDialogs() {
       typeLabel: '私聊',
     })).filter((d: DialogItem) => d.id && d.id !== 'undefined' && d.id !== 'null')
   } catch {
-    dialogs.value = []
+    if (isCurrentSelectorRequest(requestId, accountId)) dialogs.value = []
   } finally {
-    loading.value = false
+    if (isCurrentSelectorRequest(requestId, accountId)) loading.value = false
   }
 }
 
@@ -418,100 +409,78 @@ async function switchTab(tab: string) {
 
 async function onRefresh() {
   if (loading.value) return
-
   if (activeTab.value === 'user') {
-    await fetchDialogs()
+    const requestId = ++selectorRequestId
+    await fetchDialogs(requestId, props.accountId || '')
     return
   }
 
-  // 手动"同步刷新"按钮: 永远全量同步(带转圈动画), 只有打开选择器时才是缓存优先
-  try {
-    const cached: any = await groupApi.list(props.accountId)
-    const cachedList = cached.list || cached.data || (Array.isArray(cached) ? cached : [])
-    if (false && cachedList.length > 0) {
-      await groupStore.refresh(props.accountId!); syncStatus.value = 'done'
-      fromCache.value = true
-      emit('refresh')
-      // 后台静默同步, 完成后失效缓存并通知父组件刷新——不用手动重开
-      groupApi.sync(props.accountId || '')
-        .then(async () => {
-          groupStore.invalidate(props.accountId || '')
-          try {
-            const fresh: any = await groupApi.list(props.accountId)
-            const freshList = fresh.list || fresh.data || (Array.isArray(fresh) ? fresh : [])
-            if (freshList.length) emit('refresh')
-          } catch { /* 下次打开再拉 */ }
-        })
-        .catch(() => {})
-      return
-    }
-  } catch (e) {
-    console.error('[TargetSelector] cache-first list:', e)
+  const accountId = props.accountId || ''
+  const requestId = ++selectorRequestId
+  const isCurrent = () =>
+    requestId === selectorRequestId && visible.value && props.accountId === accountId
+  if (!accountId) {
+    if (isCurrent()) emit('refresh')
+    return
   }
 
-  // 全局同步锁：防止跨组件重复同步同一账号
-  if (props.accountId && !syncLock.acquire(props.accountId)) {
+  // 同一账号的其他页面正在同步时，只等待后读取，不重复发起同步，也不释放别人的锁。
+  if (!syncLock.acquire(accountId)) {
     loading.value = true
     syncStatus.value = 'syncing'
-    await waitForGlobalSync()
-    // 同步完成后刷新列表
     try {
-      const raw = await groupApi.list(props.accountId)
-      const list = raw.list || []
-      if (list.length > 0) {
-        emit('refresh')
-      }
+      await waitForGlobalSync()
+      if (!isCurrent()) return
+      const raw: any = await groupApi.list(accountId)
+      if (!isCurrent()) return
+      const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
+      groupStore.setGroups(accountId, list)
+      syncStatus.value = 'done'
+      emit('refresh')
     } catch (e) {
-      console.error('[TargetSelector] list after global sync:', e)
+      if (isCurrent()) {
+        syncStatus.value = 'error'
+        console.error('[TargetSelector] list after global sync:', e)
+      }
+    } finally {
+      if (isCurrent()) loading.value = false
     }
-    loading.value = false
-    return
-  }
-
-  if (!props.accountId) {
-    syncLock.release()
-    emit('refresh')
     return
   }
 
   loading.value = true
   syncStatus.value = 'syncing'
   try {
-    await groupApi.sync(props.accountId || '')
-    // 轮询等待同步结果
+    await groupApi.sync(accountId)
     let delay = 1000
-    const start = Date.now()
-    // R99: 同步是后台长任务(后端最长10分钟), 30s 太短必超时 —— 放宽到 120s
-    while (Date.now() - start < 120000) {
-      // 弹窗关闭则停止轮询，避免资源浪费
-      if (!visible.value) {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < 120000) {
+      if (!isCurrent()) break
+      const raw: any = await groupApi.list(accountId)
+      if (!isCurrent()) break
+      const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
+      if (list.length > 0) {
+        groupStore.setGroups(accountId, list)
+        syncStatus.value = 'done'
+        emit('refresh')
         break
       }
-      try {
-        const raw = await groupApi.list(props.accountId)
-        const list = raw.list || []
-        if (list.length > 0) {
-          await groupStore.refresh(props.accountId!); syncStatus.value = 'done'
-          emit('refresh')
-          break
-        }
-      } catch (e) {
-        console.error('[TargetSelector] poll error:', e)
-      }
-      await new Promise(r => setTimeout(r, delay))
+      await new Promise(resolve => setTimeout(resolve, delay))
       delay = Math.min(delay * 2, 8000)
     }
-    if (syncStatus.value !== 'done' && visible.value) {
+    if (isCurrent() && syncStatus.value !== 'done') {
       syncStatus.value = 'timeout'
-      // R99: 超时不等于失败(后台仍在跑), 提示租户稍后重开或等自动出现
       toast({ type: 'info', message: '同步仍在后台进行，完成后群组会自动出现，也可稍后重开选择器' })
     }
-  } catch (e: unknown) {
-    console.error('[TargetSelector] sync failed:', e)
-    syncStatus.value = 'error'
+  } catch (e) {
+    if (isCurrent()) {
+      syncStatus.value = 'error'
+      console.error('[TargetSelector] sync failed:', e)
+    }
   } finally {
-    loading.value = false
+    // 只有本次成功 acquire 的调用可以释放锁；即使账号切换/弹窗关闭也必须释放。
     syncLock.release()
+    if (isCurrent()) loading.value = false
   }
 }
 
@@ -544,20 +513,25 @@ const lastSyncText = computed(() => {
 
 // 打开时缓存优先: 库里有数据先展示(秒开), 后台静默同步; 无缓存才走全量同步
 async function openSelector() {
-  if (!props.accountId) { syncHint.value = '错误: 缺少 accountId'; return }
+  const accountId = props.accountId || ''
+  if (!accountId) { syncHint.value = '错误: 缺少 accountId'; dialogs.value = []; return }
+  const requestId = ++selectorRequestId
   try {
-    const cached: any = await groupApi.list(props.accountId)
+    const cached: any = await groupApi.list(accountId)
+    if (!isCurrentSelectorRequest(requestId, accountId)) return
     const cl = cached.list || cached.data || (Array.isArray(cached) ? cached : [])
     // P1-10: 调试文案仅开发环境可见——生产用户看到"缓存检查: 库里 N 个群"
     // 这类内部话术会困惑
     if (import.meta.env.DEV) syncHint.value = `缓存检查: 库里 ${cl.length} 个群`
     if (cl.length) {
-      fromCache.value = true
-      await groupStore.refresh(props.accountId!); syncStatus.value = 'done'
+        await groupStore.refresh(accountId)
+      if (!isCurrentSelectorRequest(requestId, accountId)) return
+      syncStatus.value = 'done'
       emit('refresh')
       // 私聊联系人从数据库缓存填充(同步时才入库), 不点"同步"不调接口
       try {
-        const cr: any = await contactApi.list(props.accountId)
+        const cr: any = await contactApi.list(accountId)
+        if (!isCurrentSelectorRequest(requestId, accountId)) return
         // P0-21: parseResponse 归一后列表接口统一 {list,total}, 但纯数组直返时
         // cr.list 是 undefined——私聊列表曾因此恒空。数组兜底。
         const rows = Array.isArray(cr) ? cr : (cr.list || cr.data || [])
@@ -567,22 +541,36 @@ async function openSelector() {
           type: 'user',
         }))
         syncHint.value += `, 私聊缓存 ${rows.length} 人`
-      } catch { /* 私聊无缓存保持空, 切 tab 时才同步 */ }
+      } catch { /* 私聊无缓存保持空, 切 tab 时才调接口 */ }
       return
     }
     syncHint.value += ' → 无缓存, 全量同步'
   } catch (e: any) {
-    syncHint.value = '缓存查询失败: ' + (e?.message || e)
+    if (isCurrentSelectorRequest(requestId, accountId)) {
+      syncHint.value = '缓存查询失败: ' + (e?.message || e)
+    }
   }
-  fetchDialogs()
+  if (isCurrentSelectorRequest(requestId, accountId)) {
+    await fetchDialogs(requestId, accountId)
+  }
 }
 
 watch(() => props.modelValue, v => {
   if (v) {
+    selectorRequestId++
     selectedTargets.value.clear()
     manualInput.value = ''
     activeTab.value = 'user'
     openSelector()
+  } else {
+    selectorRequestId++
   }
+})
+watch(() => props.accountId, (accountId, previousAccountId) => {
+  if (!visible.value || accountId === previousAccountId) return
+  // 账号上下文变化时，旧联系人结果失效；目标勾选保留，避免误删用户已选目标。
+  selectorRequestId++
+  dialogs.value = []
+  openSelector()
 })
 </script>

@@ -17,11 +17,18 @@
           </div>
           <div class="flex items-center gap-2">
             <button type="button"
-              v-if="props.mode === 'multiple' && filtered.length > 0"
+              v-if="props.mode === 'multiple' && activeTab !== 'dm' && filtered.length > 0"
               @click="selectAll"
               class="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors"
             >
               {{ allSelected ? '取消全选' : '全选' }}
+            </button>
+            <button type="button"
+              v-else-if="props.mode === 'multiple' && activeTab === 'dm' && dmFiltered.length > 0"
+              @click="selectAllDm"
+              class="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:border-cyan/30 hover:text-cyan transition-colors"
+            >
+              {{ allDmSelected ? '取消全选' : '全选' }}
             </button>
             <button type="button"
               @click="onRefresh"
@@ -54,57 +61,61 @@
           </p>
         </div>
         <!-- 群组 tab: 普通群 + 超级群(频道已排除) -->
-        <div
-          v-else-if="activeTab !== 'dm'"
-          v-for="g in filtered"
-          :key="g.group_id"
-          @click="toggle(g)"
-          class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
-          :class="isSelected(g) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="button">
-          <t-checkbox
-            :model-value="isSelected(g)"
-            @click.stop
-            @update:model-value="toggle(g)"
-          />
-          <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
-            <Users v-if="g.type === 'group'" class="w-5 h-5 text-cyan" />
-            <Megaphone v-else-if="g.type === 'channel'" class="w-5 h-5 text-cyan" />
-            <UsersRound v-else class="w-5 h-5 text-amber" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm truncate max-w-[65ch]">{{ g.title }}</div>
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs text-text-muted">{{ g.member_count }} 成员</span>
-              <t-tag v-if="g.is_joined" theme="success" variant="light">已加入</t-tag>
+        <template v-else-if="activeTab !== 'dm'">
+          <div
+            v-for="g in displayGroups"
+            :key="g.group_id"
+            @click="toggle(g)"
+            class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
+            :class="isSelected(g) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
+           tabindex="0" role="button">
+            <t-checkbox
+              :model-value="isSelected(g)"
+              @click.stop
+              @update:model-value="toggle(g)"
+            />
+            <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
+              <Users v-if="g.type === 'group'" class="w-5 h-5 text-cyan" />
+              <Megaphone v-else-if="g.type === 'channel'" class="w-5 h-5 text-cyan" />
+              <UsersRound v-else class="w-5 h-5 text-amber" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm truncate max-w-[65ch]">{{ g.title }}</div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs text-text-muted">{{ g.member_count }} 成员</span>
+                <t-tag v-if="g.is_joined" theme="success" variant="light">已加入</t-tag>
+              </div>
             </div>
           </div>
-        </div>
+          <button v-if="displayGroups.length < filtered.length" type="button" @click="visibleGroupCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多群组（{{ displayGroups.length }} / {{ filtered.length }}）</button>
+        </template>
         <!-- 私聊 tab: 采集过的成员 -->
-        <div
-          v-else
-          v-for="u in dmFiltered"
-          :key="u.group_id"
-          @click="toggle(u)"
-          class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
-          :class="isSelected(u) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="button">
-          <t-checkbox
-            :model-value="isSelected(u)"
-            @click.stop
-            @update:model-value="toggle(u)"
-          />
-          <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
-            <UsersRound class="w-5 h-5 text-amber" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm truncate max-w-[65ch]">{{ u.title }}</div>
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs text-text-muted">{{ u.username ? '@' + u.username : 'TG 用户 ' + u.tg_chat_id }}</span>
-              <t-tag theme="warning" variant="light">私聊</t-tag>
+        <template v-else>
+          <div
+            v-for="u in dmDisplay"
+            :key="u.group_id"
+            @click="toggle(u)"
+            class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
+            :class="isSelected(u) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
+           tabindex="0" role="button">
+            <t-checkbox
+              :model-value="isSelected(u)"
+              @click.stop
+              @update:model-value="toggle(u)"
+            />
+            <div class="w-10 h-10 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
+              <UsersRound class="w-5 h-5 text-amber" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm truncate max-w-[65ch]">{{ u.title }}</div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs text-text-muted">{{ u.username ? '@' + u.username : 'TG 用户 ' + u.tg_chat_id }}</span>
+                <t-tag theme="warning" variant="light">私聊</t-tag>
+              </div>
             </div>
           </div>
-        </div>
+          <button v-if="dmDisplay.length < dmFiltered.length" type="button" @click="dmVisibleCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多私聊对象（{{ dmDisplay.length }} / {{ dmFiltered.length }}）</button>
+        </template>
         <div v-if="!loading && (activeTab === 'dm' ? !dmFiltered.length : !filtered.length)" class="py-8 text-center">
           <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-bg-card flex items-center justify-center mx-auto mb-3">
             <Search class="w-8 h-8 text-text-muted" />
@@ -128,8 +139,8 @@
     <template #footer>
       <span class="text-xs text-text-secondary">已选 {{ selected.length }} 个</span>
       <div class="flex gap-3">
-        <t-button variant="outline" theme="default" @click="visible = false">取消</t-button>
-        <t-button theme="primary" @click="confirm">确认</t-button>
+        <t-button variant="outline" theme="default" class="ui-t-button ui-t-button--secondary" @click="visible = false">取消</t-button>
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="confirm">确认</t-button>
       </div>
     </template>
   </Modal>
@@ -144,6 +155,7 @@ import { groupApi } from '@/api/group'
 import { syncLock, markSyncing } from '@/utils/syncLock'
 import { useGroupStore } from '@/stores/group'
 import Modal from '@/components/ui/Modal.vue'
+import { toggleSelectionByKey } from './selection'
 import type { Group } from '@/types'
 
 const props = defineProps<{
@@ -172,16 +184,57 @@ const activeTab = ref('group')
 const search = ref('')
 const selected = ref<Group[]>([])
 const loading = ref(false)
-const hasAutoRefreshed = ref(false)
-const syncFailCount = ref(0)
 const syncStatus = ref<'idle' | 'syncing' | 'done' | 'timeout' | 'error'>('idle')
 const localGroups = ref<Group[]>([])
 const groupStore = useGroupStore()
+// 账号切换/关闭弹窗后，旧请求不能再写入当前选择器状态。
+let selectorRequestId = 0
+let dmRequestId = 0
 
-// props.groups 变化时同步到本地
-watch(() => props.groups, (v) => {
-  localGroups.value = v && v.length > 0 ? [...v] : localGroups.value
+// props.groups 是父组件的权威快照；空数组也必须同步，不能把旧账号的列表留在界面。
+watch(() => props.groups, (groups) => {
+  localGroups.value = [...(groups || [])]
 }, { deep: true, immediate: true })
+
+async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '') {
+  if (!accountId) {
+    localGroups.value = []
+    return
+  }
+  const suppliedGroups = props.groups || []
+  if (suppliedGroups.length) {
+    localGroups.value = [...suppliedGroups]
+    return
+  }
+  loading.value = true
+  try {
+    const groups = await groupStore.ensure(accountId)
+    if (requestId === selectorRequestId && visible.value && props.accountId === accountId) {
+      localGroups.value = [...groups]
+    }
+  } catch (e) {
+    if (requestId === selectorRequestId && visible.value && props.accountId === accountId) {
+      localGroups.value = []
+      console.error('[GroupSelector] ensure error:', e)
+    }
+  } finally {
+    if (requestId === selectorRequestId && visible.value && props.accountId === accountId) {
+      loading.value = false
+    }
+  }
+}
+
+watch(() => props.accountId, (accountId, previousAccountId) => {
+  if (accountId === previousAccountId) return
+  selectorRequestId++
+  dmRequestId++
+  loading.value = false
+  localGroups.value = []
+  dmUsers.value = []
+  dmLoaded.value = false
+  syncStatus.value = 'idle'
+  if (visible.value) loadAccountGroups(selectorRequestId, accountId || '')
+})
 
 const filtered = computed(() => {
   // 群组 tab = 普通群 + 超级群, 明确排除频道(channel)
@@ -193,16 +246,21 @@ const filtered = computed(() => {
     (g.username && g.username.toLowerCase().includes(s))
   )
 })
+const visibleGroupCount = ref(200)
+const displayGroups = computed(() => filtered.value.slice(0, visibleGroupCount.value))
+watch(search, () => { visibleGroupCount.value = 200 })
 
 // ===== 私聊 tab: contacts 表缓存(同步群组时已写入), 按 tg_user_id 去重, 伪装 Group 结构供父组件取 tg_chat_id =====
 const dmUsers = ref<Group[]>([])
 const dmLoaded = ref(false)
 
 async function loadDmUsers() {
-  if (dmLoaded.value) return
-  if (!props.accountId) return
+  if (dmLoaded.value || !props.accountId) return
+  const accountId = props.accountId
+  const requestId = ++dmRequestId
   try {
-    const raw: any = await groupApi.listMembersGlobal(props.accountId)
+    const raw: any = await groupApi.listMembersGlobal(accountId)
+    if (requestId !== dmRequestId || !visible.value || props.accountId !== accountId) return
     const arr: any[] = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
     const seen = new Set<number>()
     dmUsers.value = arr.filter((m: any) => {
@@ -219,11 +277,14 @@ async function loadDmUsers() {
       type: 'dm',
       access_hash: m.access_hash || 0,
     })) as unknown as Group[]
+    dmLoaded.value = true
   } catch (e) {
-    console.error('[GroupSelector] loadDmUsers:', e)
-    dmUsers.value = []
+    if (requestId === dmRequestId && visible.value && props.accountId === accountId) {
+      console.error('[GroupSelector] loadDmUsers:', e)
+      dmUsers.value = []
+      dmLoaded.value = true
+    }
   }
-  dmLoaded.value = true
 }
 
 const dmFiltered = computed(() => {
@@ -232,30 +293,32 @@ const dmFiltered = computed(() => {
   return dmUsers.value.filter(u => u.title.toLowerCase().includes(s) || (u.username && u.username.toLowerCase().includes(s)))
 })
 
+const allDmSelected = computed(() =>
+  dmFiltered.value.length > 0 && dmFiltered.value.every(user => selectedGroupIds.value.has(user.group_id))
+)
+const dmVisibleCount = ref(200)
+const dmDisplay = computed(() => dmFiltered.value.slice(0, dmVisibleCount.value))
+watch(search, () => { dmVisibleCount.value = 200 })
+
 watch(activeTab, t => { if (t === 'dm') loadDmUsers() })
 
-const allSelected = computed(() => {
-  return filtered.value.length > 0 && filtered.value.every(g => isSelected(g))
-})
+const selectedGroupIds = computed(() => new Set(selected.value.map(item => item.group_id)))
+
+const allSelected = computed(() =>
+  filtered.value.length > 0 && filtered.value.every(group => selectedGroupIds.value.has(group.group_id))
+)
+
 
 function selectAll() {
-  if (allSelected.value) {
-    // 取消全选：只取消当前 filtered 中的
-    const ids = new Set(filtered.value.map(g => g.group_id))
-    selected.value = selected.value.filter(s => !ids.has(s.group_id))
-  } else {
-    // 全选：把当前 filtered 中未选的加入
-    const existing = new Set(selected.value.map(s => s.group_id))
-    for (const g of filtered.value) {
-      if (!existing.has(g.group_id)) {
-        selected.value.push(g)
-      }
-    }
-  }
+  selected.value = toggleSelectionByKey(selected.value, filtered.value, item => item.group_id)
+}
+
+function selectAllDm() {
+  selected.value = toggleSelectionByKey(selected.value, dmFiltered.value, item => item.group_id)
 }
 
 function isSelected(g: Group) {
-  return selected.value.some(s => s.group_id === g.group_id)
+  return selectedGroupIds.value.has(g.group_id)
 }
 
 function toggle(g: Group) {
@@ -276,177 +339,91 @@ function confirm() {
 }
 
 async function onRefresh() {
-  // 防止重复点击
-  if (loading.value) {
-    return
-  }
-  // 全局同步锁：防止跨组件重复同步同一账号
-  if (props.accountId && !syncLock.acquire(props.accountId)) {
-    // 如果其他组件正在同步同一账号，直接等待结果
+  if (loading.value) return
+  const accountId = props.accountId || ''
+  const requestId = ++selectorRequestId
+  const isCurrent = () =>
+    requestId === selectorRequestId && visible.value && props.accountId === accountId
+
+  // 如果其他组件正在同步同一账号，只等待并读取该账号结果；等待期间切换/关闭即放弃 UI 写入。
+  if (accountId && !syncLock.acquire(accountId)) {
     loading.value = true
     syncStatus.value = 'syncing'
     await waitForGlobalSync()
-    // 同步完成后刷新本地数据
+    if (!isCurrent()) return
     try {
-      const raw: any = await groupApi.list(props.accountId)
+      const raw: any = await groupApi.list(accountId)
+      if (!isCurrent()) return
       const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-        emit('refresh')
-      }
+      localGroups.value = list
+      groupStore.setGroups(accountId, list)
+      emit('refresh')
     } catch (e) {
-      console.error('[GroupSelector] list after global sync:', e)
+      if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
+    } finally {
+      if (isCurrent()) loading.value = false
     }
-    loading.value = false
     return
   }
-  // 手动刷新时重置失败计数
-  syncFailCount.value = 0
-  if (!props.accountId) {
-    syncLock.release()
-    emit('refresh')
+
+  if (!accountId) {
+    if (isCurrent()) emit('refresh')
     return
   }
+
   loading.value = true
   syncStatus.value = 'syncing'
   try {
-    await groupApi.sync(props.accountId)
-    // 指数退避轮询：直接调用API检查同步结果，不依赖props响应式更新
+    await groupApi.sync(accountId)
     let delay = 1000
-    const start = Date.now()
-    let pollCount = 0
-    while (Date.now() - start < 30000) {
-      // 如果弹窗已关闭，停止轮询避免资源浪费
-      if (!visible.value) {
-        break
-      }
-      pollCount++
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < 30000) {
+      if (!isCurrent()) break
       try {
-        const raw: any = await groupApi.list(props.accountId)
+        const raw: any = await groupApi.list(accountId)
+        if (!isCurrent()) break
         const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
         if (list.length > 0) {
           syncStatus.value = 'done'
-          // P2-07: 原此行写了两次 setGroups(复制粘贴残留)——幂等但无意义, 去重
-          localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-          if (props.accountId) markSyncing(props.accountId)
+          localGroups.value = list
+          groupStore.setGroups(accountId, list)
+          markSyncing(accountId)
           emit('refresh')
           await nextTick()
           break
         }
       } catch (e) {
-        console.error('[GroupSelector] poll error:', e)
+        if (isCurrent()) console.error('[GroupSelector] poll error:', e)
       }
       await new Promise(r => setTimeout(r, delay))
       delay = Math.min(delay * 2, 8000)
     }
-    if (syncStatus.value !== 'done' && visible.value) {
-      syncStatus.value = 'timeout'
-    }
+    if (isCurrent() && syncStatus.value !== 'done') syncStatus.value = 'timeout'
   } catch (e: unknown) {
-    console.error('[GroupSelector] sync failed:', e)
-    syncStatus.value = 'error'
+    if (isCurrent()) {
+      console.error('[GroupSelector] sync failed:', e)
+      syncStatus.value = 'error'
+    }
   } finally {
-    await nextTick()
-    loading.value = false
+    if (isCurrent()) loading.value = false
+    // 这次调用持有全局锁；即使 UI 已切换，也必须释放原账号的锁。
     syncLock.release()
   }
 }
 
-watch(() => props.modelValue, async (v) => {
+watch(() => props.modelValue, (v) => {
+  selectorRequestId++
+  dmRequestId++
   if (v) {
     selected.value = []
     search.value = ''
-    activeTab.value = 'all'
-    // 不再自动同步，仅手动点击"同步刷新"按钮时同步。
-    // 打开时优先读群组缓存(零请求); 无缓存且父组件未传入数据时才查库。
-    if (!localGroups.value.length && props.accountId) {
-      const cached = groupStore.get(props.accountId)
-      if (cached.length) {
-        localGroups.value = cached
-      } else {
-        loading.value = true
-        try {
-          localGroups.value = await groupStore.ensure(props.accountId)
-        } catch (e) {
-          console.error('[GroupSelector] ensure error:', e)
-        } finally {
-          loading.value = false
-        }
-      }
-    }
+    activeTab.value = 'group'
+    syncStatus.value = 'idle'
+    loadAccountGroups(selectorRequestId, props.accountId || '')
+  } else {
+    loading.value = false
   }
 })
-
-async function autoSync() {
-  // 防御性检查：必须有 accountId
-  if (!props.accountId) {
-    return
-  }
-  // 全局同步锁检查
-  if (syncLock.isSyncing(props.accountId)) {
-    loading.value = true
-    syncStatus.value = 'syncing'
-    await waitForGlobalSync()
-    try {
-      const raw: any = await groupApi.list(props.accountId)
-      const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-        emit('refresh')
-      }
-    } catch (e) {
-      console.error('[GroupSelector] autoSync list error:', e)
-    }
-    loading.value = false
-    return
-  }
-  if (!syncLock.acquire(props.accountId)) {
-    return
-  }
-  loading.value = true
-  syncStatus.value = 'syncing'
-  try {
-    await groupApi.sync(props.accountId)
-  } catch (e: unknown) {
-    console.error('[GroupSelector] autoSync sync failed:', e)
-    syncStatus.value = 'error'
-    loading.value = false
-    syncLock.release()
-    return
-  }
-  // 指数退避轮询：直接调用API检查同步结果
-  let delay = 1000
-  const start = Date.now()
-  let pollCount = 0
-  while (Date.now() - start < 30000) {
-    // 如果弹窗已关闭，停止轮询
-    if (!visible.value) {
-      break
-    }
-    pollCount++
-    try {
-      const raw: any = await groupApi.list(props.accountId)
-      const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        syncStatus.value = 'done'
-        localGroups.value = list; if (props.accountId) groupStore.setGroups(props.accountId, list)
-        emit('refresh')
-        await nextTick()
-        break
-      }
-    } catch (e) {
-      console.error('[GroupSelector] autoSync poll error:', e)
-    }
-    await new Promise(r => setTimeout(r, delay))
-    delay = Math.min(delay * 2, 8000)
-  }
-  if (syncStatus.value !== 'done' && visible.value) {
-    syncStatus.value = 'timeout'
-  }
-  await nextTick()
-  loading.value = false
-  syncLock.release()
-}
 
 // Wait for another component to finish syncing, then return
 async function waitForGlobalSync(): Promise<void> {

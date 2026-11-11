@@ -477,27 +477,11 @@
   0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, var(--t-warn) 20%, transparent); }
   50% { box-shadow: 0 0 14px color-mix(in srgb, var(--t-warn) 12%, transparent); }
 }
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
 @keyframes pulse-ring {
   0% { transform: scale(0.8); opacity: 0.5; }
   100% { transform: scale(2); opacity: 0; }
 }
 
-.animate-float {
-  animation: float 3s cubic-bezier(0.32, 0.72, 0, 1) infinite;
-}
-.animate-shimmer {
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--t-text-1) 8%, transparent), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s infinite;
-}
 .animate-pulse-ring {
   animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
 }
@@ -607,7 +591,5 @@ main {
 /* P1-06: .app-aurora + aurora-drift 已删——Layout 的两层背景叠加层已移除
    (深色收敛为星空+柔光 2 层), 这是全仓唯一使用处。 */
 
-/* R126 头像菜单淡入缩放 */
-@keyframes fadeInScale { from { opacity: 0; transform: scale(.95) translateY(-4px); } to { opacity: 1; transform: none; } }
-.animate-fade-in-scale { animation: fadeInScale .16s ease-out both; }
+
 

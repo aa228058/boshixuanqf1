@@ -255,3 +255,39 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
     expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2), '桌面端弹窗应垂直居中').toBeLessThanOrEqual(5)
   }
 })
+
+test('群发创建表单可导入目标、插入变量并预览，且不提交任务', async ({ page }) => {
+  const accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || 'none')
+  let createRequests = 0
+  await page.route(/\/api\/v1\/tasks(?:\?.*)?$/, async route => {
+    const request = route.request()
+    if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/tasks')) {
+      createRequests++
+    }
+    await route.continue()
+  })
+
+  await page.goto(`/workspace/${accountId}/broadcast`)
+  await page.getByRole('button', { name: '新建群发任务' }).click()
+
+  const modal = page.locator('.modal-card:visible').first()
+  await expect(modal).toBeVisible()
+  await modal.getByRole('button', { name: /批量导入目标/ }).click()
+  await modal.getByLabel('批量导入群组目标').fill('@sample_group\nhttps://t.me/another_group')
+  await modal.getByRole('button', { name: '解析添加' }).click()
+  await expect(modal.getByText('已选 2 个目标')).toBeVisible()
+
+  const message = modal.locator('textarea[placeholder^="输入要发送的消息"]')
+  await message.fill('你好，')
+  await modal.getByRole('button', { name: '{{first_name}}' }).click()
+  await expect(message).toHaveValue('你好，{{first_name}}')
+
+  await modal.getByRole('button', { name: '预览变量效果' }).click()
+  const preview = page.locator('.modal-card:visible').last()
+  await expect(preview.getByText('原始内容:')).toBeVisible()
+  await expect(preview.getByText('你好，{{first_name}}')).toBeVisible()
+  await preview.getByRole('button', { name: '关闭', exact: true }).click()
+
+  await modal.getByRole('button', { name: '取消' }).click()
+  expect(createRequests, '仅编辑和预览时不应创建真实任务').toBe(0)
+})

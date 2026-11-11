@@ -56,8 +56,8 @@
         <h3 class="text-sm font-medium text-text-secondary">接收通知的邮箱</h3>
         <p class="text-xs text-text-muted mt-1">中奖、任务等事件将推送到此邮箱（手机邮箱 App 可实时提醒）</p>
         <div class="flex gap-2 mt-3">
-          <input v-model="notifyEmail" type="email" placeholder="you@example.com"
-                 class="flex-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50" />
+          <input v-model="notifyEmail" type="email" placeholder="you@example.com" aria-label="接收通知的邮箱"
+                 class="ui-input min-w-0 flex-1" />
         </div>
 
         <!-- R120: 发件邮箱 —— 租户自己的邮箱服务商, 通知从你自己的邮箱发出 -->
@@ -77,14 +77,14 @@
         </div>
         <!-- 配置表单 -->
         <div class="grid grid-cols-2 gap-2 mt-3">
-          <input v-model="smtpForm.user" :placeholder="smtpProvider === 'tinkmail' ? '完整邮箱地址' : '发件邮箱账号'"
-                 class="col-span-2 sm:col-span-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50" />
-          <input v-model="smtpForm.pass" type="password" :placeholder="smtpPassSet ? '授权码（已设置, 留空则不变）' : '授权码 / 应用专用密码'"
-                 class="col-span-2 sm:col-span-1 px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50" />
-          <input v-model="smtpForm.host" placeholder="SMTP 服务器"
-                 class="px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
-          <input v-model.number="smtpForm.port" type="number" placeholder="端口(465)"
-                 class="px-3.5 py-2.5 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-[color:var(--t-brand)]/50 font-mono" />
+          <input v-model="smtpForm.user" :placeholder="smtpProvider === 'tinkmail' ? '完整邮箱地址' : '发件邮箱账号'" aria-label="SMTP 发件邮箱账号"
+                 class="ui-input min-w-0 col-span-2 sm:col-span-1" />
+          <input v-model="smtpForm.pass" type="password" :placeholder="smtpPassSet ? '授权码（已设置, 留空则不变）' : '授权码 / 应用专用密码'" aria-label="SMTP 授权码"
+                 class="ui-input min-w-0 col-span-2 sm:col-span-1" />
+          <input v-model="smtpForm.host" placeholder="SMTP 服务器" aria-label="SMTP 服务器地址"
+                 class="ui-input min-w-0 font-mono" />
+          <input v-model.number="smtpForm.port" type="number" placeholder="端口(465)" aria-label="SMTP 端口"
+                 class="ui-input min-w-0 font-mono" />
         </div>
 
         <div class="flex gap-2 mt-4">

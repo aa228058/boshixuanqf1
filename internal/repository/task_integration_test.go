@@ -80,6 +80,31 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("create tasks table: %v", err)
 	}
+	// The task-log cursor integration test uses a deliberately minimal fixture
+	// instead of running the full migration chain. Keep the columns consumed by
+	// TaskLogRepository available in that isolated test database.
+	_, err = pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS task_logs (
+			log_id UUID PRIMARY KEY,
+			task_id UUID NOT NULL,
+			tenant_id UUID NOT NULL,
+			account_id UUID,
+			target_id TEXT,
+			target_name TEXT NOT NULL DEFAULT '',
+			action TEXT NOT NULL,
+			status TEXT NOT NULL,
+			tg_response TEXT,
+			error_code TEXT,
+			message TEXT NOT NULL DEFAULT '',
+			tg_message_id BIGINT,
+			executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`)
+	if err != nil {
+		t.Fatalf("create task_logs table: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `DELETE FROM task_logs`); err != nil {
+		t.Fatalf("truncate task_logs: %v", err)
+	}
 	if _, err := pool.Exec(context.Background(), `DELETE FROM tasks`); err != nil {
 		t.Fatalf("truncate tasks: %v", err)
 	}
@@ -103,6 +128,62 @@ func seedTask(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, taskType str
 		t.Fatalf("seed task: %v", err)
 	}
 	return id
+}
+
+func TestTaskLogKeysetPaginationDoesNotShiftWhenNewRowsArrive(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeBroadcast), 5)
+	logRepo := NewTaskLogRepository(pool)
+	base := time.Now().UTC().Truncate(time.Microsecond)
+
+	ids := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	for i, offset := range []time.Duration{0, time.Second, 2 * time.Second} {
+		entry := &domain.TaskLog{
+			LogID: ids[i], TaskID: taskID, TenantID: tenantID,
+			TargetID: fmt.Sprintf("target-%d", i), Action: "send_message",
+			Status: "success", ExecutedAt: base.Add(offset),
+		}
+		if err := logRepo.Create(context.Background(), entry); err != nil {
+			t.Fatalf("seed task log %d: %v", i, err)
+		}
+	}
+
+	firstPage, err := logRepo.ListByTask(context.Background(), tenantID, taskID, 2, 0)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if len(firstPage) != 2 || firstPage[0].LogID != ids[2] || firstPage[1].LogID != ids[1] {
+		t.Fatalf("first page order = %v, want newest two [%s %s]", logIDs(firstPage), ids[2], ids[1])
+	}
+
+	// A new live log arrives after page 1 was read. OFFSET pagination would
+	// shift page 2; the keyset cursor must continue strictly before the old row.
+	newest := &domain.TaskLog{
+		LogID: uuid.New(), TaskID: taskID, TenantID: tenantID,
+		TargetID: "late-target", Action: "send_message",
+		Status: "success", ExecutedAt: base.Add(3 * time.Second),
+	}
+	if err := logRepo.Create(context.Background(), newest); err != nil {
+		t.Fatalf("insert concurrent task log: %v", err)
+	}
+
+	nextPage, err := logRepo.ListBeforeByTask(context.Background(), tenantID, taskID, firstPage[1].LogID, 2)
+	if err != nil {
+		t.Fatalf("cursor page: %v", err)
+	}
+	if len(nextPage) != 1 || nextPage[0].LogID != ids[0] {
+		t.Fatalf("cursor page = %v, want only oldest row %s", logIDs(nextPage), ids[0])
+	}
+}
+
+func logIDs(logs []*domain.TaskLog) []uuid.UUID {
+	ids := make([]uuid.UUID, len(logs))
+	for i, entry := range logs {
+		ids[i] = entry.LogID
+	}
+	return ids
 }
 
 func TestClaimTasks_ClaimsQueuedInPriorityOrder(t *testing.T) {

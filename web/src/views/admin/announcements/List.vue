@@ -53,7 +53,7 @@
       <div class="space-y-4">
         <div>
           <label for="ann-title" class="block text-sm text-text-secondary mb-1.5">标题</label>
-          <input id="ann-title" v-model="form.title" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm" aria-label="输入" />
+          <input id="ann-title" v-model="form.title" class="ui-input !text-sm" aria-label="公告标题" />
         </div>
         <div>
           <t-textarea v-model="form.content" label="内容" :rows="4" />
@@ -79,7 +79,7 @@
         </div>
         <div>
           <label for="ann-target" class="block text-sm text-text-secondary mb-1.5">目标租户</label>
-          <select id="ann-target" v-model="form.target_type" class="w-full px-3 py-2 rounded-lg bg-bg-card border border-border focus:border-[color:var(--t-brand)] focus:outline-none text-sm">
+          <select id="ann-target" v-model="form.target_type" class="ui-input !text-sm">
             <option value="all">全部租户</option>
             <option value="specific_plan">指定套餐</option>
           </select>
