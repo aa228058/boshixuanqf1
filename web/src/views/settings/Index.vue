@@ -37,7 +37,7 @@
     </div>
 
     <!-- R119: 通知中心 -->
-    <div v-show="activeTab === 'notify'" class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div v-show="activeTab === 'notify'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <!-- 套餐权限锁: 邮件通知是套餐特性(plan_features.notify) -->
       <template v-if="!authStore.tenant?.plan_features?.notify">
         <div class="flex items-start gap-2.5 rounded-lg border border-border bg-bg-secondary p-3.5 text-xs text-text-muted leading-relaxed">
@@ -112,7 +112,7 @@
     </div>
 
     <!-- AI 与入群验证 -->
-    <div v-show="activeTab === 'verify'" class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div v-show="activeTab === 'verify'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <div class="flex items-center justify-between mb-1">
         <h3 class="text-sm font-medium text-text-secondary">入群验证（自动过验证）</h3>
         <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
@@ -161,7 +161,7 @@
 
     <!-- 卡密激活 -->
     <!-- R122: 补 v-show —— 此前缺失导致卡密栏在全部 Tab(通知/数据/模板...)重复显示 -->
-    <div v-show="activeTab === 'plan'" class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div v-show="activeTab === 'plan'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <h3 class="text-sm font-medium text-text-secondary mb-4">激活卡密</h3>
       <div class="flex flex-col sm:flex-row gap-3">
         <input
@@ -176,7 +176,7 @@
     </div>
 
     <!-- G-05: 我的数据（合规自助导出） -->
-    <div v-show="activeTab === 'data'" class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div v-show="activeTab === 'data'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <div class="flex items-center justify-between">
         <div>
           <h3 class="text-sm font-medium text-text-secondary">我的数据</h3>
@@ -190,7 +190,7 @@
     </div>
 
     <!-- 消息模板 -->
-    <div v-show="activeTab === 'templates'" class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div v-show="activeTab === 'templates'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">消息模板</h3>
         <t-button @click="showTemplateModal = true" class="ui-t-button ui-t-button--text ui-t-button--sm">管理模板</t-button>
@@ -208,7 +208,7 @@
     </div>
 
     <!-- 联系客服 -->
-    <div v-show="activeTab === 'support'" class="glass rounded-[var(--t-r-md)] p-5 lift">
+    <div v-show="activeTab === 'support'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <h3 class="text-sm font-medium text-text-secondary mb-4">联系客服</h3>
       <div v-if="supportConfig" class="flex items-center gap-4">
         <div class="w-12 h-12 rounded-lg bg-[color:var(--t-brand-dim)] flex items-center justify-center">
@@ -265,7 +265,7 @@
 
     <!-- 模板管理弹窗 -->
     <Modal v-model="showTemplateModal" title="消息模板管理">
-      <div class="space-y-3 max-h-[400px] overflow-y-auto">
+      <div class="space-y-2.5 sm:space-y-3 max-h-[min(70dvh,400px)] overflow-y-auto">
         <div
           v-for="t in templates"
           :key="t.template_id"
