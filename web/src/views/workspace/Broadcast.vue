@@ -115,7 +115,7 @@
           </div>
         </div>
         <TargetSelector v-model="showTargetSelector" :groups="groups" :accountId="currentAccount?.account_id" @select="selectedTargets = $event" @refresh="onSelectorRefresh" />
-        <!-- R101 P1: 执行账号多选(后端笛卡尔模式: 每账号×全目标) -->
+        <!-- 执行账号多选；实际发送范围按每个账号已加入的群组映射计算 -->
         <label class="block text-sm font-medium mb-2 mt-4">执行账号（可多选）</label>
         <div class="flex flex-wrap gap-1.5">
           <button v-for="acc in onlineAccounts" :key="acc.account_id" type="button" @click="toggleExec(acc.account_id)"
