@@ -189,6 +189,26 @@
       </div>
     </div>
 
+    <div v-show="activeTab === 'textdicts'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift space-y-4">
+      <div><h3 class="text-sm font-medium text-text-secondary">文本素材分组</h3><p class="text-xs text-text-muted mt-1">按用途保存常用短句或内容片段，可在这里维护并手动复制使用。</p></div>
+      <div class="rounded-lg bg-bg-card p-3 space-y-2">
+        <input v-model="newDictName" class="ui-input w-full" maxlength="64" placeholder="分组名称，例如：欢迎语素材" />
+        <textarea v-model="newDictItems" class="ui-input w-full min-h-[110px] resize-y" placeholder="每行一条文本素材" />
+        <div class="flex justify-end"><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving || !newDictName.trim()" :loading="dictSaving" @click="createTextDict">新建分组</t-button></div>
+      </div>
+      <div v-if="textDicts.length" class="space-y-3">
+        <div v-for="d in textDicts" :key="d.dict_id" class="rounded-lg border border-border/70 p-3 space-y-2 min-w-0">
+          <input v-model="d.name" class="ui-input w-full" maxlength="64" aria-label="分组名称" />
+          <textarea v-model="dictItemsDraft[d.dict_id]" class="ui-input w-full min-h-[100px] resize-y" aria-label="分组文本内容" />
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs text-text-muted">{{ (dictItemsDraft[d.dict_id] || '').split(String.fromCharCode(10)).filter(x => x.trim()).length }} 条素材</span>
+            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除文本分组" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
+          </div>
+        </div>
+      </div>
+      <EmptyState v-else icon="Files" title="暂无文本分组" description="新建分组后，可将常用内容片段集中保存。" class="py-5" />
+    </div>
+
     <!-- 消息模板 -->
     <div v-show="activeTab === 'templates'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <div class="flex items-center justify-between mb-4">
@@ -318,6 +338,7 @@ const tabs = [
   { key: 'notify', label: '通知' },
   { key: 'data', label: '数据' },
   { key: 'templates', label: '模板' },
+  { key: 'textdicts', label: '文本分组' },
   { key: 'support', label: '客服' },
 ]
 // R119+R120: 通知中心状态(租户级 SMTP)
@@ -424,6 +445,11 @@ const tenant = ref<Tenant | null>(null)
 const plans = ref<Plan[]>([])
 const supportConfig = ref<SupportConfig | null>(null)
 const templates = ref<MessageTemplate[]>([])
+const textDicts = ref<import('@/api/settings').TextDict[]>([])
+const newDictName = ref('')
+const newDictItems = ref('')
+const dictItemsDraft = ref<Record<string, string>>({})
+const dictSaving = ref(false)
 
 const showUpgrade = ref(false)
 
@@ -565,6 +591,26 @@ function fallbackCopy(text: string) {
   document.body.removeChild(ta)
 }
 
+async function fetchTextDicts() {
+  try { const res = await settingsApi.getTextDicts(); textDicts.value = res.list || []; dictItemsDraft.value = Object.fromEntries(textDicts.value.map(d => [d.dict_id, (d.items || []).join(String.fromCharCode(10))])) }
+  catch (e: unknown) { toast({ type: 'error', title: '文本分组加载失败', message: (e as Error)?.message || '请稍后重试' }) }
+}
+function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
+async function createTextDict() {
+  if (!newDictName.value.trim() || dictSaving.value) return; dictSaving.value = true
+  try { await settingsApi.createTextDict({ name: newDictName.value.trim(), items: parseDictItems(newDictItems.value) }); newDictName.value = ''; newDictItems.value = ''; await fetchTextDicts(); toast({ type: 'success', message: '文本分组已创建' }) }
+  catch (e: unknown) { toast({ type: 'error', title: '创建失败', message: (e as Error)?.message || '请稍后重试' }) } finally { dictSaving.value = false }
+}
+async function saveTextDict(d: import('@/api/settings').TextDict) {
+  dictSaving.value = true; try { await settingsApi.updateTextDict(d.dict_id, { name: d.name.trim(), items: parseDictItems(dictItemsDraft.value[d.dict_id] || '') }); await fetchTextDicts(); toast({ type: 'success', message: '文本分组已保存' }) }
+  catch (e: unknown) { toast({ type: 'error', title: '保存失败', message: (e as Error)?.message || '请稍后重试' }) } finally { dictSaving.value = false }
+}
+async function deleteTextDict(id: string) {
+  if (!window.confirm('确定删除这个文本分组吗？')) return; try { await settingsApi.deleteTextDict(id); await fetchTextDicts(); toast({ type: 'success', message: '分组已删除' }) } catch (e: unknown) { toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' }) }
+}
+async function copyDictItems(id: string) {
+  const value = (dictItemsDraft.value[id] || '').trim(); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部素材' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
+}
 async function fetchTemplates() {
   try {
     const res = await settingsApi.getTemplates()
@@ -635,6 +681,7 @@ async function fetchProfile() {
 onMounted(async () => {
   await fetchProfile()
   await fetchTemplates()
+  await fetchTextDicts()
   loadAI()
   // R142 修复: 通知设置(邮箱/SMTP/事件订阅)此前只在保存后回填, 刷新页面从不加载 —— 补挂载加载
   loadNotify()
