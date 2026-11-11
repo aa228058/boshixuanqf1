@@ -1,5 +1,5 @@
 <template>
-  <main class="space-y-4 md:space-y-6">
+  <main class="min-w-0 w-full space-y-3 sm:space-y-4 md:space-y-6">
     <!-- R125 重设计(示例3 hero 语言): 渐变欢迎卡 + CTA -->
     <section class="rounded-[24px] p-4 sm:p-6 md:p-7 relative overflow-hidden reveal"
              style="background: linear-gradient(135deg, var(--t-brand), color-mix(in srgb, var(--t-brand) 62%, #8f7bff)); color: #fff; box-shadow: 0 14px 40px color-mix(in srgb, var(--t-brand) 30%, transparent);">
