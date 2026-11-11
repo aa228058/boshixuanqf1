@@ -272,6 +272,17 @@ async function fetchMembers() {
     const res: any = await groupApi.getMembers(groupId)
     if (!pageActive || requestId !== membersRequestId) return
     members.value = res?.members || res?.data?.members || res?.list || res?.items || (Array.isArray(res) ? res : [])
+    const entries: [string, string][] = []
+    members.value.forEach((member: any) => {
+      const name = [member.display_name, member.name, [member.first_name, member.last_name].filter(Boolean).join(' '), member.username ? '@' + String(member.username).replace(/^@/, '') : '']
+        .map(value => String(value || '').trim()).find(Boolean)
+      if (!name) return
+      for (const id of [member.tg_user_id, member.user_id, member.telegram_id, member.id]) {
+        if (id !== undefined && id !== null && String(id).trim()) entries.push([normId(id), name])
+      }
+      if (member.username) entries.push([normId(member.username), name])
+    })
+    memberMap.value = Object.fromEntries(entries)
   } catch (e: unknown) {
     if (pageActive && requestId === membersRequestId) {
       membersError.value = e instanceof Error ? e.message : '加载成员失败'
@@ -395,6 +406,7 @@ const isConnected = computed(() => connState.value === 'connected')
 const logContainer = ref<HTMLDivElement>()
 const accountMap = ref<Record<string, string>>({})
 const groupMap = ref<Record<string, string>>({})
+const memberMap = ref<Record<string, string>>({})
 
 // 规范化群ID: 去掉 -100 前缀, 兼容 groups.tg_chat_id 与日志 target_id 的两种存法
 const normId = (id: any): string => {
@@ -408,6 +420,8 @@ function targetDisplayName(targetId: any, explicitName?: any): string {
   const explicit = String(explicitName ?? '').trim()
   if (explicit && !/^[-+]?\d{5,}$/.test(explicit) && !/^https?:\/\//i.test(explicit)) return explicit
   const raw = String(targetId ?? '').trim()
+  const member = memberMap.value[normId(raw)]
+  if (member) return member
   const mapped = groupMap.value[normId(raw)]
   if (mapped) return mapped
   const username = raw.match(/(?:t\.me\/|@)([A-Za-z0-9_]+)/i)?.[1]
@@ -585,6 +599,12 @@ async function connectSSE() {
         const data = JSON.parse(e.data)
         if (!data || !task.value) return
 
+        if (data.type === 'resync_required') {
+          // 服务端慢客户端队列溢出时会发送此标记；从持久化接口补齐日志和状态。
+          void fetchTask(true)
+          void fetchLogs()
+          return
+        }
         if (data.type === 'task_wait') {
           const remaining = Number(data.remaining || 0)
           waitState.value = remaining > 0 ? {
