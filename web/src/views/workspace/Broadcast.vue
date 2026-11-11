@@ -230,9 +230,15 @@
       <div>
         <label class="block text-sm font-medium mb-2">发送间隔（秒）</label>
         <!-- TDesign 骨架: 数字输入组件(品牌紫双主题) -->
-        <div class="flex gap-3">
-          <t-input-number v-model="intervalMin" :min="1" :max="300" theme="normal" class="flex-1" />
-          <t-input-number v-model="intervalMax" :min="1" :max="300" theme="normal" class="flex-1" />
+        <div class="grid grid-cols-2 gap-2 sm:gap-3">
+          <label class="min-w-0 block">
+            <span class="block text-[11px] text-text-muted mb-1">最小间隔</span>
+            <t-input-number v-model="intervalMin" :min="1" :max="300" theme="normal" class="w-full" />
+          </label>
+          <label class="min-w-0 block">
+            <span class="block text-[11px] text-text-muted mb-1">最大间隔</span>
+            <t-input-number v-model="intervalMax" :min="1" :max="300" theme="normal" class="w-full" />
+          </label>
         </div>
         <p class="text-xs text-text-muted mt-1">系统会在最小和最大间隔之间随机取值，模拟真人发送</p>
       </div>
