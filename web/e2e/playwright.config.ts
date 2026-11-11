@@ -60,6 +60,18 @@ export default defineConfig({
     navigationTimeout: 30_000,
   },
   projects: [
+    ...(process.env.E2E_PRODUCTION_AUDIT === '1' && (hasAuthState || hasTenantCredentials) ? [
+      {
+        name: 'production-desktop',
+        testMatch: /production\.spec\.ts/,
+        use: { ...devices['Desktop Chrome'], ...(hasAuthState ? { storageState: authState } : {}) },
+      },
+      {
+        name: 'production-mobile',
+        testMatch: /production\.spec\.ts/,
+        use: { ...devices['iPhone 13'], browserName: 'chromium', ...(hasAuthState ? { storageState: authState } : {}) },
+      },
+    ] : []),
     {
       name: 'public-chromium',
       testMatch: /public\.spec\.ts/,
