@@ -86,11 +86,10 @@
           <option value="import">文件/手动导入</option>
           <option value="search">Telegram 搜索</option>
         </select>
-        <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
+        <!-- 群库本地过滤与全库任务入口 -->
         <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="!filters.keyword.trim() || kwSearching" @click="doSearch" title="借在线账号在 Telegram 全网搜索, 结果入群库">
-          <Loader2 v-if="kwSearching" class="w-3.5 h-3.5 animate-spin mr-1" />
-          TG全网搜
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="allSelecting || total === 0" :loading="allSelecting" @click="selectAllLibrary">
+          全库创建加群任务
         </t-button>
         <span class="hidden sm:block flex-1" />
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
@@ -316,7 +315,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, searchLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import Modal from '@/components/ui/Modal.vue'
@@ -328,21 +327,40 @@ const accountStore = useAccountStore()
 const tab = ref<'library' | 'diy'>('library')
 const list = ref<SystemGroup[]>([])
 
-// ===== 同群聚合(2026-10-21): 同一群多个邀请链接合并为一行 =====
-// 现象: "汤臣社区-核销"等群被采集到 6+ 条不同邀请链接, 列表全是重复行。
-// 规则: 按群标题合并, 成员数取最大(入口数不同采集值不同), 已加入任一入口视为已加入,
-//       勾选/加入用首个入口的 sg_id, 徽标显示入口数。
-const aggregatedList = computed<SystemGroup[]>(() => list.value.map(g => {
-  const entries = g.entries?.length ? g.entries : [{
-    sg_id: g.sg_id,
-    tme_link: g.tme_link,
-    username: g.username,
-    status: g.status,
-    source: g.source,
-    member_count: g.member_count,
-  }]
-  return { ...g, entries, entry_count: g.entry_count || entries.length }
-}))
+// 同群聚合：只按已确认的 Telegram chat_id 或公开 username 归并。
+// 未解析的私密邀请链接没有可靠身份，不按相同群名猜测合并。
+const aggregatedList = computed<SystemGroup[]>(() => {
+  const groups = new Map<string, SystemGroup>()
+  for (const group of list.value) {
+    const identity = group.telegram_chat_id
+      ? 'chat:' + group.telegram_chat_id
+      : group.username
+        ? 'user:' + group.username.replace(/^@/, '').toLowerCase()
+        : 'row:' + group.sg_id
+    const ownEntries = group.entries?.length ? group.entries : [{
+      sg_id: group.sg_id, tme_link: group.tme_link, username: group.username,
+      status: group.status, source: group.source, member_count: group.member_count,
+    }]
+    const existing = groups.get(identity)
+    if (!existing) {
+      groups.set(identity, { ...group, entries: [...ownEntries], entry_count: ownEntries.length })
+      continue
+    }
+    const links = new Set((existing.entries || []).map(entry => (entry.tme_link || '').trim()))
+    for (const entry of ownEntries) {
+      const key = (entry.tme_link || '').trim()
+      if (!key || !links.has(key)) {
+        existing.entries = [...(existing.entries || []), entry]
+        if (key) links.add(key)
+      }
+    }
+    existing.entry_count = existing.entries?.length || 1
+    existing.member_count = Math.max(existing.member_count || 0, group.member_count || 0)
+    if (!existing.tme_link && group.tme_link) existing.tme_link = group.tme_link
+    if (!existing.username && group.username) existing.username = group.username
+  }
+  return [...groups.values()]
+})
 
 // 同群多入口的展开状态(用户反馈: 徽标只能看数量,看不到其余链接)
 const expandedSg = ref(new Set<string>())
@@ -539,24 +557,46 @@ async function doImport() {
     importing.value = false
   }
 }
-// 关键词搜群(用筛选条的关键字输入框, 借本租户在线账号做 TG 全局搜索)
-const kwSearching = ref(false)
+const allSelecting = ref(false)
 
-async function doSearch() {
-  if (!filters.keyword.trim() || kwSearching.value) return
-  kwSearching.value = true
+async function selectAllLibrary() {
+  if (allSelecting.value || total.value <= 0) return
+  allSelecting.value = true
   try {
-    const res = await searchLibraryGroups(filters.keyword.trim())
-    if (res.count > 0) {
-      toast({ type: 'success', title: '搜索完成', message: `搜到 ${res.count} 个群, 已放入群组大厅` })
-      load()
-    } else {
-      toast({ type: 'info', title: '没有结果', message: '没搜到相关群组, 换个关键词试试' })
+    const pageLimit = 100
+    const first = await getGroupLibrary({ ...filters, page: 1, page_size: pageLimit })
+    const totalRows = first.total || 0
+    const pages = Math.ceil(totalRows / pageLimit)
+    const rows = [...(first.list || [])]
+    for (let p = 2; p <= pages; p++) {
+      const next = await getGroupLibrary({ ...filters, page: p, page_size: pageLimit })
+      rows.push(...(next.list || []))
     }
+    const identities = new Set<string>()
+    const ids: string[] = []
+    for (const group of rows) {
+      if (group.status === 'invalid') continue
+      const identity = group.telegram_chat_id
+        ? 'chat:' + group.telegram_chat_id
+        : group.username
+          ? 'user:' + group.username.replace(/^@/, '').toLowerCase()
+          : 'row:' + group.sg_id
+      if (identities.has(identity)) continue
+      identities.add(identity)
+      ids.push(group.sg_id)
+    }
+    selected.clear()
+    ids.forEach(id => selected.add(id))
+    if (!ids.length) {
+      toast({ type: 'info', title: '没有可加入的群', message: '当前筛选范围内没有可用链接' })
+      return
+    }
+    joinModalVisible.value = true
+    toast({ type: 'success', title: '全库目标已准备好', message: `跨页读取 ${rows.length} 条，去重并排除失效链接后选择 ${ids.length} 个群。请确认账号后创建任务。` })
   } catch (err: any) {
-    toast({ type: 'error', title: '搜索失败', message: err?.message || '搜索失败' })
+    toast({ type: 'error', title: '读取全库失败', message: err?.message || '无法读取完整群库，请稍后重试' })
   } finally {
-    kwSearching.value = false
+    allSelecting.value = false
   }
 }
 
@@ -636,14 +676,29 @@ async function doJoin() {
   if (joining.value) return
   joining.value = true
   try {
-    const res = await joinLibraryGroups([...joinAccounts.value], [...selected], {
-      perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
-      intervalMinMinutes: joinIntervalMin.value || 0,
-      intervalMaxMinutes: joinIntervalMax.value || 0,
-    })
-    toast({ type: 'success', title: '任务已创建', message: `已创建 ${res.created} 个加群任务（${res.links} 个群）${res.failed_err ? '；部分失败: ' + res.failed_err : ''}` })
-    joinModalVisible.value = false
-    selected.clear()
+    const targets = [...selected]
+    let created = 0
+    let links = 0
+    const errors: string[] = []
+    for (let offset = 0; offset < targets.length; offset += 100) {
+      try {
+        const res = await joinLibraryGroups([...joinAccounts.value], targets.slice(offset, offset + 100), {
+          perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
+          intervalMinMinutes: joinIntervalMin.value || 0,
+          intervalMaxMinutes: joinIntervalMax.value || 0,
+        })
+        created += res.created || 0
+        links += res.links || 0
+        if (res.failed_err) errors.push(res.failed_err)
+      } catch (err: any) {
+        errors.push(err?.message || `第 ${Math.floor(offset / 100) + 1} 批创建失败`)
+      }
+    }
+    toast({ type: errors.length ? 'warning' : 'success', title: errors.length ? '任务部分创建' : '任务已创建', message: `已创建 ${created} 个加群任务（${links} 个群）${errors.length ? '；失败信息: ' + errors.join('；') : ''}` })
+    if (created > 0) {
+      joinModalVisible.value = false
+      selected.clear()
+    }
   } catch (err: any) {
     toast({ type: 'error', title: '创建失败', message: err?.message || '创建加群任务失败' })
   } finally {

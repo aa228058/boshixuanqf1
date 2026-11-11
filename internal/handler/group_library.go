@@ -310,10 +310,21 @@ func (h *GroupLibraryHandler) JoinSelected(c echo.Context) error {
 		if link == "" && sg.Username != "" {
 			link = "https://t.me/" + sg.Username
 		}
-		if link == "" || seen[link] {
+		if strings.TrimSpace(link) == "" {
 			continue
 		}
-		seen[link] = true
+		identity := ""
+		if sg.TelegramChatID != 0 {
+			identity = fmt.Sprintf("chat:%d", sg.TelegramChatID)
+		} else if strings.TrimSpace(sg.Username) != "" {
+			identity = "user:" + strings.ToLower(strings.TrimPrefix(strings.TrimSpace(sg.Username), "@"))
+		} else {
+			identity = "link:" + normalizeJoinTarget(link)
+		}
+		if seen[identity] {
+			continue
+		}
+		seen[identity] = true
 		links = append(links, link)
 	}
 
@@ -354,6 +365,39 @@ func (h *GroupLibraryHandler) JoinSelected(c echo.Context) error {
 		"links":      len(links),
 		"failed_err": errString(lastErr),
 	})
+}
+
+// normalizeJoinTarget collapses equivalent Telegram URL spellings without
+// lowercasing case-sensitive private invite hashes.
+func normalizeJoinTarget(value string) string {
+	value = strings.TrimSpace(value)
+	lower := strings.ToLower(value)
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(lower, prefix) {
+			value = value[len(prefix):]
+			break
+		}
+	}
+	value = strings.SplitN(value, "?", 2)[0]
+	value = strings.SplitN(value, "#", 2)[0]
+	value = strings.TrimRight(value, "/")
+	parts := strings.SplitN(value, "/", 2)
+	if len(parts) != 2 {
+		return strings.ToLower(value)
+	}
+	host := strings.TrimPrefix(strings.ToLower(parts[0]), "www.")
+	if host != "t.me" && host != "telegram.me" && host != "telegram.dog" {
+		return strings.ToLower(value)
+	}
+	path := parts[1]
+	lowerPath := strings.ToLower(path)
+	if strings.HasPrefix(lowerPath, "joinchat/") {
+		path = "+" + path[len("joinchat/"):]
+	}
+	if strings.HasPrefix(path, "+") {
+		return "t.me/" + path
+	}
+	return "t.me/" + strings.ToLower(path)
 }
 
 func errString(err error) string {
