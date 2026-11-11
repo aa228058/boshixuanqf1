@@ -807,10 +807,7 @@ func (s *TaskService) Pause(ctx context.Context, tenantID, taskID uuid.UUID) err
 	if err != nil {
 		return fmt.Errorf("获取任务失败: %w", err)
 	}
-	// 循环任务在非 running 状态(排队/等待下一轮)时, 停止=关循环+暂停
-	if task.IsLoop && task.Status != domain.TaskStatusRunning {
-		return s.repo.StopLoop(ctx, tenantID, taskID)
-	}
+	// 循环任务暂停时保留 is_loop 与 next_run_at，恢复后仍可继续原计划。
 	if !validTransitions[task.Status][domain.TaskStatusPaused] {
 		return fmt.Errorf("cannot pause task with status %s", task.Status)
 	}
@@ -846,6 +843,9 @@ func (s *TaskService) Resume(ctx context.Context, tenantID, taskID uuid.UUID) er
 	}
 	if !validTransitions[task.Status][domain.TaskStatusQueued] {
 		return fmt.Errorf("cannot resume task with status %s", task.Status)
+	}
+	if task.IsLoop {
+		return s.repo.ResumeLoop(ctx, tenantID, taskID)
 	}
 	return s.repo.ResetToQueued(ctx, tenantID, taskID)
 }
