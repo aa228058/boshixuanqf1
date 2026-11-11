@@ -99,12 +99,12 @@ export default defineConfig({
     ...(process.env.VISUAL_AUDIT ? [
       {
         name: 'visual-desktop',
-        testMatch: /accounts-visual\\.spec\\.ts/,
+        testMatch: /accounts-visual\.spec\.ts/,
         use: { ...devices['Desktop Chrome'] },
       },
       {
         name: 'visual-mobile',
-        testMatch: /accounts-visual\\.spec\\.ts/,
+        testMatch: /accounts-visual\.spec\.ts/,
         use: { ...devices['iPhone 13'], browserName: 'chromium' },
       },
     ] : []),
