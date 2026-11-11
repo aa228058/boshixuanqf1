@@ -99,9 +99,20 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 		CREATE TABLE IF NOT EXISTS group_library_import_jobs (
 			job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+			file_name VARCHAR(255) NOT NULL DEFAULT '',
 			payload TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'pending',
+			total_count INTEGER NOT NULL DEFAULT 0,
+			processed_count INTEGER NOT NULL DEFAULT 0,
+			imported_count INTEGER NOT NULL DEFAULT 0,
+			failed_count INTEGER NOT NULL DEFAULT 0,
+			skipped_count INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT NOT NULL DEFAULT '',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			started_at TIMESTAMPTZ,
+			finished_at TIMESTAMPTZ,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			account_id UUID,
 			task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')
 		)
 	`)
