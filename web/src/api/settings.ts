@@ -1,6 +1,8 @@
 import { api } from '@/utils/request'
 import type { Tenant, Plan, ActivationCode, SupportConfig, Announcement, MessageTemplate, AccountGroup, ListResponse } from '@/types'
 
+export interface TextDict { dict_id: string; tenant_id: string; name: string; items: string[]; created_at: string }
+
 export const settingsApi = {
   getProfile: () => api.get<Tenant>('/tenant/profile'),
   activateCode: (code: string) => api.post<Tenant>('/tenant/activate', { code }),
@@ -14,6 +16,12 @@ export const settingsApi = {
   createTemplate: (data: { name: string; content: string }) => api.post<MessageTemplate>('/templates', data),
   updateTemplate: (id: string, data: { name: string; content: string }) => api.put<void>(`/templates/${id}`, data),
   deleteTemplate: (id: string) => api.delete<void>(`/templates/${id}`),
+
+  // Saved text collections (manual reuse)
+  getTextDicts: () => api.get<ListResponse<TextDict>>('/text-dicts'),
+  createTextDict: (data: { name: string; items: string[] }) => api.post<TextDict>('/text-dicts', data),
+  updateTextDict: (id: string, data: { name: string; items: string[] }) => api.put<void>(`/text-dicts/${id}`, data),
+  deleteTextDict: (id: string) => api.delete<void>(`/text-dicts/${id}`),
 
   // Account Groups
   getAccountGroups: () => api.get<ListResponse<AccountGroup>>('/account-groups'),
