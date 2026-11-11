@@ -56,6 +56,7 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id UUID PRIMARY KEY,
+			task_number BIGINT NOT NULL DEFAULT 1,
 			tenant_id UUID NOT NULL,
 			type TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'queued',
@@ -79,6 +80,11 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 		)`)
 	if err != nil {
 		t.Fatalf("create tasks table: %v", err)
+	}
+	// Keep reused minimal test databases compatible with TaskRepository.scanTasks,
+	// which reads task_number in the same position as the production schema.
+	if _, err := pool.Exec(context.Background(), `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_number BIGINT NOT NULL DEFAULT 1`); err != nil {
+		t.Fatalf("ensure tasks.task_number: %v", err)
 	}
 	// The task-log cursor integration test uses a deliberately minimal fixture
 	// instead of running the full migration chain. Keep the columns consumed by
