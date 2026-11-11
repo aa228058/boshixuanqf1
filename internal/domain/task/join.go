@@ -320,24 +320,24 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							}
 							groupID = existing.GroupID
 						} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
-								return fmt.Errorf("lookup joined group: %w", lookupErr)
-							} else {
-								now := time.Now()
-								groupID = uuid.New()
-								if err := e.groupRepo.Create(ctx, &domain.Group{
-									GroupID: groupID, TenantID: task.TenantID, TGChatID: chatID,
-									Title: link, Username: username, Type: gtype, AccessHash: accessHash,
-									IsJoined: true, JoinedAt: &now,
-								}); err != nil {
-									return fmt.Errorf("create joined group: %w", err)
-								}
-								// Create uses ON CONFLICT; re-read to obtain the canonical ID
-								// if another worker inserted the same Telegram chat concurrently.
-								persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-								if err != nil {
-									return fmt.Errorf("reload joined group: %w", err)
-								}
-								groupID = persisted.GroupID
+							return fmt.Errorf("lookup joined group: %w", lookupErr)
+						} else {
+							now := time.Now()
+							groupID = uuid.New()
+							if err := e.groupRepo.Create(ctx, &domain.Group{
+								GroupID: groupID, TenantID: task.TenantID, TGChatID: chatID,
+								Title: link, Username: username, Type: gtype, AccessHash: accessHash,
+								IsJoined: true, JoinedAt: &now,
+							}); err != nil {
+								return fmt.Errorf("create joined group: %w", err)
+							}
+							// Create uses ON CONFLICT; re-read to obtain the canonical ID
+							// if another worker inserted the same Telegram chat concurrently.
+							persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+							if err != nil {
+								return fmt.Errorf("reload joined group: %w", err)
+							}
+							groupID = persisted.GroupID
 							}
 						if err := e.groupRepo.UpsertAccountGroup(ctx, accID, groupID, true); err != nil {
 							return fmt.Errorf("link joined group to account: %w", err)
