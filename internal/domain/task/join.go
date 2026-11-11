@@ -298,7 +298,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 						} else if !strings.Contains(link, "/") {
 							username = link
 						}
-						if existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); lookupErr == nil && existing != nil {
+						existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+						var groupID uuid.UUID
+						if lookupErr == nil && existing != nil {
 							existing.AccessHash = accessHash
 							existing.IsJoined = true
 							existing.Type = gtype
@@ -309,16 +311,34 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 								now := time.Now()
 								existing.JoinedAt = &now
 							}
-							return e.groupRepo.Update(ctx, existing)
-						} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+							if err := e.groupRepo.Update(ctx, existing); err != nil {
+								return fmt.Errorf("update joined group: %w", err)
+							}
+							groupID = existing.GroupID
+					} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
 							return fmt.Errorf("lookup joined group: %w", lookupErr)
+						} else {
+							now := time.Now()
+							groupID = uuid.New()
+							if err := e.groupRepo.Create(ctx, &domain.Group{
+								GroupID: groupID, TenantID: task.TenantID, TGChatID: chatID,
+								Title: link, Username: username, Type: gtype, AccessHash: accessHash,
+								IsJoined: true, JoinedAt: &now,
+							}); err != nil {
+								return fmt.Errorf("create joined group: %w", err)
+							}
+							// Create uses ON CONFLICT; re-read to obtain the canonical ID
+							// if another worker inserted the same Telegram chat concurrently.
+							persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+							if err != nil {
+								return fmt.Errorf("reload joined group: %w", err)
+							}
+							groupID = persisted.GroupID
 						}
-						now := time.Now()
-						return e.groupRepo.Create(ctx, &domain.Group{
-							GroupID: uuid.New(), TenantID: task.TenantID, TGChatID: chatID,
-							Title: link, Username: username, Type: gtype, AccessHash: accessHash,
-							IsJoined: true, JoinedAt: &now,
-						})
+						if err := e.groupRepo.UpsertAccountGroup(ctx, accID, groupID, true); err != nil {
+							return fmt.Errorf("link joined group to account: %w", err)
+						}
+						return nil
 					}
 					var joinErr error
 					switch p := peer.(type) {
