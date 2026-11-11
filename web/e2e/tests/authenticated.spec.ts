@@ -16,20 +16,26 @@ const routes = [
   '/sessions',
 ]
 
-async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
-  let accountId = process.env.E2E_ACCOUNT_ID
+async function currentAccountId(page: import('@playwright/test').Page): Promise<string> {
+  let accountId = process.env.E2E_ACCOUNT_ID || ''
   if (!accountId) {
+    // A fresh Playwright page starts at about:blank, where localStorage is
+    // unavailable. Navigate to the authenticated app origin before reading it.
+    if (page.url() === 'about:blank') await page.goto('/dashboard')
     await page.waitForFunction(
       () => Boolean(localStorage.getItem('tg_current_account')),
       null,
       { timeout: 5_000 },
     ).catch(() => undefined)
-    accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || '')
+    accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || '').catch(() => '')
   }
+  return accountId || 'none'
+}
 
+async function tenantRoutes(page: import('@playwright/test').Page): Promise<string[]> {
+  const accountId = await currentAccountId(page)
   // The app itself routes to the explicit "none" workspace when no account is selected.
   // Auditing that fallback still exercises the tenant workspace shell and empty states.
-  if (!accountId) accountId = 'none'
   return [
     ...routes,
     `/workspace/${accountId}/broadcast`,
@@ -40,7 +46,6 @@ async function tenantRoutes(page: import('@playwright/test').Page): Promise<stri
     `/workspace/${accountId}/tasks`,
   ]
 }
-
 // 仅拦截群库只读 API 的确定性演示数据；不写数据库、不执行 Telegram 操作。
 test('群组发现页演示数据视觉回归（内容态与已选态）', async ({ page }, testInfo) => {
   const demoGroups = [
@@ -250,7 +255,7 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
 })
 
 test('群发创建表单可导入目标、编辑消息，且不提交任务', async ({ page }) => {
-  const accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || 'none')
+  const accountId = await currentAccountId(page)
   let createRequests = 0
   await page.route('**/api/v1/tasks**', async route => {
     const request = route.request()
