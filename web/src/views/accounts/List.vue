@@ -229,7 +229,7 @@
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
             <!-- 更多菜单(R141): 移动端 = 底部 ActionSheet(圆角上提, 遮罩关闭); 桌面端 = 向上弹出菜单 -->
             <div v-if="openMenuId === acc?.account_id"
-                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1 sm:w-44 sm:z-50"
+                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
               <div class="acc-menu-head">
