@@ -354,6 +354,49 @@ func (r *TaskRepository) UpdateProgressExact(ctx context.Context, tenantID, task
 	return err
 }
 
+// UpdateProgressOwned applies incremental progress only while the caller owns the running task lease.
+func (r *TaskRepository) UpdateProgressOwned(ctx context.Context, tenantID, taskID uuid.UUID, workerID string, progress domain.TaskProgress) error {
+	if workerID == "" {
+		return fmt.Errorf("worker ID is required")
+	}
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks
+		SET progress = jsonb_set(
+			jsonb_set(
+				jsonb_set(progress, '{done}', to_jsonb(COALESCE((progress->>'done')::int, 0) + $4)),
+				'{failed}', to_jsonb(COALESCE((progress->>'failed')::int, 0) + $5)
+			),
+			'{current_target}', to_jsonb($6::text)
+		)
+		WHERE tenant_id = $1 AND task_id = $2 AND status = 'running' AND worker_id = $3
+	`, tenantID, taskID, workerID, progress.Done, progress.Failed, progress.CurrentTarget)
+	if err != nil {
+		return fmt.Errorf("update owned task progress: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("task lease lost or task is no longer running")
+	}
+	return nil
+}
+
+// UpdateProgressExactOwned replaces progress only while the caller owns the running task lease.
+func (r *TaskRepository) UpdateProgressExactOwned(ctx context.Context, tenantID, taskID uuid.UUID, workerID string, progress domain.TaskProgress) error {
+	if workerID == "" {
+		return fmt.Errorf("worker ID is required")
+	}
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks SET progress = $4
+		WHERE tenant_id = $1 AND task_id = $2 AND status = 'running' AND worker_id = $3
+	`, tenantID, taskID, workerID, progress)
+	if err != nil {
+		return fmt.Errorf("update owned task progress exactly: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("task lease lost or task is no longer running")
+	}
+	return nil
+}
+
 // RefreshTaskLock extends the lease only while this worker still owns a running task.
 // A stale worker must not refresh a lease that has already been reclaimed.
 func (r *TaskRepository) RefreshTaskLock(ctx context.Context, tenantID, taskID uuid.UUID, workerID string) (bool, error) {
