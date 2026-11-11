@@ -44,7 +44,7 @@ test.describe('账号页视觉审计', () => {
 
     await page.route('**/api/v1/**', async route => {
       const request = route.request()
-      const path = new URL(request.url()).pathname.replace(/^\\/api\\/v1/, '')
+      const path = new URL(request.url()).pathname.replace('/api/v1', '')
       const ok = (data: unknown) => route.fulfill({
         status: 200,
         contentType: 'application/json',
