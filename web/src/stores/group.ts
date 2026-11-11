@@ -25,6 +25,8 @@ function loadCache(): Record<string, CacheEntry> {
 
 export const useGroupStore = defineStore('group', () => {
   const cache = ref<Record<string, CacheEntry>>(loadCache())
+  const refreshRequests = new Map<string, number>()
+  const cacheEpoch = new Map<string, number>()
 
   function persist() {
     try {
@@ -72,21 +74,33 @@ export const useGroupStore = defineStore('group', () => {
 
   // 点"同步"之后重新拉取库数据
   async function refresh(accountId: string): Promise<Group[]> {
+    const requestId = (refreshRequests.get(accountId) || 0) + 1
+    refreshRequests.set(accountId, requestId)
+    const epoch = cacheEpoch.get(accountId) || 0
     const res: any = await groupApi.list(accountId)
     // 后端返回 ListResponse{code,data:{list,total}} 或直返数组, 兼容四种形态
     // 注意 res.data 可能是 {list,total} 对象本身，必须先取其 .list
     const list = res.list || res.data?.list || (Array.isArray(res.data) ? res.data : []) || (Array.isArray(res) ? res : [])
-    setGroups(accountId, list)
+    // 仅允许最新请求且期间未发生失效/写操作的结果进入缓存。
+    if (refreshRequests.get(accountId) === requestId && (cacheEpoch.get(accountId) || 0) === epoch) {
+      setGroups(accountId, list)
+    }
     return list
   }
 
   function invalidate(accountId: string) {
+    cacheEpoch.set(accountId, (cacheEpoch.get(accountId) || 0) + 1)
+    refreshRequests.set(accountId, (refreshRequests.get(accountId) || 0) + 1)
     delete cache.value[accountId]
     persist()
   }
 
   // 全局变更总线：任何 /groups 相关写操作成功后自动清缓存重拉
   onMutation(/\/groups/, () => {
+    for (const accountId of refreshRequests.keys()) {
+      cacheEpoch.set(accountId, (cacheEpoch.get(accountId) || 0) + 1)
+      refreshRequests.set(accountId, (refreshRequests.get(accountId) || 0) + 1)
+    }
     cache.value = {}
     try { sessionStorage.removeItem(STORAGE_KEY) } catch {}
   })

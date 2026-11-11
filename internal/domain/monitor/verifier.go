@@ -14,7 +14,6 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/ai"
 	"tg-sender/internal/domain"
-	"tg-sender/internal/safego"
 	securerand "tg-sender/internal/secure"
 )
 
@@ -155,7 +154,7 @@ func (e *Engine) HandleVerification(ctx context.Context, client *telegram.Client
 		}
 	}
 	e.vstates.put(accountID, chatID, st)
-	safego.Go(func() { e.runVerification(ctx, client, st, cand) })
+	monitorGo(ctx, func() { e.runVerification(ctx, client, st, cand) })
 }
 
 func looksLikeVerification(c *vcandidate) bool {
@@ -847,16 +846,21 @@ func extractCandidate(msg *tg.Message) *vcandidate {
 	c.rawPeer = msg.PeerID // 字段, 非方法
 	c.chatID = peerChatID(msg.PeerID)
 	if rm, ok := msg.ReplyMarkup.(*tg.ReplyInlineMarkup); ok {
-		for _, row := range rm.Rows { // []*KeyboardButtonRow
+		for _, row := range rm.Rows {
 			if row == nil {
 				continue
 			}
 			for _, btn := range row.Buttons {
-				switch b := btn.(type) {
-				case *tg.KeyboardButtonCallback:
-					c.buttons = append(c.buttons, vbutton{text: b.Text, data: b.Data})
-				case *tg.KeyboardButtonURL:
-					c.buttons = append(c.buttons, vbutton{text: b.Text, url: b.URL})
+				if btn == nil {
+					continue
+				}
+				switch b := btn.Type.(type) {
+				case *tg.InlineButtonTypeCallback:
+					c.buttons = append(c.buttons, vbutton{text: btn.Text, data: b.Data})
+				case *tg.InlineButtonTypeURL:
+					c.buttons = append(c.buttons, vbutton{text: btn.Text, url: b.URL})
+				case *tg.InlineButtonTypeWebView:
+					c.buttons = append(c.buttons, vbutton{text: btn.Text, url: b.URL})
 				}
 			}
 		}

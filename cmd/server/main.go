@@ -315,6 +315,8 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	groupImportAPI.GET("/group-library/import-jobs", c.GroupLibraryHandler.ListImportJobs)                // 导入任务历史
 	groupImportAPI.GET("/group-library/import-jobs/:id", c.GroupLibraryHandler.GetImportJob)              // 查询导入进度
 	groupImportAPI.POST("/group-library/import-jobs/:id/confirm", c.GroupLibraryHandler.ConfirmImportJob) // 确认筛选结果后开始解析
+	groupImportAPI.POST("/group-library/import-jobs/:id/cancel", c.GroupLibraryHandler.CancelImportJob)
+	groupImportAPI.POST("/group-library/import-jobs/:id/retry", c.GroupLibraryHandler.RetryFailedImportJob)
 	// R116: /text-dicts 词典管理 API 七端点已删(前端词典管理 UI 消亡后零调用;
 	// 词典数据本身仍服务群发变量 {{词典名}} —— engine 直读 TextDictRepo, 不经过 HTTP 层)
 	// 入群验证: AI 配置(加密存储) + 总开关 + 验证记录
@@ -393,6 +395,7 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	api.POST("/monitor/rules/:id/toggle", c.MonitorHandler.Toggle, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.DELETE("/monitor/rules/:id", c.MonitorHandler.Delete, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.GET("/monitor/messages", c.MonitorHandler.GetMessages, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
+	api.GET("/monitor/status/:account_id", c.MonitorHandler.Status, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.POST("/monitor/start/:account_id", c.MonitorHandler.StartMonitoring, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 	api.POST("/monitor/stop/:account_id", c.MonitorHandler.StopMonitoring, c.PlanChecker.RequirePlanFeature(middleware.FeatureMonitor))
 

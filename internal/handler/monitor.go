@@ -55,6 +55,36 @@ func (h *MonitorHandler) List(c echo.Context) error {
 	return SuccessList(c, rules, total, 1, total)
 }
 
+// Status reports actual listener-session state for one tenant-owned account.
+func (h *MonitorHandler) Status(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	accountID, err := uuid.Parse(c.Param("account_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid account id")
+	}
+	if _, err := h.accountSvc.GetByID(c.Request().Context(), tenantID, accountID); err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "账号不存在或无权限")
+	}
+	rules, err := h.svc.List(c.Request().Context(), tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "获取监控规则失败")
+	}
+	activeRules := 0
+	for _, rule := range rules {
+		if rule.IsActive && (rule.AccountID == nil || *rule.AccountID == accountID) {
+			activeRules++
+		}
+	}
+	return Success(c, map[string]any{
+		"account_id":     accountID,
+		"active_rules":   activeRules,
+		"session_active": h.engine.IsMonitoring(tenantID, accountID),
+	})
+}
+
 // CreateRequest represents create monitor rule request.
 type CreateMonitorRequest struct {
 	Name          string   `json:"name" validate:"required"`
@@ -427,7 +457,9 @@ func (h *MonitorHandler) autoManageMonitoring(ctx context.Context, tenantID uuid
 	if len(active) == 0 {
 		for _, acc := range accounts {
 			if h.engine.IsMonitoring(tenantID, acc.AccountID) {
-				h.engine.StopMonitoring(tenantID, acc.AccountID)
+				if err := h.engine.StopMonitoring(tenantID, acc.AccountID); err != nil {
+					log.Printf("[monitor] 自动管理: 停止账号监听失败 account=%s: %v", acc.AccountID, err)
+				}
 			}
 		}
 		return
@@ -609,6 +641,8 @@ func (h *MonitorHandler) StopMonitoring(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "账号不存在或无权限")
 	}
 
-	h.engine.StopMonitoring(tenantID, accountID)
+	if err := h.engine.StopMonitoring(tenantID, accountID); err != nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
+	}
 	return Success(c, map[string]string{"status": "monitoring_stopped"})
 }

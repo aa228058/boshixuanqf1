@@ -31,7 +31,7 @@
     <!-- 批量操作悬浮栏(R141 新皮肤适配): 实底浮层(深色模式不透字) + 令牌阴影 + 主题感知按钮底 -->
     <Transition name="batch-bar">
       <!-- 避开底部 Tab: 移动端 bottom-[92px](Tab 上方留隙), 桌面端 bottom-5 -->
-      <div v-if="selectedIds.size" class="fixed bottom-[92px] md:bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 pl-4 pr-2 py-2 rounded-[var(--t-r-lg)] whitespace-nowrap max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-hide"
+      <div v-if="selectedIds.size" class="fixed bottom-[calc(92px_+_env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 pl-4 pr-2 py-2 rounded-[var(--t-r-lg)] whitespace-nowrap max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-hide"
            style="background: var(--t-card); border: 1px solid var(--t-line-strong); box-shadow: var(--t-shadow-pop);">
         <span class="text-xs font-semibold whitespace-nowrap" style="color: var(--t-text-1);">已选 <b class="tabular-nums" style="color: var(--t-brand);">{{ selectedIds.size }}</b> 项</span>
         <span class="w-px h-4 shrink-0" style="background: var(--t-line-strong);" />
@@ -47,7 +47,7 @@
                 class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
           克隆资料
         </t-button>
-        <button type="button" @click="exitSelecting" title="退出多选"
+        <button type="button" @click="exitSelecting" title="退出多选" aria-label="退出多选"
                 class="ui-icon-btn shrink-0">
           ✕
         </button>
@@ -209,7 +209,7 @@
           </button>
           <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
           <t-button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" theme="warning" size="sm" @click.stop="showAuthModal(acc)"
-                  class="ui-t-button ui-t-button--sm whitespace-nowrap">
+                  class="ui-t-button ui-t-button--warning ui-t-button--sm whitespace-nowrap">
             <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
           </t-button>
           <span v-else-if="acc?.status === 'restricted'"
@@ -649,7 +649,7 @@
         <input
           v-model="cloneSource"
           placeholder="输入对方用户名, 如 duofan_bot 或 @duofan_bot"
-          class="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:border-[color:var(--t-brand)] focus:outline-none"
+          class="ui-input !text-sm" aria-label="资料来源用户名"
           @keyup.enter="runClone"
         />
         <div class="flex items-center justify-between text-xs text-text-muted">
@@ -852,6 +852,16 @@ onMounted(() => document.addEventListener('keydown', onGlobalKeydown))
 onUnmounted(() => document.removeEventListener('keydown', onGlobalKeydown))
 const avatarRefreshingId = ref('')
 const selectedIds = ref<Set<string>>(new Set())
+// 账号被删除或租户账号列表刷新后，清理已不存在的 ID，避免批量操作继续提交失效账号。
+// 只按真实账号全集校验，不按当前搜索/分页结果清理，保留跨筛选与跨页多选。
+watch(
+  () => (accountStore.accounts || []).map((account: any) => account?.account_id).filter(Boolean),
+  (accountIds) => {
+    const available = new Set(accountIds)
+    const next = new Set([...selectedIds.value].filter(id => available.has(id)))
+    if (next.size !== selectedIds.value.size) selectedIds.value = next
+  }
+)
 const batchingPool = ref(false)
 const selectAllRef = ref<HTMLInputElement | null>(null)
 
@@ -862,16 +872,23 @@ const batchProfile = ref({ first_name: '', last_name: '', about: '', username: '
 // 批量改资料执行: 提交后逐号 2-4 秒间隔, 结果汇总 toast
 async function runBatchProfile() {
   if (batchingProfile.value) return
+  const ids = [...selectedIds.value]
+  if (!ids.length) {
+    toast({ type: 'info', message: '请先选择要修改的账号' })
+    return
+  }
+  // 固化本次提交的账号与资料，避免请求期间选择集合变化影响本次操作。
+  const profile = { ...batchProfile.value }
   batchingProfile.value = true
   try {
-    const r = await accountApi.batchUpdateProfile([...selectedIds.value], batchProfile.value)
+    const r = await accountApi.batchUpdateProfile(ids, profile)
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号资料已修改` })
     } else {
       toast({ type: 'warning', message: `成功 ${r.success}, 失败 ${r.failed} 个` })
     }
     showBatchProfile.value = false
-    selectedIds.value = new Set()
+    selectedIds.value = new Set([...selectedIds.value].filter(id => !ids.includes(id)))
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '批量修改失败' })
   } finally {
@@ -943,11 +960,18 @@ const allSelected = computed(() =>
   filteredAccounts.value.every((a: any) => a && selectedIds.value.has(a.account_id)))
 
 function toggleSelectAll() {
+  // 全选/取消全选只作用于当前筛选结果；保留其他筛选条件下已选中的账号，
+  // 避免用户切换搜索词后执行“全选”意外清空此前选择。
+  const visibleIds = filteredAccounts.value
+    .map((a: any) => a?.account_id)
+    .filter(Boolean)
+  const next = new Set(selectedIds.value)
   if (allSelected.value) {
-    selectedIds.value = new Set()
+    visibleIds.forEach((id: string) => next.delete(id))
   } else {
-    selectedIds.value = new Set(filteredAccounts.value.map((a: any) => a?.account_id).filter(Boolean))
+    visibleIds.forEach((id: string) => next.add(id))
   }
+  selectedIds.value = next
 }
 
 function toggleSelect(acc: any) {

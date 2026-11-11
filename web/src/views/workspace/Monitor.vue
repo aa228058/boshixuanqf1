@@ -4,7 +4,7 @@
     <p class="text-sm text-text-muted mt-1 mb-6">
       <!-- R109: 账号下拉(源群组选择/规则展示跟随), 不依赖顶栏切换器 -->
       <span>账号:
-        <select v-model="monAccId" class="input-box h-8 px-2 text-xs rounded-lg ml-1 align-middle">
+        <select v-model="monAccId" class="ui-input !w-auto !min-h-[36px] !px-2 !py-1.5 !text-xs ml-1 align-middle" aria-label="监控执行账号">
           <option v-for="a in accountStore.accounts" :key="a.account_id" :value="a.account_id">{{ accName(a) }}</option>
         </select>
       </span>

@@ -66,7 +66,7 @@
       <!-- R108: 执行账号选择(普通号模式) —— 不再依赖顶栏切换器 -->
       <div v-if="joinMode === 'invite'">
         <label class="block text-sm font-medium mb-2">执行账号</label>
-        <select v-model="phoneAccId" class="input-box w-full h-10 px-3 text-sm rounded-lg">
+        <select v-model="phoneAccId" class="ui-input !text-sm" aria-label="执行账号">
           <option v-for="a in onlineAccounts" :key="a.account_id" :value="a.account_id">{{ a.first_name || a.phone }}</option>
         </select>
       </div>
@@ -81,7 +81,7 @@
         </div>
         <div v-if="joinAccounts.length > 1" class="space-y-1">
           <label class="block text-xs text-text-secondary">多账号分配方式</label>
-          <select v-model="joinDistribution" class="input-box w-full h-9 px-3 text-sm rounded-lg"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
+          <select v-model="joinDistribution" class="ui-input !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="多账号分配方式"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
         </div>
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
@@ -121,7 +121,7 @@
       <div>
         <label class="block text-sm font-medium mb-2">群链接 / 邀请链接</label>
         <textarea v-model="linksInput" rows="6" placeholder="每行一个链接，如:&#10;https://t.me/groupname&#10;https://t.me/+AbCdEfGhIjK"
-                  class="w-full px-4 py-3 rounded-[var(--t-r-md)] glow-input resize-none font-mono text-sm" />
+                  class="ui-input !min-h-[144px] resize-none font-mono text-sm" aria-label="群链接或邀请链接" />
         <div class="flex items-center justify-between mt-2">
           <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
             导入文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
@@ -166,8 +166,9 @@
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
+import { findInvalidJoinLinks, normalizeJoinLinks } from '@/utils/joinLinks'
 import { toast } from '@/utils/toast'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { useGroupStore } from '@/stores/group'
@@ -206,19 +207,35 @@ const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
 const tasksError = ref('')
 
+let taskListRequestId = 0
+let joinPageActive = true
+
 async function fetchTasks() {
-  if (!currentAccount.value) { tasks.value = []; return }
+  const accountId = currentAccount.value?.account_id || ''
+  const requestId = ++taskListRequestId
+  if (!accountId) {
+    tasks.value = []
+    tasksError.value = ''
+    tasksLoading.value = false
+    return
+  }
   tasksLoading.value = true
   try {
     const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any)
+    if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
+    if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasksError.value = e?.message || '加载失败, 点击重试'
   } finally {
-    tasksLoading.value = false
+    if (joinPageActive && requestId === taskListRequestId) tasksLoading.value = false
   }
 }
+onUnmounted(() => {
+  joinPageActive = false
+  taskListRequestId++
+})
 useAutoRefresh(fetchTasks, 15000)
 
 // SSE 实时: 进度事件即时更新对应卡片, 状态事件刷新列表——亚秒级, 不再等轮询
@@ -244,11 +261,30 @@ const inviteGroups = ref<Group[]>([])
 const joinedGroups = computed(() => inviteGroups.value)
 
 // R108: 群列表跟随"执行账号"下拉(原绑 currentAccount, 选号与选群错位必失败)
+let inviteGroupRequest = 0
 async function loadInviteGroups() {
-  if (!phoneAccId.value) return
-  inviteGroups.value = await groupStore.ensure(phoneAccId.value)
+  const accountId = phoneAccId.value
+  if (!accountId) {
+    inviteGroups.value = []
+    return
+  }
+  const requestId = ++inviteGroupRequest
+  try {
+    const groups = await groupStore.ensure(accountId)
+    // 账号切换期间旧请求可能后返回；只允许当前选择账号的结果更新下拉。
+    if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+      inviteGroups.value = groups
+    }
+  } catch {
+    if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+      inviteGroups.value = []
+      toast({ type: 'error', title: '群组加载失败', message: '请检查账号连接后重试' })
+    }
+  }
 }
 watch(phoneAccId, () => {
+  // 使此前尚未完成的账号请求失效，避免旧账号群列表覆盖新选择。
+  inviteGroupRequest++
   inviteGroups.value = []
   inviteTargetId.value = ''
   inviteSourceId.value = ''
@@ -256,10 +292,9 @@ watch(phoneAccId, () => {
 })
 
 watch(currentAccount, () => {
+  // 群组下拉以 phoneAccId（弹窗内显式选择）为唯一数据源；
+  // 顶栏账号变化不应清空或重新加载用户已选的执行账号群组。
   fetchTasks()
-  inviteTargetId.value = ''
-  inviteSourceId.value = ''
-  loadInviteGroups()
 })
 
 const statusLabelMap: Record<string, string> = {
@@ -323,31 +358,13 @@ function onImportFile(e: Event) {
 // 2026-09-22 宽松识别+归一化：缺协议头的 t.me/telegram.me、@开头 都接受，
 // 统一归一为 https://t.me/... 再提交。此前严格 startsWith 会把 "t.me/xxx" 等常见写法
 // 静默滤掉——用户明明填了链接，validLinks 却是 0，建出零目标任务（服务端日志实证）。
-const validLinks = computed(() => {
-  return linksInput.value.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
-    if (l.startsWith('@')) return 'https://t.me/' + l.slice(1)
-    // 2026-09-22 补: 手机端从 TG 应用内分享复制的邀请链接是 tg://join?invite= 格式,
-    // 此前会被归一化判空, 用户明明天天填了链接却建出零目标任务(实证: https://t.me/+llE9x5nvZpQ0Nzk9 案例)
-    const tg = l.match(/^tg:\/\/join\?invite=([A-Za-z0-9_-]+)$/i)
-    if (tg) return 'https://t.me/+' + tg[1]
-    const m = l.match(/^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\/(.+)$/i)
-    if (m) return 'https://t.me/' + m[1]
-    return ''
-  }).filter(Boolean)
-})
-
-const invalidLinks = computed(() => {
-  const all = linksInput.value.split('\n').map(l => l.trim()).filter(Boolean)
-  return all.filter(l => {
-    if (l.startsWith('@')) return false
-    if (/^tg:\/\/join\?invite=[A-Za-z0-9_-]+$/i.test(l)) return false
-    return !/^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\//i.test(l)
-  })
-})
+const validLinks = computed(() => normalizeJoinLinks(linksInput.value))
+const invalidLinks = computed(() => findInvalidJoinLinks(linksInput.value))
 // R128 无效链接展开查看(模板引用, 编译必需)
 const showInvalidLinks = ref(false)
 
 async function submit() {
+  if (submitting.value) return
   // R111: 协议协同死分支已删
   // ===== 邀请成员入群模式 =====
   if (joinMode.value === 'invite') {
@@ -355,14 +372,17 @@ async function submit() {
       toast({ type: 'warning', title: '请选择执行账号、目标群和来源群' })
       return
     }
+    const accountId = phoneAccId.value
+    const targetGroupId = inviteTargetId.value
+    const sourceGroupId = inviteSourceId.value
     submitting.value = true
     try {
       await taskApi.create({
         type: 'invite_members',
-        account_id: phoneAccId.value,
+        account_id: accountId,
         payload: {
-          target_group_id: inviteTargetId.value,
-          source_group_id: inviteSourceId.value,
+          target_group_id: targetGroupId,
+          source_group_id: sourceGroupId,
         },
       })
       toast({ type: 'success', title: '邀请入群任务已创建', message: '成员邀请已排队执行' })
@@ -386,25 +406,31 @@ async function submit() {
     toast({ type: 'warning', title: '请先添加有效的群链接' })
     return
   }
+  // Freeze the complete batch before the first await. Edits made while requests are
+  // in flight must apply to the next batch, not produce inconsistent per-account tasks.
+  const accountIds = [...new Set(joinAccounts.value)]
+  const links = [...new Set(validLinks.value)]
+  const distribution = joinDistribution.value
+  const intervalMin = joinIntervalMin.value || undefined
+  const intervalMax = joinIntervalMax.value || undefined
+  const assignments = distribution === 'round_robin' && accountIds.length > 1
+    ? accountIds.map((accountId, accountIndex) => ({ accountId, links: links.filter((_, linkIndex) => linkIndex % accountIds.length === accountIndex) })).filter(x => x.links.length > 0)
+    : accountIds.map(accountId => ({ accountId, links }))
   submitting.value = true
   try {
-    const links = [...new Set(validLinks.value)]
-    const assignments = joinDistribution.value === 'round_robin' && joinAccounts.value.length > 1
-      ? joinAccounts.value.map((accountId, accountIndex) => ({ accountId, links: links.filter((_, linkIndex) => linkIndex % joinAccounts.value.length === accountIndex) })).filter(x => x.links.length > 0)
-      : joinAccounts.value.map(accountId => ({ accountId, links }))
     let created = 0
     const errors: string[] = []
     for (const assignment of assignments) {
       try {
         await taskApi.create({ type: 'join_groups', account_id: assignment.accountId, links: assignment.links,
-          interval_min_minutes: joinIntervalMin.value || undefined, interval_max_minutes: joinIntervalMax.value || undefined })
+          interval_min_minutes: intervalMin, interval_max_minutes: intervalMax })
         created++
       } catch (err: any) { errors.push(err?.message || '任务创建失败') }
     }
     if (created === 0) throw new Error(errors[0] || '所有账号任务创建失败')
     linksInput.value = ''
     showCreate.value = false
-    toast({ type: errors.length ? 'warning' : 'success', title: '已创建 ' + created + '/' + assignments.length + ' 个加群任务', message: (joinDistribution.value === 'round_robin' ? '链接已按账号均分' : '每个账号执行全部链接') + (errors.length ? '；失败：' + errors.join('；') : '') })
+    toast({ type: errors.length ? 'warning' : 'success', title: '已创建 ' + created + '/' + assignments.length + ' 个加群任务', message: (distribution === 'round_robin' ? '链接已按账号均分' : '每个账号执行全部链接') + (errors.length ? '；失败：' + errors.join('；') : '') })
     fetchTasks()
   } catch (e: any) {
     toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })

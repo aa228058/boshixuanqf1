@@ -26,7 +26,7 @@
         <!-- R128 原生 select: t-select 的 tdesign 下拉面板在移动端定位滑到页面底部(用户反馈),
              原生 select 视觉已令牌化且系统自带可靠下拉 -->
         <select v-model="statusFilter"
-                class="w-32 px-3 py-2 rounded-[var(--t-r-md)] text-xs font-medium outline-none cursor-pointer"
+                class="ui-input !w-32 !min-h-[36px] !px-3 !py-1.5 !text-xs font-medium cursor-pointer"
                 style="background: var(--t-surface-2); border: 1px solid var(--t-line); color: var(--t-text-1);">
           <option value="">全部状态</option>
           <option value="running">运行中</option>
@@ -56,7 +56,7 @@
             <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
             <div class="text-xs text-text-muted mt-1">群组链接导入 · {{ formatDate(job.created_at) }}</div>
           </div>
-          <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
+          <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : job.status === 'cancelled' ? 'text-text-muted bg-bg-hover' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
             {{ importStatusLabel(job.status) }}
           </span>
         </div>
@@ -67,8 +67,10 @@
         <div class="h-1.5 rounded-full overflow-hidden bg-bg-secondary">
           <div class="h-full rounded-full bg-[var(--t-brand)] transition-all" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }"></div>
         </div>
-        <div v-if="job.status === 'review'" class="flex justify-end">
-          <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <t-button v-if="job.status === 'review'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
+          <t-button v-if="['review', 'pending', 'processing'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="danger" @click="cancelGroupImport(job.job_id)">取消导入</t-button>
+          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
         </div>
         <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
       </article>
@@ -135,13 +137,13 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
-              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
+              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
+              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
-                         class="ui-t-button" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
+                         class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
-                <t-button class="ui-t-button ui-t-button--secondary" size="small" variant="outline" @click.stop="showAccStats(row)" title="每账号统计">
+                <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(row)" title="每账号统计">
                   <BarChart3 class="w-3.5 h-3.5" />
                 </t-button>
               </t-tooltip>
@@ -188,21 +190,21 @@
           </div>
         </div>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
-          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
+          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
+          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
-                     size="small" theme="warning" class="ui-t-button" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
-          <t-button class="ui-t-button ui-t-button--secondary" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
+                     size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
+          <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
         </div>
       </div>
       </pull-down-refresh>
     </div>
 
     <!-- 分页 -->
-    <div v-if="total > pageSize" class="flex items-center justify-between mt-6">
+    <div v-if="total > pageSize" class="flex flex-wrap items-center justify-between gap-3 mt-6">
       <span class="text-xs text-text-secondary">共 {{ total }} 条</span>
       <!-- P0-07: TDesign total 是总条数不是页数, 原传 totalPages 导致分页严重错误 -->
-      <t-pagination :page="page" :total="total" :page-size="pageSize" @change="(p: any) => page = p.current" />
+      <t-pagination class="ui-pagination" :page="page" :total="total" :page-size="pageSize" @change="(p: any) => page = p.current" />
     </div>
 
     <!-- 每账号统计弹层: 任务内各账号成功/失败/跳过 -->
@@ -252,7 +254,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { taskApi } from '@/api/task'
-import { listGroupLibraryImportJobs, confirmImportLibraryGroups } from '@/api/groups'
+import { listGroupLibraryImportJobs, confirmImportLibraryGroups, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
@@ -343,7 +345,7 @@ async function fetchImportJobs() {
 
 function importStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    review: '待确认', pending: '排队中', processing: '解析中',
+    review: '待确认', pending: '排队中', processing: '解析中', cancelling: '取消中', cancelled: '已取消',
     completed: '已完成', failed: '失败',
   }
   return labels[status] || status || '未知'
@@ -359,23 +361,54 @@ async function confirmGroupImport(jobId: string) {
   }
 }
 
-async function fetchTasks() {
-  loading.value = true
+async function cancelGroupImport(jobId: string) {
+  const ok = await ask('确定取消这条群组导入任务？已完成的链接不会回滚。', {
+    title: '取消导入任务', danger: true, confirmText: '取消任务',
+  })
+  if (!ok) return
   try {
-    const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
-    if (range.value !== 'all') params.range = range.value
-    if (statusFilter.value) params.status = statusFilter.value
-    if (typeFilter.value) params.type = typeFilter.value
+    await cancelGroupLibraryImportJob(jobId)
+    toast({ type: 'success', title: '已提交取消请求' })
+    await fetchImportJobs()
+  } catch (e: any) {
+    toast({ type: 'error', title: '取消失败', message: e?.message || '无法取消导入任务' })
+  }
+}
+
+async function retryGroupImport(jobId: string) {
+  try {
+    await retryFailedGroupLibraryImportJob(jobId)
+    toast({ type: 'success', title: '失败链接已重新排队' })
+    await fetchImportJobs()
+  } catch (e: any) {
+    toast({ type: 'error', title: '重试失败', message: e?.message || '无法重试失败链接' })
+  }
+}
+
+let taskListRequestId = 0
+
+async function fetchTasks() {
+  const requestId = ++taskListRequestId
+  // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
+  const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
+  if (range.value !== 'all') params.range = range.value
+  if (statusFilter.value) params.status = statusFilter.value
+  if (typeFilter.value) params.type = typeFilter.value
+  loading.value = true
+  loadError.value = ''
+  try {
     const res = await taskApi.list(params)
-    const rawList = res.list || []
-    // 2026-09-23 防御: 按 task_id 去重（用户实测"创建任务出现多条相同"——
-    // 多为双击/网络重试导致创建了两条, 此处在渲染层兜底不重复显示）
-    tasks.value = [...new Map(rawList.map(t => [t.task_id, t])).values()]
-    total.value = res.total || 0
+    if (requestId !== taskListRequestId) return
+    const rawList = Array.isArray(res?.list) ? res.list : []
+    // 按 task_id 去重，防止接口异常或重试造成重复行。
+    tasks.value = [...new Map(rawList.filter((t: any) => t?.task_id).map((t: any) => [t.task_id, t])).values()]
+    total.value = Number(res?.total) || 0
   } catch (e) {
+    if (requestId !== taskListRequestId) return
+    loadError.value = e instanceof Error ? e.message : '获取任务失败，请稍后重试'
     console.error('获取任务失败:', e)
   } finally {
-    loading.value = false
+    if (requestId === taskListRequestId) loading.value = false
   }
 }
 

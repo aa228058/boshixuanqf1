@@ -303,6 +303,45 @@ func (c *Container) initEngines() error {
 	taskEngine.StartResourceMonitor(engineCtx)
 
 	c.MonitorEngine = monitor.NewEngine(c.Cfg, c.AccountEngine, c.MonitorRuleRepo, c.SSEBroker)
+	dmActionRepo := repository.NewDMActionRepository(c.DB.Pool)
+	callCooldownRepo := repository.NewCallCooldownRepository(c.DB.Pool)
+	resolveStaleDMClaims := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		resolved, err := dmActionRepo.ResolveStale(ctx, repository.DMActionStaleAfter)
+		if err != nil {
+			log.Printf("[monitor] stale DM action recovery failed; claims remain fail-closed: %v", err)
+		} else if resolved > 0 {
+			log.Printf("[monitor] recovered %d stale DM action claims as outcome_unknown", resolved)
+		}
+	}
+	pruneExpiredCallCooldowns := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		pruned, err := callCooldownRepo.PruneExpired(ctx)
+		if err != nil {
+			log.Printf("[monitor] expired call cooldown pruning failed: %v", err)
+		} else if pruned > 0 {
+			log.Printf("[monitor] pruned %d expired call cooldown rows", pruned)
+		}
+	}
+	resolveStaleDMClaims()
+	pruneExpiredCallCooldowns()
+	safego.Go(func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				resolveStaleDMClaims()
+				pruneExpiredCallCooldowns()
+			case <-c.stopCh:
+				return
+			}
+		}
+	})
+	c.MonitorEngine.SetDMActionStore(dmActionRepo)
+	c.MonitorEngine.SetCallCooldownStore(callCooldownRepo)
 
 	// Auto-sync joined groups for all online accounts on startup
 	safego.Go(func() {
@@ -786,7 +825,14 @@ func (c *Container) Shutdown() {
 	if c.LinkScraper != nil {
 		c.LinkScraper.Stop()
 	}
-	c.MonitorEngine.StopAll()
+	// Monitor callbacks and child tasks may still use Telegram clients and the DB.
+	// If bounded draining times out, preserve dependencies until process exit.
+	if err := c.MonitorEngine.StopAll(); err != nil {
+		log.Printf("[shutdown] monitor drain incomplete; preserving AccountEngine, SSE and DB until process exit: %v", err)
+		c.TaskEngine.Stop()
+		backup.Stop()
+		return
+	}
 	c.TaskEngine.Stop()
 	// R114: CampaignEngine.Stop 已删(引擎整建制移除)
 	c.AccountEngine.Stop()

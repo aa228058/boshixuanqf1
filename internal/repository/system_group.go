@@ -32,11 +32,43 @@ type SystemGroupFilter struct {
 
 // Upsert merges a shared group identity, refreshes available metadata, and attaches the submitted link.
 func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGroup) error {
+	if sg == nil {
+		return fmt.Errorf("nil system group")
+	}
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err := upsertSystemGroupTx(ctx, tx, sg); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// UpsertBatch writes a bounded import chunk in one transaction.
+func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domain.SystemGroup) error {
+	if len(groups) == 0 {
+		return nil
+	}
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	for _, group := range groups {
+		if group == nil {
+			return fmt.Errorf("nil system group in batch")
+		}
+		if err := upsertSystemGroupTx(ctx, tx, group); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func upsertSystemGroupTx(ctx context.Context, tx pgx.Tx, sg *domain.SystemGroup) error {
+	var err error
 	var sgID uuid.UUID
 	if sg.TelegramChatID != 0 {
 		lookupErr := tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
@@ -45,19 +77,16 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			if err != nil {
 				return err
 			}
-		} else {
+		} else if lookupErr == pgx.ErrNoRows {
 			sgID = uuid.Nil
+		} else {
+			return fmt.Errorf("lookup system group by Telegram chat ID: %w", lookupErr)
 		}
 	}
 	if sgID == uuid.Nil {
-		_, err = tx.Exec(ctx, "INSERT INTO system_groups (dedup_key,source,title,username,tme_link,gtype,member_count,status,ref_count,last_seen_at,telegram_chat_id,resolution_status,member_count_updated_at,first_contributor_tenant_id,first_contributor_tenant_name) VALUES ($1,$2,$3::text,$4,$5,$6,$7,$8,1,NOW(),NULLIF($9,0),CASE WHEN $9<>0 THEN 'resolved' WHEN COALESCE($3::text,'')<>'' OR $7>0 THEN 'identity_pending' ELSE 'pending' END,CASE WHEN $7>0 THEN NOW() ELSE NULL END,NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid,COALESCE((SELECT name FROM tenants WHERE tenant_id=NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid),'')) ON CONFLICT (dedup_key) DO UPDATE SET ref_count=system_groups.ref_count+1, telegram_chat_id=COALESCE(system_groups.telegram_chat_id,NULLIF(EXCLUDED.telegram_chat_id,0)), resolution_status=CASE WHEN EXCLUDED.resolution_status='resolved' THEN 'resolved' WHEN EXCLUDED.resolution_status='identity_pending' AND system_groups.resolution_status='pending' THEN 'identity_pending' ELSE system_groups.resolution_status END, first_contributor_tenant_id=COALESCE(system_groups.first_contributor_tenant_id,EXCLUDED.first_contributor_tenant_id), first_contributor_tenant_name=CASE WHEN system_groups.first_contributor_tenant_id IS NULL THEN EXCLUDED.first_contributor_tenant_name ELSE system_groups.first_contributor_tenant_name END, member_count_updated_at=CASE WHEN EXCLUDED.member_count>0 THEN NOW() ELSE system_groups.member_count_updated_at END, member_count=CASE WHEN EXCLUDED.member_count>0 THEN EXCLUDED.member_count ELSE system_groups.member_count END, last_seen_at=NOW(), status=EXCLUDED.status, title=CASE WHEN COALESCE(system_groups.title,'')='' OR system_groups.title=system_groups.tme_link THEN EXCLUDED.title ELSE system_groups.title END, username=COALESCE(NULLIF(system_groups.username,''),EXCLUDED.username), gtype=CASE WHEN system_groups.gtype='unknown' THEN EXCLUDED.gtype ELSE system_groups.gtype END", sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status, sg.TelegramChatID, sg.ContributorTenantID)
+		err = tx.QueryRow(ctx, "INSERT INTO system_groups (dedup_key,source,title,username,tme_link,gtype,member_count,status,ref_count,last_seen_at,telegram_chat_id,resolution_status,member_count_updated_at,first_contributor_tenant_id,first_contributor_tenant_name) VALUES ($1,$2,$3::text,$4,$5,$6,$7,$8,1,NOW(),NULLIF($9,0),CASE WHEN $9<>0 THEN 'resolved' WHEN COALESCE($3::text,'')<>'' OR $7>0 THEN 'identity_pending' ELSE 'pending' END,CASE WHEN $7>0 THEN NOW() ELSE NULL END,NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid,COALESCE((SELECT name FROM tenants WHERE tenant_id=NULLIF($10::text,'00000000-0000-0000-0000-000000000000')::uuid),'')) ON CONFLICT (dedup_key) DO UPDATE SET ref_count=system_groups.ref_count, telegram_chat_id=COALESCE(system_groups.telegram_chat_id,NULLIF(EXCLUDED.telegram_chat_id,0)), resolution_status=CASE WHEN EXCLUDED.resolution_status='resolved' THEN 'resolved' WHEN EXCLUDED.resolution_status='identity_pending' AND system_groups.resolution_status='pending' THEN 'identity_pending' ELSE system_groups.resolution_status END, first_contributor_tenant_id=COALESCE(system_groups.first_contributor_tenant_id,EXCLUDED.first_contributor_tenant_id), first_contributor_tenant_name=CASE WHEN system_groups.first_contributor_tenant_id IS NULL THEN EXCLUDED.first_contributor_tenant_name ELSE system_groups.first_contributor_tenant_name END, member_count_updated_at=CASE WHEN EXCLUDED.member_count>0 THEN NOW() ELSE system_groups.member_count_updated_at END, member_count=CASE WHEN EXCLUDED.member_count>0 THEN EXCLUDED.member_count ELSE system_groups.member_count END, last_seen_at=NOW(), status=EXCLUDED.status, title=CASE WHEN COALESCE(system_groups.title,'')='' OR system_groups.title=system_groups.tme_link THEN EXCLUDED.title ELSE system_groups.title END, username=COALESCE(NULLIF(system_groups.username,''),EXCLUDED.username), gtype=CASE WHEN system_groups.gtype='unknown' THEN EXCLUDED.gtype ELSE system_groups.gtype END RETURNING sg_id", sg.DedupKey(), sg.Source, sg.Title, sg.Username, sg.TmeLink, sg.GType, sg.MemberCount, sg.Status, sg.TelegramChatID, sg.ContributorTenantID).Scan(&sgID)
 		if err != nil {
-			return err
-		}
-		if sg.TelegramChatID != 0 {
-			_ = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE telegram_chat_id=$1 LIMIT 1", sg.TelegramChatID).Scan(&sgID)
-		} else {
-			_ = tx.QueryRow(ctx, "SELECT sg_id FROM system_groups WHERE dedup_key=$1", sg.DedupKey()).Scan(&sgID)
+			return fmt.Errorf("upsert system group and return identity: %w", err)
 		}
 	}
 	if sgID != uuid.Nil && sg.ContributorTenantID != uuid.Nil {
@@ -74,6 +103,11 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			if err != nil {
 				return err
 			}
+			// ref_count represents distinct normalized links, not import attempts.
+			_, err = tx.Exec(ctx, "UPDATE system_groups SET ref_count=(SELECT COUNT(*) FROM system_group_links WHERE sg_id=$1) WHERE sg_id=$1", sgID)
+			if err != nil {
+				return err
+			}
 			_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source) SELECT $1,tenant_id,name,$2,$3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", sgID, sg.TmeLink, sg.Source, sg.ContributorTenantID)
 			if err != nil {
 				return err
@@ -84,7 +118,8 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 			}
 		}
 	}
-	return tx.Commit(ctx)
+
+	return nil
 }
 
 func normalizeSystemGroupLink(value string) string {
@@ -102,7 +137,7 @@ func normalizeSystemGroupLink(value string) string {
 	if len(parts) != 2 {
 		return ""
 	}
-	host := strings.ToLower(strings.TrimPrefix(parts[0], "www."))
+	host := strings.TrimPrefix(strings.ToLower(parts[0]), "www.")
 	if host != "t.me" && host != "telegram.me" && host != "telegram.dog" {
 		return ""
 	}

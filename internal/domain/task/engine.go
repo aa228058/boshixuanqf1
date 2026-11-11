@@ -60,9 +60,19 @@ type Engine struct {
 	// R119: 任务结束邮件通知回调(由 container 注入, nil=不通知)
 	finishNotify func(tenantID uuid.UUID, taskName string, taskType string, status string, done, failed int)
 
-	workerID       string
-	stopCh         chan struct{}
-	stopOnce       sync.Once
+	workerID string
+	stopCh   chan struct{}
+	stopOnce sync.Once
+
+	// startMu serializes concurrent Start calls. lifecycleMu protects state and
+	// ensures Stop cancels startup before waiting for engine-owned goroutines.
+	startMu       sync.Mutex
+	lifecycleMu   sync.Mutex
+	started       bool
+	stopped       bool
+	runtimeCancel context.CancelFunc
+
+	// shutdownCtx is cancelled by Stop so long-running task contexts cannot outlive the engine.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	// GlobalLimitFn 返回当前全局并发上限(由 adaptive 内存调度注入, 按服务器内存动态调整).
@@ -246,6 +256,7 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 // 同时写入 progressCache，供 StreamProgress 免库读取。
 func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress domain.TaskProgress) {
 	e.progressMu.Lock()
+	defer e.progressMu.Unlock()
 	if cached, ok := e.progressCache.Load(taskID); ok {
 		if previous, valid := cached.(domain.TaskProgress); valid && progress.Done < previous.Done {
 			progress = previous
@@ -259,7 +270,6 @@ func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress 
 			"time":     time.Now().UTC(),
 		})
 	}
-	e.progressMu.Unlock()
 }
 
 // GetProgress 返回任务最新进度（内存缓存）。第二返回值 false = 无缓存
@@ -306,7 +316,9 @@ func (e *Engine) publishLog(tenantID uuid.UUID, taskID uuid.UUID, log *domain.Ta
 
 // startLogCleanup 每 24 小时自动删除 7 天前的历史日志, 防表膨胀。
 func (e *Engine) startLogCleanup(ctx context.Context) {
+	e.wg.Add(1)
 	safego.Go(func() {
+		defer e.wg.Done()
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		// 启动时先清一次(系统级清扫, 无租户上下文 → Global 版本)
@@ -321,21 +333,69 @@ func (e *Engine) startLogCleanup(ctx context.Context) {
 				}
 			case <-ctx.Done():
 				return
+			case <-e.stopCh:
+				return
 			}
 		}
 	})
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	e.startLogCleanup(ctx)
-	// Load all active tenants and register their plan quotas
-	if err := e.loadTenantQuotas(ctx); err != nil {
+	e.startMu.Lock()
+	defer e.startMu.Unlock()
+
+	e.lifecycleMu.Lock()
+	if e.stopped {
+		e.lifecycleMu.Unlock()
+		return fmt.Errorf("task engine has already been stopped")
+	}
+	if e.started {
+		e.lifecycleMu.Unlock()
+		return nil
+	}
+
+	// Count startup itself before releasing the lifecycle lock. Stop may now
+	// cancel this context and wait without racing a zero-count WaitGroup.
+	e.wg.Add(1)
+	runtimeCtx, runtimeCancel := context.WithCancel(ctx)
+	e.runtimeCancel = runtimeCancel
+	stopShutdown := func() bool { return false }
+	if e.shutdownCtx != nil {
+		stopShutdown = context.AfterFunc(e.shutdownCtx, runtimeCancel)
+	}
+	e.lifecycleMu.Unlock()
+
+	startupSucceeded := false
+	defer func() {
+		if !startupSucceeded {
+			stopShutdown()
+			runtimeCancel()
+			e.lifecycleMu.Lock()
+			e.runtimeCancel = nil
+			e.lifecycleMu.Unlock()
+		}
+		e.wg.Done()
+	}()
+
+	// Load all active tenants and register their plan quotas.
+	if err := e.loadTenantQuotas(runtimeCtx); err != nil {
 		log.Printf("[engine] 加载租户配额失败: %v", err)
 	}
 
-	if err := e.startListen(ctx); err != nil {
+	if err := e.startListen(runtimeCtx); err != nil {
 		return fmt.Errorf("start listen: %w", err)
 	}
+
+	// Startup may have been cancelled while acquiring the LISTEN connection.
+	// Do not launch any additional loops after Stop has begun.
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if e.stopped || runtimeCtx.Err() != nil {
+		return fmt.Errorf("task engine stopped during startup")
+	}
+
+	e.startLogCleanup(runtimeCtx)
+
 	// P1-45 审计修复: worker 数原来硬编码 3, cfg.TaskWorkerCount 配置形同虚设——用配置值
 	workers := e.cfg.TaskWorkerCount
 	if workers < 1 {
@@ -343,16 +403,18 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	for i := 0; i < workers; i++ {
 		e.wg.Add(1)
-		safego.Go(func() { e.workerLoop(ctx) })
+		safego.Go(func() { e.workerLoop(runtimeCtx) })
 	}
 	e.wg.Add(1)
-	safego.Go(func() { e.pollLoop(ctx) })
+	safego.Go(func() { e.pollLoop(runtimeCtx) })
 	if e.linkScraper != nil {
-		e.linkScraper.Start(ctx)
+		e.linkScraper.Start(runtimeCtx)
 	}
 	// 账号冷却到期自动恢复: 每分钟把 blocked_until 已过的受限账号恢复为 online
 	e.wg.Add(1)
-	safego.Go(func() { e.unblockExpiredLoop(ctx) })
+	safego.Go(func() { e.unblockExpiredLoop(runtimeCtx) })
+	e.started = true
+	startupSucceeded = true
 	return nil
 }
 
@@ -440,23 +502,24 @@ func (e *Engine) RegisterTenantQuota(tenantID [16]byte, maxConcurrent int) {
 }
 
 func (e *Engine) Stop() {
+	e.lifecycleMu.Lock()
+	e.stopped = true
 	e.stopOnce.Do(func() {
 		close(e.stopCh)
 		if e.shutdownCancel != nil {
 			e.shutdownCancel()
 		}
+		if e.runtimeCancel != nil {
+			e.runtimeCancel()
+		}
 	})
+	e.lifecycleMu.Unlock()
 	if e.linkScraper != nil {
 		e.linkScraper.Stop()
 	}
 	if e.scheduler != nil {
 		e.scheduler.Stop()
 	}
-	e.listenMu.Lock()
-	if e.listenConn != nil {
-		e.listenConn.Release()
-	}
-	e.listenMu.Unlock()
 	// Clean up all scrape handler entries to prevent memory leaks
 	scrapeHandlerRegistry.Range(func(key, value interface{}) bool {
 		if entry, ok := value.(*scrapeHandlerEntry); ok {
@@ -466,6 +529,15 @@ func (e *Engine) Stop() {
 		return true
 	})
 	e.wg.Wait()
+
+	// The listener goroutine may still be inside WaitForNotification. Release
+	// its connection only after cancellation has drained that goroutine.
+	e.listenMu.Lock()
+	if e.listenConn != nil {
+		e.listenConn.Release()
+		e.listenConn = nil
+	}
+	e.listenMu.Unlock()
 }
 
 // startLogArchiver periodically deletes old task logs to prevent disk bloat.
@@ -487,7 +559,9 @@ func (e *Engine) startListen(ctx context.Context) error {
 	}
 	e.listenConn = conn
 
+	e.wg.Add(1)
 	safego.Go(func() {
+		defer e.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("startListen panic: %v\n%s\n", r, debug.Stack())
@@ -497,6 +571,8 @@ func (e *Engine) startListen(ctx context.Context) error {
 		for {
 			select {
 			case <-e.stopCh:
+				return
+			case <-ctx.Done():
 				return
 			default:
 			}
@@ -533,6 +609,8 @@ func (e *Engine) startListen(ctx context.Context) error {
 			for {
 				select {
 				case <-e.stopCh:
+					return
+				case <-ctx.Done():
 					return
 				case <-func() <-chan time.Time {
 					timer := time.NewTimer(30 * time.Second)
@@ -1096,8 +1174,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	if e.scrapeRegistered[clientKey] {
 		e.scrapeRegMu.Unlock()
 		taskLog.Printf("[monitor_scrape] client %s already has OnMessage registered, falling back to polling", clientKey)
-		// The polling fallback is a placeholder, not an actual message fetcher.
-		// Fail explicitly rather than leaving a task in running until lease recovery.
+		// Fallback to polling if OnMessage already registered (by monitor engine or another task)
 		e.runMonitorScrapePolling(ctx, task, group, matcher, durationMinutes, maxResults, &scrapedCount, scrapedUsers, &countMu)
 		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
 			taskLog.Printf("[task] failed to mark unsupported monitor polling task as failed: %v", err)
@@ -1114,25 +1191,31 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		e.scrapeRegMu.Unlock()
 	}()
 
-	// Gate new callbacks and drain in-flight writes before finalizing progress.
-	// Handler removal is added separately with the MTGO v0.25.0 dependency upgrade.
+	// Register OnMessage callback
+	// Track callbacks admitted before shutdown so finalization cannot race with
+	// an in-flight database write or progress publication.
 	var callbackMu sync.Mutex
 	var callbackWG sync.WaitGroup
-	var stopCallbacksOnce sync.Once
 	acceptingCallbacks := true
+	var handler telegram.Handler
+
+	var stopCallbacksOnce sync.Once
 	stopCallbacks := func() {
 		stopCallbacksOnce.Do(func() {
 			callbackMu.Lock()
 			acceptingCallbacks = false
 			callbackMu.Unlock()
+			client.RemoveHandler(handler)
 			callbackWG.Wait()
+
 			countMu.Lock()
 			scrapedUsers = nil
 			countMu.Unlock()
 		})
 	}
 	defer stopCallbacks()
-	client.OnMessage(func(c *telegram.Client, msg *types.Message) {
+
+	handler = client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		callbackMu.Lock()
 		if !acceptingCallbacks {
 			callbackMu.Unlock()
@@ -1141,6 +1224,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		callbackWG.Add(1)
 		callbackMu.Unlock()
 		defer callbackWG.Done()
+
 		select {
 		case <-ctx.Done():
 			return
@@ -1173,9 +1257,8 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		scrapedCount++
 		currentCount := scrapedCount
 
-		// Serialize the reservation and persistence step. Otherwise a later callback
-		// could persist the final slot and mark the task complete before an earlier
-		// callback fails its write and rolls the count back.
+		// Serialize slot reservation and persistence so concurrent callbacks cannot
+		// overrun maxResults or publish completion before an earlier write fails.
 		member := &domain.Member{
 			MemberID:  uuid.New(),
 			TenantID:  task.TenantID,
@@ -1215,7 +1298,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			taskLog.Printf("[task] failed to create scrape log: %v", err)
 		}
 
-		// Check if max results reached
+		// Stop as soon as the configured maximum is persisted.
 		if maxResults > 0 && currentCount >= int(maxResults) {
 			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 				taskLog.Printf("[task] failed to update status to completed: %v", err)
@@ -1239,8 +1322,7 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		reachedMax = true
 	}
 
-	// Stop new callback admission and wait for all accepted persistence writes
-	// before reading the final count or writing the terminal progress snapshot.
+	// Drain accepted callbacks before reading the final count or publishing terminal progress.
 	stopCallbacks()
 
 	// Finalize

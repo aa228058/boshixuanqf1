@@ -1,14 +1,5 @@
 <script lang="ts">
-import type { Ref } from 'vue'
-
-// 只跟踪当前打开的弹窗；关闭/卸载后压紧序号，避免长期使用导致 z-index 无限增长。
-let modalCounter = 0
-const activeModalOrders = new Map<symbol, Ref<number>>()
-function compactModalOrders() {
-  const active = [...activeModalOrders.entries()]
-  active.forEach(([, order], index) => { order.value = index + 1 })
-  modalCounter = active.length
-}
+import { modalRuntime } from './modalRuntime'
 </script>
 
 <template>
@@ -75,29 +66,15 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
 }>()
 
-// 本实例最近一次打开序位; 使用单调递增序号，避免关闭/卸载顺序导致层级计数错乱
+// 层级序号由独立 runtime 管理，z-index 查询保持纯函数。
 const order = ref(0)
-
-// P2-02 审计修复: 原实现在 zIndexFn 里 +1——该函数渲染期会被多次调用,
-// 每次渲染计数器都涨(打开期间 N 次渲染 = +N 次), 而卸载只 -1 一次,
-// 计数器单调膨胀, z-index 随渲染次数无限抬高( eventually 盖过 toast)。
-// 改为 watch 打开瞬间 +1 一次; zIndexFn 退化为纯查询。序号单调递增，避免卸载顺序影响仍打开的弹窗层级。
 const modalId = Symbol('modal')
 watch(() => props.modelValue, (v) => {
-  if (v) {
-    if (!activeModalOrders.has(modalId)) {
-      modalCounter += 1
-      activeModalOrders.set(modalId, order)
-    }
-    order.value = modalCounter
-  } else {
-    activeModalOrders.delete(modalId)
-    compactModalOrders()
-    order.value = 0
-  }
-})
+  if (v) modalRuntime.registerModal(modalId, order)
+  else modalRuntime.unregisterModal(modalId, order)
+}, { immediate: true })
 function zIndexFn() {
-  return props.zIndex ?? (2500 + order.value * 20)
+  return modalRuntime.getZIndex(order.value, props.zIndex)
 }
 
 function close() {
@@ -109,45 +86,20 @@ function close() {
 function onFocusIn(e: FocusEvent) {
   const t = e.target as HTMLElement | null
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) {
-    t.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    t.scrollIntoView({ block: 'nearest', behavior: 'auto' })
   }
 }
 
-/* ===== 键盘弹起适配(规范 §8): H5 弹窗输入时按钮被顶飞的根治 =====
-   监听 visualViewport: 键盘弹起时其 height 缩小,
-   把差值写成 CSS 变量 --modal-kb, 移动端弹窗整体上移同样距离 */
-const KB_VAR = '--modal-kb'
-function syncKbOffset() {
-  const vv = window.visualViewport
-  if (!vv) return
-  const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-  document.documentElement.style.setProperty(KB_VAR, kb > 80 ? `${kb}px` : '0px')
-}
-function attachKbGuard() {
-  if (!window.visualViewport) return
-  syncKbOffset()
-  vv?.addEventListener('resize', syncKbOffset)
-  vv?.addEventListener('scroll', syncKbOffset)
-}
-function detachKbGuard() {
-  if (!vv) return
-  vv.removeEventListener('resize', syncKbOffset)
-  vv.removeEventListener('scroll', syncKbOffset)
-  document.documentElement.style.setProperty(KB_VAR, '0px')
-}
-let vv: VisualViewport | null = null
-if (typeof window !== 'undefined') vv = window.visualViewport
-
+// 键盘偏移是 document 级共享状态；最后一个打开的 Modal 关闭才复位。
 watch(() => props.modelValue, v => {
-  if (v) attachKbGuard()
-  else detachKbGuard()
+  if (v) modalRuntime.activateKeyboardGuard(modalId)
+  else modalRuntime.deactivateKeyboardGuard(modalId)
 }, { immediate: true })
 
-// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时必须释放 visualViewport 监听并复位全局键盘偏移。
+// 父组件可能在弹窗打开时通过 v-if 卸载本组件；卸载时释放栈与键盘监听引用。
 onUnmounted(() => {
-  detachKbGuard()
-  activeModalOrders.delete(modalId)
-  compactModalOrders()
+  modalRuntime.deactivateKeyboardGuard(modalId)
+  modalRuntime.unregisterModal(modalId, order)
 })
 // 关闭和卸载时压紧仍打开的弹窗序号，层级只取决于当前弹窗栈。
 </script>
@@ -218,6 +170,17 @@ onUnmounted(() => {
 .modal-close:hover {
   background: rgba(128, 128, 128, 0.10);
   color: var(--td-text-color-primary, #1a1a2e);
+}
+
+/* Keep the close affordance comfortably tappable on touch screens. */
+@media (max-width: 768px) {
+  .modal-close {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
 }
 
 /* 内容区 */

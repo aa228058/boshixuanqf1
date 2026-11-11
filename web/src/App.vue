@@ -63,7 +63,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { Toaster } from 'vue-sonner'
 // 2026-10-22 审计修复: 此前此处有一套重复的 online 状态+两个 window 监听器
 // 且从未 removeEventListener(监听器泄漏)——已删除, 统一用下方 isOnline 一套
-import { WifiOff } from 'lucide-vue-next'
 import { globalLoading } from '@/utils/request'
 import SupportFloat from '@/components/ui/SupportFloat.vue'
 import ConfirmHost from '@/components/ui/ConfirmHost.vue'
@@ -97,25 +96,42 @@ function updateThemeColor() {
 // 播"10号系统回弹"(与 CSS 层叠/选择器优先级完全无关, 必定执行); 2.3s 后 JS 再
 // 驱动吸出退场(CSS toast-auto-hide 并行兜底, 双保险)。
 let islandObserver: MutationObserver | null = null
+const islandBindTimers: ReturnType<typeof setTimeout>[] = []
+const islandExitTimers = new Set<ReturnType<typeof setTimeout>>()
+const islandAnimations = new Set<Animation>()
+const animatedIslands = new WeakSet<Element>()
+
+function trackIslandAnimation(animation: Animation | undefined) {
+  if (!animation) return
+  islandAnimations.add(animation)
+  animation.onfinish = () => islandAnimations.delete(animation)
+  animation.oncancel = () => islandAnimations.delete(animation)
+}
+
 const playIslandDrop = (el: Element) => {
+  if (animatedIslands.has(el)) return
+  animatedIslands.add(el)
   const h = el as HTMLElement
-  h.animate?.(
+  trackIslandAnimation(h.animate?.(
     [
       { opacity: 0, transform: 'translateY(-40px)' },
       { opacity: 1, transform: 'translateY(4px)', offset: 0.7 },
       { opacity: 1, transform: 'translateY(0)' },
     ],
     { duration: 550, easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)' }
-  )
-  setTimeout(() => {
-    h.animate?.(
+  ))
+  const exitTimer = setTimeout(() => {
+    islandExitTimers.delete(exitTimer)
+    if (!h.isConnected) return
+    trackIslandAnimation(h.animate?.(
       [
         { opacity: 1, transform: 'translateY(0) scale(1)' },
         { opacity: 0, transform: 'translateY(-20px) scale(0.85)' },
       ],
       { duration: 250, easing: 'cubic-bezier(0.6, -0.28, 0.735, 0.045)', fill: 'forwards' }
-    )
+    ))
   }, 2300)
+  islandExitTimers.add(exitTimer)
 }
 const bindIslandAnim = () => {
   if (islandObserver) return
@@ -138,8 +154,7 @@ onMounted(() => {
   themeObserver = new MutationObserver(updateThemeColor)
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   bindIslandAnim()
-  setTimeout(bindIslandAnim, 600)
-  setTimeout(bindIslandAnim, 1600)
+  islandBindTimers.push(setTimeout(bindIslandAnim, 600), setTimeout(bindIslandAnim, 1600))
 })
 
 onUnmounted(() => {
@@ -147,6 +162,14 @@ onUnmounted(() => {
   window.removeEventListener('offline', updateOnlineStatus)
   themeObserver?.disconnect()
   themeObserver = null
+  islandObserver?.disconnect()
+  islandObserver = null
+  islandBindTimers.forEach(clearTimeout)
+  islandBindTimers.length = 0
+  islandExitTimers.forEach(clearTimeout)
+  islandExitTimers.clear()
+  islandAnimations.forEach((animation) => animation.cancel())
+  islandAnimations.clear()
 })
 </script>
 

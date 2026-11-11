@@ -23,9 +23,7 @@
 /* ========== 3. 按钮四级规范 ========== */
 /* 主按钮: 纯色, 无渐变无发光 */
 /* 旧 glow-btn 样式已无业务调用；统一按钮样式由 ui-kit.css 管理。 */
-/* 成功/失败态(useAsyncBtn 用) */
-.btn-success { background: var(--t-ok) !important; background-image: none !important; }
-.btn-error { background: var(--t-err) !important; background-image: none !important; }
+/* R2: 已清理经全仓引用审计确认无调用的旧成功/失败按钮状态样式。 */
 /* 标题去渐变: 纯色主色 */
 .text-gradient-cyan {
   background: none !important;
