@@ -31,11 +31,11 @@
     </section>
 
     <!-- 图表区 -->
-    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 reveal reveal-delay-1">
+    <section class="grid grid-cols-1 gap-4 reveal reveal-delay-1">
       <!-- R98 仪表盘双栏: 趋势+分布并排(桌面端), 高度占用减半 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <!-- 任务趋势 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-3.5 sm:p-5 md:p-6 min-h-[260px] md:min-h-[320px] lift">
+      <article class="glass rounded-[var(--t-r-lg)] p-3.5 sm:p-5 md:p-6 min-h-[260px] md:min-h-[320px] min-w-0 lift">
         <h3 class="text-body font-semibold text-text-primary mb-4">近 7 天任务趋势</h3>
         <div v-if="loading" class="h-56 flex items-center justify-center">
           <span class="w-5 h-5 rounded-full border-2 animate-spin inline-block" style="border-color: var(--t-brand); border-top-color: transparent;"></span>
