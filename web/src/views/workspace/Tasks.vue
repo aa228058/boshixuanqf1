@@ -97,7 +97,7 @@
           <div class="rounded bg-bg-hover/70 animate-pulse" style="width:100%;height:0.5rem"></div>
         </div>
       </div>
-      <div v-else-if="tasks.length === 0" class="py-6">
+      <div v-else-if="tasks.length === 0 && importJobs.length === 0" class="py-6">
         <EmptyState title="暂无任务" description="创建群发/加群/采集任务后会显示在这里" />
       </div>
       <!-- 电脑端: TDesign 表格骨架 -->
