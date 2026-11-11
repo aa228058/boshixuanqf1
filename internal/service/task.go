@@ -333,8 +333,14 @@ func (s *TaskService) CreateBroadcast(ctx context.Context, tenantID uuid.UUID, a
 // First run happens immediately; afterwards the engine requeues it every
 // loopIntervalMinutes until it is paused or cancelled.
 func (s *TaskService) CreateScheduledBroadcast(ctx context.Context, tenantID uuid.UUID, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool) (*domain.Task, error) {
+	return s.CreateScheduledBroadcastWithMapping(ctx, tenantID, nil, accountIDs, targetIDs, message, loopIntervalMinutes, intervalMin, intervalMax, isLoop)
+}
+
+// CreateScheduledBroadcastWithMapping creates a recurring broadcast using the same
+// explicit account-to-target assignments as a one-time broadcast.
+func (s *TaskService) CreateScheduledBroadcastWithMapping(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool) (*domain.Task, error) {
 	now := time.Now()
-	task, err := s.CreateBroadcast(ctx, tenantID, accountIDs, targetIDs, message, &now, intervalMin, intervalMax, nil)
+	task, err := s.CreateBroadcastWithMapping(ctx, tenantID, mappings, accountIDs, targetIDs, message, &now, intervalMin, intervalMax, nil)
 	if err != nil {
 		return nil, err
 	}
