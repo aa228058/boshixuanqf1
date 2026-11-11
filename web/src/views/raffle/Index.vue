@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-3xl mx-auto px-4 md:px-8 py-6 space-y-5">
+  <div class="min-w-0 w-full max-w-3xl mx-auto px-3 sm:px-5 md:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
     <!-- 头部说明 R118: 大段文案改 3 条图标要点, 扫一眼即懂 -->
     <div class="rounded-[var(--t-r-lg)] border border-border bg-bg-card p-5 lift">
       <h2 class="text-lg font-bold text-text-primary">抽奖助手</h2>
