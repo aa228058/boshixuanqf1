@@ -57,27 +57,15 @@ func deviceProfileFromMap(profile map[string]any) (*DeviceProfile, error) {
 	return ParseDeviceProfile(data)
 }
 
-func generateDeviceConfig(sessionName, deviceType string) telegram.DeviceConfig {
+func generateDeviceConfig(sessionName string) telegram.DeviceConfig {
 	cfg := &telegram.Config{}
-	switch deviceType {
-	case "desktop":
-		device.Desktop.Generate(sessionName).Apply(cfg)
-		cfg.Device.AppVersion = "7.0.9"
-	case "macos":
-		device.MacOS.Generate(sessionName).Apply(cfg)
-		cfg.Device.AppVersion = "7.0.9"
-	case "ios":
-		fallthrough
-	default:
-		device.IOS.Generate(sessionName).Apply(cfg)
-	}
+	device.IOS.Generate(sessionName).Apply(cfg)
 	return cfg.Device
 }
 
-// pickDeviceType selects device type for account.
-// All accounts use macOS for consistent behavior and better compatibility.
-func pickDeviceType(accountID uuid.UUID) string {
-	return "macos"
+// pickDeviceType keeps the account device identity on the iOS client profile.
+func pickDeviceType(_ uuid.UUID) string {
+	return "ios"
 }
 
 // deviceProfileToConfig converts a saved device profile map to telegram.DeviceConfig.
@@ -87,12 +75,27 @@ func deviceProfileToConfig(profile map[string]any, sessionName string) telegram.
 	if sessionName == "" {
 		return telegram.DeviceConfig{}
 	}
-	// Restore saved device config from DB to keep consistent identity
+
+	model, _ := profile["model"].(string)
+	system, _ := profile["system"].(string)
+	deviceType, _ := profile["device_type"].(string)
+	platform, _ := profile["platform"].(string)
+	legacyType := (deviceType != "" && !strings.EqualFold(deviceType, "ios")) ||
+		(platform != "" && !strings.EqualFold(platform, "ios")) ||
+		strings.Contains(strings.ToLower(model), "mac") ||
+		strings.Contains(strings.ToLower(system), "macos")
+
+	// Old macOS/Desktop profiles are migrated to an iOS profile on next connect.
+	// Incomplete profiles also receive a complete iOS profile.
+	if legacyType {
+		return generateDeviceConfig(sessionName)
+	}
+
 	cfg := telegram.DeviceConfig{}
-	if model, ok := profile["model"].(string); ok && model != "" {
+	if model != "" {
 		cfg.DeviceModel = model
 	}
-	if system, ok := profile["system"].(string); ok && system != "" {
+	if system != "" {
 		cfg.SystemVersion = system
 	}
 	if app, ok := profile["app"].(string); ok && app != "" {
@@ -107,15 +110,40 @@ func deviceProfileToConfig(profile map[string]any, sessionName string) telegram.
 	if sysLangCode, ok := profile["system_lang_code"].(string); ok && sysLangCode != "" {
 		cfg.SystemLangCode = sysLangCode
 	}
-	// If any critical field is missing, generate new config
 	if cfg.DeviceModel == "" || cfg.SystemVersion == "" || cfg.AppVersion == "" {
-		deviceType, _ := profile["device_type"].(string)
-		if deviceType == "" {
-			deviceType = "macos"
-		}
-		return generateDeviceConfig(sessionName, deviceType)
+		return generateDeviceConfig(sessionName)
 	}
 	return cfg
+}
+
+// hasDeviceIdentityFields reports whether a profile contains any device identity
+// keys. Metadata-only profiles (for example encrypted 2FA) can be safely
+// initialized for legacy imported sessions.
+func hasDeviceIdentityFields(profile map[string]any) bool {
+	for _, key := range []string{"model", "system", "app"} {
+		if _, ok := profile[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// mergeDeviceConfigProfile replaces device identity fields while preserving
+// unrelated account metadata stored in the same JSONB object.
+func mergeDeviceConfigProfile(existing map[string]any, d telegram.DeviceConfig, deviceType string) map[string]any {
+	result := make(map[string]any, len(existing)+8)
+	for key, value := range existing {
+		switch key {
+		case "model", "system", "app", "lang_pack", "lang_code", "system_lang_code", "platform", "device_type":
+			continue
+		default:
+			result[key] = value
+		}
+	}
+	for key, value := range deviceConfigToProfile(d, deviceType) {
+		result[key] = value
+	}
+	return result
 }
 
 // deviceConfigToProfile converts telegram.DeviceConfig to a map for DB storage.
