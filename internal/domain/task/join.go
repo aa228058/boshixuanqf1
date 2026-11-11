@@ -391,7 +391,6 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 					}
 				}
 			}
-		}
 
 	logAndContinue:
 		joinLog := &domain.TaskLog{
