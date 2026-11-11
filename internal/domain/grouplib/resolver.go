@@ -83,6 +83,17 @@ func (e *Engine) resolvePendingTitles(ctx context.Context) error {
 			} else {
 				e.deferResolutionRetry(ctx, p.sgID, "resolution failed")
 			}
+		} else if isBroadcastChannelType(pageType) {
+			// A public preview can reveal that an older placeholder is actually
+			// a broadcast channel. Persist its real type so list/join queries hide it.
+			if err := e.repo.UpdateResolvedInfo(ctx, p.sgID, title, count, "channel", 0); err != nil {
+				log.Printf("[grouplib] 标记广播频道类型失败 %s: %v", p.sgID, err)
+				e.deferResolutionRetry(ctx, p.sgID, "channel type persistence failed")
+			} else if err := e.repo.UpdateLinkValidityByLink(ctx, p.link, "invalid"); err != nil {
+				log.Printf("[grouplib] 标记广播频道链接无效失败 %s: %v", p.link, err)
+			} else {
+				e.finishResolution(ctx, p.sgID, "broadcast channel excluded")
+			}
 		} else if pageType == "user" {
 			// Valid Telegram account/bot URLs are not valid group-library entries.
 			// Do not mark the candidate resolved if link validity persistence failed;
