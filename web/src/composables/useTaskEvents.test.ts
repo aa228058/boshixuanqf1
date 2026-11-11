@@ -143,10 +143,11 @@ describe('useTaskEvents SSE lifecycle', () => {
 
     reconnectNow()
     await flushPromises()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
 
     resolveFirst({ ok: true, json: async () => ({ ticket: 'stale-ticket' }) })
     await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toContain('one-time-ticket')
 
