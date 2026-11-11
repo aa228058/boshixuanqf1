@@ -1,5 +1,5 @@
 <template>
-  <main class="space-y-4">
+  <main class="space-y-3 md:space-y-4 min-w-0">
     <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
       <div>
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">任务列表</h1>
@@ -153,7 +153,7 @@
       <!-- 手机端: 卡片列表(支持下拉刷新) -->
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" class="md:hidden" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id" :style="{ '--i': ti }"
-           :class="['p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : 'border-border']"
+            :class="['p-3 sm:p-4 rounded-[var(--t-r-md)] border bg-bg-card card-lift transition-colors cursor-pointer', task.status === 'running' ? 'card-running' : 'border-border']"
            @click="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.enter.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" @keydown.space.prevent="$router.push(`/workspace/${route.params.accountId}/tasks/${task.task_id}`)" tabindex="0" role="button">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">

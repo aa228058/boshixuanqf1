@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-4xl mx-auto">
+  <div class="min-w-0 w-full p-3 sm:p-5 md:p-6 max-w-4xl mx-auto">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
       <div>
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">成员采集</h1>

@@ -401,7 +401,7 @@ func (r *TaskRepository) PauseIfActive(ctx context.Context, tenantID, taskID uui
 	res, err := r.db.Exec(ctx, `
 		UPDATE tasks SET status = 'paused', completed_at = NULL, locked_at = NULL, worker_id = NULL
 		WHERE tenant_id = $1 AND task_id = $2
-		  AND status IN ('queued', 'running', 'scheduled')
+		  AND status IN ('pending', 'queued', 'running', 'scheduled')
 	`, tenantID, taskID)
 	if err != nil {
 		return false, fmt.Errorf("pause task: %w", err)
@@ -505,6 +505,28 @@ func (r *TaskRepository) ResetToQueued(ctx context.Context, tenantID, taskID uui
 	}
 	if res.RowsAffected() == 0 {
 		return fmt.Errorf("task is no longer failed or paused")
+	}
+	return nil
+}
+
+// ResumeLoop restores a paused recurring task without discarding its next scheduled run.
+// If the scheduled time has passed (or the task was paused mid-run), it is queued immediately.
+func (r *TaskRepository) ResumeLoop(ctx context.Context, tenantID, taskID uuid.UUID) error {
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks
+		SET status = CASE WHEN next_run_at IS NOT NULL AND next_run_at > NOW() THEN 'pending' ELSE 'queued' END,
+		    scheduled_at = CASE WHEN next_run_at IS NOT NULL AND next_run_at > NOW() THEN next_run_at ELSE NULL END,
+		    locked_at = NULL, worker_id = NULL, completed_at = NULL
+		WHERE tenant_id = $1 AND task_id = $2 AND status = 'paused' AND is_loop = TRUE
+	`, tenantID, taskID)
+	if err != nil {
+		return fmt.Errorf("resume loop task: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("loop task is no longer paused")
+	}
+	if _, err := r.db.Exec(ctx, "NOTIFY new_task"); err != nil {
+		log.Printf("[task] failed to notify new task after loop resume: %v", err)
 	}
 	return nil
 }
@@ -736,14 +758,44 @@ func (r *TaskRepository) StopLoop(ctx context.Context, tenantID, taskID uuid.UUI
 // RescheduleLoopTask resets a finished loop task back to scheduled with a new run time.
 func (r *TaskRepository) RescheduleLoopTask(ctx context.Context, tenantID, taskID uuid.UUID, nextRunAt time.Time) error {
 	_, err := r.db.Exec(ctx, `
-		-- 状态必须重置为 'pending': 调度器的 ActivatePendingTasks 每500ms扫描
-		-- 'pending' 且 scheduled_at 到期的任务激活为 queued。
-		-- 原值 'scheduled' 没有任何调度路径处理, 会导致循环任务执行一次后永远停摆。
-		UPDATE tasks SET status = 'pending', next_run_at = $3, scheduled_at = $3,
-		                 completed_at = NULL, locked_at = NULL, worker_id = NULL,
-		                 progress = '{"total":0,"done":0,"failed":0}'
-		WHERE tenant_id = $1 AND task_id = $2
-          AND status = 'completed' AND is_loop = TRUE`, tenantID, taskID, nextRunAt)
+		-- 轮数在完成本轮时递增；达到最大轮数或结束时间后保留 completed 并关闭循环。
+		WITH limits AS (
+			SELECT task_id,
+			       COALESCE(NULLIF(payload->>'round_count', '')::int, 0) + 1 AS next_round,
+			       COALESCE(NULLIF(payload->>'max_rounds', '')::int, 0) AS max_rounds,
+			       NULLIF(payload->>'end_at', '')::timestamptz AS end_at
+			FROM tasks WHERE tenant_id = $1 AND task_id = $2
+		)
+		UPDATE tasks t
+		SET status = CASE WHEN
+		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+		    THEN 'completed' ELSE 'pending' END,
+		    is_loop = CASE WHEN
+		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+		    THEN FALSE ELSE TRUE END,
+		    next_run_at = CASE WHEN
+		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+		    THEN NULL ELSE $3 END,
+		    scheduled_at = CASE WHEN
+		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+		    THEN NULL ELSE $3 END,
+		    completed_at = CASE WHEN
+		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+		    THEN NOW() ELSE NULL END,
+		    locked_at = NULL, worker_id = NULL,
+		    progress = CASE WHEN
+		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+		    THEN t.progress ELSE '{"total":0,"done":0,"failed":0}'::jsonb END,
+		    payload = jsonb_set(COALESCE(t.payload, '{}'::jsonb), '{round_count}', to_jsonb(l.next_round), TRUE)
+		FROM limits l
+		WHERE t.tenant_id = $1 AND t.task_id = l.task_id
+		  AND t.status = 'completed' AND t.is_loop = TRUE`, tenantID, taskID, nextRunAt)
 	return err
 }
 

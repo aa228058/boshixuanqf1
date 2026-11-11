@@ -1,5 +1,5 @@
 <template>
-  <main class="space-y-4">
+  <main class="min-w-0 w-full space-y-3 sm:space-y-4">
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
     <div class="grid gap-2 mb-3.5">
       <div class="flex gap-2">

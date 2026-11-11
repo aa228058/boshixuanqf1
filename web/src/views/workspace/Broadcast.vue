@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-3xl mx-auto">
+  <div class="w-full min-w-0 p-3 sm:p-5 md:p-6 max-w-3xl mx-auto">
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="min-w-0">
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">群发消息</h1>
@@ -46,16 +46,29 @@
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
       <div v-else class="space-y-3 mb-4">
         <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
-        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
+        <div v-for="(t, ti) in tasks" :key="t.task_id" :class="['glass rounded-[var(--t-r-md)] p-3 sm:p-4 card-lift card-enter hover:border-[color:var(--t-brand-dim)] mb-3', t.status === 'running' ? 'card-running' : '']" :style="{ '--i': ti }">
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <span class="px-2 py-0.5 rounded text-xs shrink-0 inline-flex items-center gap-1.5" :class="statusClass(t.status)">
                 <span v-if="t.status === 'running'" class="w-1.5 h-1.5 rounded-full bg-current dot-pulse" />
                 {{ statusLabel(t.status) }}
               </span>
+              <span v-if="t.is_loop" class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--t-brand-dim)] text-[var(--t-brand)] shrink-0">循环 · {{ t.loop_interval_minutes || 60 }} 分钟</span>
+              <span v-else class="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-muted shrink-0">单次</span>
               <span class="text-xs text-text-muted truncate">目标 {{ (t.target_ids || []).length || progOf(t).total || '-' }} 个</span>
             </div>
             <span class="text-xs text-text-muted shrink-0">{{ formatTime(t.created_at) }}</span>
+          </div>
+          <div v-if="t.is_loop && t.next_run_at && ['pending','paused','completed'].includes(t.status)" class="mt-2 text-[11px] text-text-muted">
+            下次计划执行：{{ formatTime(t.next_run_at) }}
+          </div>
+          <div v-if="t.is_loop" class="mt-1 text-[11px] text-text-muted">
+            已完成轮数：{{ Number((t.payload as any)?.round_count || 0) }}
+          </div>
+          <div v-if="t.is_loop && ((t.payload as any)?.max_rounds || (t.payload as any)?.end_at)" class="mt-1 text-[11px] text-text-muted">
+            <span v-if="(t.payload as any)?.max_rounds">最多 {{ (t.payload as any).max_rounds }} 轮</span>
+            <span v-if="(t.payload as any)?.max_rounds && (t.payload as any)?.end_at"> · </span>
+            <span v-if="(t.payload as any)?.end_at">结束于 {{ formatTime((t.payload as any).end_at) }}</span>
           </div>
           <div class="mt-3">
             <div class="flex items-center justify-between text-xs mb-1.5">
@@ -81,7 +94,9 @@
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
             <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="retryFailed(t.task_id)">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="pauseTask(t.task_id)">暂停</t-button>
+            <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click.stop="resumeTask(t.task_id)">继续</t-button>
+            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" variant="outline" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
             <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)">查看详情</t-button>
           </div>
         </div>
@@ -92,7 +107,7 @@
 
     <!-- 新建模态框: 表单全部内容, 统一全站弹窗组件(留在 tab 容器外, 任何 tab 可开) -->
     <Modal v-model="showCreate" title="新建群发任务">
-    <div class="space-y-4">
+    <div class="space-y-3 sm:space-y-4">
       <!-- R110: 协议号协同死分支已删(isProtocol 恒 false)。统一多号池流程见下 -->
       <!-- 目标选择 -->
       <div>
@@ -115,7 +130,7 @@
           </div>
         </div>
         <TargetSelector v-model="showTargetSelector" :groups="groups" :accountId="currentAccount?.account_id" @select="selectedTargets = $event" @refresh="onSelectorRefresh" />
-        <!-- R101 P1: 执行账号多选(后端笛卡尔模式: 每账号×全目标) -->
+        <!-- 执行账号多选；实际发送范围按每个账号已加入的群组映射计算 -->
         <label class="block text-sm font-medium mb-2 mt-4">执行账号（可多选）</label>
         <div class="flex flex-wrap gap-1.5">
           <button v-for="acc in onlineAccounts" :key="acc.account_id" type="button" @click="toggleExec(acc.account_id)"
@@ -124,17 +139,35 @@
             {{ acc.first_name || acc.phone }}
           </button>
         </div>
+        <div class="mt-3">
+          <label class="block text-xs font-semibold text-text-secondary mb-2">账号分配策略</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" @click="sendStrategy = 'assign'"
+              class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
+              :class="sendStrategy === 'assign' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
+              <span class="block font-semibold">均衡分配</span>
+              <span class="block mt-1 opacity-75">每个群由一个已加入的账号负责</span>
+            </button>
+            <button type="button" @click="sendStrategy = 'all'"
+              class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
+              :class="sendStrategy === 'all' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
+              <span class="block font-semibold">全部符合条件账号</span>
+              <span class="block mt-1 opacity-75">每个已加入该群的所选账号各执行一次</span>
+            </button>
+          </div>
+          <p class="text-[10.5px] text-text-muted mt-1.5">{{ isLoop ? '循环任务每一轮沿用此账号分配关系。' : '单次任务按此分配关系执行一轮。' }}</p>
+        </div>
         <p v-if="selectedTargets.length && execAccounts.length" class="text-[10.5px] text-text-muted mt-1.5">
-          预计发送 {{ selectedTargets.length * execAccounts.length }} 条 = {{ selectedTargets.length }} 目标 × {{ execAccounts.length }} 账号
+          按账号入群情况预计发送 <strong class="text-text-primary">{{ coverage.ok }}</strong> 条
+          <span v-if="coverage.unreachable.length"> · {{ coverage.unreachable.length }} 个群没有所选账号加入</span>
           · 约需 {{ estMinutes }} 分钟
         </p>
         <!-- R101 P1-第二刀: 覆盖预览 -->
-        <div v-if="selectedTargets.length && execAccounts.length && coverage.ok + coverage.fail > 0"
+        <div v-if="selectedTargets.length && execAccounts.length && (coverage.ok > 0 || coverage.unreachable.length > 0)"
              class="mt-3 rounded-lg border p-3 text-xs"
-             :class="(coverage.fail > 0 || coverage.unreachable.length) ? 'border-[color:var(--t-warn)]/30 bg-[var(--t-warn)]/5' : 'border-[color:var(--t-ok)]/30 bg-[var(--t-ok)]/5'">
+             :class="coverage.unreachable.length ? 'border-[color:var(--t-warn)]/30 bg-[var(--t-warn)]/5' : 'border-[color:var(--t-ok)]/30 bg-[var(--t-ok)]/5'">
           <div>
             <span class="text-[var(--t-ok)]">✅ 可发 {{ coverage.ok }} 条</span>
-            <span v-if="coverage.fail" class="text-[var(--t-warn)] ml-2">⚠️ 预计失败 {{ coverage.fail }} 条（账号未加入该群）</span>
             <span v-if="coverage.unreachable.length" class="text-[var(--t-err)] ml-2">⛔ {{ coverage.unreachable.length }} 个群无账号加入</span>
           </div>
           <div v-if="coverage.unreachable.length" class="text-[10.5px] text-[var(--t-warn)]/90 mt-1.5 leading-relaxed">
@@ -162,17 +195,21 @@
       <!-- 消息内容 -->
       <div>
       <label class="block text-sm font-medium mb-2">消息内容</label>
-        <!-- 变量插入(交互示例10标签输入的轻量版): 点变量插入到光标处 -->
-        <div class="flex flex-wrap gap-1.5 mb-2">
-          <button type="button" v-for="v in msgVars" :key="v" @click="insertVar(v)"
-                  class="px-2 py-0.5 rounded-md bg-bg-primary border border-border text-text-secondary text-xs font-mono hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">{{ v }}</button>
-          <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] self-center ml-auto">草稿已自动保存</span>
-        </div>
-        <t-textarea ref="msgRef" v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
-                    placeholder="输入要发送的消息... 变量: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}； 随机语法: {你好|Hi|Hello}" />
+        <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] mb-2 block">草稿已自动保存</span>
+        <t-textarea v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
+                    placeholder="输入消息内容；如需随机表达，请使用 {选项一|选项二} 格式。" />
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
-          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="showPreview = true">预览变量效果</t-button>
+        </div>
+        <div v-if="authStore.tenant?.plan_features?.dict && textDicts.length" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
+          <div class="flex items-center justify-between gap-2"><span class="text-xs font-medium text-text-secondary">我的文本素材</span><button type="button" class="text-xs text-[var(--t-brand)]" @click="showTextSnippets = !showTextSnippets">{{ showTextSnippets ? "收起" : "选择并插入" }}</button></div>
+          <div v-if="showTextSnippets" class="space-y-2">
+            <select v-model="selectedTextDictId" class="ui-input w-full text-sm"><option value="">选择素材分组</option><option v-for="d in textDicts" :key="d.dict_id" :value="d.dict_id">{{ d.name }}</option></select>
+            <div v-if="selectedTextDict" class="flex flex-wrap gap-2">
+              <button v-for="(item, index) in selectedTextDict.items" :key="index" type="button" class="px-2.5 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-[color:var(--t-brand)] text-left max-w-full break-words" @click="insertTextSnippet(item)">{{ item }}</button>
+            </div>
+            <p v-else class="text-xs text-text-muted">选择一个分组后，点击素材即可插入到消息末尾。</p>
+          </div>
         </div>
       </div>
 
@@ -219,9 +256,15 @@
       <div>
         <label class="block text-sm font-medium mb-2">发送间隔（秒）</label>
         <!-- TDesign 骨架: 数字输入组件(品牌紫双主题) -->
-        <div class="flex gap-3">
-          <t-input-number v-model="intervalMin" :min="1" :max="300" theme="normal" class="flex-1" />
-          <t-input-number v-model="intervalMax" :min="1" :max="300" theme="normal" class="flex-1" />
+        <div class="grid grid-cols-2 gap-2 sm:gap-3">
+          <label class="min-w-0 block">
+            <span class="block text-[11px] text-text-muted mb-1">最小间隔</span>
+            <t-input-number v-model="intervalMin" :min="1" :max="300" theme="normal" class="w-full" />
+          </label>
+          <label class="min-w-0 block">
+            <span class="block text-[11px] text-text-muted mb-1">最大间隔</span>
+            <t-input-number v-model="intervalMax" :min="1" :max="300" theme="normal" class="w-full" />
+          </label>
         </div>
         <p class="text-xs text-text-muted mt-1">系统会在最小和最大间隔之间随机取值，模拟真人发送</p>
       </div>
@@ -248,12 +291,28 @@
             <span v-if="!loopFeature" class="absolute -top-1 -right-1 text-[9px] px-1 rounded bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/40">锁</span>
           </button>
         </div>
-        <div v-if="isLoop" class="flex items-center gap-2 mt-2">
-          <span class="text-xs text-text-secondary">每轮间隔</span>
-          <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-28" />
-          <span class="text-xs text-text-muted">分钟</span>
+        <div v-if="isLoop" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
+          <label class="block text-xs font-semibold text-text-secondary">循环周期</label>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-text-muted shrink-0">上一轮完成后，间隔</span>
+            <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-24" />
+            <span class="text-xs text-text-muted shrink-0">分钟开始下一轮</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="block text-xs font-semibold text-text-secondary mb-1">最大执行轮数</label>
+              <t-input v-model="loopMaxRounds" type="number" :min="0" :max="10000" placeholder="0 表示不限" class="w-full" />
+              <p class="text-[10px] text-text-muted mt-1">完成指定轮数后自动停止</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-text-secondary mb-1">自动结束时间（可选）</label>
+              <input v-model="loopEndAt" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+              <p class="text-[10px] text-text-muted mt-1">到期后不再安排下一轮</p>
+            </div>
+          </div>
+          <p class="text-[11px] text-text-muted leading-relaxed">循环任务会重复执行相同的账号分配、群组和消息配置。可在任务列表中暂停或停止；暂停后可继续。</p>
         </div>
-        <p v-if="isLoop" class="text-xs text-text-muted mt-1">混淆文案每轮重新随机, 目标列表去重不重复轰炸</p>
+        <p v-else class="text-xs text-text-muted mt-1">本任务只执行一轮，完成后自动结束。</p>
       </div>
 
     </div>
@@ -265,28 +324,12 @@
     </template>
     </Modal>
 
-    <!-- 变量预览弹窗(统一走 Modal 封装) -->
-    <Modal v-model="showPreview" title="变量预览">
-      <div class="space-y-3 text-sm">
-        <div class="p-3 rounded-lg bg-bg-card">
-          <div class="text-text-muted mb-1">原始内容:</div>
-          <div class="whitespace-pre-wrap">{{ message }}</div>
-        </div>
-        <div class="p-3 rounded-lg bg-[var(--t-brand)]/5 border border-[color:var(--t-brand-dim)]">
-          <div class="text-[var(--t-brand)] mb-1">替换后效果:</div>
-          <div class="whitespace-pre-wrap">{{ previewMessage }}</div>
-        </div>
-      </div>
-      <template #footer>
-        <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" @click="showPreview = false">关闭</t-button>
-      </template>
-    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { groupApi } from '@/api/group'
@@ -294,6 +337,7 @@ import { groupApi } from '@/api/group'
 // R111 已删 ProtocolPicker / campaignApi / CAMPAIGN_STATUS 导入(协议协同死代码)
 import { useGroupStore } from '@/stores/group'
 import { taskApi } from '@/api/task'
+import { settingsApi, type TextDict } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import SendCalendar from '@/components/SendCalendar.vue'
 import { mediaApi } from '@/api/media'
@@ -320,6 +364,8 @@ const activeTab = ref<'tasks' | 'calendar'>('tasks')
 const pageTabs = [{ key: 'tasks', label: '任务列表' }, { key: 'calendar', label: '发送日历' }] as const
 const isLoop = ref(false)
 const loopIntervalMin = ref(60)
+const loopMaxRounds = ref(0)
+const loopEndAt = ref('')
 const authStore = useAuthStore()
 const loopFeature = computed(() => {
   const pf: any = (authStore.tenant as any)?.plan_features
@@ -380,30 +426,45 @@ function groupNameOf(t: string): string {
     String(x.group_id) === t || String(x.tg_chat_id) === t || x.username === t)
   return g ? (g.title || g.username || t) : t
 }
+const sendStrategy = ref<'assign' | 'all'>('assign')
 const coverage = computed(() => {
   const joinedBy = new Map<string, Set<string>>()
   for (const g of _allGroups.value as any[]) {
     const keys = [g.group_id, g.tg_chat_id, g.username, g.tg_link].filter(Boolean).map(String)
     for (const k of keys) {
       if (!joinedBy.has(k)) joinedBy.set(k, new Set())
-      joinedBy.get(k)!.add(g.account_id)
+      joinedBy.get(k)!.add(String(g.account_id))
     }
   }
   const selected = new Set(execAccounts.value)
-  let ok = 0, fail = 0
+  const targetsByAccount = new Map<string, string[]>()
+  let ok = 0
+  let assignmentCursor = 0
   const unreachable: string[] = []
-  for (const t of selectedTargets.value) {
-    const joined = joinedBy.get(String(t))
-    if (!joined || joined.size === 0) { unreachable.push(groupNameOf(t)); continue }
-    const cand = [...joined].filter(id => selected.has(id)).length
-    ok += cand
-    fail += execAccounts.value.length - cand
+  for (const target of selectedTargets.value) {
+    const eligible = [...(joinedBy.get(String(target)) || [])]
+      .filter(id => selected.has(id))
+      .sort((a, b) => execAccounts.value.indexOf(a) - execAccounts.value.indexOf(b))
+    if (!eligible.length) {
+      unreachable.push(groupNameOf(target))
+      continue
+    }
+    const assigned = sendStrategy.value === 'all'
+      ? eligible
+      : [eligible[assignmentCursor++ % eligible.length]]
+    for (const accountId of assigned) {
+      const list = targetsByAccount.get(accountId) || []
+      list.push(target)
+      targetsByAccount.set(accountId, list)
+      ok++
+    }
   }
-  return { ok, fail, unreachable }
+  const mappings = [...targetsByAccount.entries()].map(([account_id, targets]) => ({ account_id, targets }))
+  return { ok, unreachable, mappings }
 })
 // R102: 预计耗时 = 总条数 × 平均间隔(秒) / 60, 向上取整
 const estMinutes = computed(() => {
-  const total = selectedTargets.value.length * execAccounts.value.length
+  const total = coverage.value.ok
   if (!total) return 0
   const avgSec = (intervalMin.value + intervalMax.value) / 2
   return Math.max(1, Math.ceil((total * avgSec) / 60))
@@ -429,26 +490,22 @@ function onImportFile(e: Event) {
   r.readAsText(f)
 }
 const message = ref('')
-
-// ===== 变量插入 + 草稿自动保存(交互示例 10/09/116, 2026-10-21) =====
-// P0-02 审计修复: 原单花括号与后端 dictVarRe 的双花括号约定不一致——
-// 变量从未生效, 且单花括号会被后端当 spintax 随机改写消息。统一双花括号。
-const msgVars = ['{{first_name}}', '{{group_name}}', '{{user_id}}', '{{now}}', '{{username}}', '{{phone}}']
-const msgRef = ref<any>(null)
-const draftSaved = ref(false)
-
-function insertVar(v: string) {
-  // t-textarea 内部是 textarea 元素; 优先插到光标处, 拿不到光标就追加
-  const el = msgRef.value?.$el?.querySelector?.('textarea') || msgRef.value?.$el
-  if (el && typeof el.selectionStart === 'number') {
-    const s = el.selectionStart, e = el.selectionEnd
-    message.value = message.value.slice(0, s) + v + message.value.slice(e)
-    nextTick(() => { el.focus(); el.selectionStart = el.selectionEnd = s + v.length })
-  } else {
-    message.value += v
-  }
+const textDicts = ref<TextDict[]>([])
+const selectedTextDictId = ref('')
+const showTextSnippets = ref(false)
+const selectedTextDict = computed(() => textDicts.value.find(d => d.dict_id === selectedTextDictId.value) || null)
+async function loadTextSnippets() {
+  if (!authStore.tenant?.plan_features?.dict) return
+  try { const res = await settingsApi.getTextDicts(); textDicts.value = res.list || [] }
+  catch (e) { console.warn('加载文本素材失败', e) }
+}
+function insertTextSnippet(item: string) {
+  if (!item) return
+  message.value = message.value.trim() ? message.value.trimEnd() + String.fromCharCode(10) + item : item
 }
 
+// 消息草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
+const draftSaved = ref(false)
 // 草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
 let draftTimer: ReturnType<typeof setTimeout> | null = null
 const draftKeyFor = (account: any) => {
@@ -533,10 +590,13 @@ function resetCreateForm() {
   priority.value = 5
   isLoop.value = false
   loopIntervalMin.value = 60
+  loopMaxRounds.value = 0
+  loopEndAt.value = ''
   scheduledAtTs.value = null
   clearMedia()
   obfuscate.value = false
   autoVary.value = true
+  sendStrategy.value = 'assign'
   // 执行账号选择保留为下一次创建的默认账号池；目标和消息等一次性内容全部清空。
 }
 const validating = ref(false)
@@ -566,7 +626,6 @@ async function precheckTargets() {
     if (requestId === precheckRequestId) validating.value = false
   }
 }
-const showPreview = ref(false)
 
 // ===== 模态框化: 本页任务列表 + 新建弹窗 =====
 const showCreate = ref(false)
@@ -591,7 +650,7 @@ async function fetchTasks() {
   }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any)
     if (requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
     tasks.value = res.list || []
     tasksError.value = ''
@@ -619,13 +678,13 @@ watch(currentAccount, fetchTasks)
 
 const statusLabelMap: Record<string, string> = {
   pending: '等待调度', queued: '排队中', running: '运行中',
-  completed: '已完成', failed: '失败', cancelled: '已取消',
+  paused: '已暂停', completed: '已完成', failed: '失败', cancelled: '已取消',
 }
 function statusLabel(s: string) { return statusLabelMap[s] || s }
 function statusClass(s: string): string {
   return ({
     pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
-    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
+    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', paused: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
     failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]', cancelled: 'bg-text-muted/10 text-text-muted',
   } as any)[s] || 'bg-bg-hover text-text-muted'
 }
@@ -654,6 +713,20 @@ async function retryFailed(id: string) {
 async function stopTask(id: string) {
   try { await taskApi.cancel(id); fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
+}
+async function pauseTask(id: string) {
+  try {
+    await taskApi.pause(id)
+    toast({ type: 'success', title: '任务已暂停' })
+    await fetchTasks()
+  } catch (e: any) { toast({ type: 'error', title: '暂停失败', message: e?.message }) }
+}
+async function resumeTask(id: string) {
+  try {
+    await taskApi.resume(id)
+    toast({ type: 'success', title: '任务已继续' })
+    await fetchTasks()
+  } catch (e: any) { toast({ type: 'error', title: '继续失败', message: e?.message }) }
 }
 const showTargetSelector = ref(false)
 // 响应式绑定 groupStore：后台同步完成后写缓存即自动刷新选择器
@@ -724,14 +797,6 @@ const canSubmit = computed(() => {
   return selectedTargets.value.length > 0 && execAccounts.value.length > 0
 })
 
-const previewMessage = computed(() => {
-  return message.value
-    .replace(/\{\{first_name\}\}/g, '张三')
-    .replace(/\{\{group_name\}\}/g, '测试群组')
-    .replace(/\{\{user_id\}\}/g, '123456789')
-    .replace(/\{\{now\}\}/g, new Date().toLocaleString('zh-CN'))
-})
-
 const groupsLoading = ref(false)
 // 群组走缓存 store: 有缓存零请求, 只有选择器里点"同步"才调接口
 const groupStore = useGroupStore()
@@ -777,6 +842,10 @@ async function submit() {
     toast({ type: 'warning', title: '请至少选择一个执行账号和一个发送目标' })
     return
   }
+  if (coverage.value.mappings.length === 0) {
+    toast({ type: 'warning', title: '没有可发送的账号群组组合', message: '请确认已加载群组数据，并至少有一个所选账号加入目标群组' })
+    return
+  }
   if (!Number.isInteger(minSeconds) || !Number.isInteger(maxSeconds) ||
       minSeconds < 1 || maxSeconds > 300 || minSeconds > maxSeconds) {
     toast({ type: 'error', title: '发送间隔无效', message: '最小间隔和最大间隔须为 1–300 秒，且最小值不能大于最大值' })
@@ -792,6 +861,15 @@ async function submit() {
   }
   if (isLoop.value && (!Number.isInteger(loopMinutes) || loopMinutes < 1 || loopMinutes > 10080)) {
     toast({ type: 'error', title: '循环间隔无效', message: '循环间隔须为 1–10080 分钟' })
+    return
+  }
+  const maxRounds = Number(loopMaxRounds.value)
+  if (isLoop.value && (!Number.isInteger(maxRounds) || maxRounds < 0 || maxRounds > 10000)) {
+    toast({ type: 'error', title: '最大轮数无效', message: '请输入 0–10000 的整数，0 表示不限' })
+    return
+  }
+  if (isLoop.value && loopEndAt.value && new Date(loopEndAt.value).getTime() <= Date.now()) {
+    toast({ type: 'error', title: '结束时间无效', message: '结束时间必须晚于当前时间' })
     return
   }
   if (isLoop.value && scheduledAtTs.value) {
@@ -821,10 +899,13 @@ async function submit() {
         account_ids: accountIds,
         target_ids: targetIds,
         payload: { message: messageText },
+        mappings: coverage.value.mappings,
         is_loop: true,
         loop_interval_minutes: loopMinutes,
         min_interval_seconds: minSeconds,
         max_interval_seconds: maxSeconds,
+        max_rounds: maxRounds,
+        ...(loopEndAt.value ? { end_at: new Date(loopEndAt.value).toISOString() } : {}),
       }
     } else {
       payload = {
@@ -834,6 +915,7 @@ async function submit() {
         message: messageText,
         interval_min: minSeconds,
         interval_max: maxSeconds,
+        ...(coverage.value.mappings.length ? { mappings: coverage.value.mappings } : {}),
         auto_vary: autoVary.value,
         obfuscate: obfuscate.value,
       }
@@ -854,7 +936,7 @@ async function submit() {
   }
 }
 
-onMounted(() => { fetchData(); fetchTasks() })
+onMounted(() => { fetchData(); fetchTasks(); loadTextSnippets() })
 // 侧边栏切换账号: 重新拉取群组缓存
 watch(currentAccount, () => { fetchData() })
 </script>

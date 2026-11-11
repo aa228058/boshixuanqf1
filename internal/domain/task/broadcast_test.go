@@ -3,6 +3,8 @@ package task
 import (
 	"context"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestAcquireBroadcastSlotRespectsCancellation(t *testing.T) {
@@ -25,5 +27,31 @@ func TestAcquireBroadcastSlotAcquiresAvailableSlot(t *testing.T) {
 	}
 	if got := len(semaphore); got != 1 {
 		t.Fatalf("semaphore length=%d, want 1", got)
+	}
+}
+
+func TestDedupeTargetsPerAccountPreservesCrossAccountAssignments(t *testing.T) {
+	accountA := uuid.New()
+	accountB := uuid.New()
+	got := dedupeTargetsPerAccount(map[uuid.UUID][]string{
+		accountA: {"group-1", "group-1", "group-2"},
+		accountB: {"group-1"},
+	})
+	if len(got[accountA]) != 2 || got[accountA][0] != "group-1" || got[accountA][1] != "group-2" {
+		t.Fatalf("account A targets = %#v, want [group-1 group-2]", got[accountA])
+	}
+	if len(got[accountB]) != 1 || got[accountB][0] != "group-1" {
+		t.Fatalf("account B targets = %#v, want [group-1]", got[accountB])
+	}
+}
+
+func TestLegacyMessageVariablesAreNotDictionaryKeys(t *testing.T) {
+	for _, name := range []string{"first_name", "group_name", "user_id", "now", "username", "phone"} {
+		if !isLegacyMessageVariable(name) {
+			t.Errorf("%q should be treated as a retired placeholder", name)
+		}
+	}
+	if isLegacyMessageVariable("campaign_copy") {
+		t.Fatal("custom dictionary name should remain available")
 	}
 }

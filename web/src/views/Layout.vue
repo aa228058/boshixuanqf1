@@ -245,7 +245,7 @@
 
       <!-- 页面内容: overlay 路由以全屏模态形式展现(返回/关闭条 + 独立滚动区), 子弹层(群组选择器等)不受影响 -->
       <!-- R127: pb-24 给移动端底部 Tab 留足空间 —— 此前缺失导致 Tab 悬浮遮挡页面底部内容(按钮点不到) -->
-      <main id="main-content" ref="mainRef" class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 md:p-6 pb-[calc(5rem_+_env(safe-area-inset-bottom,0px))] md:pb-6 relative z-10">
+      <main id="main-content" ref="mainRef" class="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto p-3 sm:p-5 md:p-6 pb-[calc(5rem_+_env(safe-area-inset-bottom,0px))] md:pb-6 relative z-10">
         <router-view v-slot="{ Component, route }">
           <!-- 统一内嵌布局(2026-10-20 重构): 功能页一律显示在顶部栏下方,
                不再 overlay 全屏覆盖, 去掉全屏❌按钮(返回用侧边栏导航) -->

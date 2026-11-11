@@ -333,8 +333,21 @@ func (s *TaskService) CreateBroadcast(ctx context.Context, tenantID uuid.UUID, a
 // First run happens immediately; afterwards the engine requeues it every
 // loopIntervalMinutes until it is paused or cancelled.
 func (s *TaskService) CreateScheduledBroadcast(ctx context.Context, tenantID uuid.UUID, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool) (*domain.Task, error) {
+	return s.CreateScheduledBroadcastWithMapping(ctx, tenantID, nil, accountIDs, targetIDs, message, loopIntervalMinutes, intervalMin, intervalMax, isLoop, 0, nil)
+}
+
+// CreateScheduledBroadcastWithMapping creates a recurring broadcast using the same
+// explicit account-to-target assignments as a one-time broadcast.
+func (s *TaskService) CreateScheduledBroadcastWithMapping(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool, maxRounds int, endAt *time.Time) (*domain.Task, error) {
 	now := time.Now()
-	task, err := s.CreateBroadcast(ctx, tenantID, accountIDs, targetIDs, message, &now, intervalMin, intervalMax, nil)
+	extraPayload := map[string]any{}
+	if maxRounds > 0 {
+		extraPayload["max_rounds"] = maxRounds
+	}
+	if endAt != nil {
+		extraPayload["end_at"] = endAt.UTC().Format(time.RFC3339)
+	}
+	task, err := s.CreateBroadcastWithMapping(ctx, tenantID, mappings, accountIDs, targetIDs, message, &now, intervalMin, intervalMax, extraPayload)
 	if err != nil {
 		return nil, err
 	}
@@ -791,7 +804,7 @@ var validTransitions = map[domain.TaskStatus]map[domain.TaskStatus]bool{
 	domain.TaskStatusFailed:    {domain.TaskStatusQueued: true},
 	domain.TaskStatusCompleted: {},
 	domain.TaskStatusCancelled: {},
-	domain.TaskStatusPending:   {domain.TaskStatusQueued: true, domain.TaskStatusCancelled: true},
+	domain.TaskStatusPending:   {domain.TaskStatusQueued: true, domain.TaskStatusPaused: true, domain.TaskStatusCancelled: true},
 	domain.TaskStatusScheduled: {domain.TaskStatusPaused: true, domain.TaskStatusCancelled: true, domain.TaskStatusQueued: true},
 }
 
@@ -801,10 +814,7 @@ func (s *TaskService) Pause(ctx context.Context, tenantID, taskID uuid.UUID) err
 	if err != nil {
 		return fmt.Errorf("获取任务失败: %w", err)
 	}
-	// 循环任务在非 running 状态(排队/等待下一轮)时, 停止=关循环+暂停
-	if task.IsLoop && task.Status != domain.TaskStatusRunning {
-		return s.repo.StopLoop(ctx, tenantID, taskID)
-	}
+	// 循环任务暂停时保留 is_loop 与 next_run_at，恢复后仍可继续原计划。
 	if !validTransitions[task.Status][domain.TaskStatusPaused] {
 		return fmt.Errorf("cannot pause task with status %s", task.Status)
 	}
@@ -840,6 +850,9 @@ func (s *TaskService) Resume(ctx context.Context, tenantID, taskID uuid.UUID) er
 	}
 	if !validTransitions[task.Status][domain.TaskStatusQueued] {
 		return fmt.Errorf("cannot resume task with status %s", task.Status)
+	}
+	if task.IsLoop {
+		return s.repo.ResumeLoop(ctx, tenantID, taskID)
 	}
 	return s.repo.ResetToQueued(ctx, tenantID, taskID)
 }

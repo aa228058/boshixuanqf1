@@ -414,6 +414,12 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	api.GET("/announcements", c.SettingsHandler.GetAnnouncements)
 	api.POST("/announcements/:id/read", c.SettingsHandler.MarkAnnouncementRead)
 
+	// Saved text collections (manual reuse; tenant isolated)
+	api.GET("/text-dicts", c.SettingsHandler.ListTextDicts, c.PlanChecker.RequirePlanFeature(middleware.FeatureDict))
+	api.POST("/text-dicts", c.SettingsHandler.CreateTextDict, c.PlanChecker.RequirePlanFeature(middleware.FeatureDict))
+	api.PUT("/text-dicts/:id", c.SettingsHandler.UpdateTextDict, c.PlanChecker.RequirePlanFeature(middleware.FeatureDict))
+	api.DELETE("/text-dicts/:id", c.SettingsHandler.DeleteTextDict, c.PlanChecker.RequirePlanFeature(middleware.FeatureDict))
+
 	// Message Templates
 	api.GET("/templates", c.SettingsHandler.ListTemplates, c.PlanChecker.RequirePlanFeature(middleware.FeatureTemplates))
 	api.POST("/templates", c.SettingsHandler.CreateTemplate, c.PlanChecker.RequirePlanFeature(middleware.FeatureTemplates))

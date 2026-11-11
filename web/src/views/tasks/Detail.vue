@@ -1,11 +1,11 @@
 <template>
-  <main class="max-w-4xl mx-auto space-y-6">
+  <main class="w-full min-w-0 max-w-4xl mx-auto space-y-3 sm:space-y-4 md:space-y-6">
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
       <t-button @click="fetchTask" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3">重新加载</t-button>
     </EmptyState>
-    <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-12 text-center text-sm text-text-muted lift">加载中...</div>
+    <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-6 sm:p-12 text-center text-sm text-text-muted lift">加载中...</div>
     <div v-if="task" class="flex flex-wrap items-center gap-3">
       <button type="button" @click="$router.push(`/workspace/${route.params.accountId}/tasks`)" class="ui-icon-btn" aria-label="返回">
         <ArrowLeft class="w-5 h-5" />
@@ -27,14 +27,14 @@
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-4 items-start">
     <div class="space-y-4 min-w-0">
     <!-- 进度 -->
-    <div class="glass rounded-[var(--t-r-md)] p-6 lift">
+    <div class="glass rounded-[var(--t-r-md)] p-4 sm:p-6 lift">
       <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-5">
+        <div class="flex items-center gap-3 sm:gap-5 min-w-0">
           <!-- R126 示例2 ring 进度环: conic-gradient 环 + 内圈百分比 -->
-          <div class="relative w-[92px] h-[92px] rounded-full grid place-items-center shrink-0"
+          <div class="relative w-[76px] h-[76px] sm:w-[92px] sm:h-[92px] rounded-full grid place-items-center shrink-0"
                :style="{ background: `conic-gradient(var(--t-brand) ${progressPercent * 3.6}deg, var(--t-surface-2) 0deg)` }">
             <div class="absolute inset-[9px] rounded-full grid place-items-center" style="background: var(--t-bg);">
-              <span class="text-title font-black tabular-nums">{{ progressPercent }}<span class="text-[11px] font-bold">%</span></span>
+              <span class="text-lg sm:text-title font-black tabular-nums">{{ progressPercent }}<span class="text-[11px] font-bold">%</span></span>
             </div>
           </div>
           <div>
@@ -78,8 +78,8 @@
     </div>
 
     <!-- 成员采集结果 -->
-    <div v-if="task?.type === 'scrape_members'" class="glass rounded-[var(--t-r-md)] p-5 lift">
-      <div class="flex items-center justify-between mb-3">
+    <div v-if="task?.type === 'scrape_members'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
+      <div class="flex items-center justify-between gap-2 mb-3">
         <div class="flex items-center gap-2">
           <Users class="w-4 h-4 text-text-muted" />
           <h3 class="text-sm font-medium">采集到的成员</h3>
@@ -140,7 +140,7 @@
       <div v-if="hasMoreLogs" class="mb-2 flex justify-center">
         <t-button size="small" variant="text" class="ui-t-button ui-t-button--text ui-t-button--sm" :loading="loadingMoreLogs" @click="loadMoreLogs">加载更早日志</t-button>
       </div>
-      <div ref="logContainer" class="max-h-[420px] overflow-y-auto space-y-1.5">
+      <div ref="logContainer" class="max-h-[min(60dvh,420px)] lg:max-h-[420px] overflow-y-auto space-y-1.5">
         <div
           v-for="(log, i) in filteredDisplayLogs"
           :key="log.log_id || `${log.executed_at}-${i}`"

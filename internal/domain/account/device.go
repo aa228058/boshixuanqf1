@@ -1,11 +1,61 @@
 package account
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 
 	device "github.com/mtgo-labs/device-manager"
 	"github.com/mtgo-labs/mtgo/telegram"
 )
+
+// DeviceProfile is the typed, backward-compatible view of accounts.device_profile.
+// Unknown JSON fields are intentionally ignored because older rows also contain
+// account metadata (for example device_type and encrypted 2FA metadata).
+type DeviceProfile struct {
+	Model          string `json:"model"`
+	System         string `json:"system"`
+	App            string `json:"app"`
+	LangPack       string `json:"lang_pack"`
+	LangCode       string `json:"lang_code"`
+	SystemLangCode string `json:"system_lang_code"`
+	Platform       string `json:"platform,omitempty"`
+	DeviceType     string `json:"device_type,omitempty"`
+}
+
+// ParseDeviceProfile validates the device fields required to restore a saved
+// client identity. It does not mutate the original JSONB map.
+func ParseDeviceProfile(data []byte) (*DeviceProfile, error) {
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return nil, fmt.Errorf("device profile is empty")
+	}
+
+	var profile DeviceProfile
+	if err := json.Unmarshal(data, &profile); err != nil {
+		return nil, fmt.Errorf("decode device profile: %w", err)
+	}
+	if strings.TrimSpace(profile.Model) == "" ||
+		strings.TrimSpace(profile.System) == "" ||
+		strings.TrimSpace(profile.App) == "" {
+		return nil, fmt.Errorf("invalid device profile: model, system and app are required")
+	}
+	return &profile, nil
+}
+
+// deviceProfileFromMap converts the repository's JSONB map representation to
+// the typed profile while retaining compatibility with unrelated legacy keys.
+func deviceProfileFromMap(profile map[string]any) (*DeviceProfile, error) {
+	if len(profile) == 0 {
+		return nil, fmt.Errorf("device profile is empty")
+	}
+	data, err := json.Marshal(profile)
+	if err != nil {
+		return nil, fmt.Errorf("encode device profile: %w", err)
+	}
+	return ParseDeviceProfile(data)
+}
 
 func generateDeviceConfig(sessionName, deviceType string) telegram.DeviceConfig {
 	cfg := &telegram.Config{}

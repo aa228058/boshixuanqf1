@@ -25,6 +25,25 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 )
 
+// dedupeTargetsPerAccount removes duplicate targets for one account without
+// removing the same target from another account's assignment.
+func dedupeTargetsPerAccount(input map[uuid.UUID][]string) map[uuid.UUID][]string {
+	out := make(map[uuid.UUID][]string, len(input))
+	for accountID, targets := range input {
+		seen := make(map[string]struct{}, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			if _, exists := seen[target]; exists {
+				continue
+			}
+			seen[target] = struct{}{}
+			unique = append(unique, target)
+		}
+		out[accountID] = unique
+	}
+	return out
+}
+
 // acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
 func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	if ctx.Err() != nil {
@@ -250,18 +269,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	semaphore := make(chan struct{}, maxConcurrentAccounts)
 	var wg sync.WaitGroup
 
-	// Deduplicate targets globally to prevent multiple accounts sending to the same target
-	seenTargets := make(map[string]bool)
-	for accID := range accountTargets {
-		unique := make([]string, 0, len(accountTargets[accID]))
-		for _, t := range accountTargets[accID] {
-			if !seenTargets[t] {
-				seenTargets[t] = true
-				unique = append(unique, t)
-			}
-		}
-		accountTargets[accID] = unique
-	}
+	// Deduplicate targets within each account only. The same target must remain
+	// assigned to multiple accounts in cartesian mode; global deduplication
+	// silently removed valid account-target send units.
+	accountTargets = dedupeTargetsPerAccount(accountTargets)
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
 	// 拖慢发送循环。这里在 worker 扇出前一次性批量查回成功目标集; 运行期新成功
@@ -534,7 +545,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					if dictBag != nil {
 						rawMsg = dictBag.fill(message)
 					}
-					personalizedMsg := replaceMessageVars(spintaxSpin(rawMsg), peer, targetID)
+					personalizedMsg := spintaxSpin(rawMsg)
 					if obfEnabled {
 						// 混淆每条重新随机 — TG按内容查重时每条都是"不同消息"
 						if autoVary {
@@ -842,10 +853,18 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	}
 }
 
-// replaceMessageVars replaces template variables in the message with actual target info.
-// Supported variables: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}
-// dictVarRe 匹配 {{词典名}}(与现有 {{first_name}} 同风格; 单花括号留给 spintax)
 var dictVarRe = regexp.MustCompile(`\{\{([A-Za-z0-9_\-\x{4e00}-\x{9fa5}]{1,32})\}\}`)
+
+// isLegacyMessageVariable marks the retired built-in placeholders. They are no
+// longer resolved as recipient/group metadata or treated as dictionary names.
+func isLegacyMessageVariable(name string) bool {
+	switch strings.ToLower(name) {
+	case "first_name", "group_name", "user_id", "now", "username", "phone":
+		return true
+	default:
+		return false
+	}
+}
 
 // dictBag 文案变量替换池: 任务开始时一次加载, 发送时每个目标随机取词
 type dictBag struct{ pools map[string][]string }
@@ -857,6 +876,9 @@ func (e *Engine) buildDictBag(ctx context.Context, tenantID uuid.UUID, message s
 	}
 	names := map[string]bool{}
 	for _, m := range dictVarRe.FindAllStringSubmatch(message, -1) {
+		if isLegacyMessageVariable(m[1]) {
+			continue
+		}
 		names[m[1]] = true
 	}
 	if len(names) == 0 {
@@ -957,43 +979,6 @@ func varyFullWidth(s string) string {
 		}
 		return r
 	}, s)
-}
-
-func replaceMessageVars(message string, peer any, targetID string) string {
-	var firstName, groupName, userID string
-
-	switch p := peer.(type) {
-	case *tg.InputPeerUser:
-		userID = strconv.FormatInt(p.UserID, 10)
-		firstName = targetID // fallback to targetID (username) if user info not available
-	case *tg.InputPeerChat:
-		groupName = targetID
-		userID = strconv.FormatInt(p.ChatID, 10)
-	case *tg.InputPeerChannel:
-		groupName = targetID
-		userID = strconv.FormatInt(p.ChannelID, 10)
-	default:
-		firstName = targetID
-		groupName = targetID
-		userID = targetID
-	}
-
-	// If targetID starts with @, use it as first_name fallback for users
-	if strings.HasPrefix(targetID, "@") {
-		if firstName == "" {
-			firstName = targetID[1:] // remove @
-		}
-		if groupName == "" {
-			groupName = targetID
-		}
-	}
-
-	result := message
-	result = strings.ReplaceAll(result, "{{first_name}}", firstName)
-	result = strings.ReplaceAll(result, "{{group_name}}", groupName)
-	result = strings.ReplaceAll(result, "{{user_id}}", userID)
-	result = strings.ReplaceAll(result, "{{now}}", time.Now().Format("2006-01-02 15:04:05"))
-	return result
 }
 
 // escapeTelegramMarkdown escapes characters that Telegram interprets as Markdown formatting.

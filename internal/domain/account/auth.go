@@ -96,16 +96,35 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 		deviceType:    deviceType,
 	}
 
-	// Use deterministic session name based on accountID
+	// Use deterministic session name based on accountID.
 	newSessionName := sessionName
-	// R160: 登录流程用临时会话名 —— gotd 连接即把新(未授权)密钥写入存储,
-	// 若与正式会话同名会覆盖号上原有合法密钥, 池下次重连即 401 AUTH_KEY_UNREGISTERED
-	loginSessionName := fmt.Sprintf("%s_login_%d", newSessionName, time.Now().Unix())
-	log.Printf("[AUTH] 登录会话(临时): %s (正式: %s)\n", loginSessionName, newSessionName)
 	if newSessionName == "" {
 		newSessionName = fmt.Sprintf("acc_%s", accountID.String())
 	}
-	// Save session name to DB immediately
+
+	// Check the existing session before mutating account metadata or creating a
+	// client. A stored authorization must never fall through to a fresh device
+	// profile when its persisted profile is missing or corrupt.
+	hasStoredSession := false
+	if !forceFresh {
+		hasStored, sessionErr := e.repo.SessionExists(ctx, newSessionName)
+		if sessionErr != nil {
+			return fmt.Errorf("check stored session: %w", sessionErr)
+		}
+		hasStoredSession = hasStored
+		if hasStoredSession {
+			if _, profileErr := deviceProfileFromMap(acc.DeviceProfile); profileErr != nil {
+				return fmt.Errorf("refuse to restore account %s: saved session exists but device profile is invalid: %w", accountID, profileErr)
+			}
+		}
+	}
+
+	// R160: fresh login uses a temporary session name so an unsuccessful login
+	// cannot overwrite the account's existing authorized session.
+	loginSessionName := fmt.Sprintf("%s_login_%d", newSessionName, time.Now().Unix())
+	log.Printf("[AUTH] 登录会话(临时): %s (正式: %s)\n", loginSessionName, newSessionName)
+
+	// Persist the canonical session name only after the stored-session guard.
 	acc.SessionName = newSessionName
 	dbCtx2, dbCancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := e.repo.UpdateSessionName(dbCtx2, tenantID, accountID, newSessionName); err != nil {
@@ -132,7 +151,7 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 	if newSessionName == "" {
 		newSessionName = fmt.Sprintf("acc_%s", accountID.String())
 	}
-	if hasStored, serr := e.repo.SessionExists(ctx, newSessionName); !forceFresh && serr == nil && hasStored {
+	if hasStoredSession {
 		effectiveSessionName = newSessionName
 		phoneNumber = ""
 		log.Printf("[AUTH] 账号 %s 已有存档会话, 读档直连(不发码)\n", accountID)
