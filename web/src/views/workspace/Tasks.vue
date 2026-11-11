@@ -298,6 +298,7 @@ const typeTabs = [
 
 const tasks = ref<any[]>([])
 const numberSearch = ref('')
+const activeNumberSearch = ref('')
 const importJobs = ref<any[]>([])
 const loading = ref(false)
 const loadError = ref('')
@@ -350,7 +351,7 @@ async function clearFinished() {
 
 async function fetchImportJobs() {
   try {
-    const res: any = await listGroupLibraryImportJobs(numberSearch.value.trim() || undefined)
+    const res: any = await listGroupLibraryImportJobs(activeNumberSearch.value || undefined)
     importJobs.value = res.list || []
   } catch { /* keep the last known task list during transient network errors */ }
 }
@@ -426,12 +427,14 @@ async function searchByNumber() {
     return
   }
   numberSearch.value = value
+  activeNumberSearch.value = value
   page.value = 1
   await Promise.all([fetchTasks(), fetchImportJobs()])
 }
 
 async function clearNumberSearch() {
   numberSearch.value = ''
+  activeNumberSearch.value = ''
   page.value = 1
   await Promise.all([fetchTasks(), fetchImportJobs()])
 }
@@ -440,7 +443,7 @@ async function fetchTasks() {
   const requestId = ++taskListRequestId
   // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
   const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
-   if (numberSearch.value.trim()) params.task_number = numberSearch.value.trim().replace(/^#/, '')
+   if (activeNumberSearch.value) params.task_number = activeNumberSearch.value
   if (range.value !== 'all') params.range = range.value
   if (statusFilter.value) params.status = statusFilter.value
   if (typeFilter.value) params.type = typeFilter.value
