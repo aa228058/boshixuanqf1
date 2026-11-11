@@ -65,6 +65,11 @@
           <div v-if="t.is_loop" class="mt-1 text-[11px] text-text-muted">
             已完成轮数：{{ Number((t.payload as any)?.round_count || 0) }}
           </div>
+          <div v-if="t.is_loop && ((t.payload as any)?.max_rounds || (t.payload as any)?.end_at)" class="mt-1 text-[11px] text-text-muted">
+            <span v-if="(t.payload as any)?.max_rounds">最多 {{ (t.payload as any).max_rounds }} 轮</span>
+            <span v-if="(t.payload as any)?.max_rounds && (t.payload as any)?.end_at"> · </span>
+            <span v-if="(t.payload as any)?.end_at">结束于 {{ formatTime((t.payload as any).end_at) }}</span>
+          </div>
           <div class="mt-3">
             <div class="flex items-center justify-between text-xs mb-1.5">
               <span class="text-text-secondary tabular-nums">
