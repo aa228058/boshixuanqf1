@@ -706,10 +706,10 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			IsJoined:   true,
 			JoinedAt:   &now,
 		}
-		// Check if group already exists by tg_chat_id + tenant_id
-		existing, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-		if err == nil && existing != nil {
-			// Update existing with latest info
+		// Check if group already exists by Telegram chat ID + tenant.
+		existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+		var groupID uuid.UUID
+		if lookupErr == nil && existing != nil {
 			existing.AccessHash = accessHash
 			existing.IsJoined = true
 			if username != "" {
@@ -717,11 +717,26 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			}
 			if err := e.groupRepo.Update(ctx, existing); err != nil {
 				log.Printf("[join] 更新群组失败: %v", err)
+				continue
 			}
-		} else {
+			groupID = existing.GroupID
+		} else if errors.Is(lookupErr, pgx.ErrNoRows) {
 			if err := e.groupRepo.Create(ctx, g); err != nil {
 				log.Printf("[join] 创建群组失败: %v", err)
+				continue
 			}
+			persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+			if err != nil {
+				log.Printf("[join] 重载群组失败: %v", err)
+				continue
+			}
+			groupID = persisted.GroupID
+		} else {
+			log.Printf("[join] 查询群组失败: %v", lookupErr)
+			continue
+		}
+		if err := e.groupRepo.UpsertAccountGroup(ctx, accID, groupID, true); err != nil {
+			log.Printf("[join] 关联群组到账号失败 account=%s group=%s: %v", accID, groupID, err)
 		}
 	}
 }
