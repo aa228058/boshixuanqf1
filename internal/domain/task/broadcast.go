@@ -853,6 +853,120 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	}
 }
 
+var dictVarRe = regexp.MustCompile(`\{\{([A-Za-z0-9_\-\x{4e00}-\x{9fa5}]{1,32})\}\}`)
+
+// dictBag 文案变量替换池: 任务开始时一次加载, 发送时每个目标随机取词
+type dictBag struct{ pools map[string][]string }
+
+// buildDictBag 解析消息里的 {{词典名}} 并预载词条; 无词典 repo 或无变量时返回 nil
+func (e *Engine) buildDictBag(ctx context.Context, tenantID uuid.UUID, message string) *dictBag {
+	if e.dictRepo == nil || !strings.Contains(message, "{{") {
+		return nil
+	}
+	names := map[string]bool{}
+	for _, m := range dictVarRe.FindAllStringSubmatch(message, -1) {
+		names[m[1]] = true
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	ns := make([]string, 0, len(names))
+	for n := range names {
+		ns = append(ns, n)
+	}
+	pools, err := e.dictRepo.WordsByNames(ctx, tenantID, ns)
+	if err != nil || len(pools) == 0 {
+		return nil
+	}
+	return &dictBag{pools: pools}
+}
+
+// fill 把消息里的 {{词典名}} 随机替换为词条(同一消息多处同名变量各取各的, 最大化差异化)
+func (b *dictBag) fill(msg string) string {
+	return dictVarRe.ReplaceAllStringFunc(msg, func(m string) string {
+		name := dictVarRe.FindStringSubmatch(m)[1]
+		ws := b.pools[name]
+		if len(ws) == 0 {
+			return m // 词典不存在/空 → 保留原文, 不影响发送
+		}
+		return ws[securerand.IntN(len(ws))]
+	})
+}
+
+// autoVarySynonyms 内置同义变换池: 命中即随机换, 让每条消息措辞不同(无需用户配置)
+var autoVarySynonyms = map[string][]string{
+	"你好": {"您好", "你好", "Hi", "哈喽", "嗨"},
+	"您好": {"你好", "您好", "Hi", "哈喽"},
+	"欢迎": {"欢迎", "歡迎", "喜迎"},
+	"加入": {"加入", "进", "加入", "入"},
+	"进群": {"进群", "加群", "加入群聊"},
+	"免费": {"免费", "免費", "无偿"},
+	"需要": {"需要", "要", "想用"},
+	"可以": {"可以", "能", "可"},
+	"点击": {"点击", "点", "戳"},
+	"了解": {"了解", "看下", "看看"},
+	"回复": {"回复", "回", "回信"},
+	"咨询": {"咨询", "问", "询问"},
+	"感谢": {"感谢", "谢谢", "谢啦"},
+	"现在": {"现在", "眼下", "如今"},
+}
+
+// varyPuncts 标点抖动: 句末语气词随机后缀
+var varySuffixes = []string{"", "", "！", "~", "～", " 😊", " 👍", " 🌟"}
+
+// autoVaryMessage 自动内容变化(一键开关, 面向不懂语法的租户):
+// 同义替换 → 标点/表情后缀抖动 → 随机全半角 → 保留 send 侧既有的零宽字符混淆。
+func autoVaryMessage(msg string) string {
+	// 1. 同义替换(按 key 长度降序, 先长后短避免部分命中)
+	s := msg
+	for _, k := range varyKeysByLen {
+		if v, ok := autoVarySynonyms[k]; ok && strings.Contains(s, k) {
+			s = strings.ReplaceAll(s, k, v[securerand.IntN(len(v))])
+		}
+	}
+	// 2. 每个换行段落后随机追加语气后缀(部分段不加, 保持自然)
+	lines := strings.Split(s, "\n")
+	for i, ln := range lines {
+		ln = strings.TrimRight(ln, "。！!~～")
+		if ln != "" && securerand.IntN(3) > 0 {
+			lines[i] = ln + "。" + varySuffixes[securerand.IntN(len(varySuffixes))]
+		} else if ln != "" {
+			lines[i] = ln + "。"
+		}
+	}
+	s = strings.Join(lines, "\n")
+	// 3. 随机全角化部分标点
+	s = varyFullWidth(s)
+	return s
+}
+
+// varyKeysByLen 同义词 key 按长度降序预排序
+var varyKeysByLen = func() []string {
+	ks := make([]string, 0, len(autoVarySynonyms))
+	for k := range autoVarySynonyms {
+		ks = append(ks, k)
+	}
+	for i := 0; i < len(ks); i++ {
+		for j := i + 1; j < len(ks); j++ {
+			if len(ks[j]) > len(ks[i]) {
+				ks[i], ks[j] = ks[j], ks[i]
+			}
+		}
+	}
+	return ks
+}()
+
+// varyFullWidth 把约一半的半角标点随机换成全角
+func varyFullWidth(s string) string {
+	pairs := map[rune]rune{',': '，', '!': '！', '?': '？', ';': '；', ':': '：'}
+	return strings.Map(func(r rune) rune {
+		if fw, ok := pairs[r]; ok && securerand.IntN(2) == 0 {
+			return fw
+		}
+		return r
+	}, s)
+}
+
 // escapeTelegramMarkdown escapes characters that Telegram interprets as Markdown formatting.
 // This prevents user messages from being accidentally formatted.
 // 混淆素材池: 常用emoji + 零宽字符(肉眼不可见, TG视为不同消息)
