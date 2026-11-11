@@ -13,6 +13,24 @@ import (
 	"tg-sender/internal/domain"
 )
 
+func TestIsBroadcastChannelType(t *testing.T) {
+	for _, tc := range []struct {
+		gtype string
+		want  bool
+	}{
+		{gtype: "channel", want: true},
+		{gtype: " CHANNEL ", want: true},
+		{gtype: "group", want: false},
+		{gtype: "supergroup", want: false},
+		{gtype: "public", want: false},
+		{gtype: "unknown", want: false},
+	} {
+		if got := isBroadcastChannelType(tc.gtype); got != tc.want {
+			t.Errorf("isBroadcastChannelType(%q)=%v, want %v", tc.gtype, got, tc.want)
+		}
+	}
+}
+
 func TestFilterImportLinks(t *testing.T) {
 	input := "https://t.me/ValidGroup\n@validgroup\nhttps://t.me/+AbCdEf123\nhttps://t.me/+abcdef123\nhttps://evil.com/t.me/fakegroup\nnot-a-link"
 	got := filterImportLinks(input)
