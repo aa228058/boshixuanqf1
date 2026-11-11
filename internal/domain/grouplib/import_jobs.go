@@ -13,6 +13,7 @@ import (
 
 type ImportJob struct {
 	JobID          uuid.UUID  `json:"job_id"`
+	TaskNumber     int64      `json:"task_number"`
 	RawCount       int        `json:"raw_count"`
 	ValidCount     int        `json:"valid_count"`
 	DuplicateCount int        `json:"duplicate_count"`
