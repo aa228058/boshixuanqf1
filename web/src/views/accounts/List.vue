@@ -232,48 +232,68 @@
                  class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1 sm:w-44 sm:z-50"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
-              <button type="button" v-if="acc?.status === 'online'"
-                      @click="openMenuId = ''; disconnect(acc)" :disabled="disconnecting === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <Unplug class="w-3.5 h-3.5" />断开连接
-              </button>
-              <button type="button" v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'"
-                      @click="openMenuId = ''; showAuthModal(acc)"
-                      class="ui-menu-item w-full">
-                <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '输入验证码' }}
-              </button>
-              <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
-              <button type="button" @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <RefreshCw class="w-3.5 h-3.5" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" /> 刷新头像
-              </button>
-              <button type="button" v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
-                      @click="openMenuId = ''; reconnectAccount(acc)" :disabled="reconnectingId === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <RefreshCw class="w-3.5 h-3.5" :class="reconnectingId === acc?.account_id ? 'animate-spin' : ''" /> 重新连接
-              </button>
-              <button type="button" @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <LogOut class="w-3.5 h-3.5" /> 退群
-              </button>
-              <!-- R181 群转移: 把该号已加入的群导出邀请链接, 交给目标号批量加入 -->
-              <button type="button" @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <ArrowRightLeft class="w-3.5 h-3.5" /> 转移群
-              </button>
-              <button type="button" @click="openMenuId = ''; editRemark(acc)"
-                      class="ui-menu-item w-full">
-                <Pencil class="w-3.5 h-3.5" /> 备注·代理
-              </button>
-              <div class="border-t border-border my-1"></div>
-              <button type="button" @click="openMenuId = ''; openProfile(acc)"
-                      class="ui-menu-item w-full">
-                <UserRoundPen class="w-3.5 h-3.5" />修改资料
-              </button>
-              <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
-                      class="ui-menu-item ui-menu-item--danger w-full">
-                <Trash2 class="w-3.5 h-3.5" /> 删除
-              </button>
+              <div class="acc-menu-head">
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-text-primary">账号操作</div>
+                  <div class="text-[11px] text-text-muted truncate">{{ acc?.remark || acc?.first_name || acc?.phone || '当前账号' }}</div>
+                </div>
+                <button type="button" class="acc-menu-close" aria-label="关闭更多菜单"
+                        @click.stop="openMenuId = ''">×</button>
+              </div>
+
+              <div class="acc-menu-section">
+                <div class="acc-menu-label">连接与登录</div>
+                <button type="button" v-if="acc?.status === 'online'"
+                        @click="openMenuId = ''; disconnect(acc)" :disabled="disconnecting === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <Unplug class="w-3.5 h-3.5" />断开连接
+                </button>
+                <button type="button" v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'"
+                        @click="openMenuId = ''; showAuthModal(acc)"
+                        class="ui-menu-item w-full">
+                  <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '输入验证码' }}
+                </button>
+                <button type="button" v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
+                        @click="openMenuId = ''; reconnectAccount(acc)" :disabled="reconnectingId === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <RefreshCw class="w-3.5 h-3.5" :class="reconnectingId === acc?.account_id ? 'animate-spin' : ''" />重新连接
+                </button>
+              </div>
+
+              <div class="acc-menu-section">
+                <div class="acc-menu-label">账号维护</div>
+                <button type="button" @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <RefreshCw class="w-3.5 h-3.5" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" />刷新头像
+                </button>
+                <button type="button" @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <LogOut class="w-3.5 h-3.5" />退群
+                </button>
+                <button type="button" @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <ArrowRightLeft class="w-3.5 h-3.5" />转移群
+                </button>
+              </div>
+
+              <div class="acc-menu-section">
+                <div class="acc-menu-label">资料与备注</div>
+                <button type="button" @click="openMenuId = ''; openProfile(acc)"
+                        class="ui-menu-item w-full">
+                  <UserRoundPen class="w-3.5 h-3.5" />修改资料
+                </button>
+                <button type="button" @click="openMenuId = ''; editRemark(acc)"
+                        class="ui-menu-item w-full">
+                  <Pencil class="w-3.5 h-3.5" />备注与代理
+                </button>
+              </div>
+
+              <div class="acc-menu-danger">
+                <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
+                        class="ui-menu-item ui-menu-item--danger w-full">
+                  <Trash2 class="w-3.5 h-3.5" />删除账号
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2076,24 +2096,79 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-menu {
   left: var(--t-space-3);
   right: var(--t-space-3);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   width: auto;
-  max-height: min(68dvh, 560px);
+  max-height: min(76dvh, 640px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  border-radius: var(--t-r-md);
+  border-radius: 18px;
+  padding: 8px 10px max(10px, env(safe-area-inset-bottom, 0px));
   box-shadow: var(--t-shadow-pop);
+}
+.acc-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 6px 12px;
+  border-bottom: 1px solid var(--t-line-light);
+  margin-bottom: 4px;
+}
+.acc-menu-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--t-text-2);
+  background: var(--t-surface-2);
+  font-size: 22px;
+  line-height: 1;
+}
+.acc-menu-section { padding: 5px 0 7px; }
+.acc-menu-section + .acc-menu-section { border-top: 1px solid var(--t-line-light); }
+.acc-menu-label {
+  padding: 5px 9px 4px;
+  color: var(--t-text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.acc-menu :deep(.ui-menu-item) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 13px;
+  transition: background .15s ease, color .15s ease;
+}
+.acc-menu :deep(.ui-menu-item:hover) { background: var(--t-surface-2); }
+.acc-menu :deep(.ui-menu-item:focus-visible),
+.acc-menu-close:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+.acc-menu-danger {
+  border-top: 1px solid var(--t-line-light);
+  margin-top: 2px;
+  padding-top: 8px;
+}
+.acc-menu :deep(.ui-menu-item--danger) { color: var(--t-err); }
+@media (hover: none) {
+  .acc-menu :deep(.ui-menu-item:hover) { background: transparent; }
 }
 @media (min-width: 640px) {
   .acc-menu {
     left: auto;
     right: 0;
     bottom: 100%;
-    width: 11rem;
-    max-height: 65vh;
-    margin-bottom: var(--t-space-1);
-    border-radius: var(--t-r-sm);
+    width: 15rem;
+    max-height: min(70vh, 560px);
+    margin-bottom: var(--t-space-2);
+    border-radius: 14px;
+    padding: 8px;
     box-shadow: var(--t-shadow-card);
   }
 }
