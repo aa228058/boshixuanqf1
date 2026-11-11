@@ -259,7 +259,16 @@ func (h *GroupLibraryHandler) ListImportJobs(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	jobs, err := h.lib.ListImportJobs(c.Request().Context(), tenantID, 30)
+	var jobs []grouplib.ImportJob
+	if numberStr := strings.TrimSpace(c.QueryParam("task_number")); numberStr != "" {
+		number, parseErr := strconv.ParseInt(numberStr, 10, 64)
+		if parseErr != nil || number <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "任务编号格式错误")
+		}
+		jobs, err = h.lib.ListImportJobsByNumber(c.Request().Context(), tenantID, number)
+	} else {
+		jobs, err = h.lib.ListImportJobs(c.Request().Context(), tenantID, 30)
+	}
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "读取导入任务失败")
 	}
