@@ -277,7 +277,7 @@ async function fetchMembers() {
       const name = [member.display_name, member.name, [member.first_name, member.last_name].filter(Boolean).join(' '), member.username ? '@' + String(member.username).replace(/^@/, '') : '']
         .map(value => String(value || '').trim()).find(Boolean)
       if (!name) return
-      for (const id of [member.tg_user_id, member.user_id, member.telegram_id, member.id]) {
+      for (const id of [member.tg_user_id, member.user_id, member.telegram_id, member.member_id, member.id]) {
         if (id !== undefined && id !== null && String(id).trim()) entries.push([normId(id), name])
       }
       if (member.username) entries.push([normId(member.username), name])
