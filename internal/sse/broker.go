@@ -115,7 +115,23 @@ func (b *Broker) Broadcast(topic string, payload any) {
 			select {
 			case ch <- event:
 			default:
-				// Channel full, drop event to avoid blocking
+				// A slow client must never block publishers. Evict the oldest queued
+				// event and enqueue a resync marker so the client reloads durable state.
+				select {
+				case <-ch:
+				default:
+				}
+				marker := Event{
+					Topic: topic,
+					Payload: map[string]any{
+						"type": "resync_required",
+						"reason": "client_queue_overflow",
+					},
+				}
+				select {
+				case ch <- marker:
+				default:
+				}
 				dropped++
 			}
 		}()
