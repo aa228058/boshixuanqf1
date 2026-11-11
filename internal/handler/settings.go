@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -224,7 +225,7 @@ func (h *SettingsHandler) CreateTextDict(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" || len(req.Name) > 64 {
+	if req.Name == "" || utf8.RuneCountInString(req.Name) > 64 {
 		return echo.NewHTTPError(http.StatusBadRequest, "分组名称需为 1-64 个字符")
 	}
 	items := cleanTextDictItems(req.Items)
