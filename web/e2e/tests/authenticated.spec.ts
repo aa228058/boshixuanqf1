@@ -248,6 +248,8 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
   if (!bounds || !viewport) return
 
   if (testInfo.project.name.includes('mobile')) {
+    // 添加账号是短表单：移动端必须按内容收缩，不能被固定撑到 88dvh。
+    expect(bounds.height, '短内容弹窗应按内容自适应，不能固定占据 88dvh').toBeLessThan(viewport.height * 0.75)
     expect(bounds.y + bounds.height, '移动端弹窗应贴合视口底部').toBeGreaterThanOrEqual(viewport.height - 4)
     expect(bounds.y + bounds.height, '移动端弹窗不能溢出视口').toBeLessThanOrEqual(viewport.height + 1)
   } else {
