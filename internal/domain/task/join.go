@@ -276,8 +276,16 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 					}
 					existingGroup, groupLookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
 					if groupLookupErr == nil && existingGroup != nil && existingGroup.IsJoined {
-						status = "success"
-						errCode = "already_joined"
+						// The group row may predate its account_groups association.
+						// Repair the association before treating this target as complete.
+						if linkErr := e.groupRepo.UpsertAccountGroup(ctx, accID, existingGroup.GroupID, true); linkErr != nil {
+							status = "failed"
+							errCode = "group_account_link_failed"
+							errMsg = linkErr.Error()
+						} else {
+							status = "success"
+							errCode = "already_joined"
+						}
 						goto logAndContinue
 					}
 					if groupLookupErr != nil && !errors.Is(groupLookupErr, pgx.ErrNoRows) {
