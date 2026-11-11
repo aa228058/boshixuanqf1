@@ -8,6 +8,11 @@ on:
     paths:
       - 'web/**'
       - '.github/workflows/visual-audit.yml'
+  push:
+    branches:
+      - 'fix/task-logs-sse-mobile-dictionaries'
+    paths:
+      - '.github/workflows/visual-audit.yml'
   workflow_dispatch:
 
 permissions:
