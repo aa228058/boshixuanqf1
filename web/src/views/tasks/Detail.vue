@@ -712,8 +712,12 @@ onMounted(async () => {
   onVisCleanup = () => document.removeEventListener('visibilitychange', onVis)
 
   refreshTimer = setInterval(() => {
-    if (pageActive && !isConnected.value) {
+    if (!pageActive) return
+    // SSE 是实时通道，但队列满/短暂断线时可能丢掉终态事件；对未结束任务做轻量状态对账。
+    if (task.value && !['completed', 'failed', 'cancelled'].includes(task.value.status)) {
       void fetchTask(true)
+    }
+    if (!isConnected.value) {
       void fetchLogs()
       if (connState.value === 'disconnected') void connectSSE()
     }
