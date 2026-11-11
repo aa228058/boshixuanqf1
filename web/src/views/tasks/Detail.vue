@@ -119,8 +119,12 @@
             连接中…
           </span>
           <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
-          <!-- R128 语义修正: 仅清除前端显示, 不动服务端已保存的记录 -->
-          <t-button @click="clearLogs" class="ui-t-button ui-t-button--secondary ui-t-button--sm" title="仅清除当前显示">清除显示</t-button>
+          <t-button
+            @click="clearLogs"
+            :disabled="!['completed', 'failed', 'cancelled'].includes(task?.status || '')"
+            class="ui-t-button ui-t-button--secondary ui-t-button--sm"
+            :title="['completed', 'failed', 'cancelled'].includes(task?.status || '') ? '永久删除该任务的全部日志' : '任务结束后才能清除日志'"
+          >清除日志</t-button>
         </div>
       </div>
       <div class="ui-segmented mb-2 flex-wrap" role="group" aria-label="筛选任务日志">
@@ -362,15 +366,27 @@ async function loadMoreLogs() {
   }
 }
 
-function clearLogs() {
-  // “清除显示”只影响当前页面状态；绝不删除数据库中的审计/发送日志。
-  for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
-  logs.value = []
-  logKeys.clear()
-  logsPage.value = 1
-  logPageCursors.clear()
-  hasMoreLogs.value = false
-  toast({ type: 'success', title: '已清除当前显示' })
+async function clearLogs() {
+  if (!pageActive || !task.value || !['completed', 'failed', 'cancelled'].includes(task.value.status)) return
+  const ok = await ask('确定永久删除这条任务的全部日志？任务本身和已导入的群组不会删除，日志删除后无法恢复。', {
+    title: '清除任务日志',
+    danger: true,
+    confirmText: '永久清除',
+  })
+  if (!ok || !pageActive) return
+  try {
+    await taskApi.deleteTaskLogs(taskId)
+    // 使正在进行的分页请求失效，防止旧响应在清空后重新填入日志。
+    for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
+    logs.value = []
+    logKeys.clear()
+    logsPage.value = 1
+    logPageCursors.clear()
+    hasMoreLogs.value = false
+    toast({ type: 'success', title: '任务日志已永久清除' })
+  } catch (e: any) {
+    toast({ type: 'error', title: '清除日志失败', message: e?.message || '请稍后重试' })
+  }
 }
 // 2026-09-23 修复: 初始态是"连接中"而非"已断开"——换ticket+建连要1-2秒,
 // 原实现初始 false 直接显示"已断开", 用户每次打开详情都看到一次假断线
