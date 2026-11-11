@@ -634,7 +634,7 @@ func (c *Container) initHandlers() {
 		}
 		return t
 	}, map[string]time.Duration{"joined": 40 * time.Second, "winner": 5 * time.Second})
-	c.SettingsHandler = handler.NewSettingsHandler(c.SettingsService, c.Mailer)
+	c.SettingsHandler = handler.NewSettingsHandler(c.SettingsService, c.Mailer, c.TextDictRepo)
 	c.ExportHandler = handler.NewExportHandler(c.TenantRepo, c.MemberRepo, c.GroupRepo, c.TaskRepo, c.AuditRepo)
 	c.AdminHandler = handler.NewAdminHandler(c.AdminService)
 }
