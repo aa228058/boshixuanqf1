@@ -429,11 +429,15 @@ function groupNameOf(t: string): string {
 const sendStrategy = ref<'assign' | 'all'>('assign')
 const coverage = computed(() => {
   const joinedBy = new Map<string, Set<string>>()
-  for (const g of _allGroups.value as any[]) {
+  // 与选择器使用同一份按账号缓存合并后的群组数据。
+  // 全租户群组接口不包含 account_id，不能拿它反推入群账号。
+  for (const g of groups.value as any[]) {
     const keys = [g.group_id, g.tg_chat_id, g.username, g.tg_link].filter(Boolean).map(String)
     for (const k of keys) {
       if (!joinedBy.has(k)) joinedBy.set(k, new Set())
-      joinedBy.get(k)!.add(String(g.account_id))
+      for (const accountId of (g._joinedAccounts || [])) {
+        joinedBy.get(k)!.add(String(accountId))
+      }
     }
   }
   const selected = new Set(execAccounts.value)
