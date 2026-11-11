@@ -19,6 +19,7 @@ func TestValidTransitions_DAG(t *testing.T) {
 		{domain.TaskStatusPaused, domain.TaskStatusCancelled},
 		{domain.TaskStatusFailed, domain.TaskStatusQueued}, // 重试
 		{domain.TaskStatusPending, domain.TaskStatusQueued},
+		{domain.TaskStatusPending, domain.TaskStatusPaused}, // 循环任务等待下一轮时允许暂停
 		{domain.TaskStatusScheduled, domain.TaskStatusQueued},
 	}
 	for _, tr := range mustAllow {
