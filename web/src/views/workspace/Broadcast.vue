@@ -62,6 +62,9 @@
           <div v-if="t.is_loop && t.next_run_at && ['pending','paused','completed'].includes(t.status)" class="mt-2 text-[11px] text-text-muted">
             下次计划执行：{{ formatTime(t.next_run_at) }}
           </div>
+          <div v-if="t.is_loop" class="mt-1 text-[11px] text-text-muted">
+            已完成轮数：{{ Number((t.payload as any)?.round_count || 0) }}
+          </div>
           <div class="mt-3">
             <div class="flex items-center justify-between text-xs mb-1.5">
               <span class="text-text-secondary tabular-nums">
