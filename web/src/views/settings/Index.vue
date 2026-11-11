@@ -2,7 +2,7 @@
   <main class="w-full max-w-3xl mx-auto space-y-4 sm:space-y-6 min-w-0">
     <!-- Phase 4: 设置页拆 5 Tab(手册信息架构)——URL ?tab= 同步, 可直接跳转/刷新定位 -->
     <div class="flex gap-1 p-1 rounded-[var(--t-r-md)] bg-bg-card border border-border/50 mb-2 overflow-x-auto">
-      <button type="button" v-for="t in tabs" :key="t.key" v-if="t.key !== 'textdicts' || authStore.tenant?.plan_features?.dict" class="ui-segmented__item px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors shrink-0"
+      <button type="button" v-for="t in visibleTabs" :key="t.key" class="ui-segmented__item px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors shrink-0"
               :class="activeTab === t.key ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'"
               @click="switchTab(t.key)">{{ t.label }}</button>
     </div>
@@ -414,6 +414,7 @@ function toggleNotifyEvent(key: string) {
 }
 const activeTab = ref('plan')
 // 初始值取 URL(外部跳转/刷新可定位到指定 Tab)
+const visibleTabs = computed(() => tabs.filter(t => t.key !== 'textdicts' || !!authStore.tenant?.plan_features?.dict))
 const validTabs = tabs.map((t) => t.key)
 const q = route.query.tab as string | undefined
 if (q && validTabs.includes(q)) activeTab.value = q
