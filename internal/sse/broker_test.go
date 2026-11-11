@@ -217,7 +217,6 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 	}
 }
 
-
 func TestBroadcastQueueOverflowEnqueuesResyncMarker(t *testing.T) {
 	b := NewBroker(&config.Config{SSEChannelBuffer: 2})
 	defer b.Close()
