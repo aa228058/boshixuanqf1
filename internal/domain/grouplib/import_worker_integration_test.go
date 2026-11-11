@@ -273,7 +273,6 @@ func TestImportWorkerConcurrentWorkersClaimJobOnlyOnce(t *testing.T) {
 	}
 }
 
-
 func TestDeleteImportJobRequiresTenantAndNoActiveLease(t *testing.T) {
 	pool := importWorkerTestPool(t)
 	tenantID, jobID, _ := createImportWorkerFixture(t, pool, 1, "cancelled", 0)
