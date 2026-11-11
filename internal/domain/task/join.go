@@ -55,6 +55,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	total := len(task.TargetIDs)
 	done := 0
 	failed := 0
+	joinedTargetLinks := make([]string, 0, total)
 
 	if len(task.AccountIDs) == 0 {
 		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
@@ -450,6 +451,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		}
 		persistCancel()
 		e.publishLog(task.TenantID, task.TaskID, joinLog)
+		if status == "success" {
+			joinedTargetLinks = append(joinedTargetLinks, link)
+		}
 
 		// Only a confirmed invalid/expired Telegram URL changes that URL's validity.
 		// Other aliases for the same group remain independently usable.
@@ -528,9 +532,12 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
-	// Sync joined groups to groups table (always try, even if already_member or failed)
-	if e.groupRepo != nil && total > 0 {
-		e.syncJoinedGroups(ctx, task, accID, client)
+	// Enrich only confirmed memberships. Resolving a failed target is not proof
+	// that this account joined it; never mark failed or pending approvals as joined.
+	if e.groupRepo != nil && len(joinedTargetLinks) > 0 {
+		syncTask := *task
+		syncTask.TargetIDs = joinedTargetLinks
+		e.syncJoinedGroups(ctx, &syncTask, accID, client)
 	}
 
 	if failed == total && total > 0 {
@@ -672,9 +679,8 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 				}
 			}
 		}
-		if !metadataResolved {
-			gtype = "unknown"
-		}
+		// Keep the type derived from ResolvePeer when metadata lookup fails.
+		// "unknown" violates the groups.type constraint and loses useful peer data.
 		// Fallback to link for the tenant-local record only; never publish this as a shared group title.
 		if title == "" {
 			title = link
