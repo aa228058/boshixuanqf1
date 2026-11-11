@@ -86,7 +86,7 @@
           <option value="import">文件/手动导入</option>
           <option value="search">Telegram 搜索</option>
         </select>
-        <!-- 本地群库过滤: 回车/筛选走 keyword ILIKE 后端过滤(群库内搜索); TG 全网搜独立入口 -->
+        <!-- 群库本地过滤与全库任务入口 -->
         <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
         <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="allSelecting || total === 0" :loading="allSelecting" @click="selectAllLibrary">
           全库创建加群任务
@@ -348,7 +348,7 @@ const aggregatedList = computed<SystemGroup[]>(() => {
     }
     const links = new Set((existing.entries || []).map(entry => (entry.tme_link || '').trim()))
     for (const entry of ownEntries) {
-      const key = (entry.tme_link || '').trim().toLowerCase()
+      const key = (entry.tme_link || '').trim()
       if (!key || !links.has(key)) {
         existing.entries = [...(existing.entries || []), entry]
         if (key) links.add(key)
