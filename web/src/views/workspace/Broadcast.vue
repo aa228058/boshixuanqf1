@@ -185,6 +185,16 @@
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
         </div>
+        <div v-if="authStore.tenant?.plan_features?.dict && textDicts.length" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
+          <div class="flex items-center justify-between gap-2"><span class="text-xs font-medium text-text-secondary">我的文本素材</span><button type="button" class="text-xs text-[var(--t-brand)]" @click="showTextSnippets = !showTextSnippets">{{ showTextSnippets ? "收起" : "选择并插入" }}</button></div>
+          <div v-if="showTextSnippets" class="space-y-2">
+            <select v-model="selectedTextDictId" class="ui-input w-full text-sm"><option value="">选择素材分组</option><option v-for="d in textDicts" :key="d.dict_id" :value="d.dict_id">{{ d.name }}</option></select>
+            <div v-if="selectedTextDict" class="flex flex-wrap gap-2">
+              <button v-for="(item, index) in selectedTextDict.items" :key="index" type="button" class="px-2.5 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-[color:var(--t-brand)] text-left max-w-full break-words" @click="insertTextSnippet(item)">{{ item }}</button>
+            </div>
+            <p v-else class="text-xs text-text-muted">选择一个分组后，点击素材即可插入到消息末尾。</p>
+          </div>
+        </div>
       </div>
 
       <!-- 消息混淆(两种模式共用) -->
@@ -295,6 +305,7 @@ import { groupApi } from '@/api/group'
 // R111 已删 ProtocolPicker / campaignApi / CAMPAIGN_STATUS 导入(协议协同死代码)
 import { useGroupStore } from '@/stores/group'
 import { taskApi } from '@/api/task'
+import { settingsApi, type TextDict } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import SendCalendar from '@/components/SendCalendar.vue'
 import { mediaApi } from '@/api/media'
@@ -445,6 +456,19 @@ function onImportFile(e: Event) {
   r.readAsText(f)
 }
 const message = ref('')
+const textDicts = ref<TextDict[]>([])
+const selectedTextDictId = ref('')
+const showTextSnippets = ref(false)
+const selectedTextDict = computed(() => textDicts.value.find(d => d.dict_id === selectedTextDictId.value) || null)
+async function loadTextSnippets() {
+  if (!authStore.tenant?.plan_features?.dict) return
+  try { const res = await settingsApi.getTextDicts(); textDicts.value = res.list || [] }
+  catch (e) { console.warn('加载文本素材失败', e) }
+}
+function insertTextSnippet(item: string) {
+  if (!item) return
+  message.value = message.value.trim() ? message.value.trimEnd() + String.fromCharCode(10) + item : item
+}
 
 // 消息草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
 const draftSaved = ref(false)
@@ -850,7 +874,7 @@ async function submit() {
   }
 }
 
-onMounted(() => { fetchData(); fetchTasks() })
+onMounted(() => { fetchData(); fetchTasks(); loadTextSnippets() })
 // 侧边栏切换账号: 重新拉取群组缓存
 watch(currentAccount, () => { fetchData() })
 </script>
