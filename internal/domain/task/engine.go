@@ -1409,11 +1409,14 @@ func (e *Engine) rescheduleLoopTask(ctx context.Context, task *domain.Task) {
 	if fresh.Status == domain.TaskStatusPaused || fresh.Status == domain.TaskStatusCancelled {
 		return
 	}
-	interval := task.LoopIntervalMinutes
-	if interval <= 0 {
-		interval = 60
+	next, scheduleErr := NextBroadcastRun(task.Payload, time.Now(), task.LoopIntervalMinutes)
+	if scheduleErr != nil {
+		taskLog.Printf("[task] invalid recurring broadcast schedule task=%s: %v; disabling loop", task.TaskID, scheduleErr)
+		if stopErr := e.repo.StopLoop(ctx, task.TenantID, task.TaskID); stopErr != nil {
+			taskLog.Printf("[task] failed to disable invalid recurring schedule task=%s: %v", task.TaskID, stopErr)
+		}
+		return
 	}
-	next := time.Now().Add(time.Duration(interval) * time.Minute)
 	if err := e.repo.RescheduleLoopTask(ctx, task.TenantID, task.TaskID, next); err != nil {
 		taskLog.Printf("[task] failed to reschedule loop task %s: %v", task.TaskID, err)
 	}

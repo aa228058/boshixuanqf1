@@ -605,3 +605,296 @@ func TestPauseIfActiveRespectsCurrentTaskState(t *testing.T) {
 		t.Fatalf("completed task status = %q, want completed", status)
 	}
 }
+
+func TestRescheduleLoopTaskStoresRFC3339RoundCheckpoint(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tasks
+		SET status = 'completed', is_loop = TRUE,
+		    scheduled_at = NOW() - INTERVAL '1 minute',
+		    progress = '{"total":10,"done":8,"failed":2}'::jsonb,
+		    payload = jsonb_build_object(
+		        'round_count', 0, 'max_rounds', 3,
+		        'round_started_at', to_char(NOW() - INTERVAL '2 minutes', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+		    )
+		WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID); err != nil {
+		t.Fatalf("prepare completed loop task: %v", err)
+	}
+
+	nextRun := time.Now().UTC().Add(time.Hour)
+	if err := repo.RescheduleLoopTask(context.Background(), tenantID, taskID, nextRun); err != nil {
+		t.Fatalf("RescheduleLoopTask: %v", err)
+	}
+
+	var checkpoint string
+	var status string
+	var isLoop bool
+	if err := pool.QueryRow(context.Background(), `
+		SELECT payload->>'round_started_at', status, is_loop
+		FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&checkpoint, &status, &isLoop); err != nil {
+		t.Fatalf("read rescheduled loop task: %v", err)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, checkpoint); err != nil {
+		t.Fatalf("round_started_at %q is not RFC3339Nano: %v", checkpoint, err)
+	}
+	if status != "pending" || !isLoop {
+		t.Fatalf("rescheduled state = status:%s loop:%t; want pending/true", status, isLoop)
+	}
+
+	var round, total, success, failed int
+	var startedAt, completedAt, nextRunText, roundStatus string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT
+			(payload->'round_history'->0->>'round')::int,
+			(payload->'round_history'->0->>'total')::int,
+			(payload->'round_history'->0->>'success')::int,
+			(payload->'round_history'->0->>'failed')::int,
+			payload->'round_history'->0->>'started_at',
+			payload->'round_history'->0->>'completed_at',
+			payload->'round_history'->0->>'next_run_at',
+			payload->'round_history'->0->>'status'
+		FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&round, &total, &success, &failed, &startedAt, &completedAt, &nextRunText, &roundStatus); err != nil {
+		t.Fatalf("read round history: %v", err)
+	}
+	if round != 1 || total != 10 || success != 8 || failed != 2 {
+		t.Fatalf("round summary = round:%d total:%d success:%d failed:%d", round, total, success, failed)
+	}
+	if startedAt == "" || completedAt == "" || nextRunText == "" || roundStatus != "scheduled" {
+		t.Fatalf("incomplete round summary: started=%q completed=%q next=%q status=%q", startedAt, completedAt, nextRunText, roundStatus)
+	}
+}
+
+func TestSetLoopConfigPreservesFirstScheduledRun(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+	firstRun := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Microsecond)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tasks SET scheduled_at = $3, status = 'pending'
+		WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID, firstRun); err != nil {
+		t.Fatalf("set first scheduled run: %v", err)
+	}
+	if err := repo.SetLoopConfig(context.Background(), tenantID, taskID, true, 60, 5, 12, domain.TaskTypeScheduledBroadcast); err != nil {
+		t.Fatalf("SetLoopConfig: %v", err)
+	}
+	var nextRun time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT next_run_at FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&nextRun); err != nil {
+		t.Fatalf("read next run: %v", err)
+	}
+	if !nextRun.Equal(firstRun) {
+		t.Fatalf("next_run_at = %s, want first scheduled run %s", nextRun, firstRun)
+	}
+}
+
+func TestRescheduleLoopTaskArchivesFinalRoundAndCapsHistory(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tasks
+		SET status = 'completed', is_loop = TRUE,
+		    scheduled_at = NOW() - INTERVAL '1 minute',
+		    progress = '{"total":4,"done":3,"failed":1}'::jsonb,
+		    payload = jsonb_build_object(
+		        'round_count', 2, 'max_rounds', 3,
+		        'round_started_at', to_char(NOW() - INTERVAL '2 minutes', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+		        'round_history', (SELECT jsonb_agg(jsonb_build_object('round', n)) FROM generate_series(1, 55) n)
+		    )
+		WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID); err != nil {
+		t.Fatalf("prepare final loop round: %v", err)
+	}
+
+	if err := repo.RescheduleLoopTask(context.Background(), tenantID, taskID, time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatalf("RescheduleLoopTask: %v", err)
+	}
+
+	var status string
+	var isLoop bool
+	var historyCount int
+	var round, success, failed int
+	var summaryStatus string
+	var nextRun *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status, is_loop, next_run_at,
+		       jsonb_array_length(payload->'round_history'),
+		       (payload->'round_history'->49->>'round')::int,
+		       (payload->'round_history'->49->>'success')::int,
+		       (payload->'round_history'->49->>'failed')::int,
+		       payload->'round_history'->49->>'status'
+		FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&status, &isLoop, &nextRun, &historyCount, &round, &success, &failed, &summaryStatus); err != nil {
+		t.Fatalf("read final loop state: %v", err)
+	}
+	if status != "completed" || isLoop || nextRun != nil {
+		t.Fatalf("final loop state = status:%s loop:%t next:%v; want completed/false/nil", status, isLoop, nextRun)
+	}
+	if historyCount != 50 || round != 3 || success != 3 || failed != 1 || summaryStatus != "finished" {
+		t.Fatalf("final round archive = count:%d round:%d success:%d failed:%d status:%s", historyCount, round, success, failed, summaryStatus)
+	}
+}
+
+func TestResumeLoopPreservesFutureCalendarRun(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+	nextRun := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Microsecond)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tasks SET status = 'paused', is_loop = TRUE,
+		    next_run_at = $3, scheduled_at = $3
+		WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID, nextRun); err != nil {
+		t.Fatalf("prepare paused calendar task: %v", err)
+	}
+	if err := repo.ResumeLoop(context.Background(), tenantID, taskID); err != nil {
+		t.Fatalf("ResumeLoop: %v", err)
+	}
+	var status string
+	var scheduledAt *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status, scheduled_at FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&status, &scheduledAt); err != nil {
+		t.Fatalf("read resumed calendar task: %v", err)
+	}
+	if status != "pending" || scheduledAt == nil || !scheduledAt.Equal(nextRun) {
+		t.Fatalf("resumed future task = status:%s scheduled_at:%v; want pending at %s", status, scheduledAt, nextRun)
+	}
+}
+
+func TestResumeLoopQueuesOverdueCalendarRunImmediately(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+	pastRun := time.Now().UTC().Add(-time.Hour)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tasks SET status = 'paused', is_loop = TRUE,
+		    next_run_at = $3, scheduled_at = $3
+		WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID, pastRun); err != nil {
+		t.Fatalf("prepare overdue paused calendar task: %v", err)
+	}
+	if err := repo.ResumeLoop(context.Background(), tenantID, taskID); err != nil {
+		t.Fatalf("ResumeLoop: %v", err)
+	}
+	var status string
+	var scheduledAt *time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status, scheduled_at FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&status, &scheduledAt); err != nil {
+		t.Fatalf("read resumed overdue task: %v", err)
+	}
+	if status != "queued" || scheduledAt != nil {
+		t.Fatalf("resumed overdue task = status:%s scheduled_at:%v; want queued/nil", status, scheduledAt)
+	}
+}
+
+func TestTaskLogsCanBePagedWithinOneRoundWindow(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+	logRepo := NewTaskLogRepository(pool)
+	start := time.Now().UTC().Truncate(time.Second)
+	logIDs := make([]uuid.UUID, 3)
+	for i := range logIDs {
+		logIDs[i] = uuid.New()
+		entry := &domain.TaskLog{
+			LogID: logIDs[i], TaskID: taskID, TenantID: tenantID,
+			TargetID: fmt.Sprintf("target-%d", i+1), Action: "broadcast",
+			Status: "success", ExecutedAt: start.Add(time.Duration(i+1) * time.Minute),
+		}
+		if err := logRepo.Create(context.Background(), entry); err != nil {
+			t.Fatalf("insert round log %d: %v", i+1, err)
+		}
+	}
+
+	from, to := start.Add(30*time.Second), start.Add(4*time.Minute)
+	firstPage, err := logRepo.ListByTaskRange(context.Background(), tenantID, taskID, &from, &to, 2, 0)
+	if err != nil {
+		t.Fatalf("ListByTaskRange: %v", err)
+	}
+	if len(firstPage) != 2 || firstPage[0].LogID != logIDs[2] || firstPage[1].LogID != logIDs[1] {
+		t.Fatalf("first round page = %#v; want newest two logs in descending order", firstPage)
+	}
+
+	nextPage, err := logRepo.ListBeforeByTaskRange(context.Background(), tenantID, taskID, firstPage[1].LogID, &from, &to, 2)
+	if err != nil {
+		t.Fatalf("ListBeforeByTaskRange: %v", err)
+	}
+	if len(nextPage) != 1 || nextPage[0].LogID != logIDs[0] {
+		t.Fatalf("cursor round page = %#v; want oldest remaining log", nextPage)
+	}
+
+	excludedFrom, excludedTo := start.Add(2*time.Minute), start.Add(3*time.Minute)
+	exactWindow, err := logRepo.ListByTaskRange(context.Background(), tenantID, taskID, &excludedFrom, &excludedTo, 10, 0)
+	if err != nil {
+		t.Fatalf("ListByTaskRange exact window: %v", err)
+	}
+	if len(exactWindow) != 1 || exactWindow[0].LogID != logIDs[1] {
+		t.Fatalf("half-open round window = %#v; want only log at lower bound", exactWindow)
+	}
+}
+
+func TestClaimTimeoutTasks_PreservesRecurringRoundCheckpoint(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeScheduledBroadcast), 5)
+	checkpoint := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339Nano)
+
+	_, err := pool.Exec(context.Background(), `
+		UPDATE tasks
+		SET status = 'running', is_loop = TRUE, worker_id = 'stopped-worker',
+		    locked_at = NOW() - INTERVAL '6 minutes',
+		    payload = jsonb_build_object('round_count', 2, 'round_started_at', $2::text)
+		WHERE tenant_id = $1 AND task_id = $3
+	`, tenantID, checkpoint, taskID)
+	if err != nil {
+		t.Fatalf("prepare interrupted recurring broadcast: %v", err)
+	}
+
+	claimed, err := repo.ClaimTimeoutTasks(context.Background(), "recovery-worker", 5, 5)
+	if err != nil {
+		t.Fatalf("ClaimTimeoutTasks: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].TaskID != taskID {
+		t.Fatalf("reclaimed tasks=%d, want the interrupted recurring broadcast", len(claimed))
+	}
+
+	var storedCheckpoint string
+	var roundCount int
+	var workerID string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT payload->>'round_started_at', (payload->>'round_count')::int, worker_id
+		FROM tasks WHERE tenant_id = $1 AND task_id = $2
+	`, tenantID, taskID).Scan(&storedCheckpoint, &roundCount, &workerID); err != nil {
+		t.Fatalf("read recovered task: %v", err)
+	}
+	if storedCheckpoint != checkpoint || roundCount != 2 {
+		t.Fatalf("recovery changed round checkpoint: checkpoint=%q round=%d", storedCheckpoint, roundCount)
+	}
+	if workerID != "recovery-worker" {
+		t.Fatalf("worker after recovery=%q, want recovery-worker", workerID)
+	}
+}

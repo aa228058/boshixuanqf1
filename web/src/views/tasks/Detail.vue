@@ -106,19 +106,19 @@
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <Clock class="w-4 h-4 text-text-muted" />
-          <h3 class="text-sm font-medium">实时日志</h3>
-          <span class="text-xs text-text-secondary">({{ logs.length }})</span>
+          <h3 class="text-sm font-medium">执行日志</h3>
+          <span class="text-xs text-text-secondary">({{ visibleRoundLogs.length }})</span>
         </div>
         <div class="flex items-center gap-2">
-          <span v-if="connState === 'connected'" class="flex items-center gap-1 text-xs text-[var(--t-ok)]">
+          <span v-if="showLiveConnection && connState === 'connected'" class="flex items-center gap-1 text-xs text-[var(--t-ok)]">
             <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-ok)] animate-pulse" />
             实时连接中
           </span>
-          <span v-else-if="connState === 'connecting'" class="flex items-center gap-1 text-xs text-text-secondary">
+          <span v-else-if="showLiveConnection && connState === 'connecting'" class="flex items-center gap-1 text-xs text-text-secondary">
             <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-brand)] animate-pulse" />
             连接中…
           </span>
-          <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
+          <span v-else-if="showLiveConnection" class="text-xs text-text-secondary">已断开,3秒后重连</span>
           <t-button
             @click="clearLogs"
             :disabled="!['completed', 'failed', 'cancelled'].includes(task?.status || '')"
@@ -126,6 +126,14 @@
             :title="['completed', 'failed', 'cancelled'].includes(task?.status || '') ? '永久删除该任务的全部日志' : '任务结束后才能清除日志'"
           >清除日志</t-button>
         </div>
+      </div>
+      <div v-if="roundOptions.length" class="mb-3 flex flex-wrap items-center gap-2">
+        <label for="task-round-filter" class="text-xs text-text-secondary">执行轮次</label>
+        <select id="task-round-filter" v-model="selectedRound" class="min-w-0 max-w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-xs text-text-primary">
+          <option value="all">全部轮次</option>
+          <option v-for="round in roundOptions" :key="round.value" :value="round.value">{{ round.label }} · 成功 {{ round.success }} / 失败 {{ round.failed }}</option>
+        </select>
+        <span v-if="selectedRound !== 'all'" class="text-[11px] text-text-muted">仅显示该轮的原始执行记录</span>
       </div>
       <div class="ui-segmented mb-2 flex-wrap" role="group" aria-label="筛选任务日志">
         <button
@@ -293,12 +301,64 @@ async function fetchMembers() {
 }
 
 const logs = ref<TaskLog[]>([])
+type RoundLogOption = { value: string; label: string; from: string; to?: string; success: number; failed: number }
+const selectedRound = ref('all')
+const roundOptions = computed<RoundLogOption[]>(() => {
+  let payload: any = task.value?.payload || {}
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload) } catch { payload = {} }
+  }
+  const history = Array.isArray(payload?.round_history) ? payload.round_history : []
+  const options: RoundLogOption[] = history
+    .filter((item: any) => item?.round && item?.started_at)
+    .map((item: any) => ({
+      value: String(item.round),
+      label: `第 ${item.round} 轮`,
+      from: String(item.started_at),
+      to: item.completed_at ? String(item.completed_at) : undefined,
+      success: Number(item.success || 0),
+      failed: Number(item.failed || 0),
+    }))
+  const activeFrom = payload?.round_started_at
+  const terminal = ['completed', 'failed', 'cancelled'].includes(task.value?.status || '')
+  if (activeFrom && !terminal) {
+    const activeRound = Number(payload?.round_count || 0) + 1
+    options.push({
+      value: String(activeRound),
+      label: `第 ${activeRound} 轮（当前）`,
+      from: String(activeFrom),
+      success: Number(task.value?.progress?.done || 0),
+      failed: Number(task.value?.progress?.failed || 0),
+    })
+  }
+  return options.sort((a, b) => Number(b.value) - Number(a.value))
+})
+const selectedRoundWindow = computed(() => {
+  if (selectedRound.value === 'all') return undefined
+  const option = roundOptions.value.find(item => item.value === selectedRound.value)
+  return option ? { from: option.from, to: option.to } : undefined
+})
+const showLiveConnection = computed(() => {
+  if (selectedRound.value === 'all') return true
+  return roundOptions.value.find(item => item.value === selectedRound.value)?.label.includes('当前') || false
+})
+const visibleRoundLogs = computed(() => {
+  const range = selectedRoundWindow.value
+  if (!range) return logs.value
+  const from = Date.parse(range.from)
+  const to = range.to ? Date.parse(range.to) : Number.POSITIVE_INFINITY
+  return logs.value.filter(log => {
+    const at = Date.parse(String(log.executed_at || ''))
+    return Number.isFinite(at) && at >= from && at < to
+  })
+})
 const logKeys = new Set<string>()
 const logsPage = ref(1)
 const logPageCursors = new Map<number, string>()
 const hasMoreLogs = ref(false)
 const loadingMoreLogs = ref(false)
 const LOG_PAGE_SIZE = 50
+
 
 // R87-M10: 100% 后状态收敛兜底 —— SSE 事件丢失时, 进度满后 3s 自动补拉任务状态,
 // 避免"发完了还显示执行中"必须手动刷新
@@ -323,7 +383,7 @@ watch(() => [(task.value as any)?.progress?.done, (task.value as any)?.progress?
 // 其"等待N秒后进入下一目标"信息并入上一条日志显示(时间-消息-群组-结果 的干净时间线)
 const displayLogs = computed(() => {
   const out: (TaskLog & { _waitMsg?: string })[] = []
-  for (const log of logs.value) {
+  for (const log of visibleRoundLogs.value) {
     const isWait = log.action === '限速等待' || (log.message || '').includes('秒后进入下一目标')
     if (isWait) {
       if (out.length && log.message) out[out.length - 1] = { ...out[out.length - 1], _waitMsg: log.message }
@@ -343,8 +403,8 @@ const logPills = [
   { value: 'other', label: '其他' },
 ] as const
 const filteredLogs = computed(() => {
-  if (logFilter.value === 'all') return logs.value
-  return logs.value.filter((log: any) => {
+  if (logFilter.value === 'all') return visibleRoundLogs.value
+  return visibleRoundLogs.value.filter((log: any) => {
     // 与 logCardClass 保持同一套状态归一化(任务完成时的 wait 视为成功)
     const s = (task.value?.status === 'completed' && (log.status === 'wait' || log.status === 'pending')) ? 'success' : log.status
     if (logFilter.value === 'success') return s === 'success'
@@ -497,6 +557,17 @@ async function fetchTask(silent = false) {
 const logPageRequestIds = new Map<number, number>()
 let nextLogPageRequestId = 0
 
+watch(selectedRound, () => {
+  if (!pageActive) return
+  for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
+  logs.value = []
+  logKeys.clear()
+  logsPage.value = 1
+  logPageCursors.clear()
+  hasMoreLogs.value = false
+  void fetchLogs()
+})
+
 async function fetchLogs(page = 1, beforeLogId?: string) {
   const requestId = ++nextLogPageRequestId
   logPageRequestIds.set(page, requestId)
@@ -505,7 +576,7 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
   const previousTop = container?.scrollTop || 0
   const wasAtBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
   try {
-    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE, beforeLogId)
+    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE, beforeLogId, selectedRoundWindow.value)
     if (!pageActive || logPageRequestIds.get(page) !== requestId) return
     let data: TaskLog[] = []
     if (Array.isArray(res)) {

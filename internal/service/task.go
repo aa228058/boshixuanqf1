@@ -333,9 +333,8 @@ func (s *TaskService) CreateBroadcast(ctx context.Context, tenantID uuid.UUID, a
 	return s.CreateBroadcastWithMapping(ctx, tenantID, nil, accountIDs, targetIDs, message, scheduledAt, intervalMin, intervalMax, extraPayload)
 }
 
-// CreateScheduledBroadcast creates a broadcast task with loop scheduling.
-// First run happens immediately; afterwards the engine requeues it every
-// loopIntervalMinutes until it is paused or cancelled.
+// CreateScheduledBroadcast is the legacy interval-based wrapper. Its first
+// run happens immediately; use CreateScheduledBroadcastWithSchedule for calendar modes.
 func (s *TaskService) CreateScheduledBroadcast(ctx context.Context, tenantID uuid.UUID, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool) (*domain.Task, error) {
 	return s.CreateScheduledBroadcastWithMapping(ctx, tenantID, nil, accountIDs, targetIDs, message, loopIntervalMinutes, intervalMin, intervalMax, isLoop, 0, nil)
 }
@@ -343,25 +342,50 @@ func (s *TaskService) CreateScheduledBroadcast(ctx context.Context, tenantID uui
 // CreateScheduledBroadcastWithMapping creates a recurring broadcast using the same
 // explicit account-to-target assignments as a one-time broadcast.
 func (s *TaskService) CreateScheduledBroadcastWithMapping(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool, maxRounds int, endAt *time.Time) (*domain.Task, error) {
+	return s.CreateScheduledBroadcastWithSchedule(ctx, tenantID, mappings, accountIDs, targetIDs, message,
+		loopIntervalMinutes, intervalMin, intervalMax, isLoop, maxRounds, endAt, map[string]any{"schedule_mode": "interval"}, nil)
+}
+
+// CreateScheduledBroadcastWithSchedule supports interval, daily and weekly recurrence.
+// firstRunAt is optional; calendar modes calculate the next local slot when it is nil.
+func (s *TaskService) CreateScheduledBroadcastWithSchedule(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool, maxRounds int, endAt *time.Time, schedule map[string]any, firstRunAt *time.Time) (*domain.Task, error) {
 	now := time.Now()
-	extraPayload := map[string]any{}
+	firstRun := now
+	if firstRunAt != nil {
+		firstRun = firstRunAt.UTC()
+	} else if mode, _ := schedule["schedule_mode"].(string); mode == "daily" || mode == "weekly" {
+		calculated, err := task.NextBroadcastRun(schedule, now, loopIntervalMinutes)
+		if err != nil {
+			return nil, fmt.Errorf("calculate first calendar run: %w", err)
+		}
+		firstRun = calculated
+	}
+
+	extraPayload := map[string]any{
+		// Every round gets a durable checkpoint so retries are idempotent within
+		// a round without suppressing targets completed by previous rounds.
+		"round_started_at": firstRun.UTC().Format(time.RFC3339Nano),
+	}
+	for key, value := range schedule {
+		extraPayload[key] = value
+	}
 	if maxRounds > 0 {
 		extraPayload["max_rounds"] = maxRounds
 	}
 	if endAt != nil {
 		extraPayload["end_at"] = endAt.UTC().Format(time.RFC3339)
 	}
-	task, err := s.CreateBroadcastWithMapping(ctx, tenantID, mappings, accountIDs, targetIDs, message, &now, intervalMin, intervalMax, extraPayload)
+	taskRecord, err := s.CreateBroadcastWithMapping(ctx, tenantID, mappings, accountIDs, targetIDs, message, &firstRun, intervalMin, intervalMax, extraPayload)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.SetLoopConfig(ctx, tenantID, task.TaskID, isLoop, loopIntervalMinutes, intervalMin, intervalMax, domain.TaskTypeScheduledBroadcast); err != nil {
+	if err := s.repo.SetLoopConfig(ctx, tenantID, taskRecord.TaskID, isLoop, loopIntervalMinutes, intervalMin, intervalMax, domain.TaskTypeScheduledBroadcast); err != nil {
 		return nil, fmt.Errorf("set loop config: %w", err)
 	}
-	task.IsLoop = isLoop
-	task.LoopIntervalMinutes = loopIntervalMinutes
-	task.Type = domain.TaskTypeScheduledBroadcast
-	return task, nil
+	taskRecord.IsLoop = isLoop
+	taskRecord.LoopIntervalMinutes = loopIntervalMinutes
+	taskRecord.Type = domain.TaskTypeScheduledBroadcast
+	return taskRecord, nil
 }
 
 // CreateBroadcastWithMapping creates a broadcast task with account-target mapping.
@@ -983,6 +1007,25 @@ func (s *TaskService) GetLogs(ctx context.Context, tenantID, taskID uuid.UUID, p
 	}
 	offset := (page - 1) * pageSize
 	return s.logRepo.ListByTask(ctx, tenantID, taskID, pageSize, offset)
+}
+
+// GetLogsInRange returns task logs constrained to a single broadcast round.
+func (s *TaskService) GetLogsInRange(ctx context.Context, tenantID, taskID uuid.UUID, from, to *time.Time, page, pageSize int) ([]*domain.TaskLog, error) {
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	if page < 1 {
+		page = 1
+	}
+	return s.logRepo.ListByTaskRange(ctx, tenantID, taskID, from, to, pageSize, (page-1)*pageSize)
+}
+
+// GetLogsBeforeInRange returns the next older page within one broadcast round.
+func (s *TaskService) GetLogsBeforeInRange(ctx context.Context, tenantID, taskID, beforeLogID uuid.UUID, from, to *time.Time, pageSize int) ([]*domain.TaskLog, error) {
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	return s.logRepo.ListBeforeByTaskRange(ctx, tenantID, taskID, beforeLogID, from, to, pageSize)
 }
 
 // GetLogsBefore returns the next older task-log page using a stable log cursor.

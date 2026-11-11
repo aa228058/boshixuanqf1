@@ -184,6 +184,68 @@ func (r *TaskLogRepository) ListBeforeByTask(ctx context.Context, tenantID, task
 	return logs, rows.Err()
 }
 
+// ListByTaskRange retrieves task logs within a round time window.
+func (r *TaskLogRepository) ListByTaskRange(ctx context.Context, tenantID, taskID uuid.UUID, from, to *time.Time, limit, offset int) ([]*domain.TaskLog, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, tg_message_id, executed_at
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND ($3::timestamptz IS NULL OR executed_at >= $3)
+		  AND ($4::timestamptz IS NULL OR executed_at < $4)
+		ORDER BY executed_at DESC, log_id DESC
+		LIMIT $5 OFFSET $6`, tenantID, taskID, from, to, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list task logs in range: %w", err)
+	}
+	defer rows.Close()
+	var logs []*domain.TaskLog
+	for rows.Next() {
+		var l domain.TaskLog
+		var accountID *uuid.UUID
+		if err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.TGMessageID, &l.ExecutedAt); err != nil {
+			return nil, err
+		}
+		if accountID != nil {
+			l.AccountID = *accountID
+		}
+		logs = append(logs, &l)
+	}
+	return logs, rows.Err()
+}
+
+// ListBeforeByTaskRange retrieves an older page within the selected round.
+func (r *TaskLogRepository) ListBeforeByTaskRange(ctx context.Context, tenantID, taskID, beforeLogID uuid.UUID, from, to *time.Time, limit int) ([]*domain.TaskLog, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, tg_message_id, executed_at
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND ($4::timestamptz IS NULL OR executed_at >= $4)
+		  AND ($5::timestamptz IS NULL OR executed_at < $5)
+		  AND (executed_at, log_id) < (
+		    SELECT executed_at, log_id FROM task_logs
+		    WHERE tenant_id = $1 AND task_id = $2 AND log_id = $3
+		  )
+		ORDER BY executed_at DESC, log_id DESC
+		LIMIT $6`, tenantID, taskID, beforeLogID, from, to, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list task logs before cursor in range: %w", err)
+	}
+	defer rows.Close()
+	var logs []*domain.TaskLog
+	for rows.Next() {
+		var l domain.TaskLog
+		var accountID *uuid.UUID
+		if err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.TGMessageID, &l.ExecutedAt); err != nil {
+			return nil, err
+		}
+		if accountID != nil {
+			l.AccountID = *accountID
+		}
+		logs = append(logs, &l)
+	}
+	return logs, rows.Err()
+}
+
 // CountByTask counts logs for a task.
 func (r *TaskLogRepository) CountByTask(ctx context.Context, tenantID, taskID uuid.UUID) (int, error) {
 	var count int
@@ -313,15 +375,17 @@ func (r *TaskLogRepository) HasSuccessForTarget(ctx context.Context, tenantID, t
 // P0-12: 键升级为 accountID+"|"+targetID——原按目标全局去重会把 cartesian
 // 模式(所有账号×所有目标全发)压成单账号发送; mapping 模式账号目标不重叠,
 // 升级后行为不变。
-func (r *TaskLogRepository) HasSuccessForTargets(ctx context.Context, tenantID, taskID uuid.UUID, targetIDs []string) (map[string]bool, error) {
+func (r *TaskLogRepository) HasSuccessForTargets(ctx context.Context, tenantID, taskID uuid.UUID, targetIDs []string, since *time.Time) (map[string]bool, error) {
 	result := make(map[string]bool)
 	if len(targetIDs) == 0 {
 		return result, nil
 	}
 	rows, err := r.db.Query(ctx, `
 	    SELECT account_id, target_id FROM task_logs
-	    WHERE tenant_id=$1 AND task_id=$2 AND status='success' AND target_id = ANY($3::text[])`,
-		tenantID, taskID, targetIDs)
+	    WHERE tenant_id=$1 AND task_id=$2 AND status='success'
+	      AND target_id = ANY($3::text[])
+	      AND ($4::timestamptz IS NULL OR executed_at >= $4)`,
+		tenantID, taskID, targetIDs, since)
 	if err != nil {
 		return nil, err
 	}

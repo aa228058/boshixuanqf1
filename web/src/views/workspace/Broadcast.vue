@@ -53,7 +53,7 @@
                 <span v-if="t.status === 'running'" class="w-1.5 h-1.5 rounded-full bg-current dot-pulse" />
                 {{ statusLabel(t.status) }}
               </span>
-              <span v-if="t.is_loop" class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--t-brand-dim)] text-[var(--t-brand)] shrink-0">循环 · {{ t.loop_interval_minutes || 60 }} 分钟</span>
+              <span v-if="t.is_loop" class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--t-brand-dim)] text-[var(--t-brand)] shrink-0">循环 · {{ loopScheduleLabel(t.payload) }}</span>
               <span v-else class="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-muted shrink-0">单次</span>
               <span class="text-xs text-text-muted truncate">目标 {{ (t.target_ids || []).length || progOf(t).total || '-' }} 个</span>
             </div>
@@ -69,6 +69,15 @@
             <span v-if="(t.payload as any)?.max_rounds">最多 {{ (t.payload as any).max_rounds }} 轮</span>
             <span v-if="(t.payload as any)?.max_rounds && (t.payload as any)?.end_at"> · </span>
             <span v-if="(t.payload as any)?.end_at">结束于 {{ formatTime((t.payload as any).end_at) }}</span>
+          </div>
+          <div v-if="t.is_loop && loopRoundHistory(t).length" class="mt-2 rounded-lg border border-border/60 bg-bg-hover/40 px-3 py-2">
+            <div class="text-[10px] text-text-muted mb-1.5">最近执行轮次</div>
+            <div v-for="round in loopRoundHistory(t)" :key="round.round" class="flex flex-wrap items-center gap-x-2 gap-y-1 py-1 text-[11px]">
+              <span class="font-medium text-text-primary">第 {{ round.round }} 轮</span>
+              <span class="text-[var(--t-ok)]">成功 {{ round.success || 0 }}</span>
+              <span class="text-[var(--t-err)]">失败 {{ round.failed || 0 }}</span>
+              <span class="text-text-muted ml-auto">{{ formatTime(round.completed_at) }}</span>
+            </div>
           </div>
           <div class="mt-3">
             <div class="flex items-center justify-between text-xs mb-1.5">
@@ -213,21 +222,6 @@
         </div>
       </div>
 
-      <!-- 消息混淆(两种模式共用) -->
-      <template v-if="!isLoop">
-        <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-          <input type="checkbox" v-model="obfuscate" class="accent-[var(--t-brand)] w-4 h-4" />
-          <span class="font-semibold">消息混淆</span>
-          <span class="text-text-muted">每条自动加随机表情+隐形字符</span>
-        </label>
-        <!-- 每条消息自动变化: 一键让措辞/标点各不相同, 不用写任何变量 -->
-        <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-          <input type="checkbox" v-model="autoVary" class="accent-[var(--t-brand)] w-4 h-4" />
-          <span class="font-semibold">每条消息自动变化</span>
-          <span class="text-text-muted">自动换同义词、抖动标点</span>
-        </label>
-      </template>
-      <p v-else class="text-xs text-text-muted mb-3">循环群发当前不支持消息混淆和自动变化设置。</p>
       <!-- 富媒体(可选) -->
       <div>
         <label class="block text-sm font-medium mb-2">附带媒体 <span class="text-text-muted font-normal">(可选)</span></label>
@@ -269,8 +263,8 @@
         <p class="text-xs text-text-muted mt-1">系统会在最小和最大间隔之间随机取值，模拟真人发送</p>
       </div>
 
-      <!-- 定时启动(可选) -->
-      <div>
+      <!-- 单次任务的定时启动；循环任务使用下方首次执行时间 -->
+      <div v-if="!isLoop">
         <label class="block text-sm font-medium mb-2">定时启动 <span class="text-text-muted font-normal">(可选, 留空立即执行)</span></label>
         <t-date-picker v-model="scheduledAtTs" type="datetime" value-type="time-stamp" clearable
                        placeholder="选择定时启动时间（留空立即执行）" class="w-full" />
@@ -292,11 +286,43 @@
           </button>
         </div>
         <div v-if="isLoop" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
-          <label class="block text-xs font-semibold text-text-secondary">循环周期</label>
-          <div class="flex items-center gap-2">
+          <label class="block text-xs font-semibold text-text-secondary">循环方式</label>
+          <div class="grid grid-cols-3 gap-1.5">
+            <button type="button" @click="loopScheduleMode = 'interval'" class="rounded-lg border px-2 py-2 text-xs"
+              :class="loopScheduleMode === 'interval' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">间隔循环</button>
+            <button type="button" @click="loopScheduleMode = 'daily'" class="rounded-lg border px-2 py-2 text-xs"
+              :class="loopScheduleMode === 'daily' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">每天固定时间</button>
+            <button type="button" @click="loopScheduleMode = 'weekly'" class="rounded-lg border px-2 py-2 text-xs"
+              :class="loopScheduleMode === 'weekly' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">每周固定时间</button>
+          </div>
+          <div v-if="loopScheduleMode === 'interval'" class="flex items-center gap-2">
             <span class="text-xs text-text-muted shrink-0">上一轮完成后，间隔</span>
             <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-24" />
             <span class="text-xs text-text-muted shrink-0">分钟开始下一轮</span>
+          </div>
+          <div v-else class="space-y-2">
+            <div>
+              <label class="block text-xs font-semibold text-text-secondary mb-1">时区（IANA）</label>
+              <t-input v-model="scheduleTimezone" placeholder="例如 Asia/Shanghai 或 America/Los_Angeles" class="w-full" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-text-secondary mb-1">固定执行时间</label>
+              <input v-model="scheduleLocalTime" type="time" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+            </div>
+            <div v-if="loopScheduleMode === 'weekly'">
+              <label class="block text-xs font-semibold text-text-secondary mb-1">执行星期</label>
+              <div class="grid grid-cols-7 gap-1">
+                <button v-for="day in weekDayOptions" :key="day.value" type="button" @click="toggleScheduleWeekday(day.value)"
+                  class="rounded-md border py-2 text-[11px]"
+                  :class="scheduleWeekdays.includes(day.value) ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">{{ day.label }}</button>
+              </div>
+            </div>
+            <p class="text-[10px] text-text-muted">按所选时区的当地时间执行；夏令时不存在的时刻会跳过当天，重复时刻只执行第一次，避免同一天重复发送。</p>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-text-secondary mb-1">首次执行时间（可选）</label>
+            <input v-model="firstRunLocal" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+            <p class="text-[10px] text-text-muted mt-1">留空时，日历模式自动计算下一次符合条件的时间；间隔模式立即开始。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
@@ -364,6 +390,26 @@ const activeTab = ref<'tasks' | 'calendar'>('tasks')
 const pageTabs = [{ key: 'tasks', label: '任务列表' }, { key: 'calendar', label: '发送日历' }] as const
 const isLoop = ref(false)
 const loopIntervalMin = ref(60)
+const loopScheduleMode = ref<'interval' | 'daily' | 'weekly'>('interval')
+const scheduleTimezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai')
+const scheduleLocalTime = ref('09:00')
+const scheduleWeekdays = ref<number[]>([1, 2, 3, 4, 5])
+const firstRunLocal = ref('')
+const weekDayOptions = [{ value: 1, label: '一' }, { value: 2, label: '二' }, { value: 3, label: '三' }, { value: 4, label: '四' }, { value: 5, label: '五' }, { value: 6, label: '六' }, { value: 7, label: '日' }]
+function toggleScheduleWeekday(day: number) {
+  scheduleWeekdays.value = scheduleWeekdays.value.includes(day)
+    ? scheduleWeekdays.value.filter(value => value !== day)
+    : [...scheduleWeekdays.value, day].sort((a, b) => a - b)
+}
+function loopScheduleLabel(payload: any) {
+  const mode = payload?.schedule_mode
+  if (mode === 'daily') return `每天 ${payload?.local_time || ''} · ${payload?.timezone || ''}`
+  if (mode === 'weekly') {
+    const days = (payload?.weekdays || []).map((value: number) => weekDayOptions.find(day => day.value === value)?.label).filter(Boolean).join('、')
+    return `每周${days} ${payload?.local_time || ''} · ${payload?.timezone || ''}`
+  }
+  return `${payload?.loop_interval_minutes || 60} 分钟`
+}
 const loopMaxRounds = ref(0)
 const loopEndAt = ref('')
 const authStore = useAuthStore()
@@ -579,8 +625,6 @@ const scheduledAtTs = ref<number | null>(null)
 // R111: protocolIds 等协议协同变量已删(死代码, view 恒 'phone')
 // R111 已删 protoGroups
 // R111 已删 protoGroupList / toggleProtoGroup / protocolTargets / protocolKind(协议协同死代码)
-const obfuscate = ref(false) // 消息混淆: 自动加随机emoji+隐形字符, 不用写变量语法
-const autoVary = ref(true) // 每条消息自动变化: 同义词+标点抖动, 一键开启无需语法
 // R111 已删 campaigns / loadCampaigns(协议协同死代码)
 const submitting = ref(false)
 // 任务优先级: 5=普通 8=优先插队(队列按 priority DESC 领取, 紧急任务可插队)
@@ -599,12 +643,15 @@ function resetCreateForm() {
   priority.value = 5
   isLoop.value = false
   loopIntervalMin.value = 60
+  loopScheduleMode.value = 'interval'
+  scheduleTimezone.value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
+  scheduleLocalTime.value = '09:00'
+  scheduleWeekdays.value = [1, 2, 3, 4, 5]
+  firstRunLocal.value = ''
   loopMaxRounds.value = 0
   loopEndAt.value = ''
   scheduledAtTs.value = null
   clearMedia()
-  obfuscate.value = false
-  autoVary.value = true
   sendStrategy.value = 'assign'
   // 执行账号选择保留为下一次创建的默认账号池；目标和消息等一次性内容全部清空。
 }
@@ -701,6 +748,14 @@ function progOf(t: any) {
   let p = t.progress
   if (typeof p === 'string') { try { p = JSON.parse(p) } catch { p = {} } }
   return { total: p?.total || 0, done: p?.done || 0, failed: p?.failed || 0 }
+}
+function loopRoundHistory(t: any) {
+  let payload = t?.payload
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload) } catch { payload = {} }
+  }
+  const history = payload?.round_history
+  return Array.isArray(history) ? history.slice(-3).reverse() : []
 }
 // 2026-10-21 修正: 进度按"已处理"(成功+失败)——失败也是处理结果,
 // 旧口径 done/total 会让"已完成"任务停在 51%(48成功+47失败=95 全处理完却只显示一半)
@@ -860,7 +915,7 @@ async function submit() {
     toast({ type: 'error', title: '发送间隔无效', message: '最小间隔和最大间隔须为 1–300 秒，且最小值不能大于最大值' })
     return
   }
-  if (scheduledAtTs.value && scheduledAtTs.value <= Date.now()) {
+  if (!isLoop.value && scheduledAtTs.value && scheduledAtTs.value <= Date.now()) {
     toast({ type: 'error', title: '定时启动时间无效', message: '请选择一个未来时间，或清空定时立即执行' })
     return
   }
@@ -868,7 +923,7 @@ async function submit() {
     toast({ type: 'warning', title: '套餐未开通循环群发' })
     return
   }
-  if (isLoop.value && (!Number.isInteger(loopMinutes) || loopMinutes < 1 || loopMinutes > 10080)) {
+  if (isLoop.value && loopScheduleMode.value === 'interval' && (!Number.isInteger(loopMinutes) || loopMinutes < 1 || loopMinutes > 10080)) {
     toast({ type: 'error', title: '循环间隔无效', message: '循环间隔须为 1–10080 分钟' })
     return
   }
@@ -881,13 +936,15 @@ async function submit() {
     toast({ type: 'error', title: '结束时间无效', message: '结束时间必须晚于当前时间' })
     return
   }
-  if (isLoop.value && scheduledAtTs.value) {
-    toast({ type: 'warning', title: '循环群发暂不支持定时启动', message: '请清空定时启动时间后创建循环任务' })
-    return
-  }
-  if (isLoop.value && mediaSource) {
-    toast({ type: 'warning', title: '循环群发暂不支持媒体附件', message: '请清除媒体后再创建循环任务，避免附件被静默忽略' })
-    return
+  if (isLoop.value && loopScheduleMode.value !== 'interval') {
+    if (!scheduleTimezone.value.trim() || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(scheduleLocalTime.value)) {
+      toast({ type: 'error', title: '日历排期无效', message: '请填写有效的 IANA 时区和 HH:MM 执行时间' })
+      return
+    }
+    if (loopScheduleMode.value === 'weekly' && scheduleWeekdays.value.length === 0) {
+      toast({ type: 'error', title: '请选择执行星期' })
+      return
+    }
   }
   if (!mediaType.value && mediaSource) {
     toast({ type: 'warning', title: '请选择媒体类型', message: '已提供媒体文件或链接，但未选择图片或视频类型' })
@@ -907,10 +964,22 @@ async function submit() {
         type: 'scheduled_broadcast',
         account_ids: accountIds,
         target_ids: targetIds,
-        payload: { message: messageText },
+        payload: {
+          message: messageText,
+          ...(mediaSource ? { media: { type: mediaType.value, source: mediaSource } } : {}),
+        },
         mappings: coverage.value.mappings,
         is_loop: true,
         loop_interval_minutes: loopMinutes,
+        schedule_mode: loopScheduleMode.value,
+        ...(loopScheduleMode.value !== 'interval' ? {
+          timezone: scheduleTimezone.value.trim(),
+          local_time: scheduleLocalTime.value,
+          ...(loopScheduleMode.value === 'weekly' ? { weekdays: scheduleWeekdays.value } : {}),
+        } : {}),
+        ...(firstRunLocal.value ? (loopScheduleMode.value === 'interval'
+          ? { first_run_at: new Date(firstRunLocal.value).toISOString() }
+          : { first_run_local: firstRunLocal.value }) : {}),
         min_interval_seconds: minSeconds,
         max_interval_seconds: maxSeconds,
         max_rounds: maxRounds,
@@ -925,8 +994,6 @@ async function submit() {
         interval_min: minSeconds,
         interval_max: maxSeconds,
         ...(coverage.value.mappings.length ? { mappings: coverage.value.mappings } : {}),
-        auto_vary: autoVary.value,
-        obfuscate: obfuscate.value,
       }
       if (mediaSource) payload.media = { type: mediaType.value, source: mediaSource }
       if (scheduledAtTs.value) payload.scheduled_at = new Date(scheduledAtTs.value).toISOString()

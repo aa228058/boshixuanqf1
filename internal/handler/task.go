@@ -357,6 +357,12 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 		Payload             map[string]any `json:"payload"`
 		IsLoop              *bool          `json:"is_loop"`
 		LoopIntervalMinutes int            `json:"loop_interval_minutes"`
+		ScheduleMode        string         `json:"schedule_mode"`
+		Timezone            string         `json:"timezone"`
+		LocalTime           string         `json:"local_time"`
+		Weekdays            []int          `json:"weekdays"`
+		FirstRunAt          string         `json:"first_run_at"`
+		FirstRunLocal       string         `json:"first_run_local"`
 		MaxRounds           int            `json:"max_rounds"`
 		EndAt               string         `json:"end_at"`
 		MinIntervalSeconds  int            `json:"min_interval_seconds"`
@@ -393,12 +399,89 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 	if req.IsLoop != nil {
 		isLoop = *req.IsLoop
 	}
+	if req.LoopIntervalMinutes < 0 || req.LoopIntervalMinutes > 10080 {
+		return echo.NewHTTPError(http.StatusBadRequest, "循环间隔须为 0–10080 分钟")
+	}
 	interval := req.LoopIntervalMinutes
-	if interval <= 0 {
+	if interval == 0 {
 		interval = 60
 	}
 	if req.MaxRounds < 0 || req.MaxRounds > 10000 {
 		return echo.NewHTTPError(http.StatusBadRequest, "最大执行轮数须为 0–10000，0 表示不限")
+	}
+
+	mode := req.ScheduleMode
+	if mode == "" {
+		mode = "interval"
+	}
+	schedule := map[string]any{"schedule_mode": mode}
+	var scheduleLocation *time.Location
+	switch mode {
+	case "interval":
+	case "daily", "weekly":
+		if !isLoop {
+			return echo.NewHTTPError(http.StatusBadRequest, "每日/每周日历排期仅适用于循环任务")
+		}
+		req.Timezone = strings.TrimSpace(req.Timezone)
+		if req.Timezone == "" || req.Timezone == "Local" {
+			return echo.NewHTTPError(http.StatusBadRequest, "请指定明确的 IANA 时区，不能使用服务器本地时区")
+		}
+		location, locationErr := time.LoadLocation(req.Timezone)
+		if locationErr != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "时区无效，请选择有效的 IANA 时区")
+		}
+		scheduleLocation = location
+		if _, err := time.Parse("15:04", req.LocalTime); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "固定执行时间格式错误，应为 HH:MM")
+		}
+		schedule["timezone"] = req.Timezone
+		schedule["local_time"] = req.LocalTime
+		if mode == "weekly" {
+			seen := make(map[int]bool)
+			for _, day := range req.Weekdays {
+				if day < 1 || day > 7 || seen[day] {
+					return echo.NewHTTPError(http.StatusBadRequest, "每周执行日期须为不重复的 1–7（周一至周日）")
+				}
+				seen[day] = true
+			}
+			if len(seen) == 0 {
+				return echo.NewHTTPError(http.StatusBadRequest, "每周排期至少选择一个星期")
+			}
+			schedule["weekdays"] = req.Weekdays
+		}
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "不支持的循环排期模式")
+	}
+	if rawMedia, ok := req.Payload["media"]; ok && rawMedia != nil {
+		media, valid := rawMedia.(map[string]any)
+		if !valid {
+			return echo.NewHTTPError(http.StatusBadRequest, "媒体参数格式错误")
+		}
+		mediaType, _ := media["type"].(string)
+		mediaSource, _ := media["source"].(string)
+		if (mediaType != "photo" && mediaType != "video") || strings.TrimSpace(mediaSource) == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "媒体类型或来源无效")
+		}
+		schedule["media"] = map[string]any{"type": mediaType, "source": strings.TrimSpace(mediaSource)}
+	}
+
+	var firstRunAt *time.Time
+	if req.FirstRunLocal != "" {
+		location := scheduleLocation
+		if location == nil {
+			location = time.Local
+		}
+		parsed, parseErr := task.ParseLocalDateTime(req.FirstRunLocal, location)
+		if parseErr != nil || !parsed.After(time.Now()) {
+			return echo.NewHTTPError(http.StatusBadRequest, "首次执行时间必须是所选时区中的有效未来日期和时间")
+		}
+		firstRunAt = &parsed
+	} else if req.FirstRunAt != "" {
+		parsed, parseErr := time.Parse(time.RFC3339, req.FirstRunAt)
+		if parseErr != nil || !parsed.After(time.Now()) {
+			return echo.NewHTTPError(http.StatusBadRequest, "首次执行时间必须是未来的 RFC3339 时间")
+		}
+		firstRunAt = &parsed
 	}
 	var endAt *time.Time
 	if req.EndAt != "" {
@@ -411,14 +494,25 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 		}
 		endAt = &parsed
 	}
-	task, err := h.svc.CreateScheduledBroadcastWithMapping(c.Request().Context(), tenantID,
-		mappings, accountIDs, req.TargetIDs, message, interval, req.MinIntervalSeconds, req.MaxIntervalSeconds, isLoop, req.MaxRounds, endAt)
+	if firstRunAt == nil && (mode == "daily" || mode == "weekly") {
+		calculated, calcErr := task.NextBroadcastRun(schedule, time.Now(), interval)
+		if calcErr != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "无法计算首次执行时间: "+calcErr.Error())
+		}
+		firstRunAt = &calculated
+	}
+	if endAt != nil && firstRunAt != nil && !endAt.After(*firstRunAt) {
+		return echo.NewHTTPError(http.StatusBadRequest, "自动结束时间必须晚于首次执行时间")
+	}
+	taskRecord, err := h.svc.CreateScheduledBroadcastWithSchedule(c.Request().Context(), tenantID,
+		mappings, accountIDs, req.TargetIDs, message, interval, req.MinIntervalSeconds, req.MaxIntervalSeconds,
+		isLoop, req.MaxRounds, endAt, schedule, firstRunAt)
 	if err != nil {
 		log.Printf("[handler] 创建定时广播任务失败: %v", err)
 		log.Printf("[handler] 内部错误已脱敏: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "操作失败，请稍后重试")
 	}
-	return Success(c, task)
+	return Success(c, taskRecord)
 }
 
 // CreateBroadcast godoc
@@ -974,13 +1068,38 @@ func (h *TaskHandler) GetLogs(c echo.Context) error {
 		pageSize = min(value, 200)
 	}
 
+	var from, to *time.Time
+	for _, bound := range []struct {
+		name string
+		dest **time.Time
+	}{{"from", &from}, {"to", &to}} {
+		raw := strings.TrimSpace(c.QueryParam(bound.name))
+		if raw == "" {
+			continue
+		}
+		parsed, parseErr := time.Parse(time.RFC3339Nano, raw)
+		if parseErr != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "日志时间范围格式错误，需使用 RFC3339")
+		}
+		*bound.dest = &parsed
+	}
+	if from != nil && to != nil && !from.Before(*to) {
+		return echo.NewHTTPError(http.StatusBadRequest, "日志开始时间必须早于结束时间")
+	}
+
 	var logs []*domain.TaskLog
 	if cursor := c.QueryParam("before_log_id"); cursor != "" {
 		beforeLogID, parseErr := uuid.Parse(cursor)
 		if parseErr != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "日志游标格式错误")
 		}
-		logs, err = h.svc.GetLogsBefore(c.Request().Context(), tenantID, taskID, beforeLogID, pageSize)
+		if from != nil || to != nil {
+			logs, err = h.svc.GetLogsBeforeInRange(c.Request().Context(), tenantID, taskID, beforeLogID, from, to, pageSize)
+		} else {
+			logs, err = h.svc.GetLogsBefore(c.Request().Context(), tenantID, taskID, beforeLogID, pageSize)
+		}
+	} else if from != nil || to != nil {
+		logs, err = h.svc.GetLogsInRange(c.Request().Context(), tenantID, taskID, from, to, page, pageSize)
 	} else {
 		logs, err = h.svc.GetLogs(c.Request().Context(), tenantID, taskID, page, pageSize)
 	}
