@@ -198,12 +198,24 @@
         <div class="flex justify-end"><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving || !newDictName.trim()" :loading="dictSaving" @click="createTextDict">新建分组</t-button></div>
       </div>
       <div v-if="textDicts.length" class="space-y-3">
-        <div v-for="d in textDicts" :key="d.dict_id" class="rounded-lg border border-border/70 p-3 space-y-2 min-w-0">
-          <input v-model="d.name" class="ui-input w-full" maxlength="64" aria-label="分组名称" />
-          <textarea v-model="dictItemsDraft[d.dict_id]" class="ui-input w-full min-h-[100px] resize-y" aria-label="分组文本内容" />
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <span class="text-xs text-text-muted">{{ (dictItemsDraft[d.dict_id] || '').split(String.fromCharCode(10)).filter(x => x.trim()).length }} 条素材</span>
-            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除文本分组" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
+        <div v-for="d in textDicts" :key="d.dict_id" class="rounded-lg border border-border/70 p-3 space-y-3 min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <input v-model="d.name" class="ui-input flex-1 min-w-[140px]" maxlength="64" aria-label="字典名称" />
+            <label class="inline-flex items-center gap-2 text-xs text-text-secondary"><input v-model="d.enabled" type="checkbox" class="accent-[var(--t-brand)]" />整体启用</label>
+          </div>
+          <div class="space-y-2">
+            <div v-for="(entry, index) in d.entries" :key="entry.entry_id || index" class="rounded-lg bg-bg-card p-2 space-y-2">
+              <textarea v-model="entry.word" class="ui-input w-full min-h-[76px] resize-y" :aria-label="'消息内容 ' + (index + 1)" placeholder="输入一条完整消息" />
+              <div class="flex items-center justify-between gap-2">
+                <label class="inline-flex items-center gap-2 text-xs text-text-secondary"><input v-model="entry.enabled" type="checkbox" class="accent-[var(--t-brand)]" />启用这条消息</label>
+                <button type="button" class="text-xs text-[var(--t-danger)]" @click="d.entries.splice(index, 1)">删除</button>
+              </div>
+            </div>
+            <button type="button" class="text-xs text-[var(--t-brand)] px-2 py-1" @click="d.entries.push({ entry_id: '', dict_id: d.dict_id, word: '', weight: 1, enabled: true })">＋ 添加一条完整消息</button>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
+            <span class="text-xs text-text-muted">{{ d.entries.filter(x => x.word.trim()).length }} 条消息 · {{ d.entries.filter(x => x.word.trim() && x.enabled).length }} 条启用</span>
+            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除文本字典" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
           </div>
         </div>
       </div>
@@ -594,24 +606,41 @@ function fallbackCopy(text: string) {
 }
 
 async function fetchTextDicts() {
-  try { const res = await settingsApi.getTextDicts(); textDicts.value = res.list || []; dictItemsDraft.value = Object.fromEntries(textDicts.value.map(d => [d.dict_id, (d.items || []).join(String.fromCharCode(10))])) }
+  try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
   catch (e: unknown) { toast({ type: 'error', title: '文本分组加载失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
 async function createTextDict() {
-  if (!newDictName.value.trim() || dictSaving.value) return; dictSaving.value = true
-  try { await settingsApi.createTextDict({ name: newDictName.value.trim(), items: parseDictItems(newDictItems.value) }); newDictName.value = ''; newDictItems.value = ''; await fetchTextDicts(); toast({ type: 'success', message: '文本分组已创建' }) }
-  catch (e: unknown) { toast({ type: 'error', title: '创建失败', message: (e as Error)?.message || '请稍后重试' }) } finally { dictSaving.value = false }
+  if (!newDictName.value.trim() || dictSaving.value) return
+  dictSaving.value = true
+  try {
+    await settingsApi.createTextDict({
+      name: newDictName.value.trim(), enabled: true,
+      entries: parseDictItems(newDictItems.value).map(word => ({ word, enabled: true })),
+    })
+    newDictName.value = ''; newDictItems.value = ''
+    await fetchTextDicts()
+    toast({ type: 'success', message: '文本字典已创建' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '创建失败', message: (e as Error)?.message || '请稍后重试' })
+  } finally { dictSaving.value = false }
 }
 async function saveTextDict(d: import('@/api/settings').TextDict) {
-  dictSaving.value = true; try { await settingsApi.updateTextDict(d.dict_id, { name: d.name.trim(), items: parseDictItems(dictItemsDraft.value[d.dict_id] || '') }); await fetchTextDicts(); toast({ type: 'success', message: '文本分组已保存' }) }
-  catch (e: unknown) { toast({ type: 'error', title: '保存失败', message: (e as Error)?.message || '请稍后重试' }) } finally { dictSaving.value = false }
+  dictSaving.value = true
+  try {
+    const entries = d.entries.filter(entry => entry.word.trim()).map(entry => ({ word: entry.word.trim(), enabled: !!entry.enabled }))
+    await settingsApi.updateTextDict(d.dict_id, { name: d.name.trim(), enabled: !!d.enabled, entries })
+    await fetchTextDicts()
+    toast({ type: 'success', message: '字典已保存' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '保存失败', message: (e as Error)?.message || '请稍后重试' })
+  } finally { dictSaving.value = false }
 }
 async function deleteTextDict(id: string) {
   if (!window.confirm('确定删除这个文本分组吗？')) return; try { await settingsApi.deleteTextDict(id); await fetchTextDicts(); toast({ type: 'success', message: '分组已删除' }) } catch (e: unknown) { toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 async function copyDictItems(id: string) {
-  const value = (dictItemsDraft.value[id] || '').trim(); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部素材' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
+  const value = (textDicts.value.find(d => d.dict_id === id)?.entries || []).map(entry => entry.word).filter(Boolean).join(String.fromCharCode(10)); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部消息' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
 }
 async function fetchTemplates() {
   try {
