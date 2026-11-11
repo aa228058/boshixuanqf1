@@ -2,8 +2,11 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/google/uuid"
 	"tg-sender/internal/domain"
@@ -132,7 +135,10 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 			log.Printf("[sync] 处理对话 id=%d 标题=%q 类型=%s 成员=%d", chat.ID, chat.Title, gtype, memberCount)
 
 			// Check if group already exists by TGChatID to avoid duplicate inserts
-			existing, _ := e.groupRepo.GetByTGChatID(ctx, tenantID, chat.ID)
+			existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, tenantID, chat.ID)
+			if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+				return fmt.Errorf("lookup group by Telegram chat ID %d: %w", chat.ID, lookupErr)
+			}
 			var groupID uuid.UUID
 			if existing != nil {
 				existing.Title = chat.Title
@@ -144,7 +150,7 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 				existing.MemberCount = memberCount
 				// Preserve existing AccessHash (GetDialogs doesn't provide it)
 				if err := e.groupRepo.Update(ctx, existing); err != nil {
-					log.Printf("[sync] 更新群组 %d 失败: %v", chat.ID, err)
+					return fmt.Errorf("update group %d: %w", chat.ID, err)
 				}
 				groupID = existing.GroupID
 			} else {
@@ -161,17 +167,15 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 					// AccessHash will be filled later via ResolvePeer when needed
 				}
 				if err := e.groupRepo.Create(ctx, g); err != nil {
-					log.Printf("[sync] upsert group %d failed: %v", chat.ID, err)
-					continue
+					return fmt.Errorf("upsert group %d: %w", chat.ID, err)
 				}
 			}
 
 			// Link group to account
 			if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, groupID, isJoined); err != nil {
-				log.Printf("[sync] 关联群组 %d 到账号失败: %v", chat.ID, err)
-			} else {
-				log.Printf("[sync] 已关联群组 %d（group_id=%s）到账号 %s", chat.ID, groupID, accountID)
+				return fmt.Errorf("link group %d (group_id=%s) to account %s: %w", chat.ID, groupID, accountID, err)
 			}
+			log.Printf("[sync] 已关联群组 %d（group_id=%s）到账号 %s", chat.ID, groupID, accountID)
 			processed++
 		}
 
