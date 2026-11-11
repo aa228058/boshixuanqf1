@@ -8,7 +8,7 @@
         @click="markRead(n.id)"
         class="w-full text-left p-3 rounded-lg cursor-pointer transition-colors"
         :class="n.read ? 'opacity-60' : 'bg-cyan/5 border border-cyan/10'"
-        :aria-label="`标记通知为已读：${n.title}">
+        :aria-label="`标记通知为已读：${n.title}`">
         <div class="flex items-start gap-3">
           <component :is="typeIcon(n.type)" class="w-5 h-5 shrink-0 mt-0.5" :class="typeColor(n.type)" />
           <div class="flex-1 min-w-0">
