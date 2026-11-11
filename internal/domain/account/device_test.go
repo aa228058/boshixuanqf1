@@ -1,6 +1,10 @@
 package account
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/uuid"
+)
 
 func TestParseDeviceProfile(t *testing.T) {
 	tests := []struct {
@@ -71,5 +75,51 @@ func TestDeviceProfileFromMapAcceptsLegacyMetadata(t *testing.T) {
 	}
 	if got.DeviceType != "macos" || got.App != "7.0.9" {
 		t.Fatalf("unexpected parsed profile: %#v", got)
+	}
+}
+
+
+func TestPickDeviceTypeUsesIOS(t *testing.T) {
+	if got := pickDeviceType(uuid.Nil); got != "ios" {
+		t.Fatalf("pickDeviceType() = %q, want ios", got)
+	}
+}
+
+func TestDeviceProfileToConfigMigratesLegacyMacProfileToIOS(t *testing.T) {
+	got := deviceProfileToConfig(map[string]any{
+		"model": "MacBook Pro", "system": "macOS 14", "app": "7.0.9",
+		"device_type": "macos", "platform": "macos",
+	}, "account-session")
+	want := generateDeviceConfig("account-session")
+	if got != want {
+		t.Fatalf("legacy macOS profile was not migrated to iOS: got %#v, want %#v", got, want)
+	}
+}
+
+func TestMergeDeviceConfigProfilePreservesMetadata(t *testing.T) {
+	existing := map[string]any{
+		"model": "MacBook Pro", "system": "macOS 14", "app": "7.0.9",
+		"device_type": "macos", "twofa_enc": "encrypted-secret",
+	}
+	got := mergeDeviceConfigProfile(existing, generateDeviceConfig("account-session"), "ios")
+	if got["device_type"] != "ios" {
+		t.Fatalf("device_type = %v, want ios", got["device_type"])
+	}
+	if got["twofa_enc"] != "encrypted-secret" {
+		t.Fatalf("unrelated metadata was lost: %#v", got)
+	}
+}
+
+func TestMetadataOnlyProtocolProfileCanBeInitialized(t *testing.T) {
+	profile := map[string]any{"twofa_enc": "encrypted-secret"}
+	if hasDeviceIdentityFields(profile) {
+		t.Fatal("metadata-only profile must not be treated as a partial device identity")
+	}
+	got := mergeDeviceConfigProfile(profile, generateDeviceConfig("account-session"), "ios")
+	if _, err := deviceProfileFromMap(got); err != nil {
+		t.Fatalf("initialized profile is invalid: %v", err)
+	}
+	if got["twofa_enc"] != "encrypted-secret" {
+		t.Fatal("2FA metadata was not preserved")
 	}
 }
