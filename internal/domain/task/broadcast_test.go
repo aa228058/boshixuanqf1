@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -100,5 +101,76 @@ func TestDedupeAccountTargetsTrimsWhitespace(t *testing.T) {
 	})
 	if want := []string{"-1001", "-1002"}; !reflect.DeepEqual(got[accountID], want) {
 		t.Fatalf("targets=%v, want %v", got[accountID], want)
+	}
+}
+
+
+func TestWaitBroadcastDelayRespectsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if waitBroadcastDelay(ctx, time.Second) {
+		t.Fatal("expected cancelled delay to stop")
+	}
+}
+
+func TestWaitBroadcastDelayCompletes(t *testing.T) {
+	if !waitBroadcastDelay(context.Background(), time.Millisecond) {
+		t.Fatal("expected delay to complete")
+	}
+}
+
+func TestWaitBroadcastDelayZeroDuration(t *testing.T) {
+	if !waitBroadcastDelay(context.Background(), 0) {
+		t.Fatal("expected zero delay to complete")
+	}
+}
+
+func TestWaitBroadcastDelayCanBeCancelledWhileWaiting(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	timer := time.AfterFunc(10*time.Millisecond, cancel)
+	defer timer.Stop()
+	if waitBroadcastDelay(ctx, time.Second) {
+		t.Fatal("expected in-flight delay to be cancelled")
+	}
+}
+
+func TestCountBroadcastTargetProgress(t *testing.T) {
+	accountID := uuid.New()
+	targets := []string{"one", "two", "three"}
+	successes := map[string]bool{
+		accountID.String() + "|one": true,
+		accountID.String() + "|three": true,
+	}
+	done, pending := countBroadcastTargetProgress(accountID, targets, successes)
+	if done != 2 || pending != 1 {
+		t.Fatalf("got done=%d pending=%d, want done=2 pending=1", done, pending)
+	}
+	if done+pending != len(targets) {
+		t.Fatalf("progress does not reconcile: done+pending=%d total=%d", done+pending, len(targets))
+	}
+}
+
+func TestReconcileBroadcastTimeoutProgress(t *testing.T) {
+	tests := []struct {
+		name string
+		total, done, failed int
+		timedOut bool
+		wantFailed int
+		wantTimedOut bool
+	}{
+		{name:"timeout accounts for unprocessed targets", total:10, done:4, failed:2, timedOut:true, wantFailed:6, wantTimedOut:true},
+		{name:"timeout preserves fully reconciled counters", total:10, done:10, failed:0, timedOut:true, wantFailed:0, wantTimedOut:true},
+		{name:"normal completion leaves counters unchanged", total:10, done:8, failed:2, timedOut:false, wantFailed:2, wantTimedOut:false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotFailed, gotTimedOut := reconcileBroadcastTimeoutProgress(tt.total, tt.done, tt.failed, tt.timedOut)
+			if gotFailed != tt.wantFailed || gotTimedOut != tt.wantTimedOut {
+				t.Fatalf("got failed=%d timedOut=%v, want failed=%d timedOut=%v", gotFailed, gotTimedOut, tt.wantFailed, tt.wantTimedOut)
+			}
+			if tt.done+gotFailed != tt.total {
+				t.Fatalf("reconciled counters done+failed=%d, want total=%d", tt.done+gotFailed, tt.total)
+			}
+		})
 	}
 }
