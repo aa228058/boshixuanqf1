@@ -60,7 +60,7 @@ func (r *TaskRepository) List(ctx context.Context, tenantID uuid.UUID, status *d
 		args = append(args, *since)
 		idx++
 	}
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", idx, idx+1)
+	query += fmt.Sprintf(" ORDER BY task_number DESC LIMIT $%d OFFSET $%d", idx, idx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
