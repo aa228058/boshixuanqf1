@@ -26,6 +26,26 @@ import (
 )
 
 // acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
+
+// dedupeTargetsPerAccount removes duplicate targets for one account without
+// removing the same target from another account's assignment.
+func dedupeTargetsPerAccount(input map[uuid.UUID][]string) map[uuid.UUID][]string {
+	out := make(map[uuid.UUID][]string, len(input))
+	for accountID, targets := range input {
+		seen := make(map[string]struct{}, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			if _, exists := seen[target]; exists {
+				continue
+			}
+			seen[target] = struct{}{}
+			unique = append(unique, target)
+		}
+		out[accountID] = unique
+	}
+	return out
+}
+
 func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	if ctx.Err() != nil {
 		return false
@@ -250,18 +270,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	semaphore := make(chan struct{}, maxConcurrentAccounts)
 	var wg sync.WaitGroup
 
-	// Deduplicate targets globally to prevent multiple accounts sending to the same target
-	seenTargets := make(map[string]bool)
-	for accID := range accountTargets {
-		unique := make([]string, 0, len(accountTargets[accID]))
-		for _, t := range accountTargets[accID] {
-			if !seenTargets[t] {
-				seenTargets[t] = true
-				unique = append(unique, t)
-			}
-		}
-		accountTargets[accID] = unique
-	}
+	// Deduplicate targets within each account only. The same target must remain
+	// assigned to multiple accounts in cartesian mode; global deduplication
+	// silently removed valid account-target send units.
+	accountTargets = dedupeTargetsPerAccount(accountTargets)
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
 	// 拖慢发送循环。这里在 worker 扇出前一次性批量查回成功目标集; 运行期新成功
