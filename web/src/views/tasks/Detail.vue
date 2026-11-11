@@ -11,8 +11,7 @@
         <ArrowLeft class="w-5 h-5" />
       </button>
       <div>
-        <!-- R87-M8: 隐藏任务编号(#hash 对租户无意义) -->
-        <h2 class="text-xl tracking-tight font-semibold text-text-primary truncate">{{ taskTypeLabel(task?.type || '') }}</h2>
+        <h2 class="text-xl tracking-tight font-semibold text-text-primary truncate"><span class="text-[var(--t-brand)] tabular-nums mr-2">{{ task?.task_number ? '#' + String(task.task_number).padStart(6, '0') : '' }}</span>{{ taskTypeLabel(task?.type || '') }}</h2>
         <p class="text-xs text-text-secondary">创建于 {{ task ? formatDateTime(task.created_at) : '' }}</p>
       </div>
       <span
