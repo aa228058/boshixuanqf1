@@ -5,8 +5,6 @@ on:
   push:
     branches: [main, master, integration-grouplib-import-worker-lease, stage-2-task-monitor-invite-reliability]
   pull_request:
-    types: [opened, synchronize, reopened, edited]
-    branches: [main, master, feat/group-import-resolver-pipeline, integration-grouplib-import-worker-lease]
 
 jobs:
   # 字段覆盖审计：防「上层有值、底层丢字段」类 bug（accounts.source / plans 配额列教训）
