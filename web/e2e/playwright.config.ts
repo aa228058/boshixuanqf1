@@ -95,6 +95,11 @@ export default defineConfig({
         use: { ...devices['iPhone 13'], browserName: 'chromium' },
       },
     ] : []),
+    // 账号页视觉审计：仅在 VISUAL_AUDIT=1 时启用。
+    ...(process.env.VISUAL_AUDIT === '1' ? [
+      { name: 'visual-desktop', testMatch: /accounts-visual\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
+      { name: 'visual-mobile', testMatch: /accounts-visual\.spec\.ts/, use: { ...devices['iPhone 13'], browserName: 'chromium' } },
+    ] : []),
   ],
   webServer: process.env.E2E_SKIP_WEBSERVER ? undefined : {
     cwd: '..',
