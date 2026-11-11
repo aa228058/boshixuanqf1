@@ -698,7 +698,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 								accountFlooded = true
 								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), waitSec)
 							} else if waitSec > 0 {
-								// Light flood: wait and retry once
+								// Light FloodWait: wait and retry once.
 								select {
 								case <-ctx.Done():
 									return
@@ -706,17 +706,17 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 								}
 								retryMsgID, retryErr := trySend()
 								if retryErr != nil {
-								if isGlobalFlood(retryErr) {
-									accountFlooded = true
-									e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_retry_flood_wait", retryErr.Error(), extractFloodSeconds(retryErr.Error()))
-								} else {
-									e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
+									if isGlobalFlood(retryErr) {
+										accountFlooded = true
+										e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_retry_flood_wait", retryErr.Error(), extractFloodSeconds(retryErr.Error()))
+									} else {
+										e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
+									}
 								} else {
 									if retryMsgID != 0 {
 										sentMsgID = retryMsgID
 									}
 									accDone++
-									// Retry succeeded: decrement failed count, but guard against negative
 									if accFailed > 0 {
 										accFailed--
 									}
@@ -724,6 +724,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 									errCode = ""
 								}
 							} else {
+								// PEER_FLOOD has no duration; use the conservative default cooldown.
 								accountFlooded = true
 								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), 0)
 							}
