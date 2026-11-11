@@ -53,9 +53,14 @@
                 <span v-if="t.status === 'running'" class="w-1.5 h-1.5 rounded-full bg-current dot-pulse" />
                 {{ statusLabel(t.status) }}
               </span>
+              <span v-if="t.is_loop" class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--t-brand-dim)] text-[var(--t-brand)] shrink-0">循环 · {{ t.loop_interval_minutes || 60 }} 分钟</span>
+              <span v-else class="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-muted shrink-0">单次</span>
               <span class="text-xs text-text-muted truncate">目标 {{ (t.target_ids || []).length || progOf(t).total || '-' }} 个</span>
             </div>
             <span class="text-xs text-text-muted shrink-0">{{ formatTime(t.created_at) }}</span>
+          </div>
+          <div v-if="t.is_loop && t.next_run_at && ['pending','paused','completed'].includes(t.status)" class="mt-2 text-[11px] text-text-muted">
+            下次计划执行：{{ formatTime(t.next_run_at) }}
           </div>
           <div class="mt-3">
             <div class="flex items-center justify-between text-xs mb-1.5">
@@ -619,7 +624,7 @@ async function fetchTasks() {
   }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any)
     if (requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
     tasks.value = res.list || []
     tasksError.value = ''
