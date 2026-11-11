@@ -150,7 +150,12 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 	const memberBatchSize = 1000
 	var flushErr error
 	flushMembers := func(batch []domain.Member) {
-		if len(batch) == 0 || e.memberRepo == nil || flushErr != nil {
+		if len(batch) == 0 || flushErr != nil {
+			return
+		}
+		if e.memberRepo == nil {
+			flushErr = fmt.Errorf("member repository is not configured")
+			taskLog.Printf("[task] BatchCreate members failed: %v", flushErr)
 			return
 		}
 		membersPtr := make([]*domain.Member, len(batch))
