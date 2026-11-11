@@ -237,6 +237,22 @@ func (h *GroupLibraryHandler) CancelImportJob(c echo.Context) error {
 	return c.JSON(http.StatusOK, job)
 }
 
+// DeleteImportJob handles DELETE /group-library/import-jobs/:id.
+func (h *GroupLibraryHandler) DeleteImportJob(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	jobID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid job id")
+	}
+	if err := h.lib.DeleteImportJob(c.Request().Context(), tenantID, jobID); err != nil {
+		return echo.NewHTTPError(http.StatusConflict, err.Error())
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
 // ListImportJobs handles GET /group-library/import-jobs.
 func (h *GroupLibraryHandler) ListImportJobs(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
