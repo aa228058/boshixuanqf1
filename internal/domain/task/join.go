@@ -271,6 +271,44 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							goto logAndContinue
 						}
 					}
+					// A Telegram join can succeed while local persistence fails. Reuse
+					// this persistence path for both fresh joins and ALREADY_PARTICIPANT
+					// retries so a retry can repair the missing local group row.
+					persistJoinedGroup := func() error {
+						if e.groupRepo == nil {
+							return fmt.Errorf("group repository is unavailable")
+						}
+						if strings.HasPrefix(link, "@") {
+							username = link[1:]
+						} else if strings.HasPrefix(link, "https://t.me/") {
+							username = strings.TrimPrefix(link, "https://t.me/")
+						} else if strings.HasPrefix(link, "http://t.me/") {
+							username = strings.TrimPrefix(link, "http://t.me/")
+						} else if !strings.Contains(link, "/") {
+							username = link
+						}
+					if existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); lookupErr == nil && existing != nil {
+						existing.AccessHash = accessHash
+						existing.IsJoined = true
+						existing.Type = gtype
+						if username != "" {
+							existing.Username = username
+						}
+						if existing.JoinedAt == nil {
+							now := time.Now()
+							existing.JoinedAt = &now
+						}
+						return e.groupRepo.Update(ctx, existing)
+					} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+						return fmt.Errorf("lookup joined group: %w", lookupErr)
+					}
+					now := time.Now()
+					return e.groupRepo.Create(ctx, &domain.Group{
+						GroupID: uuid.New(), TenantID: task.TenantID, TGChatID: chatID,
+						Title: link, Username: username, Type: gtype, AccessHash: accessHash,
+						IsJoined: true, JoinedAt: &now,
+					})
+					}
 					var joinErr error
 					switch p := peer.(type) {
 					case *tg.InputPeerChat:
@@ -314,6 +352,12 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 						} else if isAlreadyMember(joinErr) {
 							status = "success"
 							errCode = "already_member"
+							if persistErr := persistJoinedGroup(); persistErr != nil {
+								status = "failed"
+								errCode = "group_persist_failed"
+								errMsg = persistErr.Error()
+								log.Printf("[join] 已在群组中，但修复本地群组记录失败: %v", persistErr)
+							}
 						} else {
 							status = "failed"
 							errMsg = joinErr.Error()
@@ -332,46 +376,13 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							}
 						}
 					} else {
-						// Join success: save to groups table immediately
-						if e.groupRepo != nil {
-							now := time.Now()
-							// Extract username from public link
-							if strings.HasPrefix(link, "@") {
-								username = link[1:]
-							} else if strings.HasPrefix(link, "https://t.me/") {
-								username = strings.TrimPrefix(link, "https://t.me/")
-							} else if strings.HasPrefix(link, "http://t.me/") {
-								username = strings.TrimPrefix(link, "http://t.me/")
-							} else if !strings.Contains(link, "/") {
-								username = link
-							}
-							g := &domain.Group{
-								GroupID:    uuid.New(),
-								TenantID:   task.TenantID,
-								TGChatID:   chatID,
-								Title:      link,
-								Username:   username,
-								Type:       gtype,
-								AccessHash: accessHash,
-								IsJoined:   true,
-								JoinedAt:   &now,
-							}
-							existing, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-							if err == nil && existing != nil {
-								existing.AccessHash = accessHash
-								existing.IsJoined = true
-								if g.Username != "" {
-									existing.Username = g.Username
-								}
-								if err := e.groupRepo.Update(ctx, existing); err != nil {
-									log.Printf("[join] 更新群组失败: %v", err)
-								}
-							} else {
-								if err := e.groupRepo.Create(ctx, g); err != nil {
-									log.Printf("[join] 创建群组失败: %v", err)
-								}
-							}
+						if persistErr := persistJoinedGroup(); persistErr != nil {
+							status = "failed"
+							errCode = "group_persist_failed"
+							errMsg = persistErr.Error()
+							log.Printf("[join] 加群成功但保存本地群组记录失败: %v", persistErr)
 						}
+					}
 					}
 				}
 			}
