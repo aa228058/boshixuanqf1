@@ -401,7 +401,7 @@ func (r *TaskRepository) PauseIfActive(ctx context.Context, tenantID, taskID uui
 	res, err := r.db.Exec(ctx, `
 		UPDATE tasks SET status = 'paused', completed_at = NULL, locked_at = NULL, worker_id = NULL
 		WHERE tenant_id = $1 AND task_id = $2
-		  AND status IN ('queued', 'running', 'scheduled')
+		  AND status IN ('pending', 'queued', 'running', 'scheduled')
 	`, tenantID, taskID)
 	if err != nil {
 		return false, fmt.Errorf("pause task: %w", err)
@@ -505,6 +505,28 @@ func (r *TaskRepository) ResetToQueued(ctx context.Context, tenantID, taskID uui
 	}
 	if res.RowsAffected() == 0 {
 		return fmt.Errorf("task is no longer failed or paused")
+	}
+	return nil
+}
+
+// ResumeLoop restores a paused recurring task without discarding its next scheduled run.
+// If the scheduled time has passed (or the task was paused mid-run), it is queued immediately.
+func (r *TaskRepository) ResumeLoop(ctx context.Context, tenantID, taskID uuid.UUID) error {
+	res, err := r.db.Exec(ctx, `
+		UPDATE tasks
+		SET status = CASE WHEN next_run_at IS NOT NULL AND next_run_at > NOW() THEN 'pending' ELSE 'queued' END,
+		    scheduled_at = CASE WHEN next_run_at IS NOT NULL AND next_run_at > NOW() THEN next_run_at ELSE NULL END,
+		    locked_at = NULL, worker_id = NULL, completed_at = NULL
+		WHERE tenant_id = $1 AND task_id = $2 AND status = 'paused' AND is_loop = TRUE
+	`, tenantID, taskID)
+	if err != nil {
+		return fmt.Errorf("resume loop task: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("loop task is no longer paused")
+	}
+	if _, err := r.db.Exec(ctx, "NOTIFY new_task"); err != nil {
+		log.Printf("[task] failed to notify new task after loop resume: %v", err)
 	}
 	return nil
 }
