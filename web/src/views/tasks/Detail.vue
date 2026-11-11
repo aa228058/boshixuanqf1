@@ -1,5 +1,5 @@
 <template>
-  <main class="max-w-4xl mx-auto space-y-6">
+  <main class="max-w-4xl mx-auto space-y-4 md:space-y-6">
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
@@ -27,7 +27,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] gap-4 items-start">
     <div class="space-y-4 min-w-0">
     <!-- 进度 -->
-    <div class="glass rounded-[var(--t-r-md)] p-6 lift">
+    <div class="glass rounded-[var(--t-r-md)] p-4 sm:p-6 lift">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-5">
           <!-- R126 示例2 ring 进度环: conic-gradient 环 + 内圈百分比 -->
