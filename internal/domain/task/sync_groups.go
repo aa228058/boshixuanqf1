@@ -169,6 +169,14 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 				if err := e.groupRepo.Create(ctx, g); err != nil {
 					return fmt.Errorf("upsert group %d: %w", chat.ID, err)
 				}
+				// Create uses ON CONFLICT (tenant_id, tg_chat_id). If another
+				// worker inserted the same chat after our lookup, the attempted
+				// UUID is not the canonical row ID; reload it before linking.
+				persisted, err := e.groupRepo.GetByTGChatID(ctx, tenantID, chat.ID)
+				if err != nil {
+					return fmt.Errorf("reload group %d after upsert: %w", chat.ID, err)
+				}
+				groupID = persisted.GroupID
 			}
 
 			// Link group to account
