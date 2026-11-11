@@ -2,23 +2,23 @@ package handler
 
 import (
 	"encoding/json"
-	"strings"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/notify"
-	"tg-sender/internal/service"
 	"tg-sender/internal/repository"
+	"tg-sender/internal/service"
 )
 
 // SettingsHandler handles settings, activation, templates, groups, exports, and notification center.
 type SettingsHandler struct {
 	svc    *service.SettingsService
 	mailer *notify.Mailer // R119: 通知中心(可为 nil)
-	dicts *repository.TextDictRepository
+	dicts  *repository.TextDictRepository
 }
 
 // NewSettingsHandler creates a new settings handler.
@@ -198,38 +198,102 @@ func (h *SettingsHandler) GetAnnouncements(c echo.Context) error {
 }
 
 // === Saved text collections (manual reuse; no automatic per-send variation) ===
+
 func (h *SettingsHandler) ListTextDicts(c echo.Context) error {
-	tenantID,err:=middleware.GetTenantID(c);if err!=nil{return err}
-	list,err:=h.dicts.List(c.Request().Context(),tenantID);if err!=nil{return echo.NewHTTPError(http.StatusInternalServerError,err.Error())}
-	return SuccessList(c,list,len(list),1,len(list))
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	list, err := h.dicts.List(c.Request().Context(), tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return SuccessList(c, list, len(list), 1, len(list))
 }
+
 func (h *SettingsHandler) CreateTextDict(c echo.Context) error {
-	tenantID,err:=middleware.GetTenantID(c);if err!=nil{return err}
-	var req struct{Name string `json:"name"`;Items []string `json:"items"`}
-	if err:=c.Bind(&req);err!=nil{return echo.NewHTTPError(http.StatusBadRequest,"invalid request")}
-	req.Name=strings.TrimSpace(req.Name);if req.Name==""||len(req.Name)>64{return echo.NewHTTPError(http.StatusBadRequest,"分组名称需为 1-64 个字符")}
-	items:=cleanTextDictItems(req.Items);if len(items)>100{return echo.NewHTTPError(http.StatusBadRequest,"每组最多保存 100 条文本")}
-	d,err:=h.dicts.Create(c.Request().Context(),tenantID,req.Name,items);if err!=nil{return echo.NewHTTPError(http.StatusBadRequest,err.Error())};return Success(c,d)
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		Name  string   `json:"name"`
+		Items []string `json:"items"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" || len(req.Name) > 64 {
+		return echo.NewHTTPError(http.StatusBadRequest, "分组名称需为 1-64 个字符")
+	}
+	items := cleanTextDictItems(req.Items)
+	if len(items) > 100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "每组最多保存 100 条文本")
+	}
+	dict, err := h.dicts.Create(c.Request().Context(), tenantID, req.Name, items)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return Success(c, dict)
 }
+
 func (h *SettingsHandler) UpdateTextDict(c echo.Context) error {
-	tenantID,err:=middleware.GetTenantID(c);if err!=nil{return err};id,err:=uuid.Parse(c.Param("id"));if err!=nil{return echo.NewHTTPError(http.StatusBadRequest,"invalid group id")}
-	var req struct{Name string `json:"name"`;Items []string `json:"items"`}
-	if err:=c.Bind(&req);err!=nil{return echo.NewHTTPError(http.StatusBadRequest,"invalid request")}
-	req.Name=strings.TrimSpace(req.Name);if req.Name==""||len(req.Name)>64{return echo.NewHTTPError(http.StatusBadRequest,"分组名称需为 1-64 个字符")}
-	items:=cleanTextDictItems(req.Items);if len(items)>100{return echo.NewHTTPError(http.StatusBadRequest,"每组最多保存 100 条文本")}
-	if err:=h.dicts.Update(c.Request().Context(),tenantID,id,req.Name,items);err!=nil{return echo.NewHTTPError(http.StatusBadRequest,err.Error())};return NoContent(c)
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid group id")
+	}
+	var req struct {
+		Name  string   `json:"name"`
+		Items []string `json:"items"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" || len(req.Name) > 64 {
+		return echo.NewHTTPError(http.StatusBadRequest, "分组名称需为 1-64 个字符")
+	}
+	items := cleanTextDictItems(req.Items)
+	if len(items) > 100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "每组最多保存 100 条文本")
+	}
+	if err := h.dicts.Update(c.Request().Context(), tenantID, id, req.Name, items); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return NoContent(c)
 }
+
 func (h *SettingsHandler) DeleteTextDict(c echo.Context) error {
-	tenantID,err:=middleware.GetTenantID(c);if err!=nil{return err};id,err:=uuid.Parse(c.Param("id"));if err!=nil{return echo.NewHTTPError(http.StatusBadRequest,"invalid group id")}
-	if err:=h.dicts.Delete(c.Request().Context(),tenantID,id);err!=nil{return echo.NewHTTPError(http.StatusNotFound,"分组不存在")};return NoContent(c)
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid group id")
+	}
+	if err := h.dicts.Delete(c.Request().Context(), tenantID, id); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "分组不存在")
+	}
+	return NoContent(c)
 }
+
 func cleanTextDictItems(items []string) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		item = strings.TrimSpace(item)
-		if item == "" { continue }
+		if item == "" {
+			continue
+		}
 		runes := []rune(item)
-		if len(runes) > 512 { item = string(runes[:512]) }
+		if len(runes) > 512 {
+			item = string(runes[:512])
+		}
 		out = append(out, item)
 	}
 	return out
