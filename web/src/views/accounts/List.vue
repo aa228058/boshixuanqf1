@@ -114,11 +114,8 @@
         class="acc-row"
         :class="{ standby: acc?.pool_status === 'standby' }"
         :style="{ animationDelay: `${Math.min(index * 40, 300)}ms` }"
-        role="region"
-        tabindex="0"
+        role="group"
         :aria-label="`账号 ${acc.remark || acc.first_name || acc.phone || '未命名'}`"
-        @keydown.enter.self.prevent="onRowClick(acc)"
-        @keydown.space.self.prevent="onRowClick(acc)"
         @touchstart.passive="onRowTouchStart($event, acc)"
         @touchmove.passive="onRowTouchMove"
         @touchend="onRowTouchEnd"
@@ -163,11 +160,12 @@
                   class="text-[10px] px-1.5 py-0.5 rounded shrink-0"
                   style="background: var(--t-surface-2); color: var(--t-text-3); border: 1px solid var(--t-line);">备用</span>
             <!-- R153: 登录验证码(10分钟内有效, 点击复制) -->
-            <span v-if="loginCodeFresh(acc)"
-                  class="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 cursor-pointer"
-                  style="background: color-mix(in srgb, var(--t-ok) 14%, transparent); color: var(--t-ok);"
-                  :title="`点击复制验证码 ${acc.last_login_code}`"
-                  @click.stop="copyLoginCode(acc)">&#128273; {{ acc.last_login_code }} {{ codeAge(acc) }}</span>
+            <button type="button" v-if="loginCodeFresh(acc)"
+                   class="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 cursor-pointer"
+                   style="background: color-mix(in srgb, var(--t-ok) 14%, transparent); color: var(--t-ok);"
+                   :title="'复制验证码 ' + acc.last_login_code"
+                   :aria-label="'复制账号 ' + (acc.remark || acc.phone) + ' 的登录验证码'"
+                   @click.stop="copyLoginCode(acc)">&#128273; {{ acc.last_login_code }} {{ codeAge(acc) }}</button>
             <!-- 任务摘要: 该账号正在执行的任务(最多3个) -->
             <span v-if="taskSummary[acc?.account_id]?.length"
                   class="text-[11px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
