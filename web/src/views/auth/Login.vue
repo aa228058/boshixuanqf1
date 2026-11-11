@@ -45,7 +45,7 @@
         </div>
       </div>
 
-      <div class="rounded-[24px] p-7 sm:p-8"
+      <div class="rounded-[24px] p-5 sm:p-8"
            style="background: var(--t-surface-1); border: 1px solid var(--t-line); box-shadow: var(--t-shadow-card);">
         <div 
         <h2 class="mt-1.5 text-[24px] font-black tracking-tight text-center">登录工作台</h2>
