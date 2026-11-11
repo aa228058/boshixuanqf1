@@ -25,8 +25,6 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 )
 
-// acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
-
 // dedupeTargetsPerAccount removes duplicate targets for one account without
 // removing the same target from another account's assignment.
 func dedupeTargetsPerAccount(input map[uuid.UUID][]string) map[uuid.UUID][]string {
@@ -46,6 +44,7 @@ func dedupeTargetsPerAccount(input map[uuid.UUID][]string) map[uuid.UUID][]strin
 	return out
 }
 
+// acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
 func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	if ctx.Err() != nil {
 		return false
