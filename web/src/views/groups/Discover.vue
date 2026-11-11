@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div class="min-w-0 w-full space-y-3 sm:space-y-4">
     <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
     <section class="space-y-3">
       <div>
