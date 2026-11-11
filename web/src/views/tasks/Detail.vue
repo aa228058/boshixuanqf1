@@ -1,5 +1,5 @@
 <template>
-  <main class="max-w-4xl mx-auto space-y-4 md:space-y-6">
+  <main class="w-full min-w-0 max-w-4xl mx-auto space-y-3 sm:space-y-4 md:space-y-6">
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
     <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
