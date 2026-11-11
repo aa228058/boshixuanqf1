@@ -167,7 +167,6 @@ func (r *TextDictRepository) PickWord(ctx context.Context, tenantID uuid.UUID, n
 	return word, err
 }
 
-
 // CreateFull creates a named dictionary with independently enabled message entries.
 func (r *TextDictRepository) CreateFull(ctx context.Context, tenantID uuid.UUID, name string, enabled bool, entries []domain.TextDictEntry) (*domain.TextDict, error) {
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
