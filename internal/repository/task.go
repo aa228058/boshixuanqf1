@@ -763,7 +763,13 @@ func (r *TaskRepository) RescheduleLoopTask(ctx context.Context, tenantID, taskI
 		-- 原值 'scheduled' 没有任何调度路径处理, 会导致循环任务执行一次后永远停摆。
 		UPDATE tasks SET status = 'pending', next_run_at = $3, scheduled_at = $3,
 		                 completed_at = NULL, locked_at = NULL, worker_id = NULL,
-		                 progress = '{"total":0,"done":0,"failed":0}'
+		                 progress = '{"total":0,"done":0,"failed":0}',
+		                 payload = jsonb_set(
+		                   COALESCE(payload, '{}'::jsonb),
+		                   '{round_count}',
+		                   to_jsonb(COALESCE(NULLIF(payload->>'round_count', '')::int, 0) + 1),
+		                   TRUE
+		                 )
 		WHERE tenant_id = $1 AND task_id = $2
           AND status = 'completed' AND is_loop = TRUE`, tenantID, taskID, nextRunAt)
 	return err
