@@ -3,6 +3,15 @@ import type { Ref } from 'vue'
 
 // 所有 Modal 实例共享一个 visualViewport 监听器，按打开实例数量引用计数。
 let activeKbGuards = 0
+const modalVisualViewport: VisualViewport | null =
+  typeof window !== 'undefined' ? window.visualViewport : null
+
+// The listener must be module-scoped: all instances add/remove the same function reference.
+function syncModalKeyboardOffset() {
+  if (!modalVisualViewport || typeof window === 'undefined') return
+  const kb = Math.max(0, window.innerHeight - modalVisualViewport.height - modalVisualViewport.offsetTop)
+  document.documentElement.style.setProperty('--modal-kb', kb > 80 ? `${kb}px` : '0px')
+}
 
 // 只跟踪当前打开的弹窗；关闭/卸载后压紧序号，避免长期使用导致 z-index 无限增长。
 let modalCounter = 0
@@ -119,37 +128,27 @@ function onFocusIn(e: FocusEvent) {
 /* ===== 键盘弹起适配(规范 §8): H5 弹窗输入时按钮被顶飞的根治 =====
    监听 visualViewport: 键盘弹起时其 height 缩小,
    把差值写成 CSS 变量 --modal-kb, 移动端弹窗整体上移同样距离 */
-const KB_VAR = '--modal-kb'
-let vv: VisualViewport | null = null
-if (typeof window !== 'undefined') vv = window.visualViewport
-
-// visualViewport is global, but multiple modal instances may be open at once.
-// Each component instance tracks its own attachment; the module counter owns
-// the shared listener lifetime.
+// Each component instance tracks whether it owns one reference; the actual
+// visualViewport listener and callback are shared at module scope.
 let kbGuardAttached = false
 
-function syncKbOffset() {
-  if (!vv) return
-  const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-  document.documentElement.style.setProperty(KB_VAR, kb > 80 ? `${kb}px` : '0px')
-}
 function attachKbGuard() {
-  if (!vv || kbGuardAttached) return
+  if (!modalVisualViewport || kbGuardAttached) return
   kbGuardAttached = true
   activeKbGuards++
   if (activeKbGuards !== 1) return
-  syncKbOffset()
-  vv.addEventListener('resize', syncKbOffset)
-  vv.addEventListener('scroll', syncKbOffset)
+  syncModalKeyboardOffset()
+  modalVisualViewport.addEventListener('resize', syncModalKeyboardOffset)
+  modalVisualViewport.addEventListener('scroll', syncModalKeyboardOffset)
 }
 function detachKbGuard() {
   if (!kbGuardAttached) return
   kbGuardAttached = false
   activeKbGuards = Math.max(0, activeKbGuards - 1)
-  if (activeKbGuards !== 0 || !vv) return
-  vv.removeEventListener('resize', syncKbOffset)
-  vv.removeEventListener('scroll', syncKbOffset)
-  document.documentElement.style.setProperty(KB_VAR, '0px')
+  if (activeKbGuards !== 0 || !modalVisualViewport) return
+  modalVisualViewport.removeEventListener('resize', syncModalKeyboardOffset)
+  modalVisualViewport.removeEventListener('scroll', syncModalKeyboardOffset)
+  document.documentElement.style.setProperty('--modal-kb', '0px')
 }
 
 watch(() => props.modelValue, v => {
