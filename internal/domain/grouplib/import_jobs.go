@@ -265,12 +265,16 @@ func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit i
 // ListImportJobsByNumber returns the tenant-owned import job matching a global task number.
 func (e *Engine) ListImportJobsByNumber(ctx context.Context, tenantID uuid.UUID, taskNumber int64) ([]ImportJob, error) {
 	rows, err := e.pool.Query(ctx, `SELECT job_id,task_number,file_name,status,total_count,processed_count,imported_count,failed_count,skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 AND task_number=$2`, tenantID, taskNumber)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	jobs := make([]ImportJob, 0, 1)
 	for rows.Next() {
 		var job ImportJob
-		if err := rows.Scan(&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount, &job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt); err != nil { return nil, err }
+		if err := rows.Scan(&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount, &job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt); err != nil {
+			return nil, err
+		}
 		job.ValidCount = job.TotalCount
 		jobs = append(jobs, job)
 	}
