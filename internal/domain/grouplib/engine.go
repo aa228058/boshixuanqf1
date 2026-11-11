@@ -377,8 +377,11 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 			ct = ut
 		}
 		gt := "public"
-		if gtype == "channel" {
+		switch strings.ToLower(strings.TrimSpace(gtype)) {
+		case "channel":
 			gt = "channel"
+		case "supergroup", "megagroup":
+			gt = "supergroup"
 		}
 		sg := &domain.SystemGroup{
 			Source: "joined", Title: firstNonEmpty(title, "@"+username), Username: username,
