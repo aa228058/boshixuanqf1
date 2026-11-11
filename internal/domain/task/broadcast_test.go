@@ -9,6 +9,27 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestShouldSendBroadcastTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+		chatID int64
+		want   bool
+	}{
+		{name: "valid target", status: "success", chatID: -1001, want: true},
+		{name: "account already restricted", status: "failed", chatID: -1001, want: false},
+		{name: "peer resolution failed", status: "failed", chatID: 0, want: false},
+		{name: "missing chat ID", status: "success", chatID: 0, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldSendBroadcastTarget(tt.status, tt.chatID); got != tt.want {
+				t.Fatalf("shouldSendBroadcastTarget(%q, %d) = %v, want %v", tt.status, tt.chatID, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAcquireBroadcastSlotRespectsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
