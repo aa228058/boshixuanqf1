@@ -164,6 +164,29 @@ func (r *TaskRepository) GetByID(ctx context.Context, tenantID, taskID uuid.UUID
 }
 
 // Create inserts a new task and notifies workers.
+// GetByNumber retrieves one tenant-owned task by its globally unique display number.
+func (r *TaskRepository) GetByNumber(ctx context.Context, tenantID uuid.UUID, taskNumber int64) (*domain.Task, error) {
+	var t domain.Task
+	var lockedAt pgtype.Timestamptz
+	var workerID pgtype.Text
+	var scheduledAt, startedAt, completedAt, nextRunAt pgtype.Timestamptz
+	err := r.db.QueryRow(ctx, `
+		SELECT task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		       locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
+		       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at
+		FROM tasks WHERE tenant_id = $1 AND task_number = $2`, tenantID, taskNumber,
+	).Scan(&t.TaskID, &t.TaskNumber, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
+		&lockedAt, &workerID, &t.RetryCount, &scheduledAt, &startedAt, &completedAt, &t.CreatedAt,
+		&t.IsLoop, &t.LoopIntervalMinutes, &t.MinIntervalSeconds, &t.MaxIntervalSeconds, &nextRunAt)
+	if err != nil { return nil, fmt.Errorf("get task by number: %w", err) }
+	if lockedAt.Valid { tt := lockedAt.Time; t.LockedAt = &tt }
+	if workerID.Valid { t.WorkerID = &workerID.String }
+	if scheduledAt.Valid { tt := scheduledAt.Time; t.ScheduledAt = &tt }
+	if startedAt.Valid { tt := startedAt.Time; t.StartedAt = &tt }
+	if completedAt.Valid { tt := completedAt.Time; t.CompletedAt = &tt }
+	if nextRunAt.Valid { tt := nextRunAt.Time; t.NextRunAt = &tt }
+	return &t, nil
+}
 func (r *TaskRepository) Create(ctx context.Context, t *domain.Task) error {
 	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `
