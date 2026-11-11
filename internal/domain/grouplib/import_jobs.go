@@ -229,8 +229,7 @@ func (e *Engine) DeleteImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 	tag, err := e.pool.Exec(ctx, `
 		DELETE FROM group_library_import_jobs
 		WHERE tenant_id=$1 AND job_id=$2
-		  AND status IN ('review','completed','failed','cancelled')
-		  AND (lease_token IS NULL OR lease_expires_at < NOW())`,
+		  AND status IN ('review','completed','failed','cancelled')`,
 		tenantID, jobID)
 	if err != nil {
 		return err
