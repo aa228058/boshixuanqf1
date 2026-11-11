@@ -97,7 +97,7 @@ test.describe('账号页视觉审计', () => {
     if (testInfo.project.name.includes('mobile')) {
       expect(menuBox!.x).toBeGreaterThanOrEqual(0)
       expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(viewport!.width + 1)
-      expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport!.height + 1)
+      expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport!.height - 88)
     } else {
       expect(menuBox!.width).toBeLessThanOrEqual(260)
     }
