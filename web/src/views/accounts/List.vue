@@ -275,7 +275,8 @@
                 <Trash2 class="w-3.5 h-3.5" /> 删除
               </button>
             </div>
-          </div>        </div>
+          </div>
+        </div>
       </div>
       </div>
     </template>
@@ -729,7 +730,7 @@ import {
   Plus, FolderPlus, User, Pencil, Trash2, Plug, Unplug,
   KeyRound, ShieldAlert, Shield, Loader2, Search,
   RefreshCw, Play, Archive, LogOut, MoreHorizontal,
-  ShieldCheck, ArrowRightLeft,
+  ShieldCheck, ArrowRightLeft, UserRoundPen,
 } from 'lucide-vue-next'
 import { useAccountStore } from '@/stores/account'
 import { accountApi, importSessions, importSessionFiles, setAccountProxy, testAccountProxy, uploadAvatar } from '@/api/account'
