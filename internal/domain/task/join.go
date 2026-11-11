@@ -263,13 +263,24 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 					errCode = "not a group"
 				}
 				if chatID != 0 {
-					// Deduplication: skip if already joined this group
-					if e.groupRepo != nil {
-						if existing, _ := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); existing != nil && existing.IsJoined {
-							status = "success"
-							errCode = "already_joined"
-							goto logAndContinue
-						}
+					// Do not attempt a Telegram side effect when the local membership
+					// lookup failed; only a confirmed not-found result is safe to proceed.
+					if e.groupRepo == nil {
+						status = "failed"
+						errCode = "group_repository_unavailable"
+						goto logAndContinue
+					}
+					existingGroup, groupLookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+					if groupLookupErr == nil && existingGroup != nil && existingGroup.IsJoined {
+						status = "success"
+						errCode = "already_joined"
+						goto logAndContinue
+					}
+					if groupLookupErr != nil && !errors.Is(groupLookupErr, pgx.ErrNoRows) {
+						status = "failed"
+						errCode = "group_lookup_failed"
+						errMsg = groupLookupErr.Error()
+						goto logAndContinue
 					}
 					// A Telegram join can succeed while local persistence fails. Reuse
 					// this persistence path for both fresh joins and ALREADY_PARTICIPANT
