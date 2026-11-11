@@ -95,6 +95,19 @@ export default defineConfig({
         use: { ...devices['iPhone 13'], browserName: 'chromium' },
       },
     ] : []),
+    // Accounts visual audit: mocked APIs only; opt-in via VISUAL_AUDIT=1.
+    ...(process.env.VISUAL_AUDIT ? [
+      {
+        name: 'visual-desktop',
+        testMatch: /accounts-visual\\.spec\\.ts/,
+        use: { ...devices['Desktop Chrome'] },
+      },
+      {
+        name: 'visual-mobile',
+        testMatch: /accounts-visual\\.spec\\.ts/,
+        use: { ...devices['iPhone 13'], browserName: 'chromium' },
+      },
+    ] : []),
   ],
   webServer: process.env.E2E_SKIP_WEBSERVER ? undefined : {
     cwd: '..',
