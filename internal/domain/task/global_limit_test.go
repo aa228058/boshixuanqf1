@@ -7,11 +7,11 @@ import (
 
 func TestShouldDeferGlobalClaim(t *testing.T) {
 	tests := []struct {
-		name string
+		name    string
 		running int
-		limit int
-		err error
-		want bool
+		limit   int
+		err     error
+		want    bool
 	}{
 		{name: "at limit", running: 5, limit: 5, want: true},
 		{name: "above limit", running: 6, limit: 5, want: true},
