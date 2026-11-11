@@ -2,7 +2,7 @@
   <main class="w-full max-w-3xl mx-auto space-y-4 sm:space-y-6 min-w-0">
     <!-- Phase 4: 设置页拆 5 Tab(手册信息架构)——URL ?tab= 同步, 可直接跳转/刷新定位 -->
     <div class="flex gap-1 p-1 rounded-[var(--t-r-md)] bg-bg-card border border-border/50 mb-2 overflow-x-auto">
-      <button type="button" v-for="t in tabs" :key="t.key" class="ui-segmented__item px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors shrink-0"
+      <button type="button" v-for="t in tabs" :key="t.key" v-if="t.key !== 'textdicts' || authStore.tenant?.plan_features?.dict" class="ui-segmented__item px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors shrink-0"
               :class="activeTab === t.key ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'"
               @click="switchTab(t.key)">{{ t.label }}</button>
     </div>
@@ -189,7 +189,7 @@
       </div>
     </div>
 
-    <div v-show="activeTab === 'textdicts'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift space-y-4">
+    <div v-if="authStore.tenant?.plan_features?.dict" v-show="activeTab === 'textdicts'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift space-y-4">
       <div><h3 class="text-sm font-medium text-text-secondary">文本素材分组</h3><p class="text-xs text-text-muted mt-1">按用途保存常用短句或内容片段，可在这里维护并手动复制使用。</p></div>
       <div class="rounded-lg bg-bg-card p-3 space-y-2">
         <input v-model="newDictName" class="ui-input w-full" maxlength="64" placeholder="分组名称，例如：欢迎语素材" />
@@ -681,7 +681,7 @@ async function fetchProfile() {
 onMounted(async () => {
   await fetchProfile()
   await fetchTemplates()
-  await fetchTextDicts()
+  if (authStore.tenant?.plan_features?.dict) await fetchTextDicts()
   loadAI()
   // R142 修复: 通知设置(邮箱/SMTP/事件订阅)此前只在保存后回填, 刷新页面从不加载 —— 补挂载加载
   loadNotify()
