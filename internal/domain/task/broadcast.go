@@ -855,6 +855,17 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 
 var dictVarRe = regexp.MustCompile(`\{\{([A-Za-z0-9_\-\x{4e00}-\x{9fa5}]{1,32})\}\}`)
 
+// isLegacyMessageVariable marks the retired built-in placeholders. They are no
+// longer resolved as recipient/group metadata or treated as dictionary names.
+func isLegacyMessageVariable(name string) bool {
+	switch strings.ToLower(name) {
+	case "first_name", "group_name", "user_id", "now", "username", "phone":
+		return true
+	default:
+		return false
+	}
+}
+
 // dictBag 文案变量替换池: 任务开始时一次加载, 发送时每个目标随机取词
 type dictBag struct{ pools map[string][]string }
 
@@ -865,6 +876,9 @@ func (e *Engine) buildDictBag(ctx context.Context, tenantID uuid.UUID, message s
 	}
 	names := map[string]bool{}
 	for _, m := range dictVarRe.FindAllStringSubmatch(message, -1) {
+		if isLegacyMessageVariable(m[1]) {
+			continue
+		}
 		names[m[1]] = true
 	}
 	if len(names) == 0 {
