@@ -253,7 +253,10 @@
           class="p-4 rounded-lg border transition-all cursor-pointer"
           :class="selectedPlan === plan.plan_id ? 'border-[color:var(--t-brand)]/50 bg-[var(--t-brand)]/5' : 'border-border hover:border-[color:var(--t-brand)]/30'"
           @click="selectedPlan = plan.plan_id"
-         tabindex="0" role="button">
+          @keydown.enter.prevent="selectedPlan = plan.plan_id"
+          @keydown.space.prevent="selectedPlan = plan.plan_id"
+          :aria-pressed="selectedPlan === plan.plan_id"
+          tabindex="0" role="button">
           <div class="flex items-center justify-between">
             <div>
               <p class="font-medium">{{ plan.name }}</p>
