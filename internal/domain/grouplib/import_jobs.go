@@ -222,6 +222,24 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 	return &job, nil
 }
 
+// DeleteImportJob removes only an inactive import-job history row owned by the tenant.
+// Active or leased jobs cannot be deleted; failure details are removed by the table's FK cascade.
+func (e *Engine) DeleteImportJob(ctx context.Context, tenantID, jobID uuid.UUID) error {
+	tag, err := e.pool.Exec(ctx, `
+		DELETE FROM group_library_import_jobs
+		WHERE tenant_id=$1 AND job_id=$2
+		  AND status IN ('review','completed','failed','cancelled')
+		  AND (lease_token IS NULL OR lease_expires_at IS NULL OR lease_expires_at < NOW())`,
+		tenantID, jobID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("导入任务不存在、仍在运行或租约尚未结束")
+	}
+	return nil
+}
+
 func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit int) ([]ImportJob, error) {
 	if limit < 1 || limit > 100 {
 		limit = 20
