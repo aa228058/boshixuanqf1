@@ -1,13 +1,14 @@
 <template>
   <Modal v-model="visible" title="消息通知">
     <div class="space-y-1 max-h-[500px] overflow-y-auto">
-      <div
+      <button
+        type="button"
         v-for="n in notifications"
         :key="n.id"
         @click="markRead(n.id)"
-        class="p-3 rounded-lg cursor-pointer transition-colors"
+        class="w-full text-left p-3 rounded-lg cursor-pointer transition-colors"
         :class="n.read ? 'opacity-60' : 'bg-cyan/5 border border-cyan/10'"
-       tabindex="0" role="button">
+        :aria-label="`标记通知为已读：${n.title}">
         <div class="flex items-start gap-3">
           <component :is="typeIcon(n.type)" class="w-5 h-5 shrink-0 mt-0.5" :class="typeColor(n.type)" />
           <div class="flex-1 min-w-0">
@@ -17,7 +18,7 @@
           </div>
           <div v-if="!n.read" class="w-2 h-2 rounded-full bg-cyan shrink-0 mt-1.5" />
         </div>
-      </div>
+      </button>
       <EmptyState
         v-if="!notifications.length"
         icon="Bell"
