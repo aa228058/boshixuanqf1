@@ -23,6 +23,11 @@
   </button>
 </div>
 <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5">
+          <input v-model="numberSearch" class="ui-input !w-36 !min-h-[36px] !px-3 !py-1.5 !text-xs" placeholder="按任务编号搜索" aria-label="按任务编号搜索" @keyup.enter="searchByNumber" />
+          <button type="button" class="ui-icon-btn" @click="searchByNumber" aria-label="搜索任务编号" title="搜索编号"><Search class="w-4 h-4" /></button>
+          <button v-if="numberSearch" type="button" class="ui-icon-btn" @click="clearNumberSearch" aria-label="清除编号搜索" title="清除搜索"><X class="w-4 h-4" /></button>
+        </div>
         <!-- R128 原生 select: t-select 的 tdesign 下拉面板在移动端定位滑到页面底部(用户反馈),
              原生 select 视觉已令牌化且系统自带可靠下拉 -->
         <select v-model="statusFilter"
@@ -54,7 +59,7 @@
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
-            <div class="text-xs text-text-muted mt-1">群组链接导入 · {{ formatDate(job.created_at) }}</div>
+            <div class="text-xs text-text-muted mt-1"><span class="font-semibold tabular-nums text-[var(--t-brand)]">{{ formatTaskNumber(job.task_number) }}</span> · 群组链接导入 · {{ formatDate(job.created_at) }}</div>
           </div>
           <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : job.status === 'cancelled' ? 'text-text-muted bg-bg-hover' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
             {{ importStatusLabel(job.status) }}
@@ -99,6 +104,7 @@
       <div v-if="tasks.length" class="hidden md:block mt-2 w-full max-w-full overflow-x-auto">
         <t-table row-key="task_id" :data="tasks" :columns="tableCols" hover style="min-width: 860px"
                  @row-click="(ctx: any) => $router.push(`/workspace/${route.params.accountId}/tasks/${ctx.row.task_id}`)">
+          <template #task_number="{ row }"><span class="font-semibold tabular-nums text-[var(--t-brand)]">{{ formatTaskNumber(row.task_number) }}</span></template>
           <template #status="{ row }">
             <span class="px-2 py-0.5 rounded text-xs font-medium" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
           </template>
@@ -166,6 +172,7 @@
               <i class="w-1.5 h-1.5 rounded-full bg-current opacity-80"></i>{{ statusLabel(task.status) }}
             </span>
             <span class="text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
+            <span class="text-[10px] font-semibold tabular-nums text-[var(--t-brand)]">{{ formatTaskNumber(task.task_number) }}</span>
             <!-- R112: 执行账号列 —— 全租户汇总后标识每条任务属于哪个号 -->
             <span v-if="accountNameOf(task)" class="text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
                   :title="'执行账号: ' + accountNameOf(task)">
@@ -290,6 +297,7 @@ const typeTabs = [
 ]
 
 const tasks = ref<any[]>([])
+const numberSearch = ref('')
 const importJobs = ref<any[]>([])
 const loading = ref(false)
 const loadError = ref('')
@@ -342,7 +350,7 @@ async function clearFinished() {
 
 async function fetchImportJobs() {
   try {
-    const res: any = await listGroupLibraryImportJobs()
+    const res: any = await listGroupLibraryImportJobs(numberSearch.value.trim() || undefined)
     importJobs.value = res.list || []
   } catch { /* keep the last known task list during transient network errors */ }
 }
@@ -406,10 +414,33 @@ async function clearGroupImportJob(job: any) {
 
 let taskListRequestId = 0
 
+function formatTaskNumber(value: number | string | undefined): string {
+  const number = Number(value)
+  return Number.isSafeInteger(number) && number > 0 ? '#' + String(number).padStart(6, '0') : '#------'
+}
+
+async function searchByNumber() {
+  const value = numberSearch.value.trim().replace(/^#/, '')
+  if (value && !/^\d+$/.test(value)) {
+    toast({ type: 'warning', title: '请输入有效的任务编号' })
+    return
+  }
+  numberSearch.value = value
+  page.value = 1
+  await Promise.all([fetchTasks(), fetchImportJobs()])
+}
+
+async function clearNumberSearch() {
+  numberSearch.value = ''
+  page.value = 1
+  await Promise.all([fetchTasks(), fetchImportJobs()])
+}
+
 async function fetchTasks() {
   const requestId = ++taskListRequestId
   // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
   const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
+   if (numberSearch.value.trim()) params.task_number = numberSearch.value.trim().replace(/^#/, '')
   if (range.value !== 'all') params.range = range.value
   if (statusFilter.value) params.status = statusFilter.value
   if (typeFilter.value) params.type = typeFilter.value
@@ -540,6 +571,7 @@ async function onPullRefresh() {
 }
 
 const tableCols = [
+  { colKey: 'task_number', title: '编号', width: 110 },
   { colKey: 'status', title: '状态', width: 100 },
   { colKey: 'type', title: '类型', width: 120 },
   { colKey: 'overview', title: '消息内容', width: 200 },
