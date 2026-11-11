@@ -66,10 +66,7 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 			if c.Username == "" {
 				continue // 搜到的非公开频道, 无法加入, 不入库
 			}
-			gt := "channel"
-			if c.Megagroup {
-				gt = "public"
-			}
+			gt := "supergroup"
 			sg = &domain.SystemGroup{
 				Source: "search", Title: c.Title, Username: c.Username, TelegramChatID: int64(c.ID), ContributorTenantID: tenantID,
 				TmeLink: "https://t.me/" + c.Username, GType: gt,
