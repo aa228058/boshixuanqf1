@@ -77,9 +77,8 @@ function mountSubscriptions(count = 1) {
 }
 
 async function flushPromises() {
-  await Promise.resolve()
-  await Promise.resolve()
-  await Promise.resolve()
+  // fetch() and response.json() each add promise turns before EventSource is created.
+  for (let index = 0; index < 10; index++) await Promise.resolve()
 }
 
 describe('useTaskEvents SSE lifecycle', () => {
