@@ -10,6 +10,12 @@ import (
 // 公共用户名遵循 Telegram 规则(5-32位, 字母开头); 邀请 hash 单独校验。
 var importCandidateRe = regexp.MustCompile(`(?i)(?:(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/(?:s/|joinchat/|\+)?[A-Za-z0-9_-]{5,64}|tg://(?:resolve\?domain=[A-Za-z][A-Za-z0-9_]{4,31}|join\?invite=[A-Za-z0-9_-]{5,64})|@[A-Za-z][A-Za-z0-9_]{4,31})`)
 
+// isBroadcastChannelType identifies Telegram broadcast channels. Supergroups,
+// including linked discussion groups, are deliberately retained.
+func isBroadcastChannelType(gtype string) bool {
+	return strings.EqualFold(strings.TrimSpace(gtype), "channel")
+}
+
 type importFilterResult struct {
 	Links     []string
 	RawCount  int
