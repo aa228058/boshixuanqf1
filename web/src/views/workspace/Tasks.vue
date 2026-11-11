@@ -71,6 +71,7 @@
           <t-button v-if="job.status === 'review'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
           <t-button v-if="['review', 'pending', 'processing'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="danger" @click="cancelGroupImport(job.job_id)">取消导入</t-button>
           <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
+          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="default" @click="clearGroupImportJob(job)">清除记录</t-button>
         </div>
         <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
       </article>
@@ -257,7 +258,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { taskApi } from '@/api/task'
-import { listGroupLibraryImportJobs, confirmImportLibraryGroups, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
+import { listGroupLibraryImportJobs, confirmImportLibraryGroups, cancelGroupLibraryImportJob, deleteGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
@@ -385,6 +386,21 @@ async function retryGroupImport(jobId: string) {
     await fetchImportJobs()
   } catch (e: any) {
     toast({ type: 'error', title: '重试失败', message: e?.message || '无法重试失败链接' })
+  }
+}
+
+async function clearGroupImportJob(job: any) {
+  const ok = await ask('确定清除这条已结束的导入任务记录？只删除任务记录及失败明细，不会删除已经入库的群组。', {
+    title: '清除导入记录', danger: true, confirmText: '清除记录',
+  })
+  if (!ok) return
+  try {
+    await deleteGroupLibraryImportJob(job.job_id)
+    await fetchImportJobs()
+    toast({ type: 'success', title: '导入任务记录已清除' })
+  } catch (e: any) {
+    toast({ type: 'error', title: '清除失败', message: e?.message || '任务可能仍在运行，请稍后重试' })
+    await fetchImportJobs()
   }
 }
 
