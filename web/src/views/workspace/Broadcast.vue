@@ -86,7 +86,9 @@
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
             <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="retryFailed(t.task_id)">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="pauseTask(t.task_id)">暂停</t-button>
+            <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click.stop="resumeTask(t.task_id)">继续</t-button>
+            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" variant="outline" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
             <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)">查看详情</t-button>
           </div>
         </div>
@@ -652,13 +654,13 @@ watch(currentAccount, fetchTasks)
 
 const statusLabelMap: Record<string, string> = {
   pending: '等待调度', queued: '排队中', running: '运行中',
-  completed: '已完成', failed: '失败', cancelled: '已取消',
+  paused: '已暂停', completed: '已完成', failed: '失败', cancelled: '已取消',
 }
 function statusLabel(s: string) { return statusLabelMap[s] || s }
 function statusClass(s: string): string {
   return ({
     pending: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', queued: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]',
-    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
+    running: 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]', paused: 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]', completed: 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]',
     failed: 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]', cancelled: 'bg-text-muted/10 text-text-muted',
   } as any)[s] || 'bg-bg-hover text-text-muted'
 }
@@ -687,6 +689,20 @@ async function retryFailed(id: string) {
 async function stopTask(id: string) {
   try { await taskApi.cancel(id); fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
+}
+async function pauseTask(id: string) {
+  try {
+    await taskApi.pause(id)
+    toast({ type: 'success', title: '任务已暂停' })
+    await fetchTasks()
+  } catch (e: any) { toast({ type: 'error', title: '暂停失败', message: e?.message }) }
+}
+async function resumeTask(id: string) {
+  try {
+    await taskApi.resume(id)
+    toast({ type: 'success', title: '任务已继续' })
+    await fetchTasks()
+  } catch (e: any) { toast({ type: 'error', title: '继续失败', message: e?.message }) }
 }
 const showTargetSelector = ref(false)
 // 响应式绑定 groupStore：后台同步完成后写缓存即自动刷新选择器
