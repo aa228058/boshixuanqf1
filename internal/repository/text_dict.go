@@ -139,7 +139,8 @@ func (r *TextDictRepository) WordsByNames(ctx context.Context, tenantID uuid.UUI
 	}
 	rows, err := r.db.Query(ctx, `SELECT d.name, e.word FROM text_dicts d
 		JOIN text_dict_entries e ON e.dict_id = d.dict_id
-		WHERE d.tenant_id = $1 AND d.name = ANY($2)`, tenantID, names)
+		WHERE d.tenant_id = $1 AND d.name = ANY($2)
+		  AND d.enabled = TRUE AND e.enabled = TRUE`, tenantID, names)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +161,8 @@ func (r *TextDictRepository) PickWord(ctx context.Context, tenantID uuid.UUID, n
 	var word string
 	err := r.db.QueryRow(ctx, `SELECT e.word FROM text_dict_entries e
 		JOIN text_dicts d ON d.dict_id = e.dict_id
-		WHERE d.tenant_id = $1 AND d.name = $2 AND e.weight > 0
+		WHERE d.tenant_id = $1 AND d.name = $2 AND d.enabled = TRUE
+		  AND e.enabled = TRUE AND e.weight > 0
 		ORDER BY -ln(random()) / e.weight LIMIT 1`, tenantID, name).Scan(&word)
 	return word, err
 }
