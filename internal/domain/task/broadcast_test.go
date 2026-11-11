@@ -44,3 +44,14 @@ func TestDedupeTargetsPerAccountPreservesCrossAccountAssignments(t *testing.T) {
 		t.Fatalf("account B targets = %#v, want [group-1]", got[accountB])
 	}
 }
+
+func TestLegacyMessageVariablesAreNotDictionaryKeys(t *testing.T) {
+	for _, name := range []string{"first_name", "group_name", "user_id", "now", "username", "phone"} {
+		if !isLegacyMessageVariable(name) {
+			t.Errorf("%q should be treated as a retired placeholder", name)
+		}
+	}
+	if isLegacyMessageVariable("campaign_copy") {
+		t.Fatal("custom dictionary name should remain available")
+	}
+}
