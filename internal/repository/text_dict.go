@@ -22,7 +22,8 @@ func NewTextDictRepository(db *pgxpool.Pool) *TextDictRepository {
 
 // List returns the current tenant's named text collections and their saved items.
 func (r *TextDictRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.TextDict, error) {
-	rows, err := r.db.Query(ctx, `SELECT d.dict_id, d.tenant_id, d.name, d.created_at, e.word
+	rows, err := r.db.Query(ctx, `SELECT d.dict_id, d.tenant_id, d.name, d.enabled, d.created_at,
+		e.entry_id, e.word, e.weight, e.enabled
 		FROM text_dicts d LEFT JOIN text_dict_entries e ON e.dict_id = d.dict_id
 		WHERE d.tenant_id = $1 ORDER BY d.created_at DESC, e.entry_id`, tenantID)
 	if err != nil {
@@ -35,21 +36,30 @@ func (r *TextDictRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*d
 	for rows.Next() {
 		var id, tid uuid.UUID
 		var name string
+		var enabled bool
 		var created time.Time
+		var entryID *uuid.UUID
 		var word *string
-		if err := rows.Scan(&id, &tid, &name, &created, &word); err != nil {
+		var weight *int
+		var entryEnabled *bool
+		if err := rows.Scan(&id, &tid, &name, &enabled, &created, &entryID, &word, &weight, &entryEnabled); err != nil {
 			return nil, err
 		}
 		item, ok := byID[id]
 		if !ok {
 			item = &domain.TextDict{
-				DictID: id, TenantID: tid, Name: name,
-				Items: []string{}, CreatedAt: created,
+				DictID: id, TenantID: tid, Name: name, Enabled: enabled,
+				Items: []string{}, Entries: []domain.TextDictEntry{}, CreatedAt: created,
 			}
 			byID[id] = item
 			list = append(list, item)
 		}
-		if word != nil {
+		if entryID != nil && word != nil {
+			entry := domain.TextDictEntry{EntryID: *entryID, DictID: id, Word: *word, Enabled: entryEnabled != nil && *entryEnabled}
+			if weight != nil {
+				entry.Weight = *weight
+			}
+			item.Entries = append(item.Entries, entry)
 			item.Items = append(item.Items, *word)
 			item.WordCount++
 		}
