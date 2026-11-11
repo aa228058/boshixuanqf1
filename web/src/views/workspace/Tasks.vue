@@ -405,6 +405,8 @@ async function clearGroupImportJob(job: any) {
   if (!ok) return
   try {
     await deleteGroupLibraryImportJob(job.job_id)
+    // Delete API 已确认成功后立即从当前列表移除，避免等待下一次列表请求造成“清不掉”的错觉。
+    importJobs.value = importJobs.value.filter(item => item.job_id !== job.job_id)
     await fetchImportJobs()
     toast({ type: 'success', title: '导入任务记录已清除' })
   } catch (e: any) {
