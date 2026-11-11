@@ -246,17 +246,9 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	// Use saved device profile for consistent device identity
-	deviceType := ""
-	if acc.DeviceProfile != nil {
-		var ok bool
-		deviceType, ok = acc.DeviceProfile["device_type"].(string)
-		if !ok {
-			log.Printf("[client] device_type type assertion failed for account %s", accountID)
-		}
-	}
 	deviceCfg := deviceProfileToConfig(acc.DeviceProfile, acc.SessionName)
 	if deviceCfg.DeviceModel == "" {
-		deviceCfg = generateDeviceConfig(acc.SessionName, deviceType)
+		deviceCfg = generateDeviceConfig(acc.SessionName)
 	}
 
 	// Use shared PostgreSQL storage for session persistence
