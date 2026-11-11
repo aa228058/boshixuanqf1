@@ -18,6 +18,7 @@ import (
 type SettingsHandler struct {
 	svc    *service.SettingsService
 	mailer *notify.Mailer // R119: 通知中心(可为 nil)
+	dicts *repository.TextDictRepository
 }
 
 // NewSettingsHandler creates a new settings handler.
