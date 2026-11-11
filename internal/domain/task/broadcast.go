@@ -724,6 +724,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 									status = "success"
 									errCode = ""
 								}
+							} else {
+								accountFlooded = true
+								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), 0)
 							}
 						case isGroupLevelRestriction(sendErr):
 							// Group-level restriction: skip this target only, do not mark account

@@ -187,20 +187,13 @@ func (e *Engine) executeInviteMembers(ctx context.Context, task *domain.Task) er
 						return fmt.Errorf("记录成员 %d 的 Telegram 明确拒绝失败: %w", member.TGUserID, err)
 					}
 					failed++
-					if isGlobalFlood(inviteErr) || strings.Contains(errStr, "user_restricted") {
+					if strings.Contains(errStr, "flood") || strings.Contains(errStr, "ban") || strings.Contains(errStr, "restricted") {
 						waitSec := extractFloodSeconds(errStr)
 						e.markAccountRestricted(ctx, task.TenantID, accID, "invite_flood", inviteErr.Error(), waitSec)
 						if saveErr := saveProgress(); saveErr != nil {
 							return fmt.Errorf("账号被限流且保存进度失败: %w (原始错误: %v)", saveErr, inviteErr)
 						}
-						return fmt.Errorf("账号被限流, 已进入冷却: %w", inviteErr)
-					}
-					if isAccountBanned(inviteErr) {
-						e.markAccountBanned(ctx, task.TenantID, accID, "invite_account_banned", inviteErr.Error())
-						if saveErr := saveProgress(); saveErr != nil {
-							return fmt.Errorf("账号封禁且保存进度失败: %w (原始错误: %v)", saveErr, inviteErr)
-						}
-						return fmt.Errorf("账号已被封禁, 已停止邀请: %w", inviteErr)
+						return fmt.Errorf("账号被限流/封禁, 已冷却: %w", inviteErr)
 					}
 				} else {
 					// Transport errors, timeouts and disconnects do not prove
