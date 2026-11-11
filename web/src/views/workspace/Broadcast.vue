@@ -146,10 +146,10 @@
       <div class="mt-2">
         <t-button type="button" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="showImport = !showImport">批量导入目标（粘贴列表/上传文件）</t-button>
         <div v-if="showImport" class="mt-2 space-y-2">
-          <textarea v-model="importText" rows="4" class="w-full bg-bg-card border border-border rounded-lg px-3 py-2 text-sm"
+          <textarea v-model="importText" rows="4" class="ui-input !text-sm" aria-label="批量导入群组目标"
             placeholder="每行一个目标, 支持:&#10;@用户名&#10;https://t.me/群名&#10;-100xxxxxxxxxx(群ID)&#10;也可粘贴CSV内容"></textarea>
           <div class="flex gap-2">
-            <t-button theme="primary" size="sm" variant="outline" @click="applyImportText">解析添加</t-button>
+            <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="applyImportText">解析添加</t-button>
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               选择文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
             </label>
@@ -177,17 +177,20 @@
       </div>
 
       <!-- 消息混淆(两种模式共用) -->
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-        <input type="checkbox" v-model="obfuscate" class="accent-[var(--t-brand)] w-4 h-4" />
-        <span class="font-semibold">消息混淆</span>
-        <span class="text-text-muted">每条自动加随机表情+隐形字符, 内容不重复防风控</span>
-      </label>
-      <!-- 每条消息自动变化: 一键让措辞/标点各不相同, 不用写任何变量 -->
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
-        <input type="checkbox" v-model="autoVary" class="accent-[var(--t-brand)] w-4 h-4" />
-        <span class="font-semibold">每条消息自动变化</span>
-        <span class="text-text-muted">自动换同义词、抖动标点, 千条消息千种写法</span>
-      </label>
+      <template v-if="!isLoop">
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
+          <input type="checkbox" v-model="obfuscate" class="accent-[var(--t-brand)] w-4 h-4" />
+          <span class="font-semibold">消息混淆</span>
+          <span class="text-text-muted">每条自动加随机表情+隐形字符</span>
+        </label>
+        <!-- 每条消息自动变化: 一键让措辞/标点各不相同, 不用写任何变量 -->
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none mb-3">
+          <input type="checkbox" v-model="autoVary" class="accent-[var(--t-brand)] w-4 h-4" />
+          <span class="font-semibold">每条消息自动变化</span>
+          <span class="text-text-muted">自动换同义词、抖动标点</span>
+        </label>
+      </template>
+      <p v-else class="text-xs text-text-muted mb-3">循环群发当前不支持消息混淆和自动变化设置。</p>
       <!-- 富媒体(可选) -->
       <div>
         <label class="block text-sm font-medium mb-2">附带媒体 <span class="text-text-muted font-normal">(可选)</span></label>
@@ -283,7 +286,7 @@
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { groupApi } from '@/api/group'
@@ -359,13 +362,18 @@ const onlineAccounts = computed(() => (accountStore.accounts || []).filter((a: a
 // R101 P1-第二刀: 覆盖预览 —— 拉全租户群(带 account_id), 计算"每个目标有哪些账号已加入",
 // 提交前摊开: 可发/预计失败/完全无账号加入的群。
 const _allGroups = ref<any[]>([])
+let allGroupsRequestId = 0
 async function loadAllGroups() {
+  const requestId = ++allGroupsRequestId
   // R182.4: request.ts 已把列表响应统一包装为 {list,total} 对象(P0-35 审计修复), 不能当数组直用;
   // 直接 for...of 会抛 "not iterable" 导致群发页整页爆红。兼容数组/包装两种形态。
   try {
     const res: any = await groupApi.list()
+    if (requestId !== allGroupsRequestId || !showCreate.value) return
     _allGroups.value = Array.isArray(res) ? res : (res?.list ?? [])
-  } catch { _allGroups.value = [] }
+  } catch {
+    if (requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
+  }
 }
 function groupNameOf(t: string): string {
   const g: any = _allGroups.value.find((x: any) =>
@@ -441,28 +449,57 @@ function insertVar(v: string) {
   }
 }
 
-// 草稿: 停止输入 800ms 后存 localStorage, 重新打开页面自动恢复(示例116)
-let draftTimer: any = null
-const DRAFT_KEY = 'broadcast_msg_draft'
-watch(message, (v) => {
+// 草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
+let draftTimer: ReturnType<typeof setTimeout> | null = null
+const draftKeyFor = (account: any) => {
+  const tenant: any = authStore.tenant
+  const tenantId = String(tenant?.tenant_id ?? 'tenant')
+  const accountId = String(account?.account_id ?? 'unselected')
+  return 'broadcast_msg_draft:' + tenantId + ':' + accountId
+}
+const activeDraftKey = ref(draftKeyFor(currentAccount.value))
+function persistDraft(key: string, value: string) {
+  try {
+    if (value.trim()) localStorage.setItem(key, value)
+    else localStorage.removeItem(key)
+  } catch {}
+}
+function restoreDraft(key: string, notify = false) {
+  try {
+    const saved = localStorage.getItem(key) || ''
+    message.value = saved
+    draftSaved.value = !!saved.trim()
+    if (saved.trim() && notify) {
+      toast({ type: 'info', title: '草稿已恢复', message: '已恢复当前账号上次未发送的草稿' })
+    }
+  } catch {
+    message.value = ''
+    draftSaved.value = false
+  }
+}
+watch(message, (value) => {
   draftSaved.value = false
-  clearTimeout(draftTimer)
+  if (draftTimer) clearTimeout(draftTimer)
   draftTimer = setTimeout(() => {
-    try {
-      if (v.trim()) { localStorage.setItem(DRAFT_KEY, v); draftSaved.value = true }
-      else localStorage.removeItem(DRAFT_KEY)
-    } catch {}
+    persistDraft(activeDraftKey.value, value)
+    draftSaved.value = !!value.trim()
+    draftTimer = null
   }, 800)
 })
-// 恢复草稿(挂载时, 仅当当前内容为空)
-onMounted(() => {
-  try {
-    const d = localStorage.getItem(DRAFT_KEY)
-    if (d && d.trim() && !message.value.trim()) {
-      message.value = d
-      toast({ type: 'info', title: '草稿已恢复', message: '已恢复上次未发送的草稿' })
-    }
-  } catch {}
+// 切换账号前先把当前编辑内容写回旧账号，再恢复新账号自己的草稿。
+watch([currentAccount, () => authStore.tenant?.tenant_id], ([account]) => {
+  if (draftTimer) {
+    clearTimeout(draftTimer)
+    draftTimer = null
+  }
+  persistDraft(activeDraftKey.value, message.value)
+  activeDraftKey.value = draftKeyFor(account)
+  restoreDraft(activeDraftKey.value, true)
+})
+onMounted(() => restoreDraft(activeDraftKey.value, true))
+onUnmounted(() => {
+  if (draftTimer) clearTimeout(draftTimer)
+  persistDraft(activeDraftKey.value, message.value)
 })
 // 默认 [5,12] 与后端强制下限及协议群发页一致；原先 [4,300] 会让协同任务
 // 平均 2.5 分钟才发一条，看起来像"群发没反应、账号全待机"
@@ -487,56 +524,85 @@ const priority = ref(5)
 // 防止下次创建误带上次内容
 function resetCreateForm() {
   message.value = ''
+  selectedTargets.value = []
+  showTargetNames.value = false
+  showImport.value = false
+  importText.value = ''
   intervalMin.value = 5
   intervalMax.value = 12
   priority.value = 5
   isLoop.value = false
+  loopIntervalMin.value = 60
   scheduledAtTs.value = null
-  mediaType.value = ''
-  mediaUrl.value = ''
-  mediaPath.value = ''
-  // R111: 协议协同字段重置已删(变量不存在)
+  clearMedia()
+  obfuscate.value = false
+  autoVary.value = true
+  // 执行账号选择保留为下一次创建的默认账号池；目标和消息等一次性内容全部清空。
 }
 const validating = ref(false)
+let precheckRequestId = 0
 
-// 发送前目标预检: 剔除无效目标(未同步/已退出的群、格式错误的用户名), 创建时失败率大降
+// 发送前目标预检：只允许结果作用于发起时的同一组目标，避免用户编辑目标期间旧结果误删新选择。
 async function precheckTargets() {
-  if (!selectedTargets.value.length) return
+  if (validating.value || !selectedTargets.value.length) return
+  const requestId = ++precheckRequestId
+  const targetSnapshot = [...selectedTargets.value]
   validating.value = true
   try {
-    const res = await taskApi.validateTargets(selectedTargets.value)
+    const res = await taskApi.validateTargets(targetSnapshot)
+    const unchanged = targetSnapshot.length === selectedTargets.value.length &&
+      targetSnapshot.every((target, index) => target === selectedTargets.value[index])
+    if (requestId !== precheckRequestId || !unchanged) return
     if (res.invalid?.length) {
       const invalidSet = new Set(res.invalid.map(i => i.target))
-      selectedTargets.value = selectedTargets.value.filter(t => !invalidSet.has(t))
+      selectedTargets.value = targetSnapshot.filter(t => !invalidSet.has(t))
       toast({ type: 'warning', title: `已剔除 ${res.invalid.length} 个无效目标`, message: res.invalid.slice(0, 5).map(i => `${i.target}(${i.reason})`).join('；') + (res.invalid.length > 5 ? '…' : '') })
     } else {
       toast({ type: 'success', title: `全部 ${res.total} 个目标有效` })
     }
   } catch {
-    toast({ type: 'error', title: '预检失败', message: '可忽略预检直接创建' })
-  } finally { validating.value = false }
+    if (requestId === precheckRequestId) toast({ type: 'error', title: '预检失败', message: '可忽略预检直接创建' })
+  } finally {
+    if (requestId === precheckRequestId) validating.value = false
+  }
 }
 const showPreview = ref(false)
 
 // ===== 模态框化: 本页任务列表 + 新建弹窗 =====
 const showCreate = ref(false)
 // R101 P1-第二刀: 打开创建弹窗即预拉全租户群(覆盖预览数据源)
-watch(showCreate, (v) => { if (v) loadAllGroups() })
+watch(showCreate, (v) => {
+  if (v) void loadAllGroups()
+  else allGroupsRequestId++
+})
 const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
 const tasksError = ref('')
 
+let tasksRequestId = 0
 async function fetchTasks() {
-  if (!currentAccount.value) { tasks.value = []; return }
+  const requestId = ++tasksRequestId
+  const accountId = currentAccount.value?.account_id
+  if (!accountId) {
+    tasks.value = []
+    tasksError.value = ''
+    tasksLoading.value = false
+    return
+  }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'broadcast', account_id: currentAccount.value.account_id, page: 1, page_size: 20, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20, hide_loops: 1 } as any)
+    if (requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
-    tasksError.value = e?.message || '加载失败, 点击重试'
+    if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
+      tasksError.value = e?.message || '加载失败, 点击重试'
+    }
   } finally {
-    tasksLoading.value = false
+    if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
+      tasksLoading.value = false
+    }
   }
 }
 useAutoRefresh(fetchTasks, 15000)
@@ -597,15 +663,19 @@ const showTargetSelector = ref(false)
 const groups = computed<any[]>(() => {
   const byId = new Map<string, any>()
   for (const accId of execAccounts.value) {
-    for (const g of (groupStore.get(accId) || []) as any[]) {
-      const key = String(g.group_id || g.tg_chat_id || g.username || Math.random())
+    const accountGroups = (groupStore.get(accId) || []) as any[]
+    accountGroups.forEach((g: any, index: number) => {
+      // 无 Telegram ID/username 的异常记录也必须有稳定 key；Math.random 会导致每次
+      // computed 重算都改变 key，让选择器整批卸载重建并丢失焦点/滚动位置。
+      const fallback = [accId, g.title || g.name || 'group', index].join(':')
+      const key = String(g.group_id || g.tg_chat_id || g.username || fallback)
       if (byId.has(key)) {
         const ex = byId.get(key)
         if (!ex._joinedAccounts.includes(accId)) ex._joinedAccounts.push(accId)
       } else {
         byId.set(key, { ...g, _joinedAccounts: [accId] })
       }
-    }
+    })
   }
   return [...byId.values()]
 })
@@ -618,22 +688,35 @@ const mediaUrl = ref('')
 const mediaPath = ref('')
 const uploadingMedia = ref(false)
 
+let mediaUploadRequestId = 0
 async function onMediaFile(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
   if (!f) return
+  const requestId = ++mediaUploadRequestId
   uploadingMedia.value = true
   try {
     const res: any = await mediaApi.uploadMedia(f)
+    // 用户可能在上传期间点了清除或选择了另一份文件；旧响应不得复活旧媒体。
+    if (requestId !== mediaUploadRequestId) return
     mediaPath.value = res.path || res
     toast({ type: 'success', title: '媒体上传成功' })
   } catch (err: any) {
-    toast({ type: 'error', title: '上传失败', message: err?.message })
+    if (requestId === mediaUploadRequestId) {
+      toast({ type: 'error', title: '上传失败', message: err?.message })
+    }
   } finally {
-    uploadingMedia.value = false
-    ;(e.target as HTMLInputElement).value = ''
+    if (requestId === mediaUploadRequestId) uploadingMedia.value = false
+    input.value = ''
   }
 }
-function clearMedia() { mediaType.value = ''; mediaUrl.value = ''; mediaPath.value = '' }
+function clearMedia() {
+  mediaUploadRequestId++
+  uploadingMedia.value = false
+  mediaType.value = ''
+  mediaUrl.value = ''
+  mediaPath.value = ''
+}
 
 // R110: 协议号协同死分支已删(view 为死常量, 该判断恒 false)。统一多号池校验。
 const canSubmit = computed(() => {
@@ -653,14 +736,24 @@ const groupsLoading = ref(false)
 // 群组走缓存 store: 有缓存零请求, 只有选择器里点"同步"才调接口
 const groupStore = useGroupStore()
 
+let groupsRequestId = 0
 async function fetchData() {
-  if (!currentAccount.value) return
+  const accountId = currentAccount.value?.account_id
+  const requestId = ++groupsRequestId
+  if (!accountId) {
+    groupsLoading.value = false
+    return
+  }
   groupsLoading.value = true
   try {
     // ensure 会把结果写入 groupStore 缓存，上方 computed 自动同步到选择器
-    await groupStore.ensure(currentAccount.value.account_id)
-  } catch {} finally {
-    groupsLoading.value = false
+    await groupStore.ensure(accountId)
+  } catch {
+    // 缓存加载失败由选择器空态/手动同步承接。
+  } finally {
+    if (requestId === groupsRequestId && currentAccount.value?.account_id === accountId) {
+      groupsLoading.value = false
+    }
   }
 }
 
@@ -670,58 +763,92 @@ const groupsSyncStatus = computed(() =>
 )
 
 async function submit() {
-  if (!canSubmit.value) return
-  // R111: 协议号协同死分支已删(isProtocol 恒 false, 该段从未执行)
+  // loading 状态不应只依赖按钮组件；并发点击/键盘触发也必须在业务层幂等拦截。
+  if (submitting.value || uploadingMedia.value || !canSubmit.value) return
+  const accountIds = [...new Set(execAccounts.value)]
+  const targetIds = [...new Set(selectedTargets.value)]
+  const messageText = message.value
+  const minSeconds = Number(intervalMin.value)
+  const maxSeconds = Number(intervalMax.value)
+  const loopMinutes = Number(loopIntervalMin.value)
+  const mediaSource = mediaPath.value || mediaUrl.value.trim()
+
+  if (!accountIds.length || !targetIds.length) {
+    toast({ type: 'warning', title: '请至少选择一个执行账号和一个发送目标' })
+    return
+  }
+  if (!Number.isInteger(minSeconds) || !Number.isInteger(maxSeconds) ||
+      minSeconds < 1 || maxSeconds > 300 || minSeconds > maxSeconds) {
+    toast({ type: 'error', title: '发送间隔无效', message: '最小间隔和最大间隔须为 1–300 秒，且最小值不能大于最大值' })
+    return
+  }
+  if (scheduledAtTs.value && scheduledAtTs.value <= Date.now()) {
+    toast({ type: 'error', title: '定时启动时间无效', message: '请选择一个未来时间，或清空定时立即执行' })
+    return
+  }
+  if (isLoop.value && !loopFeature.value) {
+    toast({ type: 'warning', title: '套餐未开通循环群发' })
+    return
+  }
+  if (isLoop.value && (!Number.isInteger(loopMinutes) || loopMinutes < 1 || loopMinutes > 10080)) {
+    toast({ type: 'error', title: '循环间隔无效', message: '循环间隔须为 1–10080 分钟' })
+    return
+  }
+  if (isLoop.value && scheduledAtTs.value) {
+    toast({ type: 'warning', title: '循环群发暂不支持定时启动', message: '请清空定时启动时间后创建循环任务' })
+    return
+  }
+  if (isLoop.value && mediaSource) {
+    toast({ type: 'warning', title: '循环群发暂不支持媒体附件', message: '请清除媒体后再创建循环任务，避免附件被静默忽略' })
+    return
+  }
+  if (!mediaType.value && mediaSource) {
+    toast({ type: 'warning', title: '请选择媒体类型', message: '已提供媒体文件或链接，但未选择图片或视频类型' })
+    return
+  }
+  if (mediaType.value && !mediaSource) {
+    toast({ type: 'error', title: '缺少媒体文件', message: '请填写媒体链接或上传文件，或将媒体类型改回「无」' })
+    return
+  }
+
   submitting.value = true
   try {
-    // R101 P1: 多号 —— 用勾选的账号池替代"仅当前账号"
-    if (!execAccounts.value.length) {
-      toast({ type: 'warning', title: '请至少勾选一个执行账号' })
-      submitting.value = false
-      return
-    }
-    const payload: any = {
-      type: 'broadcast',
-      account_ids: [...execAccounts.value],
-      target_ids: selectedTargets.value,
-      message: message.value,
-      interval_min: intervalMin.value,
-      interval_max: intervalMax.value,
-      auto_vary: autoVary.value, // 每条消息自动变化(同义词+标点抖动)
-    }
-    // 富媒体 + 链接按钮(带校验, 防止"选了类型没传文件"被静默丢弃)
-    const mediaSource = (mediaPath.value || mediaUrl.value.trim())
-    // P2-27: 原只拦"有类型无源"——反向"有源无类型"(选了文件但没选媒体类型)会
-    // 静默丢弃媒体, 用户以为发了图实际纯文本。双向都拦。
-    if (!mediaType.value && mediaSource) {
-      toast({ type: 'warning', title: '请选择媒体类型', message: '已提供媒体文件/链接, 但未选择类型(图片/视频/文档)' })
-      return
-    }
-    if (mediaType.value && !mediaSource) {
-      toast({ type: 'error', title: '已选择媒体类型但未提供图片/视频', message: '请填写媒体链接或上传文件, 或把类型改回「无」' })
-      submitting.value = false
-      return
-    }
-    if (mediaSource) payload.media = { type: mediaType.value, source: mediaSource }
-    // 链接按钮功能已移除(实测 TG 收不到按钮消息), payload.buttons 后端兼容保留, 前端不再传
-    // 转 ISO 带时区: datetime-local 是本地时间, 服务器按 UTC 解析, 必须显式换算否则晚 8 小时
-    if (scheduledAtTs.value) payload.scheduled_at = new Date(scheduledAtTs.value).toISOString()
-    // 循环发送(合并原"循环群发"独立页): 每轮结束按间隔自动续跑, 混淆每轮重随机
+    let payload: Record<string, any>
     if (isLoop.value) {
-      payload.is_loop = true
-      payload.loop_interval_minutes = Math.max(1, Number(loopIntervalMin.value) || 60)
+      // 后端 CreateScheduledBroadcast 单独处理循环任务；普通 broadcast 的 DTO 不识别 is_loop。
+      payload = {
+        type: 'scheduled_broadcast',
+        account_ids: accountIds,
+        target_ids: targetIds,
+        payload: { message: messageText },
+        is_loop: true,
+        loop_interval_minutes: loopMinutes,
+        min_interval_seconds: minSeconds,
+        max_interval_seconds: maxSeconds,
+      }
+    } else {
+      payload = {
+        type: 'broadcast',
+        account_ids: accountIds,
+        target_ids: targetIds,
+        message: messageText,
+        interval_min: minSeconds,
+        interval_max: maxSeconds,
+        auto_vary: autoVary.value,
+        obfuscate: obfuscate.value,
+      }
+      if (mediaSource) payload.media = { type: mediaType.value, source: mediaSource }
+      if (scheduledAtTs.value) payload.scheduled_at = new Date(scheduledAtTs.value).toISOString()
     }
+
     await taskApi.create(payload)
-    // 创建后留在本页: 关闭模态框, 列表与实时面板立即出现新任务
     showCreate.value = false
-    fetchTasks()
-    // P1-35: 重置整个表单——原实现不重置, 下次创建带着上次的媒体/定时/循环设置,
-    // 极易把上次的消息/媒体误发到新任务。
+    void fetchTasks()
     resetCreateForm()
-    // UI升级: 成功反馈(脉冲面板交给 success-pop, 这里补确认提示)
-    toast({ type: 'success', title: '任务创建成功', message: '实时进度见下方面板' })
+    toast({ type: 'success', title: '任务创建成功', message: '实时进度见下方任务列表' })
   } catch (e: any) {
-    toast({ type: 'error', title: '创建失败', message: e.message })
+    // 失败不清空任何输入，用户可直接修正后重试。
+    toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
   } finally {
     submitting.value = false
   }

@@ -968,6 +968,14 @@ func (s *TaskService) GetLogs(ctx context.Context, tenantID, taskID uuid.UUID, p
 	return s.logRepo.ListByTask(ctx, tenantID, taskID, pageSize, offset)
 }
 
+// GetLogsBefore returns the next older task-log page using a stable log cursor.
+func (s *TaskService) GetLogsBefore(ctx context.Context, tenantID, taskID, beforeLogID uuid.UUID, pageSize int) ([]*domain.TaskLog, error) {
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	return s.logRepo.ListBeforeByTask(ctx, tenantID, taskID, beforeLogID, pageSize)
+}
+
 // GetLogsByAccount returns all task logs for a specific account (for independent log page).
 func (s *TaskService) GetLogsByAccount(ctx context.Context, tenantID, accountID uuid.UUID, page, pageSize int) ([]*domain.TaskLog, int, error) {
 	if pageSize <= 0 {

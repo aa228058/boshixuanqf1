@@ -184,12 +184,12 @@ html.theme-dark .t-input-number:focus-within {
   html.theme-dark .glass-strong { background: var(--t-surface-1) !important; }
 }
 /* R87-M10: 深色默认按钮(取消/分组管理等"有框无颜色"按钮)实底兜底 */
-html.theme-dark .t-button--variant-base {
+html.theme-dark .t-button--variant-base:not(.ui-t-button) {
   background: var(--t-surface-2) !important;
   color: var(--t-text-1) !important;
   border-color: var(--t-line) !important;
 }
-html.theme-dark .t-button--variant-base:hover {
+html.theme-dark .t-button--variant-base:not(.ui-t-button):hover {
   background: var(--t-surface-3) !important;
   border-color: var(--t-line-strong) !important;
   color: var(--t-text-1) !important;

@@ -1,6 +1,6 @@
 -- +goose Up
--- Extend the lease-token fencing introduced in 086 with an explicit expiry.
--- lease_token is owned by migration 086 and must never be dropped here.
+-- Extend the lease-token fencing introduced in 087 with an explicit expiry.
+-- lease_token is owned by migration 087 and must never be dropped here.
 ALTER TABLE group_library_import_jobs
     ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
 

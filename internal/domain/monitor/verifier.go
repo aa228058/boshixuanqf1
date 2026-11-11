@@ -846,7 +846,7 @@ func extractCandidate(msg *tg.Message) *vcandidate {
 	c.rawPeer = msg.PeerID // 字段, 非方法
 	c.chatID = peerChatID(msg.PeerID)
 	if rm, ok := msg.ReplyMarkup.(*tg.ReplyInlineMarkup); ok {
-		for _, row := range rm.Rows { // []*KeyboardButtonRow
+		for _, row := range rm.Rows {
 			if row == nil {
 				continue
 			}

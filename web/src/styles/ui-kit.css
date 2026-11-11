@@ -88,13 +88,18 @@
   transition: color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease;
 }
 .ui-icon-btn--danger { color: var(--t-err); }
-.ui-icon-btn--danger:hover { color: var(--t-err); background: var(--t-err-dim); border-color: color-mix(in srgb, var(--t-err) 25%, transparent); }
-.ui-icon-btn:hover {
+.ui-icon-btn:not(:disabled):hover {
   color: var(--t-brand);
   background: var(--t-brand-dim);
   border-color: var(--t-line);
 }
-.ui-icon-btn:active { transform: scale(0.96); }
+.ui-icon-btn--danger:not(:disabled):hover {
+  color: var(--t-err);
+  background: var(--t-err-dim);
+  border-color: color-mix(in srgb, var(--t-err) 25%, transparent);
+}
+.ui-icon-btn:active:not(:disabled) { transform: scale(0.96); }
+.ui-icon-btn:disabled { opacity: .45; cursor: not-allowed; }
 .ui-icon-btn:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
 
 /* ---------- .ui-input 输入框: 无边框实底, 聚焦只亮边 ---------- */
@@ -113,6 +118,7 @@
 .ui-input::placeholder { color: var(--t-text-3); }
 .ui-input:hover { background: color-mix(in srgb, var(--t-surface-2) 80%, var(--t-text-1) 4%); }
 .ui-input:focus { border-color: var(--t-brand); background: var(--t-surface-1); }
+.ui-input:disabled { opacity: 0.55; cursor: not-allowed; }
 textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 
 /* ---------- .ui-badge 状态徽章: 半透明浅底 + 同色文字 ---------- */
@@ -308,10 +314,35 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .t-button.ui-t-button--secondary { color: var(--t-text-2); background: var(--t-surface-2); border-color: var(--t-line); }
 .t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-text-1); background: var(--t-card); border-color: var(--t-line-strong); }
 .t-button.ui-t-button--danger { color: #fff; background: var(--t-err); border-color: var(--t-err); }
+.t-button.ui-t-button--warning { color: var(--t-warn); background: var(--t-warn-dim); border-color: color-mix(in srgb, var(--t-warn) 38%, transparent); }
+.t-button.ui-t-button--warning:not(.t-is-disabled):hover { background: color-mix(in srgb, var(--t-warn) 18%, var(--t-card)); border-color: var(--t-warn); }
 .t-button.ui-t-button--danger:not(.t-is-disabled):hover { color: #fff; background: color-mix(in srgb, var(--t-err) 88%, #000); border-color: color-mix(in srgb, var(--t-err) 88%, #000); }
 .t-button.ui-t-button--text { color: var(--t-brand); background: transparent; border-color: transparent; }
 .t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
 .t-button.ui-t-button.t-is-disabled { opacity: .45; }
+
+/* Pagination controls keep a predictable row and touch-sized buttons across viewports. */
+.ui-pagination {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--t-space-1);
+}
+.ui-pagination button,
+.ui-pagination .t-button {
+  min-width: 36px;
+  min-height: 36px;
+}
+@media (max-width: 768px) {
+  .ui-pagination button,
+  .ui-pagination .t-button {
+    min-width: 40px;
+    min-height: 44px;
+  }
+}
 
 /* Account action menu: consistent compact rows across desktop popover/mobile sheet. */
 .ui-menu-item {
@@ -349,8 +380,10 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
     min-height: 44px;
   }
 
-  .t-button.ui-t-button--sm {
-    min-height: 40px;
+  /* Small visual variants must still meet the 44px mobile touch-target baseline. */
+  .t-button.ui-t-button--sm,
+  .ui-native-button--sm {
+    min-height: 44px;
   }
 }
 
@@ -389,8 +422,9 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   background: color-mix(in srgb, var(--t-err) 14%, var(--t-card));
   border-color: color-mix(in srgb, var(--t-err) 42%, transparent);
 }
-.ui-native-button:active { transform: translateY(1px); }
+.ui-native-button:active:not(:disabled) { transform: translateY(1px); }
+.ui-native-button:disabled { opacity: .5; cursor: not-allowed; }
 .ui-native-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
 @media (max-width: 768px) {
-  .ui-native-button--sm { min-height: 40px; }
+  .ui-native-button--sm { min-height: 44px; }
 }

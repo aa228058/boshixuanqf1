@@ -143,6 +143,38 @@ func (r *TaskLogRepository) ListByTask(ctx context.Context, tenantID, taskID uui
 	return logs, rows.Err()
 }
 
+// ListBeforeByTask retrieves the next older page using a stable keyset cursor.
+func (r *TaskLogRepository) ListBeforeByTask(ctx context.Context, tenantID, taskID, beforeLogID uuid.UUID, limit int) ([]*domain.TaskLog, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT log_id, task_id, tenant_id, account_id, target_id, target_name, action, status, tg_response, error_code, message, tg_message_id, executed_at
+		FROM task_logs
+		WHERE tenant_id = $1 AND task_id = $2
+		  AND (executed_at, log_id) < (
+		    SELECT executed_at, log_id FROM task_logs
+		    WHERE tenant_id = $1 AND task_id = $2 AND log_id = $3
+		  )
+		ORDER BY executed_at DESC, log_id DESC
+		LIMIT $4`, tenantID, taskID, beforeLogID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list task logs before cursor: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []*domain.TaskLog
+	for rows.Next() {
+		var l domain.TaskLog
+		var accountID *uuid.UUID
+		if err := rows.Scan(&l.LogID, &l.TaskID, &l.TenantID, &accountID, &l.TargetID, &l.TargetName, &l.Action, &l.Status, &l.TGResponse, &l.ErrorCode, &l.Message, &l.TGMessageID, &l.ExecutedAt); err != nil {
+			return nil, err
+		}
+		if accountID != nil {
+			l.AccountID = *accountID
+		}
+		logs = append(logs, &l)
+	}
+	return logs, rows.Err()
+}
+
 // CountByTask counts logs for a task.
 func (r *TaskLogRepository) CountByTask(ctx context.Context, tenantID, taskID uuid.UUID) (int, error) {
 	var count int
