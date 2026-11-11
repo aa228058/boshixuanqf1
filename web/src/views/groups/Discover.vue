@@ -681,18 +681,24 @@ async function doJoin() {
     let links = 0
     const errors: string[] = []
     for (let offset = 0; offset < targets.length; offset += 100) {
-      const res = await joinLibraryGroups([...joinAccounts.value], targets.slice(offset, offset + 100), {
-        perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
-        intervalMinMinutes: joinIntervalMin.value || 0,
-        intervalMaxMinutes: joinIntervalMax.value || 0,
-      })
-      created += res.created || 0
-      links += res.links || 0
-      if (res.failed_err) errors.push(res.failed_err)
+      try {
+        const res = await joinLibraryGroups([...joinAccounts.value], targets.slice(offset, offset + 100), {
+          perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
+          intervalMinMinutes: joinIntervalMin.value || 0,
+          intervalMaxMinutes: joinIntervalMax.value || 0,
+        })
+        created += res.created || 0
+        links += res.links || 0
+        if (res.failed_err) errors.push(res.failed_err)
+      } catch (err: any) {
+        errors.push(err?.message || `第 ${Math.floor(offset / 100) + 1} 批创建失败`)
+      }
     }
     toast({ type: errors.length ? 'warning' : 'success', title: errors.length ? '任务部分创建' : '任务已创建', message: `已创建 ${created} 个加群任务（${links} 个群）${errors.length ? '；失败信息: ' + errors.join('；') : ''}` })
-    joinModalVisible.value = false
-    selected.clear()
+    if (created > 0) {
+      joinModalVisible.value = false
+      selected.clear()
+    }
   } catch (err: any) {
     toast({ type: 'error', title: '创建失败', message: err?.message || '创建加群任务失败' })
   } finally {
