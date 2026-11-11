@@ -899,6 +899,8 @@ async function submit() {
         loop_interval_minutes: loopMinutes,
         min_interval_seconds: minSeconds,
         max_interval_seconds: maxSeconds,
+        max_rounds: maxRounds,
+        ...(loopEndAt.value ? { end_at: new Date(loopEndAt.value).toISOString() } : {}),
       }
     } else {
       payload = {
