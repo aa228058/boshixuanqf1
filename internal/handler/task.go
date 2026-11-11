@@ -340,6 +340,8 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 		Payload             map[string]any `json:"payload"`
 		IsLoop              *bool          `json:"is_loop"`
 		LoopIntervalMinutes int            `json:"loop_interval_minutes"`
+		MaxRounds           int            `json:"max_rounds"`
+		EndAt               string         `json:"end_at"`
 		MinIntervalSeconds  int            `json:"min_interval_seconds"`
 		MaxIntervalSeconds  int            `json:"max_interval_seconds"`
 		Mappings            []struct {
@@ -378,8 +380,22 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 	if interval <= 0 {
 		interval = 60
 	}
+	if req.MaxRounds < 0 || req.MaxRounds > 10000 {
+		return echo.NewHTTPError(http.StatusBadRequest, "最大执行轮数须为 0–10000，0 表示不限")
+	}
+	var endAt *time.Time
+	if req.EndAt != "" {
+		parsed, parseErr := time.Parse(time.RFC3339, req.EndAt)
+		if parseErr != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "结束时间格式错误")
+		}
+		if !parsed.After(time.Now()) {
+			return echo.NewHTTPError(http.StatusBadRequest, "结束时间必须晚于当前时间")
+		}
+		endAt = &parsed
+	}
 	task, err := h.svc.CreateScheduledBroadcastWithMapping(c.Request().Context(), tenantID,
-		mappings, accountIDs, req.TargetIDs, message, interval, req.MinIntervalSeconds, req.MaxIntervalSeconds, isLoop)
+		mappings, accountIDs, req.TargetIDs, message, interval, req.MinIntervalSeconds, req.MaxIntervalSeconds, isLoop, req.MaxRounds, endAt)
 	if err != nil {
 		log.Printf("[handler] 创建定时广播任务失败: %v", err)
 		log.Printf("[handler] 内部错误已脱敏: %v", err)
