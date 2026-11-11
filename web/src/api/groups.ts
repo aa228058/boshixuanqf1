@@ -42,6 +42,7 @@ export function joinLibraryGroups(accountIds: string[], sgIds: string[], opts: J
 
 export interface GroupLibraryImportJob {
   job_id: string
+  task_number: number
   raw_count: number
   valid_count: number
   duplicate_count: number
@@ -67,8 +68,9 @@ export function confirmImportLibraryGroups(jobId: string): Promise<GroupLibraryI
   return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/confirm')
 }
 
-export function listGroupLibraryImportJobs(): Promise<{ list: GroupLibraryImportJob[] }> {
-  return api.get('/group-library/import-jobs')
+export function listGroupLibraryImportJobs(taskNumber?: number | string): Promise<{ list: GroupLibraryImportJob[] }> {
+  const query = taskNumber === undefined || taskNumber === null || taskNumber === '' ? '' : '?task_number=' + encodeURIComponent(String(taskNumber).replace(/^#/, ''))
+  return api.get('/group-library/import-jobs' + query)
 }
 
 export function getGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {

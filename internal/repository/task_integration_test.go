@@ -35,10 +35,13 @@ func connectTestDB(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// ensureTasksTable 建最小 tasks 表（仅含 ClaimTasks 触碰的列），
-// 与正式迁移无关，测试自包含。
+// ensureTasksTable 建立任务仓库集成测试所需的最小表结构。
+// 测试 fixture 使用与正式迁移相同的全局 sequence 默认值。
 func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
+	if _, err := pool.Exec(context.Background(), `CREATE SEQUENCE IF NOT EXISTS global_task_number_seq AS BIGINT`); err != nil {
+		t.Fatalf("create global task number sequence: %v", err)
+	}
 	_, err := pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS tenants (
 			tenant_id UUID PRIMARY KEY,
@@ -56,6 +59,7 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS tasks (
 			task_id UUID PRIMARY KEY,
+			task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq'),
 			tenant_id UUID NOT NULL,
 			type TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'queued',
@@ -79,6 +83,50 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 		)`)
 	if err != nil {
 		t.Fatalf("create tasks table: %v", err)
+	}
+	// Keep reused minimal test databases compatible with TaskRepository.scanTasks,
+	// which reads task_number in the same position as the production schema.
+	if _, err := pool.Exec(context.Background(), `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')`); err != nil {
+		t.Fatalf("ensure tasks.task_number: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `ALTER TABLE tasks ALTER COLUMN task_number SET DEFAULT nextval('global_task_number_seq')`); err != nil {
+		t.Fatalf("set tasks.task_number default: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_task_number_test ON tasks(task_number)`); err != nil {
+		t.Fatalf("create tasks.task_number test index: %v", err)
+	}
+	_, err = pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS group_library_import_jobs (
+			job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+			file_name VARCHAR(255) NOT NULL DEFAULT '',
+			payload TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'pending',
+			total_count INTEGER NOT NULL DEFAULT 0,
+			processed_count INTEGER NOT NULL DEFAULT 0,
+			imported_count INTEGER NOT NULL DEFAULT 0,
+			failed_count INTEGER NOT NULL DEFAULT 0,
+			skipped_count INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			started_at TIMESTAMPTZ,
+			finished_at TIMESTAMPTZ,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			account_id UUID,
+			task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create group import jobs fixture: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `ALTER TABLE group_library_import_jobs ADD COLUMN IF NOT EXISTS task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')`); err != nil {
+		t.Fatalf("ensure import job task_number: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `ALTER TABLE group_library_import_jobs ALTER COLUMN task_number SET DEFAULT nextval('global_task_number_seq')`); err != nil {
+		t.Fatalf("set import job task_number default: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `CREATE UNIQUE INDEX IF NOT EXISTS idx_group_library_import_jobs_task_number_test ON group_library_import_jobs(task_number)`); err != nil {
+		t.Fatalf("create import task_number test index: %v", err)
 	}
 	// The task-log cursor integration test uses a deliberately minimal fixture
 	// instead of running the full migration chain. Keep the columns consumed by
@@ -128,6 +176,62 @@ func seedTask(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, taskType str
 		t.Fatalf("seed task: %v", err)
 	}
 	return id
+}
+
+func TestGlobalTaskNumbersSharedAcrossTasksAndImportJobs(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	_ = seedTask(t, pool, tenantID, string(domain.TaskTypeBroadcast), 5)
+
+	var firstTaskNumber int64
+	if err := pool.QueryRow(ctx, `SELECT task_number FROM tasks WHERE tenant_id=$1 ORDER BY task_number DESC LIMIT 1`, tenantID).Scan(&firstTaskNumber); err != nil {
+		t.Fatalf("read first task number: %v", err)
+	}
+	var importJobID uuid.UUID
+	var importNumber int64
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO group_library_import_jobs (tenant_id, payload) VALUES ($1, 'https://t.me/example')
+		RETURNING job_id, task_number
+	`, tenantID).Scan(&importJobID, &importNumber); err != nil {
+		t.Fatalf("create import job: %v", err)
+	}
+	if importNumber <= firstTaskNumber {
+		t.Fatalf("shared sequence did not advance across task types: task=%d import=%d", firstTaskNumber, importNumber)
+	}
+
+	if _, err := pool.Exec(ctx, `DELETE FROM tasks WHERE tenant_id=$1`, tenantID); err != nil {
+		t.Fatalf("delete task fixture: %v", err)
+	}
+	var nextTaskNumber int64
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO tasks (task_id, tenant_id, type, status, priority)
+		VALUES ($1, $2, 'broadcast', 'queued', 5) RETURNING task_number
+	`, uuid.New(), tenantID).Scan(&nextTaskNumber); err != nil {
+		t.Fatalf("create task after deletion: %v", err)
+	}
+	if nextTaskNumber <= importNumber {
+		t.Fatalf("task number was reused after deleting a task: import=%d next_task=%d", importNumber, nextTaskNumber)
+	}
+
+	var duplicates int
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) - COUNT(DISTINCT task_number)
+		FROM (
+			SELECT task_number FROM tasks WHERE tenant_id=$1
+			UNION ALL
+			SELECT task_number FROM group_library_import_jobs WHERE tenant_id=$1
+		) numbered
+	`, tenantID).Scan(&duplicates); err != nil {
+		t.Fatalf("check duplicate global task numbers: %v", err)
+	}
+	if duplicates != 0 {
+		t.Fatalf("found %d duplicate task numbers across task types", duplicates)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM group_library_import_jobs WHERE job_id=$1`, importJobID); err != nil {
+		t.Fatalf("cleanup import job fixture: %v", err)
+	}
 }
 
 func TestTaskLogKeysetPaginationDoesNotShiftWhenNewRowsArrive(t *testing.T) {

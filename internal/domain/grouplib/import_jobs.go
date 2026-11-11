@@ -13,6 +13,7 @@ import (
 
 type ImportJob struct {
 	JobID          uuid.UUID  `json:"job_id"`
+	TaskNumber     int64      `json:"task_number"`
 	RawCount       int        `json:"raw_count"`
 	ValidCount     int        `json:"valid_count"`
 	DuplicateCount int        `json:"duplicate_count"`
@@ -48,11 +49,11 @@ func (e *Engine) CreateImportPreviewWithAccount(ctx context.Context, tenantID, a
 		INSERT INTO group_library_import_jobs
 			(tenant_id, account_id, file_name, payload, status, total_count, skipped_count, raw_count, duplicate_count, invalid_count, last_error)
 		VALUES ($1, NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid), $3, $4, 'review', $5, $6, $7, $8, $9, $10)
-		RETURNING job_id, file_name, status, total_count, processed_count, imported_count,
+		RETURNING job_id, task_number, file_name, status, total_count, processed_count, imported_count,
 		          failed_count, skipped_count, raw_count, duplicate_count, invalid_count, last_error, created_at, finished_at`,
 		tenantID, accountID, fileName, strings.Join(filtered.Links, "\n"), len(filtered.Links), skipped,
 		filtered.RawCount, filtered.Duplicate, filtered.Invalid, summary).Scan(
-		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
@@ -69,10 +70,10 @@ func (e *Engine) ConfirmImportJob(ctx context.Context, tenantID, jobID uuid.UUID
 		UPDATE group_library_import_jobs
 		SET status='pending', last_error='', updated_at=NOW()
 		WHERE tenant_id=$1 AND job_id=$2 AND status='review'
-		RETURNING job_id,file_name,status,total_count,processed_count,imported_count,failed_count,
+		RETURNING job_id,task_number,file_name,status,total_count,processed_count,imported_count,failed_count,
 		          skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at`,
 		tenantID, jobID).Scan(
-		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
@@ -93,10 +94,10 @@ func (e *Engine) CancelImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 		    finished_at=CASE WHEN status='processing' THEN finished_at ELSE NOW() END,
 		    updated_at=NOW()
 		WHERE tenant_id=$1 AND job_id=$2 AND status IN ('review','pending','processing')
-		RETURNING job_id,file_name,status,total_count,processed_count,imported_count,failed_count,
+		RETURNING job_id,task_number,file_name,status,total_count,processed_count,imported_count,failed_count,
 		          skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at`,
 		tenantID, jobID).Scan(
-		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
@@ -129,10 +130,10 @@ func (e *Engine) RetryFailedImportJob(ctx context.Context, tenantID, jobID uuid.
 		INSERT INTO group_library_import_jobs (tenant_id,account_id,file_name,payload,status,total_count,raw_count)
 		SELECT source.tenant_id, source.account_id, source.file_name, failed.payload, 'pending', failed.total, failed.total
 		FROM source CROSS JOIN failed WHERE failed.total > 0
-		RETURNING job_id,file_name,status,total_count,processed_count,imported_count,failed_count,
+		RETURNING job_id,task_number,file_name,status,total_count,processed_count,imported_count,failed_count,
 		          skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at
 	`, tenantID, jobID).Scan(
-		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
@@ -208,11 +209,11 @@ func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileNa
 		INSERT INTO group_library_import_jobs
 			(tenant_id, file_name, payload, total_count, skipped_count, raw_count, duplicate_count, invalid_count)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING job_id, file_name, status, total_count, processed_count, imported_count,
+		RETURNING job_id, task_number, file_name, status, total_count, processed_count, imported_count,
 		          failed_count, skipped_count, raw_count, duplicate_count, invalid_count, created_at, finished_at`,
 		tenantID, fileName, strings.Join(filtered.Links, "\n"), len(filtered.Links), skipped,
 		filtered.RawCount, filtered.Duplicate, filtered.Invalid).Scan(
-		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
 		&job.DuplicateCount, &job.InvalidCount, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {
@@ -229,7 +230,7 @@ func (e *Engine) DeleteImportJob(ctx context.Context, tenantID, jobID uuid.UUID)
 		DELETE FROM group_library_import_jobs
 		WHERE tenant_id=$1 AND job_id=$2
 		  AND status IN ('review','completed','failed','cancelled')
-		  AND (lease_token IS NULL OR lease_expires_at < NOW())`,
+		  AND (lease_token IS NULL OR lease_expires_at IS NULL OR lease_expires_at <= NOW())`,
 		tenantID, jobID)
 	if err != nil {
 		return err
@@ -244,7 +245,7 @@ func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit i
 	if limit < 1 || limit > 100 {
 		limit = 20
 	}
-	rows, err := e.pool.Query(ctx, `SELECT job_id,file_name,status,total_count,processed_count,imported_count,failed_count,skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2`, tenantID, limit)
+	rows, err := e.pool.Query(ctx, `SELECT job_id,task_number,file_name,status,total_count,processed_count,imported_count,failed_count,skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 ORDER BY task_number DESC LIMIT $2`, tenantID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit i
 	jobs := make([]ImportJob, 0)
 	for rows.Next() {
 		var job ImportJob
-		if err := rows.Scan(&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount, &job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt); err != nil {
+		if err := rows.Scan(&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount, &job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt); err != nil {
 			return nil, err
 		}
 		job.ValidCount = job.TotalCount
@@ -261,14 +262,32 @@ func (e *Engine) ListImportJobs(ctx context.Context, tenantID uuid.UUID, limit i
 	return jobs, rows.Err()
 }
 
+// ListImportJobsByNumber returns the tenant-owned import job matching a global task number.
+func (e *Engine) ListImportJobsByNumber(ctx context.Context, tenantID uuid.UUID, taskNumber int64) ([]ImportJob, error) {
+	rows, err := e.pool.Query(ctx, `SELECT job_id,task_number,file_name,status,total_count,processed_count,imported_count,failed_count,skipped_count,raw_count,duplicate_count,invalid_count,last_error,created_at,finished_at FROM group_library_import_jobs WHERE tenant_id=$1 AND task_number=$2`, tenantID, taskNumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	jobs := make([]ImportJob, 0, 1)
+	for rows.Next() {
+		var job ImportJob
+		if err := rows.Scan(&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount, &job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount, &job.LastError, &job.CreatedAt, &job.FinishedAt); err != nil {
+			return nil, err
+		}
+		job.ValidCount = job.TotalCount
+		jobs = append(jobs, job)
+	}
+	return jobs, rows.Err()
+}
 func (e *Engine) GetImportJob(ctx context.Context, tenantID, jobID uuid.UUID) (*ImportJob, error) {
 	var job ImportJob
 	err := e.pool.QueryRow(ctx, `
-		SELECT job_id, file_name, status, total_count, processed_count, imported_count,
+		SELECT job_id, task_number, file_name, status, total_count, processed_count, imported_count,
 		       failed_count, skipped_count, raw_count, duplicate_count, invalid_count, last_error, created_at, finished_at
 		FROM group_library_import_jobs WHERE tenant_id=$1 AND job_id=$2`,
 		tenantID, jobID).Scan(
-		&job.JobID, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
+		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
 		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount, &job.DuplicateCount, &job.InvalidCount,
 		&job.LastError, &job.CreatedAt, &job.FinishedAt)
 	if err != nil {

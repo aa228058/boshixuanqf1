@@ -11,8 +11,7 @@
         <ArrowLeft class="w-5 h-5" />
       </button>
       <div>
-        <!-- R87-M8: 隐藏任务编号(#hash 对租户无意义) -->
-        <h2 class="text-xl tracking-tight font-semibold text-text-primary truncate">{{ taskTypeLabel(task?.type || '') }}</h2>
+        <h2 class="text-xl tracking-tight font-semibold text-text-primary truncate"><span class="text-[var(--t-brand)] tabular-nums mr-2">{{ task?.task_number ? '#' + String(task.task_number).padStart(6, '0') : '' }}</span>{{ taskTypeLabel(task?.type || '') }}</h2>
         <p class="text-xs text-text-secondary">创建于 {{ task ? formatDateTime(task.created_at) : '' }}</p>
       </div>
       <span
@@ -73,7 +72,7 @@
         <span>·</span>
         <span class="truncate">账号 {{ accountMap[waitState.account_id] || '...' }}</span>
         <span>等待后进入下一目标</span>
-        <span class="truncate text-text-muted">→ {{ groupMap[normId(waitState.target_id)] || waitState.target_id }}<template v-if="waitState.total">（{{ waitState.next_index }}/{{ waitState.total }}）</template></span>
+        <span class="truncate text-text-muted">→ {{ targetDisplayName(waitState.target_id) }}<template v-if="waitState.total">（{{ waitState.next_index }}/{{ waitState.total }}）</template></span>
       </div>
     </div>
 
@@ -120,8 +119,12 @@
             连接中…
           </span>
           <span v-else class="text-xs text-text-secondary">已断开,3秒后重连</span>
-          <!-- R128 语义修正: 仅清除前端显示, 不动服务端已保存的记录 -->
-          <t-button @click="clearLogs" class="ui-t-button ui-t-button--secondary ui-t-button--sm" title="仅清除当前显示">清除显示</t-button>
+          <t-button
+            @click="clearLogs"
+            :disabled="!['completed', 'failed', 'cancelled'].includes(task?.status || '')"
+            class="ui-t-button ui-t-button--secondary ui-t-button--sm"
+            :title="['completed', 'failed', 'cancelled'].includes(task?.status || '') ? '永久删除该任务的全部日志' : '任务结束后才能清除日志'"
+          >清除日志</t-button>
         </div>
       </div>
       <div class="ui-segmented mb-2 flex-wrap" role="group" aria-label="筛选任务日志">
@@ -160,7 +163,7 @@
               <span class="text-[10.5px] font-medium text-text-muted/70 shrink-0 w-14">{{ getActionLabel(log.action) }}</span>
               <span class="flex items-center gap-1 text-text-primary truncate">
                 <Send class="w-3 h-3 text-[var(--t-brand)] shrink-0" />
-                <span class="truncate">{{ log.target_name || groupMap[normId(log.target_id)] || log.target_id }}</span>
+                <span class="truncate">{{ targetDisplayName(log.target_id, log.target_name) }}</span>
               </span>
             </div>
             <!-- message 渲染(2026-10-22): 成功行的"耗时 X.Xs"和限速行的"N 秒后进入下一目标"
@@ -269,6 +272,17 @@ async function fetchMembers() {
     const res: any = await groupApi.getMembers(groupId)
     if (!pageActive || requestId !== membersRequestId) return
     members.value = res?.members || res?.data?.members || res?.list || res?.items || (Array.isArray(res) ? res : [])
+    const entries: [string, string][] = []
+    members.value.forEach((member: any) => {
+      const name = [member.display_name, member.name, [member.first_name, member.last_name].filter(Boolean).join(' '), member.username ? '@' + String(member.username).replace(/^@/, '') : '']
+        .map(value => String(value || '').trim()).find(Boolean)
+      if (!name) return
+      for (const id of [member.tg_user_id, member.user_id, member.telegram_id, member.member_id, member.id]) {
+        if (id !== undefined && id !== null && String(id).trim()) entries.push([normId(id), name])
+      }
+      if (member.username) entries.push([normId(member.username), name])
+    })
+    memberMap.value = Object.fromEntries(entries)
   } catch (e: unknown) {
     if (pageActive && requestId === membersRequestId) {
       membersError.value = e instanceof Error ? e.message : '加载成员失败'
@@ -363,15 +377,27 @@ async function loadMoreLogs() {
   }
 }
 
-function clearLogs() {
-  // “清除显示”只影响当前页面状态；绝不删除数据库中的审计/发送日志。
-  for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
-  logs.value = []
-  logKeys.clear()
-  logsPage.value = 1
-  logPageCursors.clear()
-  hasMoreLogs.value = false
-  toast({ type: 'success', title: '已清除当前显示' })
+async function clearLogs() {
+  if (!pageActive || !task.value || !['completed', 'failed', 'cancelled'].includes(task.value.status)) return
+  const ok = await ask('确定永久删除这条任务的全部日志？任务本身和已导入的群组不会删除，日志删除后无法恢复。', {
+    title: '清除任务日志',
+    danger: true,
+    confirmText: '永久清除',
+  })
+  if (!ok || !pageActive) return
+  try {
+    await taskApi.deleteTaskLogs(taskId)
+    // 使正在进行的分页请求失效，防止旧响应在清空后重新填入日志。
+    for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
+    logs.value = []
+    logKeys.clear()
+    logsPage.value = 1
+    logPageCursors.clear()
+    hasMoreLogs.value = false
+    toast({ type: 'success', title: '任务日志已永久清除' })
+  } catch (e: any) {
+    toast({ type: 'error', title: '清除日志失败', message: e?.message || '请稍后重试' })
+  }
 }
 // 2026-09-23 修复: 初始态是"连接中"而非"已断开"——换ticket+建连要1-2秒,
 // 原实现初始 false 直接显示"已断开", 用户每次打开详情都看到一次假断线
@@ -380,9 +406,28 @@ const isConnected = computed(() => connState.value === 'connected')
 const logContainer = ref<HTMLDivElement>()
 const accountMap = ref<Record<string, string>>({})
 const groupMap = ref<Record<string, string>>({})
+const memberMap = ref<Record<string, string>>({})
 
 // 规范化群ID: 去掉 -100 前缀, 兼容 groups.tg_chat_id 与日志 target_id 的两种存法
-const normId = (id: any): string => String(id ?? '').replace(/^-100/, '')
+const normId = (id: any): string => {
+  const raw = String(id ?? '').trim()
+  const linkUser = raw.match(/(?:t\.me\/|@)([A-Za-z0-9_]+)/i)?.[1]
+  return (linkUser || raw.replace(/^-100/, '')).toLowerCase()
+}
+
+// 优先显示日志快照名称，其次匹配本租户群组库；无法匹配时不把长数字 ID/邀请链接直接暴露在日志行。
+function targetDisplayName(targetId: any, explicitName?: any): string {
+  const explicit = String(explicitName ?? '').trim()
+  if (explicit && !/^[-+]?\d{5,}$/.test(explicit) && !/^https?:\/\//i.test(explicit)) return explicit
+  const raw = String(targetId ?? '').trim()
+  const member = memberMap.value[normId(raw)]
+  if (member) return member
+  const mapped = groupMap.value[normId(raw)]
+  if (mapped) return mapped
+  const username = raw.match(/(?:t\.me\/|@)([A-Za-z0-9_]+)/i)?.[1]
+  if (username) return '@' + username
+  return raw ? '未匹配名称' : '未知目标'
+}
 let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
 let sseConnecting = false
@@ -554,6 +599,12 @@ async function connectSSE() {
         const data = JSON.parse(e.data)
         if (!data || !task.value) return
 
+        if (data.type === 'resync_required') {
+          // 服务端慢客户端队列溢出时会发送此标记；从持久化接口补齐日志和状态。
+          void fetchTask(true)
+          void fetchLogs()
+          return
+        }
         if (data.type === 'task_wait') {
           const remaining = Number(data.remaining || 0)
           waitState.value = remaining > 0 ? {
@@ -681,8 +732,12 @@ onMounted(async () => {
   onVisCleanup = () => document.removeEventListener('visibilitychange', onVis)
 
   refreshTimer = setInterval(() => {
-    if (pageActive && !isConnected.value) {
+    if (!pageActive) return
+    // SSE 是实时通道，但队列满/短暂断线时可能丢掉终态事件；对未结束任务做轻量状态对账。
+    if (task.value && !['completed', 'failed', 'cancelled'].includes(task.value.status)) {
       void fetchTask(true)
+    }
+    if (!isConnected.value) {
       void fetchLogs()
       if (connState.value === 'disconnected') void connectSSE()
     }
@@ -695,7 +750,7 @@ onMounted(async () => {
       const accs = await accountApi.list()
       if (!pageActive) return
       const accData = (accs as any).data || accs || []
-      accountMap.value = Object.fromEntries(accData.map((a: any) => [a.account_id, a.remark || a.phone]))
+      accountMap.value = Object.fromEntries(accData.map((a: any) => [a.account_id, a.first_name || a.remark || a.username || a.phone || '未知账号']))
     } catch { /* optional labels */ }
   })()
 
@@ -711,10 +766,10 @@ onMounted(async () => {
         : Array.isArray(raw?.list) ? raw.list : []
       const entries: [string, string][] = []
       grpData.forEach((g: any) => {
-        const name = g.title || g.name || g.username || g.group_id
+        const name = g.title || g.name || g.group_name || (g.username ? '@' + String(g.username).replace(/^@/, '') : '') || '未命名群组'
         if (g.group_id) entries.push([normId(g.group_id), name])
         if (g.tg_chat_id) entries.push([normId(g.tg_chat_id), name])
-        if (g.username) entries.push([g.username, name])
+        if (g.username) entries.push([normId(g.username), name])
       })
       groupMap.value = Object.fromEntries(entries)
     } catch { /* optional labels */ }

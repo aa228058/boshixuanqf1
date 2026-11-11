@@ -23,6 +23,11 @@
   </button>
 </div>
 <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5">
+          <input v-model="numberSearch" class="ui-input !w-36 !min-h-[36px] !px-3 !py-1.5 !text-xs" placeholder="按任务编号搜索" aria-label="按任务编号搜索" @keyup.enter="searchByNumber" />
+          <button type="button" class="ui-icon-btn" @click="searchByNumber" aria-label="搜索任务编号" title="搜索编号"><Search class="w-4 h-4" /></button>
+          <button v-if="numberSearch" type="button" class="ui-icon-btn" @click="clearNumberSearch" aria-label="清除编号搜索" title="清除搜索"><X class="w-4 h-4" /></button>
+        </div>
         <!-- R128 原生 select: t-select 的 tdesign 下拉面板在移动端定位滑到页面底部(用户反馈),
              原生 select 视觉已令牌化且系统自带可靠下拉 -->
         <select v-model="statusFilter"
@@ -54,7 +59,7 @@
         <div class="flex items-center justify-between gap-2">
           <div class="min-w-0">
             <div class="text-sm font-semibold text-text-primary truncate">{{ job.file_name || '文本导入' }}</div>
-            <div class="text-xs text-text-muted mt-1">群组链接导入 · {{ formatDate(job.created_at) }}</div>
+            <div class="text-xs text-text-muted mt-1"><span class="font-semibold tabular-nums text-[var(--t-brand)]">{{ formatTaskNumber(job.task_number) }}</span> · 群组链接导入 · {{ formatDate(job.created_at) }}</div>
           </div>
           <span class="px-2 py-1 rounded text-xs whitespace-nowrap" :class="job.status === 'completed' ? 'text-[var(--t-ok)] bg-[color:var(--t-ok-dim)]' : job.status === 'failed' ? 'text-[var(--t-err)] bg-[color:var(--t-err-dim)]' : job.status === 'cancelled' ? 'text-text-muted bg-bg-hover' : 'text-[var(--t-warn)] bg-[color:var(--t-warn-dim)]'">
             {{ importStatusLabel(job.status) }}
@@ -71,6 +76,7 @@
           <t-button v-if="job.status === 'review'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
           <t-button v-if="['review', 'pending', 'processing'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="danger" @click="cancelGroupImport(job.job_id)">取消导入</t-button>
           <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
+          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="default" @click="clearGroupImportJob(job)">清除记录</t-button>
         </div>
         <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
       </article>
@@ -91,13 +97,14 @@
           <div class="rounded bg-bg-hover/70 animate-pulse" style="width:100%;height:0.5rem"></div>
         </div>
       </div>
-      <div v-else-if="tasks.length === 0" class="py-6">
+      <div v-else-if="tasks.length === 0 && importJobs.length === 0" class="py-6">
         <EmptyState title="暂无任务" description="创建群发/加群/采集任务后会显示在这里" />
       </div>
       <!-- 电脑端: TDesign 表格骨架 -->
       <div v-if="tasks.length" class="hidden md:block mt-2 w-full max-w-full overflow-x-auto">
         <t-table row-key="task_id" :data="tasks" :columns="tableCols" hover style="min-width: 860px"
                  @row-click="(ctx: any) => $router.push(`/workspace/${route.params.accountId}/tasks/${ctx.row.task_id}`)">
+          <template #task_number="{ row }"><span class="font-semibold tabular-nums text-[var(--t-brand)]">{{ formatTaskNumber(row.task_number) }}</span></template>
           <template #status="{ row }">
             <span class="px-2 py-0.5 rounded text-xs font-medium" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
           </template>
@@ -165,6 +172,7 @@
               <i class="w-1.5 h-1.5 rounded-full bg-current opacity-80"></i>{{ statusLabel(task.status) }}
             </span>
             <span class="text-sm font-medium text-text-primary">{{ taskTypeLabel(task.type) }}</span>
+            <span class="text-[10px] font-semibold tabular-nums text-[var(--t-brand)]">{{ formatTaskNumber(task.task_number) }}</span>
             <!-- R112: 执行账号列 —— 全租户汇总后标识每条任务属于哪个号 -->
             <span v-if="accountNameOf(task)" class="text-[10.5px] px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] whitespace-nowrap"
                   :title="'执行账号: ' + accountNameOf(task)">
@@ -257,13 +265,13 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { taskApi } from '@/api/task'
-import { listGroupLibraryImportJobs, confirmImportLibraryGroups, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
+import { listGroupLibraryImportJobs, confirmImportLibraryGroups, cancelGroupLibraryImportJob, deleteGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import { toast } from '@/utils/toast'
 import { ask } from '@/utils/confirm'
-import { ListTodo, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { ListTodo, RefreshCw, Trash2, Search, X } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -289,6 +297,8 @@ const typeTabs = [
 ]
 
 const tasks = ref<any[]>([])
+const numberSearch = ref('')
+const activeNumberSearch = ref('')
 const importJobs = ref<any[]>([])
 const loading = ref(false)
 const loadError = ref('')
@@ -341,7 +351,7 @@ async function clearFinished() {
 
 async function fetchImportJobs() {
   try {
-    const res: any = await listGroupLibraryImportJobs()
+    const res: any = await listGroupLibraryImportJobs(activeNumberSearch.value || undefined)
     importJobs.value = res.list || []
   } catch { /* keep the last known task list during transient network errors */ }
 }
@@ -388,12 +398,54 @@ async function retryGroupImport(jobId: string) {
   }
 }
 
+async function clearGroupImportJob(job: any) {
+  const ok = await ask('确定清除这条已结束的导入任务记录？只删除任务记录及失败明细，不会删除已经入库的群组。', {
+    title: '清除导入记录', danger: true, confirmText: '清除记录',
+  })
+  if (!ok) return
+  try {
+    await deleteGroupLibraryImportJob(job.job_id)
+    // Delete API 已确认成功后立即从当前列表移除，避免等待下一次列表请求造成“清不掉”的错觉。
+    importJobs.value = importJobs.value.filter(item => item.job_id !== job.job_id)
+    await fetchImportJobs()
+    toast({ type: 'success', title: '导入任务记录已清除' })
+  } catch (e: any) {
+    toast({ type: 'error', title: '清除失败', message: e?.message || '任务可能仍在运行，请稍后重试' })
+    await fetchImportJobs()
+  }
+}
+
 let taskListRequestId = 0
+
+function formatTaskNumber(value: number | string | undefined): string {
+  const number = Number(value)
+  return Number.isSafeInteger(number) && number > 0 ? '#' + String(number).padStart(6, '0') : '#------'
+}
+
+async function searchByNumber() {
+  const value = numberSearch.value.trim().replace(/^#/, '')
+  if (value && !/^\d+$/.test(value)) {
+    toast({ type: 'warning', title: '请输入有效的任务编号' })
+    return
+  }
+  numberSearch.value = value
+  activeNumberSearch.value = value
+  page.value = 1
+  await Promise.all([fetchTasks(), fetchImportJobs()])
+}
+
+async function clearNumberSearch() {
+  numberSearch.value = ''
+  activeNumberSearch.value = ''
+  page.value = 1
+  await Promise.all([fetchTasks(), fetchImportJobs()])
+}
 
 async function fetchTasks() {
   const requestId = ++taskListRequestId
   // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
   const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
+   if (activeNumberSearch.value) params.task_number = activeNumberSearch.value
   if (range.value !== 'all') params.range = range.value
   if (statusFilter.value) params.status = statusFilter.value
   if (typeFilter.value) params.type = typeFilter.value
@@ -524,6 +576,7 @@ async function onPullRefresh() {
 }
 
 const tableCols = [
+  { colKey: 'task_number', title: '编号', width: 110 },
   { colKey: 'status', title: '状态', width: 100 },
   { colKey: 'type', title: '类型', width: 120 },
   { colKey: 'overview', title: '消息内容', width: 200 },

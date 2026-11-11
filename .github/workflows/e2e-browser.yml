@@ -5,6 +5,12 @@ on:
     paths:
       - 'web/**'
       - '.github/workflows/e2e-browser.yml'
+  push:
+    branches:
+      - 'fix/task-logs-sse-mobile-dictionaries'
+    paths:
+      - 'web/**'
+      - '.github/workflows/e2e-browser.yml'
   workflow_dispatch:
     inputs:
       base_url:
@@ -34,7 +40,10 @@ jobs:
         working-directory: web/e2e
         run: |
           npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          # GitHub-hosted runners already include Chromium system libraries.
+          # Avoid apt-based --with-deps because transient Ubuntu mirror DNS failures
+          # can prevent browser tests from starting.
+          npx playwright install chromium
       - name: Run browser audit
         working-directory: web/e2e
         env:

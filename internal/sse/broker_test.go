@@ -216,3 +216,21 @@ func TestHandlerUsesLogicalSSEEventName(t *testing.T) {
 		}
 	}
 }
+
+func TestBroadcastQueueOverflowEnqueuesResyncMarker(t *testing.T) {
+	b := NewBroker(&config.Config{SSEChannelBuffer: 2})
+	defer b.Close()
+
+	_, ch := sub(t, b, "tenant:test:events")
+	b.Broadcast("tenant:test:events", map[string]any{"seq": 1})
+	b.Broadcast("tenant:test:events", map[string]any{"seq": 2})
+	b.Broadcast("tenant:test:events", map[string]any{"seq": 3})
+
+	first := recvWithTimeout(t, ch)
+	if marker, ok := first.Payload.(map[string]any); !ok || marker["type"] != "resync_required" {
+		t.Fatalf("first queued event should be resync marker after oldest event eviction, got %#v", first.Payload)
+	}
+	if len(ch) != 0 {
+		t.Fatalf("expected only one resync marker, queue length = %d", len(ch))
+	}
+}

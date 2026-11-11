@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"tg-sender/internal/domain"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/notify"
 	"tg-sender/internal/repository"
@@ -218,8 +219,10 @@ func (h *SettingsHandler) CreateTextDict(c echo.Context) error {
 		return err
 	}
 	var req struct {
-		Name  string   `json:"name"`
-		Items []string `json:"items"`
+		Name    string                 `json:"name"`
+		Enabled *bool                  `json:"enabled"`
+		Items   []string               `json:"items"`
+		Entries []domain.TextDictEntry `json:"entries"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
@@ -228,11 +231,20 @@ func (h *SettingsHandler) CreateTextDict(c echo.Context) error {
 	if req.Name == "" || utf8.RuneCountInString(req.Name) > 64 {
 		return echo.NewHTTPError(http.StatusBadRequest, "分组名称需为 1-64 个字符")
 	}
-	items := cleanTextDictItems(req.Items)
-	if len(items) > 100 {
-		return echo.NewHTTPError(http.StatusBadRequest, "每组最多保存 100 条文本")
+	entries := cleanTextDictEntries(req.Entries)
+	if len(entries) == 0 {
+		for _, item := range cleanTextDictItems(req.Items) {
+			entries = append(entries, domain.TextDictEntry{Word: item, Enabled: true})
+		}
 	}
-	dict, err := h.dicts.Create(c.Request().Context(), tenantID, req.Name, items)
+	if len(entries) > 100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "每组最多保存 100 条消息")
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	dict, err := h.dicts.CreateFull(c.Request().Context(), tenantID, req.Name, enabled, entries)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
@@ -249,21 +261,32 @@ func (h *SettingsHandler) UpdateTextDict(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid group id")
 	}
 	var req struct {
-		Name  string   `json:"name"`
-		Items []string `json:"items"`
+		Name    string                 `json:"name"`
+		Enabled *bool                  `json:"enabled"`
+		Items   []string               `json:"items"`
+		Entries []domain.TextDictEntry `json:"entries"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" || len(req.Name) > 64 {
+	if req.Name == "" || utf8.RuneCountInString(req.Name) > 64 {
 		return echo.NewHTTPError(http.StatusBadRequest, "分组名称需为 1-64 个字符")
 	}
-	items := cleanTextDictItems(req.Items)
-	if len(items) > 100 {
-		return echo.NewHTTPError(http.StatusBadRequest, "每组最多保存 100 条文本")
+	entries := cleanTextDictEntries(req.Entries)
+	if len(entries) == 0 {
+		for _, item := range cleanTextDictItems(req.Items) {
+			entries = append(entries, domain.TextDictEntry{Word: item, Enabled: true})
+		}
 	}
-	if err := h.dicts.Update(c.Request().Context(), tenantID, id, req.Name, items); err != nil {
+	if len(entries) > 100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "每组最多保存 100 条消息")
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	if err := h.dicts.UpdateFull(c.Request().Context(), tenantID, id, req.Name, enabled, entries); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	return NoContent(c)
@@ -282,6 +305,25 @@ func (h *SettingsHandler) DeleteTextDict(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "分组不存在")
 	}
 	return NoContent(c)
+}
+
+func cleanTextDictEntries(entries []domain.TextDictEntry) []domain.TextDictEntry {
+	out := make([]domain.TextDictEntry, 0, len(entries))
+	for _, entry := range entries {
+		entry.Word = strings.TrimSpace(entry.Word)
+		if entry.Word == "" {
+			continue
+		}
+		runes := []rune(entry.Word)
+		if len(runes) > 4096 {
+			entry.Word = string(runes[:4096])
+		}
+		entry.EntryID = uuid.Nil
+		entry.DictID = uuid.Nil
+		entry.Weight = 1
+		out = append(out, entry)
+	}
+	return out
 }
 
 func cleanTextDictItems(items []string) []string {

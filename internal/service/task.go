@@ -157,6 +157,10 @@ func (s *TaskService) RaffleResultClear(ctx context.Context, tenantID uuid.UUID)
 }
 
 // List returns tasks for a tenant with optional account filtering.
+// GetByNumber looks up a task by its tenant-scoped global display number.
+func (s *TaskService) GetByNumber(ctx context.Context, tenantID uuid.UUID, taskNumber int64) (*domain.Task, error) {
+	return s.repo.GetByNumber(ctx, tenantID, taskNumber)
+}
 func (s *TaskService) List(ctx context.Context, tenantID uuid.UUID, status *domain.TaskStatus, accountID *uuid.UUID, taskType *domain.TaskType, hideLoops bool, since *time.Time, page, pageSize int) ([]*domain.Task, error) {
 	if pageSize <= 0 {
 		pageSize = s.cfg.DefaultPageSize

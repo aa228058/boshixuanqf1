@@ -48,7 +48,13 @@
                 class="ui-t-button ui-t-button--primary ui-t-button--sm whitespace-nowrap">
           启用
         </t-button>
-        <t-button theme="default" variant="outline" size="sm" @click="showClone = true"
+        <t-button theme="default" variant="outline" size="sm" @click="openBatchProfile"
+                :disabled="batchingProfile"
+                class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
+          批量修改资料
+        </t-button>
+        <t-button theme="default" variant="outline" size="sm" @click="openClone"
+                :disabled="cloning"
                 class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap">
           克隆资料
         </t-button>
@@ -202,92 +208,92 @@
           </div>
         </div>
 
-        <!-- R108 操作区: 状态专属按钮(断开/验证码/受限) + ghost 主操作 + 更多菜单, 与信息区同行 -->
-        <div class="flex items-center gap-1 shrink-0 self-center">
-          <button type="button" v-if="acc?.status === 'online'" @click.stop="disconnect(acc)" :disabled="disconnecting === acc?.account_id"
-                  class="ui-icon-btn ui-icon-btn--danger"
-                  title="断开" aria-label="断开">
-            <Loader2 v-if="disconnecting === acc?.account_id" class="w-3.5 h-3.5 animate-spin" />
-            <Unplug v-else class="w-3.5 h-3.5" />
-          </button>
-          <!-- R182: 协议号(source=protocol)没有验证码流程, 显示验证码按钮是死路——改显"连接"(走读档优先) -->
-          <t-button v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'" theme="warning" size="sm" @click.stop="showAuthModal(acc)"
-                  class="ui-t-button ui-t-button--warning ui-t-button--sm whitespace-nowrap">
-            <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '验证码' }}
+        <!-- 卡片固定三个主操作：备用、检测、更多；其他低频操作统一收纳 -->
+        <div class="flex items-center gap-1 shrink-0 self-center acc-actions">
+          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)"
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap acc-action-btn">
+            <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" />
+            {{ acc?.pool_status === 'standby' ? '启用' : '备用' }}
           </t-button>
-          <span v-else-if="acc?.status === 'restricted'"
-                class="h-7 px-2 rounded-lg text-[10.5px] text-text-muted bg-text-muted/10 flex items-center gap-1 cursor-help whitespace-nowrap"
-                :title="cooldownText(acc) ? `受限中 · ${cooldownText(acc)}后恢复` : '受限中'">
-            <ShieldAlert class="w-3.5 h-3.5" />受限
-          </span>
-          <t-button theme="default" variant="outline" size="sm" @click.stop="togglePool(acc)" class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
-            <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" /> {{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
-          </t-button>
-          <!-- R128 窄屏适配: 资料/检测桌面直出, 移动端收进 ⋯ 菜单(原窄屏被信息区挤出屏幕) -->
-          <t-button theme="default" variant="outline" size="sm" @click="openProfile(acc)"
-                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
-            <UserRoundPen class="w-3.5 h-3.5" /> 资料
-          </t-button>
-          <!-- R119: 能力检测(8 项矩阵, 全套餐可用) -->
-          <t-button theme="default" variant="outline" size="sm" @click="openProbe(acc)"
-                  class="ui-t-button ui-t-button--secondary ui-t-button--sm hidden sm:inline-flex whitespace-nowrap">
+          <t-button theme="default" variant="outline" size="sm" @click.stop="openProbe(acc)"
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap acc-action-btn">
             <ShieldCheck class="w-3.5 h-3.5" /> 检测
           </t-button>
           <div class="relative ml-auto">
             <!-- R130 "更多"文字按钮(用户: 比 ⋯ 图标更易发现), 胶囊底常显 -->
             <t-button theme="default" variant="outline" size="sm" @click.stop="toggleMenu(acc?.account_id)"
-                    class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0"
+                    class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 more-btn"
                     aria-label="更多操作">更多</t-button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
             <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
             <!-- 更多菜单(R141): 移动端 = 底部 ActionSheet(圆角上提, 遮罩关闭); 桌面端 = 向上弹出菜单 -->
             <div v-if="openMenuId === acc?.account_id"
-                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1 sm:w-44 sm:z-50"
+                 class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
                  @click.stop>
-              <!-- R141 用户拍板: 刷新头像 / 重新连接 拆分为两个独立功能 -->
-              <button type="button" @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <RefreshCw class="w-3.5 h-3.5" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" /> 刷新头像
-              </button>
-              <button type="button" v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
-                      @click="openMenuId = ''; reconnectAccount(acc)" :disabled="reconnectingId === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <RefreshCw class="w-3.5 h-3.5" :class="reconnectingId === acc?.account_id ? 'animate-spin' : ''" /> 重新连接
-              </button>
-              <button type="button" @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <LogOut class="w-3.5 h-3.5" /> 退群
-              </button>
-              <!-- R181 群转移: 把该号已加入的群导出邀请链接, 交给目标号批量加入 -->
-              <button type="button" @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
-                      class="ui-menu-item w-full disabled:opacity-50">
-                <ArrowRightLeft class="w-3.5 h-3.5" /> 转移群
-              </button>
-              <button type="button" @click="openMenuId = ''; editRemark(acc)"
-                      class="ui-menu-item w-full">
-                <Pencil class="w-3.5 h-3.5" /> 备注·代理
-              </button>
-              <div class="border-t border-border my-1"></div>
-              <!-- R108 修复: 转备用/资料/检测在移动端收进面板(桌面另有 ghost 按钮直出) -->
-              <button type="button" @click="openMenuId = ''; togglePool(acc)"
-                      class="ui-menu-item w-full sm:hidden">
-                <component :is="acc?.pool_status === 'standby' ? Play : Archive" class="w-3.5 h-3.5" />{{ acc?.pool_status === 'standby' ? '启用' : '转备用' }}
-              </button>
-              <button type="button" @click="openMenuId = ''; openProfile(acc)"
-                      class="ui-menu-item w-full sm:hidden">
-                <UserRoundPen class="w-3.5 h-3.5" />查看资料
-              </button>
-              <!-- R119: 能力检测(移动端面板, sm:hidden 桌面不重复显示) -->
-              <button type="button" @click="openMenuId = ''; openProbe(acc)"
-                      class="ui-menu-item w-full sm:hidden">
-                <ShieldCheck class="w-3.5 h-3.5" />检测
-              </button>
-              <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
-                      class="ui-menu-item ui-menu-item--danger w-full">
-                <Trash2 class="w-3.5 h-3.5" /> 删除
-              </button>
+              <div class="acc-menu-head">
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-text-primary">账号操作</div>
+                  <div class="text-[11px] text-text-muted truncate">{{ acc?.remark || acc?.first_name || acc?.phone || '当前账号' }}</div>
+                </div>
+                <button type="button" class="acc-menu-close" aria-label="关闭更多菜单"
+                        @click.stop="openMenuId = ''">×</button>
+              </div>
+
+              <div class="acc-menu-section">
+                <div class="acc-menu-label">连接与登录</div>
+                <button type="button" v-if="acc?.status === 'online'"
+                        @click="openMenuId = ''; disconnect(acc)" :disabled="disconnecting === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <Unplug class="w-3.5 h-3.5" />断开连接
+                </button>
+                <button type="button" v-else-if="(acc?.status === 'pending_auth' || acc?.status === 'session_revoked') && acc?.source !== 'protocol'"
+                        @click="openMenuId = ''; showAuthModal(acc)"
+                        class="ui-menu-item w-full">
+                  <KeyRound class="w-3.5 h-3.5" />{{ acc?.status === 'session_revoked' ? '重新登录' : '输入验证码' }}
+                </button>
+                <button type="button" v-if="acc?.pool_status !== 'standby' && (acc?.status === 'offline' || acc?.status === 'banned')"
+                        @click="openMenuId = ''; reconnectAccount(acc)" :disabled="reconnectingId === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <RefreshCw class="w-3.5 h-3.5" :class="reconnectingId === acc?.account_id ? 'animate-spin' : ''" />重新连接
+                </button>
+              </div>
+
+              <div class="acc-menu-section">
+                <div class="acc-menu-label">账号维护</div>
+                <button type="button" @click="openMenuId = ''; refreshAvatar(acc)" :disabled="avatarRefreshingId === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <RefreshCw class="w-3.5 h-3.5" :class="avatarRefreshingId === acc?.account_id ? 'animate-spin' : ''" />刷新头像
+                </button>
+                <button type="button" @click="openMenuId = ''; leaveAllGroups(acc)" :disabled="leavingAllId === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <LogOut class="w-3.5 h-3.5" />退群
+                </button>
+                <button type="button" @click="openMenuId = ''; openTransfer(acc)" :disabled="transferRunning && transferSource?.account_id === acc?.account_id"
+                        class="ui-menu-item w-full disabled:opacity-50">
+                  <ArrowRightLeft class="w-3.5 h-3.5" />转移群
+                </button>
+              </div>
+
+              <div class="acc-menu-section">
+                <div class="acc-menu-label">资料与备注</div>
+                <button type="button" @click="openMenuId = ''; openProfile(acc)"
+                        class="ui-menu-item w-full">
+                  <UserRound class="w-3.5 h-3.5" />修改资料
+                </button>
+                <button type="button" @click="openMenuId = ''; editRemark(acc)"
+                        class="ui-menu-item w-full">
+                  <Pencil class="w-3.5 h-3.5" />备注与代理
+                </button>
+              </div>
+
+              <div class="acc-menu-danger">
+                <button type="button" @click="openMenuId = ''; confirmDelete(acc)"
+                        class="ui-menu-item ui-menu-item--danger w-full">
+                  <Trash2 class="w-3.5 h-3.5" />删除账号
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -648,18 +654,40 @@
     <!-- 克隆他人资料(2026-10-21): 输入对方 @用户名 → 名/姓/签名套用到所有勾选号 -->
     <Modal v-model="showClone" title="克隆他人资料" width="420px">
       <div class="space-y-3">
-        <p class="text-xs text-text-muted">把对方的 <b class="text-text-primary">名字 / 姓氏 / 签名</b> 复制到下方勾选的所有账号。用户名不能复制（全局唯一）；头像复制将在后续版本支持。</p>
-        <input
-          v-model="cloneSource"
-          placeholder="输入对方用户名, 如 duofan_bot 或 @duofan_bot"
-          class="ui-input !text-sm" aria-label="资料来源用户名"
-          @keyup.enter="runClone"
-        />
-        <div class="flex items-center justify-between text-xs text-text-muted">
-          <span>将应用到 <b class="text-[var(--t-brand)]">{{ selectedIds.size }}</b> 个已勾选账号</span>
-          <t-button theme="primary" size="sm" @click="runClone" :disabled="cloning"
+        <div class="rounded-lg border border-border bg-bg-card/60 p-3 space-y-1">
+          <div class="text-sm font-medium text-text-primary">复制 Telegram 公开资料</div>
+          <p class="text-xs text-text-secondary leading-relaxed">从来源用户名读取名字、姓氏和个人简介，再应用到已选账号。用户名具有唯一性，头像不会在本次操作中覆盖。</p>
+        </div>
+        <div>
+          <label class="block text-sm text-text-secondary mb-1.5">来源账号用户名</label>
+          <input v-model="cloneSource" placeholder="@username"
+                 class="ui-input !text-sm" aria-label="资料来源用户名"
+                 autocomplete="off" autocapitalize="none" spellcheck="false"
+                 @keyup.enter="runClone" />
+          <p class="mt-1 text-[11px] text-text-muted">可输入带 @ 或不带 @ 的公开用户名。</p>
+        </div>
+        <div class="rounded-lg border border-border p-3 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-text-primary">目标账号</span>
+            <span class="text-text-muted">已选 {{ cloneTargets.length }} 个</span>
+          </div>
+          <div v-if="cloneTargets.length" class="flex flex-wrap gap-1.5">
+            <span v-for="(target, index) in cloneTargets.slice(0, 6)" :key="target?.account_id || index"
+                  class="max-w-full truncate rounded-md px-2 py-1 text-[11px] bg-bg-hover text-text-secondary">
+              {{ target?.remark || target?.first_name || target?.phone || '未命名账号' }}
+            </span>
+            <span v-if="cloneTargets.length > 6" class="text-[11px] text-text-muted self-center">另有 {{ cloneTargets.length - 6 }} 个</span>
+          </div>
+          <p v-else class="text-xs text-[var(--t-err)]">当前没有选中的目标账号，请关闭窗口后先多选账号。</p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <t-button theme="default" variant="outline" size="sm" @click="showClone = false"
+                  class="ui-t-button ui-t-button--secondary ui-t-button--sm">取消</t-button>
+          <t-button theme="primary" size="sm" @click="runClone"
+                  :disabled="cloning || !cloneSource.trim() || cloneTargets.length === 0"
                   class="ui-t-button ui-t-button--primary ui-t-button--sm disabled:opacity-50">
-            {{ cloning ? '克隆中…' : '开始克隆' }}
+            <Loader2 v-if="cloning" class="w-3.5 h-3.5 animate-spin" />
+            {{ cloning ? '克隆中…' : '应用到所选账号' }}
           </t-button>
         </div>
       </div>
@@ -722,7 +750,7 @@ import {
   Plus, FolderPlus, User, Pencil, Trash2, Plug, Unplug,
   KeyRound, ShieldAlert, Shield, Loader2, Search,
   RefreshCw, Play, Archive, LogOut, MoreHorizontal,
-  ShieldCheck, ArrowRightLeft,
+  ShieldCheck, ArrowRightLeft, UserRound,
 } from 'lucide-vue-next'
 import { useAccountStore } from '@/stores/account'
 import { accountApi, importSessions, importSessionFiles, setAccountProxy, testAccountProxy, uploadAvatar } from '@/api/account'
@@ -879,6 +907,11 @@ const showBatchProfile = ref(false)
 const batchingProfile = ref(false)
 const batchProfile = ref({ first_name: '', last_name: '', about: '', username: '', remark: '', random_username: false })
 
+function openBatchProfile() {
+  batchProfile.value = { first_name: '', last_name: '', about: '', username: '', remark: '', random_username: false }
+  showBatchProfile.value = true
+}
+
 // 批量改资料执行: 提交后逐号 2-4 秒间隔, 结果汇总 toast
 async function runBatchProfile() {
   if (batchingProfile.value) return
@@ -938,6 +971,19 @@ async function onAvatarPick(e: Event) {
 const showClone = ref(false)
 const cloneSource = ref('')
 const cloning = ref(false)
+const cloneTargets = computed(() =>
+  [...selectedIds.value]
+    .map(id => (accountStore.accounts || []).find((a: any) => a?.account_id === id))
+    .filter(Boolean)
+)
+function openClone() {
+  if (!selectedIds.value.size) {
+    toast({ type: 'info', message: '请先选择要应用资料的目标账号' })
+    return
+  }
+  cloneSource.value = ''
+  showClone.value = true
+}
 async function runClone() {
   if (cloning.value) return
   if (!cloneSource.value.trim()) {
@@ -1977,6 +2023,15 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-row.standby { background: var(--t-surface-2); }
 .acc-row:active { background: var(--t-surface-2); }
 
+.acc-actions { gap: 4px; }
+.acc-action-btn { min-width: 0; }
+@media (max-width: 639px) {
+  .acc-row { gap: 8px; padding: 10px 9px; }
+  .acc-actions { gap: 4px; }
+  .acc-action-btn { padding-left: 7px !important; padding-right: 7px !important; font-size: 11px !important; }
+  .acc-action-btn :deep(svg) { width: 12px; height: 12px; }
+}
+
 /* 复选框列: 默认收起(width:0), 多选模式滑出 */
 .check-col {
   width: 0;
@@ -2041,24 +2096,81 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-menu {
   left: var(--t-space-3);
   right: var(--t-space-3);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  /* 抬高面板，避开移动端固定底部导航栏 */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
   width: auto;
-  max-height: min(68dvh, 560px);
+  max-height: min(76dvh, 640px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  border-radius: var(--t-r-md);
+  border-radius: 18px;
+  padding: 8px 10px max(10px, env(safe-area-inset-bottom, 0px));
   box-shadow: var(--t-shadow-pop);
+}
+.acc-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 6px 12px;
+  border-bottom: 1px solid var(--t-line-light);
+  margin-bottom: 4px;
+}
+.acc-menu-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--t-text-2);
+  background: var(--t-surface-2);
+  font-size: 22px;
+  line-height: 1;
+}
+.acc-menu-section { padding: 5px 0 7px; }
+.acc-menu-section + .acc-menu-section { border-top: 1px solid var(--t-line-light); }
+.acc-menu-label {
+  padding: 5px 9px 4px;
+  color: var(--t-text-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.acc-menu :deep(.ui-menu-item) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 13px;
+  transition: background .15s ease, color .15s ease;
+}
+.acc-menu :deep(.ui-menu-item:hover) { background: var(--t-surface-2); }
+.acc-menu :deep(.ui-menu-item:focus-visible),
+.acc-menu-close:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+.acc-menu-danger {
+  border-top: 1px solid var(--t-line-light);
+  margin-top: 2px;
+  padding-top: 8px;
+}
+.acc-menu :deep(.ui-menu-item--danger) { color: var(--t-err); }
+@media (hover: none) {
+  .acc-menu :deep(.ui-menu-item:hover) { background: transparent; }
 }
 @media (min-width: 640px) {
   .acc-menu {
     left: auto;
     right: 0;
-    bottom: 100%;
-    width: 11rem;
-    max-height: 65vh;
-    margin-bottom: var(--t-space-1);
-    border-radius: var(--t-r-sm);
+    top: 100%;
+    bottom: auto;
+    width: 15rem;
+    max-height: min(70vh, 560px);
+    margin-top: var(--t-space-2);
+    border-radius: 14px;
+    padding: 8px;
     box-shadow: var(--t-shadow-card);
   }
 }

@@ -62,20 +62,23 @@ func (g SystemGroup) DedupKey() string {
 
 // TextDict 文案变量(数据字典): 群发消息里写 {变量名}, 发送时随机取词条替换。
 type TextDict struct {
-	DictID    uuid.UUID `json:"dict_id"`
-	TenantID  uuid.UUID `json:"tenant_id"`
-	Name      string    `json:"name"`
-	WordCount int       `json:"word_count"`
-	Items     []string  `json:"items,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	DictID    uuid.UUID       `json:"dict_id"`
+	TenantID  uuid.UUID       `json:"tenant_id"`
+	Name      string          `json:"name"`
+	Enabled   bool            `json:"enabled"`
+	WordCount int             `json:"word_count"`
+	Items     []string        `json:"items,omitempty"` // legacy compatibility
+	Entries   []TextDictEntry `json:"entries,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
-// TextDictEntry 词条
+// TextDictEntry is one independently enabled full-message or legacy variable value.
 type TextDictEntry struct {
 	EntryID uuid.UUID `json:"entry_id"`
 	DictID  uuid.UUID `json:"dict_id"`
 	Word    string    `json:"word"`
 	Weight  int       `json:"weight"`
+	Enabled bool      `json:"enabled"`
 }
 
 // AIConfig 租户级 AI 配置(入群验证的图片识别兜底)。api_key 加密存储。
@@ -287,6 +290,7 @@ func (a Account) MarshalJSON() ([]byte, error) {
 // Task represents a task to be executed.
 type Task struct {
 	TaskID      uuid.UUID      `json:"task_id" db:"task_id"`
+	TaskNumber  int64          `json:"task_number" db:"task_number"`
 	TenantID    uuid.UUID      `json:"tenant_id" db:"tenant_id"`
 	Type        TaskType       `json:"type" db:"type"`
 	Status      TaskStatus     `json:"status" db:"status"`

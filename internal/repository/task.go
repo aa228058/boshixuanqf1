@@ -29,7 +29,7 @@ func NewTaskRepository(db *pgxpool.Pool) *TaskRepository {
 func (r *TaskRepository) List(ctx context.Context, tenantID uuid.UUID, status *domain.TaskStatus, accountID *uuid.UUID, taskType *domain.TaskType, hideLoops bool, since *time.Time, limit, offset int) ([]*domain.Task, error) {
 	// 动态拼装 WHERE, 所有过滤条件(状态/账号/类型)都在 SQL 层生效, 避免翻页后再过滤导致"筛选没反应"
 	query := `
-		SELECT task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		SELECT task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
 		       locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
 		       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at
 		FROM tasks WHERE tenant_id = $1`
@@ -60,7 +60,7 @@ func (r *TaskRepository) List(ctx context.Context, tenantID uuid.UUID, status *d
 		args = append(args, *since)
 		idx++
 	}
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", idx, idx+1)
+	query += fmt.Sprintf(" ORDER BY task_number DESC LIMIT $%d OFFSET $%d", idx, idx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -80,11 +80,11 @@ func (r *TaskRepository) GetByTaskIDAnyTenant(ctx context.Context, taskID uuid.U
 	var workerID pgtype.Text
 	var scheduledAt, startedAt, completedAt, nextRunAt pgtype.Timestamptz
 	err := r.db.QueryRow(ctx, `
-		SELECT task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		SELECT task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
 		       locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
 		       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at
 		FROM tasks WHERE task_id = $1`, taskID,
-	).Scan(&t.TaskID, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
+	).Scan(&t.TaskID, &t.TaskNumber, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
 		&lockedAt, &workerID, &t.RetryCount, &scheduledAt, &startedAt, &completedAt, &t.CreatedAt,
 		&t.IsLoop, &t.LoopIntervalMinutes, &t.MinIntervalSeconds, &t.MaxIntervalSeconds, &nextRunAt)
 	if err != nil {
@@ -127,11 +127,11 @@ func (r *TaskRepository) GetByID(ctx context.Context, tenantID, taskID uuid.UUID
 	var nextRunAt pgtype.Timestamptz
 
 	err := r.db.QueryRow(ctx, `
-		SELECT task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		SELECT task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
 		       locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
 					       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at
 		FROM tasks WHERE tenant_id = $1 AND task_id = $2`, tenantID, taskID,
-	).Scan(&t.TaskID, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
+	).Scan(&t.TaskID, &t.TaskNumber, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
 		&lockedAt, &workerID, &t.RetryCount, &scheduledAt, &startedAt, &completedAt, &t.CreatedAt,
 		&t.IsLoop, &t.LoopIntervalMinutes, &t.MinIntervalSeconds, &t.MaxIntervalSeconds, &nextRunAt)
 	if err != nil {
@@ -164,14 +164,57 @@ func (r *TaskRepository) GetByID(ctx context.Context, tenantID, taskID uuid.UUID
 }
 
 // Create inserts a new task and notifies workers.
+// GetByNumber retrieves one tenant-owned task by its globally unique display number.
+func (r *TaskRepository) GetByNumber(ctx context.Context, tenantID uuid.UUID, taskNumber int64) (*domain.Task, error) {
+	var t domain.Task
+	var lockedAt pgtype.Timestamptz
+	var workerID pgtype.Text
+	var scheduledAt, startedAt, completedAt, nextRunAt pgtype.Timestamptz
+	err := r.db.QueryRow(ctx, `
+		SELECT task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		       locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
+		       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at
+		FROM tasks WHERE tenant_id = $1 AND task_number = $2`, tenantID, taskNumber,
+	).Scan(&t.TaskID, &t.TaskNumber, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
+		&lockedAt, &workerID, &t.RetryCount, &scheduledAt, &startedAt, &completedAt, &t.CreatedAt,
+		&t.IsLoop, &t.LoopIntervalMinutes, &t.MinIntervalSeconds, &t.MaxIntervalSeconds, &nextRunAt)
+	if err != nil {
+		return nil, fmt.Errorf("get task by number: %w", err)
+	}
+	if lockedAt.Valid {
+		tt := lockedAt.Time
+		t.LockedAt = &tt
+	}
+	if workerID.Valid {
+		t.WorkerID = &workerID.String
+	}
+	if scheduledAt.Valid {
+		tt := scheduledAt.Time
+		t.ScheduledAt = &tt
+	}
+	if startedAt.Valid {
+		tt := startedAt.Time
+		t.StartedAt = &tt
+	}
+	if completedAt.Valid {
+		tt := completedAt.Time
+		t.CompletedAt = &tt
+	}
+	if nextRunAt.Valid {
+		tt := nextRunAt.Time
+		t.NextRunAt = &tt
+	}
+	return &t, nil
+}
 func (r *TaskRepository) Create(ctx context.Context, t *domain.Task) error {
 	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		err := tx.QueryRow(ctx, `
 			INSERT INTO tasks (task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress, scheduled_at,
 			                   is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			RETURNING task_number`,
 			t.TaskID, t.TenantID, t.Type, t.Status, t.Priority, t.AccountIDs, t.TargetIDs, t.Payload, t.Progress, t.ScheduledAt,
-			t.IsLoop, t.LoopIntervalMinutes, t.MinIntervalSeconds, t.MaxIntervalSeconds, t.NextRunAt)
+			t.IsLoop, t.LoopIntervalMinutes, t.MinIntervalSeconds, t.MaxIntervalSeconds, t.NextRunAt).Scan(&t.TaskNumber)
 		return err
 	})
 	if err != nil {
@@ -206,7 +249,7 @@ func (r *TaskRepository) ClaimTimeoutTasks(ctx context.Context, workerID string,
 			FOR UPDATE OF t SKIP LOCKED
 			LIMIT $2
 		)
-		RETURNING task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		RETURNING task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
 		          locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
 					       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at`,
 		workerID, limit, lockTimeoutMin)
@@ -247,7 +290,7 @@ func (r *TaskRepository) claimTasksWithStatus(ctx context.Context, workerID stri
 			FOR UPDATE OF t SKIP LOCKED
 			LIMIT $3
 		)
-		RETURNING task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
+		RETURNING task_id, task_number, tenant_id, type, status, priority, account_ids, target_ids, payload, progress,
 		          locked_at, worker_id, retry_count, scheduled_at, started_at, completed_at, created_at,
 					       is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at`,
 		workerID, status, limit, lockTimeoutMin)
@@ -644,7 +687,7 @@ func (r *TaskRepository) scanTasks(rows pgx.Rows) ([]*domain.Task, error) {
 		var completedAt pgtype.Timestamptz
 		var nextRunAt pgtype.Timestamptz
 
-		err := rows.Scan(&t.TaskID, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
+		err := rows.Scan(&t.TaskID, &t.TaskNumber, &t.TenantID, &t.Type, &t.Status, &t.Priority, &t.AccountIDs, &t.TargetIDs, &t.Payload, &t.Progress,
 			&lockedAt, &workerID, &t.RetryCount, &scheduledAt, &startedAt, &completedAt, &t.CreatedAt,
 			&t.IsLoop, &t.LoopIntervalMinutes, &t.MinIntervalSeconds, &t.MaxIntervalSeconds, &nextRunAt)
 		if err != nil {

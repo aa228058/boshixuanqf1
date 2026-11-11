@@ -204,7 +204,7 @@
         <div v-if="authStore.tenant?.plan_features?.dict && textDicts.length" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
           <div class="flex items-center justify-between gap-2"><span class="text-xs font-medium text-text-secondary">我的文本素材</span><button type="button" class="text-xs text-[var(--t-brand)]" @click="showTextSnippets = !showTextSnippets">{{ showTextSnippets ? "收起" : "选择并插入" }}</button></div>
           <div v-if="showTextSnippets" class="space-y-2">
-            <select v-model="selectedTextDictId" class="ui-input w-full text-sm"><option value="">选择素材分组</option><option v-for="d in textDicts" :key="d.dict_id" :value="d.dict_id">{{ d.name }}</option></select>
+            <select v-model="selectedTextDictId" class="ui-input w-full text-sm"><option value="">选择素材分组</option><option v-for="d in textDicts.filter(item => item.enabled !== false)" :key="d.dict_id" :value="d.dict_id">{{ d.name }}</option></select>
             <div v-if="selectedTextDict" class="flex flex-wrap gap-2">
               <button v-for="(item, index) in selectedTextDict.items" :key="index" type="button" class="px-2.5 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-[color:var(--t-brand)] text-left max-w-full break-words" @click="insertTextSnippet(item)">{{ item }}</button>
             </div>
@@ -429,11 +429,15 @@ function groupNameOf(t: string): string {
 const sendStrategy = ref<'assign' | 'all'>('assign')
 const coverage = computed(() => {
   const joinedBy = new Map<string, Set<string>>()
-  for (const g of _allGroups.value as any[]) {
+  // 与选择器使用同一份按账号缓存合并后的群组数据。
+  // 全租户群组接口不包含 account_id，不能拿它反推入群账号。
+  for (const g of groups.value as any[]) {
     const keys = [g.group_id, g.tg_chat_id, g.username, g.tg_link].filter(Boolean).map(String)
     for (const k of keys) {
       if (!joinedBy.has(k)) joinedBy.set(k, new Set())
-      joinedBy.get(k)!.add(String(g.account_id))
+      for (const accountId of (g._joinedAccounts || [])) {
+        joinedBy.get(k)!.add(String(accountId))
+      }
     }
   }
   const selected = new Set(execAccounts.value)
@@ -493,10 +497,15 @@ const message = ref('')
 const textDicts = ref<TextDict[]>([])
 const selectedTextDictId = ref('')
 const showTextSnippets = ref(false)
-const selectedTextDict = computed(() => textDicts.value.find(d => d.dict_id === selectedTextDictId.value) || null)
+const selectedTextDict = computed(() => {
+  const dict = textDicts.value.find(d => d.dict_id === selectedTextDictId.value && d.enabled !== false)
+  if (!dict) return null
+  const entries = Array.isArray(dict.entries) ? dict.entries.filter(entry => entry.enabled) : []
+  return { ...dict, items: entries.length ? entries.map(entry => entry.word) : (dict.entries?.length ? [] : dict.items || []) }
+})
 async function loadTextSnippets() {
   if (!authStore.tenant?.plan_features?.dict) return
-  try { const res = await settingsApi.getTextDicts(); textDicts.value = res.list || [] }
+  try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] })) }
   catch (e) { console.warn('加载文本素材失败', e) }
 }
 function insertTextSnippet(item: string) {

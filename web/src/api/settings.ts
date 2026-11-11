@@ -1,7 +1,8 @@
 import { api } from '@/utils/request'
 import type { Tenant, Plan, ActivationCode, SupportConfig, Announcement, MessageTemplate, AccountGroup, ListResponse } from '@/types'
 
-export interface TextDict { dict_id: string; tenant_id: string; name: string; items: string[]; created_at: string }
+export interface TextDictEntry { entry_id: string; dict_id: string; word: string; weight: number; enabled: boolean }
+export interface TextDict { dict_id: string; tenant_id: string; name: string; enabled: boolean; items: string[]; entries: TextDictEntry[]; created_at: string }
 
 export const settingsApi = {
   getProfile: () => api.get<Tenant>('/tenant/profile'),
@@ -19,8 +20,8 @@ export const settingsApi = {
 
   // Saved text collections (manual reuse)
   getTextDicts: () => api.get<ListResponse<TextDict>>('/text-dicts'),
-  createTextDict: (data: { name: string; items: string[] }) => api.post<TextDict>('/text-dicts', data),
-  updateTextDict: (id: string, data: { name: string; items: string[] }) => api.put<void>(`/text-dicts/${id}`, data),
+  createTextDict: (data: { name: string; enabled: boolean; entries: Array<{ word: string; enabled: boolean }> }) => api.post<TextDict>('/text-dicts', data),
+  updateTextDict: (id: string, data: { name: string; enabled: boolean; entries: Array<{ word: string; enabled: boolean }> }) => api.put<void>(`/text-dicts/${id}`, data),
   deleteTextDict: (id: string) => api.delete<void>(`/text-dicts/${id}`),
 
   // Account Groups
