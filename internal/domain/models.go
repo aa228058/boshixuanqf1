@@ -66,6 +66,7 @@ type TextDict struct {
 	TenantID  uuid.UUID `json:"tenant_id"`
 	Name      string    `json:"name"`
 	WordCount int       `json:"word_count"`
+	Items     []string  `json:"items,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
