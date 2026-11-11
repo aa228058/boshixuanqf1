@@ -72,6 +72,7 @@ export interface Account {
   last_name?: string
   avatar?: string
   status: 'online' | 'offline' | 'pending_auth' | 'restricted' | 'banned' | 'authenticated' | 'session_revoked'
+  blocked_until?: string | null
   session_name?: string
   device_profile?: Record<string, any>
   last_connected_at?: string
