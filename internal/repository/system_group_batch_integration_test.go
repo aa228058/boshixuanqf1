@@ -25,7 +25,7 @@ func TestSystemGroupUpsertBatchPersistsLinksAndContributions(t *testing.T) {
 	repo := NewSystemGroupRepository(pool)
 	groups := []*domain.SystemGroup{
 		{Source: "import", Title: "Batch Group One", Username: "batchgroupone", TmeLink: "https://t.me/batchgroupone", GType: "group", Status: "active", ContributorTenantID: tenantID},
-		{Source: "import", Title: "Batch Group Two", Username: "batchgrouptwo", TmeLink: "https://t.me/batchgrouptwo", GType: "channel", Status: "active", ContributorTenantID: tenantID},
+		{Source: "import", Title: "Batch Group Two", Username: "batchgrouptwo", TmeLink: "https://t.me/batchgrouptwo", GType: "group", Status: "active", ContributorTenantID: tenantID},
 	}
 	if err := repo.UpsertBatch(ctx, groups); err != nil {
 		t.Fatalf("upsert batch: %v", err)
