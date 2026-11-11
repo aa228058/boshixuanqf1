@@ -55,6 +55,11 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 		var sg *domain.SystemGroup
 		switch c := ch.(type) {
 		case *tg.Channel:
+			// ContactsSearch returns both broadcast channels and supergroups.
+			// Only megagroups belong in the group library.
+			if !c.Megagroup {
+				continue
+			}
 			if strings.HasSuffix(strings.ToLower(c.Username), "bot") {
 				continue
 			}
