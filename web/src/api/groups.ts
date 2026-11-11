@@ -79,6 +79,10 @@ export function cancelGroupLibraryImportJob(jobId: string): Promise<GroupLibrary
   return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/cancel')
 }
 
+export function deleteGroupLibraryImportJob(jobId: string): Promise<void> {
+  return api.delete('/group-library/import-jobs/' + encodeURIComponent(jobId))
+}
+
 export function retryFailedGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
   return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/retry')
 }
