@@ -232,11 +232,10 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 			continue
 		}
 		if err := e.groupRepo.UpdateJoinStatus(ctx, tenantID, lg.GroupID, false); err != nil {
-			log.Printf("[sync] prune 标记群 %d left 失败: %v", lg.TGChatID, err)
-			continue
+			return fmt.Errorf("prune mark group %d as left: %w", lg.TGChatID, err)
 		}
 		if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, lg.GroupID, false); err != nil {
-			log.Printf("[sync] prune 更新关联表失败 group=%s: %v", lg.GroupID, err)
+			return fmt.Errorf("prune update account-group association for group %s: %w", lg.GroupID, err)
 		}
 		pruned++
 	}
