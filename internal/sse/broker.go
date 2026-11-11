@@ -128,7 +128,7 @@ func (b *Broker) Broadcast(topic string, payload any) {
 				marker := Event{
 					Topic: topic,
 					Payload: map[string]any{
-						"type": "resync_required",
+						"type":   "resync_required",
 						"reason": "client_queue_overflow",
 					},
 				}
