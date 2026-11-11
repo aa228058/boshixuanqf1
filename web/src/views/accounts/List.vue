@@ -750,8 +750,10 @@ const vCountup = {
 
 // 模板"受限"按钮的倒计时文案。此前模板(137行)调用了不存在的 cooldownText（白屏级）；
 // Account 接口也没声明 blocked_until（后端 markAccountRestricted 会写，此处防御读取）。
-let nowTs = Date.now()
-const nowTick = setInterval(() => { nowTs = Date.now() }, 30000)
+const nowTs = ref(Date.now())
+const nowTick = setInterval(() => {
+  if (!document.hidden) nowTs.value = Date.now()
+}, 1000)
 // 状态自动刷新(2026-10-21 轮询根治):
 //   ① 间隔 15s→30s, 页面切后台(document.hidden)时暂停——手机切出去不再猛刷
 //   ② 回前台立即补一次
@@ -768,12 +770,16 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisBack)
 })
 function cooldownText(acc: Account): string {
-  const until = (acc as any).blocked_until
+  const until = acc.blocked_until
   if (!until) return ''
-  const ms = new Date(until).getTime() - nowTs
+  const untilTs = new Date(until).getTime()
+  if (!Number.isFinite(untilTs)) return ''
+  const ms = untilTs - nowTs.value
   if (ms <= 0) return ''
-  const m = Math.ceil(ms / 60000)
-  return m >= 60 ? `${Math.floor(m / 60)}小时${m % 60 ? (m % 60) + '分' : ''}` : `${m}分钟`
+  const seconds = Math.ceil(ms / 1000)
+  if (seconds < 60) return `${seconds}秒`
+  const minutes = Math.ceil(ms / 60000)
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}小时${minutes % 60 ? (minutes % 60) + '分' : ''}` : `${minutes}分钟`
 }
 import { toast } from '@/utils/toast'
 import type { Account, AccountGroup } from '@/types'
