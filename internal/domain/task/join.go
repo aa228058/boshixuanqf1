@@ -298,27 +298,27 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 						} else if !strings.Contains(link, "/") {
 							username = link
 						}
-					if existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); lookupErr == nil && existing != nil {
-						existing.AccessHash = accessHash
-						existing.IsJoined = true
-						existing.Type = gtype
-						if username != "" {
-							existing.Username = username
+						if existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); lookupErr == nil && existing != nil {
+							existing.AccessHash = accessHash
+							existing.IsJoined = true
+							existing.Type = gtype
+							if username != "" {
+								existing.Username = username
+							}
+							if existing.JoinedAt == nil {
+								now := time.Now()
+								existing.JoinedAt = &now
+							}
+							return e.groupRepo.Update(ctx, existing)
+						} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+							return fmt.Errorf("lookup joined group: %w", lookupErr)
 						}
-						if existing.JoinedAt == nil {
-							now := time.Now()
-							existing.JoinedAt = &now
-						}
-						return e.groupRepo.Update(ctx, existing)
-					} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
-						return fmt.Errorf("lookup joined group: %w", lookupErr)
-					}
-					now := time.Now()
-					return e.groupRepo.Create(ctx, &domain.Group{
-						GroupID: uuid.New(), TenantID: task.TenantID, TGChatID: chatID,
-						Title: link, Username: username, Type: gtype, AccessHash: accessHash,
-						IsJoined: true, JoinedAt: &now,
-					})
+						now := time.Now()
+						return e.groupRepo.Create(ctx, &domain.Group{
+							GroupID: uuid.New(), TenantID: task.TenantID, TGChatID: chatID,
+							Title: link, Username: username, Type: gtype, AccessHash: accessHash,
+							IsJoined: true, JoinedAt: &now,
+						})
 					}
 					var joinErr error
 					switch p := peer.(type) {
