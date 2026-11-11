@@ -166,8 +166,8 @@
             <button type="button" v-if="loginCodeFresh(acc)"
                    class="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 cursor-pointer"
                    style="background: color-mix(in srgb, var(--t-ok) 14%, transparent); color: var(--t-ok);"
-                   :title="复制验证码"
-                   :aria-label="复制账号的登录验证码"
+                   :title="'复制验证码 ' + acc.last_login_code"
+                   :aria-label="'复制账号 ' + (acc.remark || acc.phone) + ' 的登录验证码'"
                    @click.stop="copyLoginCode(acc)">&#128273; {{ acc.last_login_code }} {{ codeAge(acc) }}</button>
             <!-- 任务摘要: 该账号正在执行的任务(最多3个) -->
             <span v-if="taskSummary[acc?.account_id]?.length"
