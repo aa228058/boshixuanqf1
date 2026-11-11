@@ -1,8 +1,9 @@
 name: CI
+# Stage 1 gates: PostgreSQL failure-row load and 10k/30k/50k parser benchmarks.
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, integration-grouplib-import-worker-lease]
   pull_request:
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.6'
+          go-version: '1.26.7'
       - name: Run integration tests (testcontainers PG16 + 全量迁移)
         run: go test -tags=integration -timeout 600s ./internal/repository/
 
@@ -105,16 +106,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.6'
-          cache: false
+          go-version: '1.26.7'
 
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod/cache/download
-          key: ${{ runner.os }}-go-download-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-download-
+            ${{ runner.os }}-go-
 
       - name: Download dependencies
         run: go mod download
@@ -171,6 +171,29 @@ jobs:
         run: |
           go install github.com/pressly/goose/v3/cmd/goose@latest
           goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/tg_sender_test?sslmode=disable" up
+
+      - name: Run group import worker PostgreSQL tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: tg_sender_test
+          DB_SSLMODE: disable
+        run: go test -tags=importworker -timeout 240s ./internal/domain/grouplib
+
+      - name: Run group import PostgreSQL 10k/30k/50k load test
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: tg_sender_test
+          DB_SSLMODE: disable
+        run: go test -v -tags=importbench -run '^TestPersistImportFailuresLoad$' -timeout 360s ./internal/domain/grouplib
+
+      - name: Benchmark 10k/30k/50k link filtering
+        run: go test -run '^$' -bench '^BenchmarkFilterImportLinks$' -benchmem ./internal/domain/grouplib
 
       - name: Enforce gosec result
         if: always() && steps.gosec.outcome == 'failure'

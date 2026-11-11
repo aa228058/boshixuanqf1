@@ -47,7 +47,7 @@ export interface GroupLibraryImportJob {
   duplicate_count: number
   invalid_count: number
   file_name?: string
-  status: 'review' | 'pending' | 'processing' | 'completed' | 'failed'
+  status: 'review' | 'pending' | 'processing' | 'cancelling' | 'cancelled' | 'completed' | 'failed'
   total_count: number
   processed_count: number
   imported_count: number
@@ -59,8 +59,8 @@ export interface GroupLibraryImportJob {
 }
 
 // 文本或 txt/csv 文件先做链接预筛选，返回预览任务；确认后才进入后台解析。
-export function importLibraryGroups(text: string, fileName = ''): Promise<GroupLibraryImportJob> {
-  return api.post('/group-library/import', { text, file_name: fileName })
+export function importLibraryGroups(text: string, fileName = '', accountId?: string): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import', { text, file_name: fileName, account_id: accountId || undefined })
 }
 
 export function confirmImportLibraryGroups(jobId: string): Promise<GroupLibraryImportJob> {
@@ -73,6 +73,14 @@ export function listGroupLibraryImportJobs(): Promise<{ list: GroupLibraryImport
 
 export function getGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
   return api.get('/group-library/import-jobs/' + encodeURIComponent(jobId))
+}
+
+export function cancelGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/cancel')
+}
+
+export function retryFailedGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {
+  return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/retry')
 }
 
 // 关键词搜群: 借本租户在线账号做 TG 全局搜索, 结果直接入库并返回
