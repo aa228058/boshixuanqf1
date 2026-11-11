@@ -204,21 +204,8 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 						errMsg = err.Error()
 						log.Printf("[join] 创建待审批记录失败: %v", err)
 					}
-					// Create a temporary group record only when approval polling is persisted.
-					if status == "pending_approval" && e.groupRepo != nil {
-						now := time.Now()
-						g := &domain.Group{
-							GroupID:  uuid.New(),
-							TenantID: task.TenantID,
-							Title:    link,
-							Type:     "pending",
-							IsJoined: false,
-							JoinedAt: &now,
-						}
-						if err := e.groupRepo.Create(ctx, g); err != nil {
-							log.Printf("[join] 创建群组失败: %v", err)
-						}
-					}
+					// A pending private invite has no confirmed Telegram chat identity yet.
+					// Keep only the PendingApproval row; create the groups row after membership is confirmed.
 				} else {
 					status = "failed"
 					errCode = "join_failed"
