@@ -521,6 +521,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			accFailed := 0
 			progressAccum := domain.TaskProgress{}
 			progressFlushThreshold := 10 // flush progress every N messages to reduce DB writes
+			accountFlooded := false
 
 			for i, targetID := range targets {
 				// 2026-10-21: 目标级耗时统计——结果日志带"耗时 Xs", 用户要的完整 时间-群名-状态-耗时
@@ -570,7 +571,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				var errCode string
 				var chatID int64
 				var peer any
-				if parsedID, parseErr := strconv.ParseInt(targetID, 10, 64); parseErr == nil {
+				if accountFlooded {
+					status = "failed"
+					errCode = "account_restricted_flood_wait"
+					accFailed++
+				} else if parsedID, parseErr := strconv.ParseInt(targetID, 10, 64); parseErr == nil {
 					chatID = parsedID
 					// 超级群/频道必须用 AccessHash, 否则 PEER_ID_INVALID。
 					// 前端选择器现在统一存 TG chat ID, 查库补全 hash 直发, 零解析。
@@ -609,10 +614,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						status = "failed"
 						errCode = "resolve_peer_failed"
 						accFailed++
+						if isGlobalFlood(resolveErr) {
+							accountFlooded = true
+							e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_resolve_flood_wait", resolveErr.Error(), extractFloodSeconds(resolveErr.Error()))
+						}
 						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
-						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\n",
+						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\\n",
 							targetID, accID, resolveErr.Error())
-						continue
 					}
 					switch p := peer.(type) {
 					case *tg.InputPeerUser:
@@ -623,7 +631,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						chatID = p.ChannelID
 					}
 				}
-				if chatID == 0 {
+				if chatID == 0 && status != "failed" {
 					status = "failed"
 					errCode = "unsupported peer type"
 					accFailed++
@@ -687,6 +695,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						case isGlobalFlood(sendErr):
 							waitSec := extractFloodSeconds(errStr)
 							if waitSec >= 60 {
+								accountFlooded = true
 								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), waitSec)
 							} else if waitSec > 0 {
 								// Light flood: wait and retry once
@@ -697,6 +706,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 								}
 								retryMsgID, retryErr := trySend()
 								if retryErr != nil {
+								if isGlobalFlood(retryErr) {
+									accountFlooded = true
+									e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_retry_flood_wait", retryErr.Error(), extractFloodSeconds(retryErr.Error()))
+								} else {
 									e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
 								} else {
 									if retryMsgID != 0 {
@@ -710,6 +723,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 									status = "success"
 									errCode = ""
 								}
+							} else {
+								accountFlooded = true
+								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), 0)
 							}
 						case isGroupLevelRestriction(sendErr):
 							// Group-level restriction: skip this target only, do not mark account

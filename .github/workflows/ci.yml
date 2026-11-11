@@ -3,10 +3,10 @@ name: CI
 
 on:
   push:
-    branches: [main, master, integration-grouplib-import-worker-lease, stage-2-task-monitor-invite-reliability, fix/task-engine-callback-lifecycle-consolidation, stage-4-broadcast-reliability, stage-5-account-floodwait-cooldown]
+    branches: [main, master, integration-grouplib-import-worker-lease, stage-2-task-monitor-invite-reliability, fix/task-engine-callback-lifecycle-consolidation, stage-4-broadcast-reliability]
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [main, master, feat/group-import-resolver-pipeline, integration-grouplib-import-worker-lease, stage-2-task-monitor-invite-reliability, fix/task-engine-callback-lifecycle-consolidation, stage-4-broadcast-reliability, stage-5-account-floodwait-cooldown]
+    branches: [main, master, feat/group-import-resolver-pipeline, integration-grouplib-import-worker-lease, stage-2-task-monitor-invite-reliability, fix/task-engine-callback-lifecycle-consolidation]
 
 jobs:
   # 字段覆盖审计：防「上层有值、底层丢字段」类 bug（accounts.source / plans 配额列教训）
