@@ -191,11 +191,11 @@
     </div>
 
     <div v-if="authStore.tenant?.plan_features?.dict" v-show="activeTab === 'textdicts'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift space-y-4">
-      <div><h3 class="text-sm font-medium text-text-secondary">文本素材分组</h3><p class="text-xs text-text-muted mt-1">按用途保存常用短句或内容片段，可在这里维护并手动复制使用。</p></div>
+      <div><h3 class="text-sm font-medium text-text-secondary">文本素材分组</h3><p class="text-xs text-text-muted mt-1">管理完整消息字典。字典和每条消息都可独立启停；停用内容会保留，但不会出现在可用素材中。</p></div>
       <div class="rounded-lg bg-bg-card p-3 space-y-2">
-        <input v-model="newDictName" class="ui-input w-full" maxlength="64" placeholder="分组名称，例如：欢迎语素材" />
-        <textarea v-model="newDictItems" class="ui-input w-full min-h-[110px] resize-y" placeholder="每行一条文本素材" />
-        <div class="flex justify-end"><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving || !newDictName.trim()" :loading="dictSaving" @click="createTextDict">新建分组</t-button></div>
+        <input v-model="newDictName" class="ui-input w-full" maxlength="64" placeholder="字典名称，例如：活动通知" />
+        <textarea v-model="newDictItems" class="ui-input w-full min-h-[110px] resize-y" placeholder="每行一条完整消息（创建后可逐条编辑和启停）" />
+        <div class="flex justify-end"><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving || !newDictName.trim()" :loading="dictSaving" @click="createTextDict">新建字典</t-button></div>
       </div>
       <div v-if="textDicts.length" class="space-y-3">
         <div v-for="d in textDicts" :key="d.dict_id" class="rounded-lg border border-border/70 p-3 space-y-3 min-w-0">
@@ -219,7 +219,7 @@
           </div>
         </div>
       </div>
-      <EmptyState v-else icon="Files" title="暂无文本分组" description="新建分组后，可将常用内容片段集中保存。" class="py-5" />
+      <EmptyState v-else icon="Files" title="暂无消息字典" description="新建字典后，可逐条管理完整消息。" class="py-5" />
     </div>
 
     <!-- 消息模板 -->
