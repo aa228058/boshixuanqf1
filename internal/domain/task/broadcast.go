@@ -631,7 +631,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						chatID = p.ChannelID
 					}
 				}
-				if chatID == 0 && status != "failed" {
+				if status == "failed" {
+					// A prior account cooldown or peer-resolution failure is terminal
+					// for this target. Do not attempt a send with an unresolved chatID.
+				} else if chatID == 0 {
 					status = "failed"
 					errCode = "unsupported peer type"
 					accFailed++
