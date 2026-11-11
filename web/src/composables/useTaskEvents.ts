@@ -2,26 +2,22 @@ import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { setSseStatus, bumpSseRetry } from '@/stores/sse'
 
-// ===== 任务实时事件(SSE) · 常驻连接版 =====
-// 交互层完善(2026-10-20):
-//   1) 30秒宽限期——页面切走连接保留, 切回直接复用(租户感知=一直实时连着, 不再每次等几秒)
-//   2) 重连上限后转 60s 低频无限重试——挂一晚上断网也能自动恢复, 不再"8次后永久断流"
-//   3) 连接状态同步 sseStatus store——侧边栏实时显示 绿(正常)/黄(重连中)/红(断开)
-// 帧格式: event: events  data: {task_id, progress} 或 {type:"task_log", task_id, log}
-
+// ===== 任务实时事件(SSE) · 单连接常驻版 =====
 let es: EventSource | null = null
+let connecting: Promise<void> | null = null
 const listeners = new Set<(evt: any) => void>()
 let refs = 0
 let reconnects = 0
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null
+let watchdogTimer: ReturnType<typeof setTimeout> | null = null
+let connectionGeneration = 0
 const DISCONNECT_GRACE_MS = 30000
 const MAX_RETRIES = 8
+const WATCHDOG_TIMEOUT_MS = 45000
 
-// 审计P0-03: 先带JWT换60秒ticket, EventSource用ticket连接(JWT不进URL/日志)
 async function fetchTicket(): Promise<string | null> {
   try {
-    // F-20: token 改为纯内存存储（stores/auth），不再读 localStorage
     const token = useAuthStore().token
     if (!token) return null
     const res = await fetch('/api/v1/events/ticket', {
@@ -31,17 +27,36 @@ async function fetchTicket(): Promise<string | null> {
     if (!res.ok) return null
     const data = await res.json()
     return data.ticket || null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
-// N-03: 统一重连调度——指数退避(10s/20s/30s封顶)
-// 连接建立(onopen)即重置预算（原逻辑靠首条消息归零，空闲连接预算被冻结）；
-// 换票失败也安排重试（原逻辑静默放弃导致 token 过期后永久断流且无感知）。
-// 改进: 满 8 次后不暂停, 转 60s 无限重试(服务恢复自动接上)
+function clearWatchdog() {
+  if (watchdogTimer) {
+    clearTimeout(watchdogTimer)
+    watchdogTimer = null
+  }
+}
+
+function resetWatchdog(source: EventSource) {
+  clearWatchdog()
+  watchdogTimer = setTimeout(() => {
+    if (es !== source) return
+    console.warn('[task-events] SSE 45s 无消息，判定假活，强制重连')
+    es = null
+    source.close()
+    clearWatchdog()
+    setSseStatus('reconnecting')
+    bumpSseRetry()
+    scheduleReconnect()
+  }, WATCHDOG_TIMEOUT_MS)
+}
+
 function scheduleReconnect() {
   if (refs <= 0) return
   if (reconnects >= MAX_RETRIES) {
-    console.warn('[task-events] SSE 重连已达上限, 转 60s 低频无限重试')
+    console.warn('[task-events] SSE 重连已达上限，转 60s 低频无限重试')
     scheduleRetry(60000)
     return
   }
@@ -51,66 +66,100 @@ function scheduleReconnect() {
 
 function scheduleRetry(ms: number) {
   if (retryTimer) clearTimeout(retryTimer)
-  retryTimer = setTimeout(() => { retryTimer = null; ensureConnected() }, ms)
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    void ensureConnected()
+  }, ms)
 }
 
-async function ensureConnected() {
-  if (es) return
-  const base = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1'
-  const ticket = await fetchTicket()
-  if (!ticket) {
-    // 换票失败（多为 access token 过期待刷新），不能静默放弃
-    scheduleReconnect()
-    return
-  }
-  es = new EventSource(`${base}/events?ticket=${encodeURIComponent(ticket)}`)
-  es.onopen = () => {
-    reconnects = 0
-    setSseStatus('connected')
-  }
-  // R87-M9 + R118: 全局 SSE 看门狗 —— 45s 无消息判定假活, 主动断开走既有重连逻辑
-  // R118: 30s→45s —— 服务端心跳间隔正好 30s(注释行不触发前端监听),
-  // 旧值会每 30s 把健康连接误判假活强杀一次; 45s 给心跳留足余量。
-  let sseWatchdog: ReturnType<typeof setTimeout> | null = null
-  const resetSseWatchdog = () => {
-    if (sseWatchdog) clearTimeout(sseWatchdog)
-    sseWatchdog = setTimeout(() => {
-      console.warn('[useTaskEvents] SSE 45s 无消息, 判定假活, 强制重连')
-      const current = es
-      try { current?.close() } catch { /* 忽略 */ }
-      scheduleReconnect()
-    }, 45000)
-  }
+function ensureConnected(): Promise<void> {
+  if (es || refs <= 0) return Promise.resolve()
+  if (connecting) return connecting
 
-  es.addEventListener('heartbeat', () => resetSseWatchdog())
-  es.addEventListener('events', (m: any) => {
+  const generation = connectionGeneration
+  const pending = (async () => {
     try {
-      resetSseWatchdog()
-      const raw = JSON.parse(m.data)
-      // R99 解包: 全局事件流帧为 broker Event{topic,payload} 结构,
-      // 真正的业务事件(type/task_id/progress...)在 payload 里。不解包则
-      // 各页 task_status/progress 分支全是死代码(任务列表不实时)。
-      const evt = raw && raw.payload ? raw.payload : raw
-      listeners.forEach((fn) => { try { fn(evt) } catch { /* 单个回调异常不影响其他 */ } })
-    } catch { /* 非 JSON 帧忽略 */ }
+      const base = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1'
+      const ticket = await fetchTicket()
+      // 页面已全部卸载或连接代次已变化时，丢弃迟到的换票结果。
+      if (generation !== connectionGeneration || refs <= 0) return
+      if (!ticket) {
+        scheduleReconnect()
+        return
+      }
+
+      const source = new EventSource(`${base}/events?ticket=${encodeURIComponent(ticket)}`)
+      es = source
+
+      source.onopen = () => {
+        if (es !== source) return
+        reconnects = 0
+        setSseStatus('connected')
+        resetWatchdog(source)
+      }
+
+      source.addEventListener('heartbeat', () => {
+        if (es === source) resetWatchdog(source)
+      })
+
+      source.addEventListener('events', (m: MessageEvent) => {
+        if (es !== source) return
+        try {
+          resetWatchdog(source)
+          const raw = JSON.parse(m.data)
+          // 全局事件帧为 broker Event{topic,payload}；业务字段位于 payload。
+          const evt = raw && raw.payload ? raw.payload : raw
+          listeners.forEach((fn) => {
+            try { fn(evt) } catch { /* 单个回调异常不影响其他订阅者 */ }
+          })
+        } catch {
+          // 忽略非 JSON 帧
+        }
+      })
+
+      source.onerror = () => {
+        // 旧连接的迟到 error 不得关闭后来建立的新连接。
+        if (es !== source) return
+        console.warn('[task-events] SSE 异常，退避重建')
+        clearWatchdog()
+        es = null
+        source.close()
+        setSseStatus('reconnecting')
+        bumpSseRetry()
+        scheduleReconnect()
+      }
+    } catch {
+      if (generation === connectionGeneration) scheduleReconnect()
+    }
+  })()
+
+  connecting = pending
+  void pending.finally(() => {
+    if (connecting === pending) connecting = null
+    // teardown 后若有新页面重新订阅，补建新代次的连接。
+    if (generation !== connectionGeneration && refs > 0 && !es) {
+      void ensureConnected()
+    }
   })
-  es.onerror = () => {
-    // EventSource 原生重连会带着【旧 ticket】一直 401，这里主动重建换新票
-    console.warn('[task-events] SSE 异常, 退避重建')
-    setSseStatus('reconnecting')
-    bumpSseRetry()
-    const dead = es
-    es = null
-    try { dead && dead.close() } catch { /* 忽略 */ }
-    scheduleReconnect()
-  }
+  return pending
 }
 
 function teardown() {
+  connectionGeneration++
   setSseStatus('disconnected')
-  if (es) { es.close(); es = null }
-  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
-  if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
+  clearWatchdog()
+  if (es) {
+    es.close()
+    es = null
+  }
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  if (disconnectTimer) {
+    clearTimeout(disconnectTimer)
+    disconnectTimer = null
+  }
   refs = 0
   reconnects = 0
 }
@@ -119,16 +168,19 @@ export function useTaskEvents(onEvent: (evt: any) => void) {
   onMounted(() => {
     listeners.add(onEvent)
     refs++
-    // 宽限期内有组件回来: 取消待执行的断开, 直接复用连接
-    if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
-    ensureConnected()
+    if (disconnectTimer) {
+      clearTimeout(disconnectTimer)
+      disconnectTimer = null
+    }
+    void ensureConnected()
   })
+
   onUnmounted(() => {
     listeners.delete(onEvent)
     refs--
     if (refs <= 0) {
       refs = 0
-      // 不立即断开: 30 秒宽限期, 期间切回任何页面直接复用(=一直实时连接的体感)
+      // 页面切换保留 30 秒连接；最后一个订阅者离开后再统一关闭。
       if (disconnectTimer) clearTimeout(disconnectTimer)
       disconnectTimer = setTimeout(() => {
         disconnectTimer = null
@@ -138,9 +190,20 @@ export function useTaskEvents(onEvent: (evt: any) => void) {
   })
 }
 
-// R118: 手动立即重连 —— 左下角连接状态点击时调用, 打断退避等待立刻重连
+// 手动重连：关闭旧 EventSource、清除退避等待并立即换取新 ticket。
 export function reconnectNow() {
-  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  // Invalidate any in-flight ticket request so it cannot win this explicit reconnect.
+  // Its finally handler will start the new generation after the old request settles.
+  connectionGeneration++
+  clearWatchdog()
+  if (es) {
+    es.close()
+    es = null
+  }
   reconnects = 0
-  ensureConnected()
+  void ensureConnected()
 }
