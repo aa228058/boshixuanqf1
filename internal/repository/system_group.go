@@ -221,7 +221,7 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 	}
 	rows, err := r.db.Query(ctx, `
 		SELECT sg_id, source, COALESCE(title,''), COALESCE(username,''), COALESCE(tme_link,''),
-		       gtype, member_count, COALESCE(free_speech_status,'unknown'), status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,'')
+		       gtype, member_count, COALESCE(free_speech_status,'unknown'), status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,''), COALESCE(telegram_chat_id,0)
 		FROM system_groups WHERE sg_id = ANY($1)`, ids)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 	var out []domain.SystemGroup
 	for rows.Next() {
 		var g domain.SystemGroup
-		if err := rows.Scan(&g.SGID, &g.Source, &g.Title, &g.Username, &g.TmeLink, &g.GType, &g.MemberCount, &g.FreeSpeechStatus, &g.Status, &g.RefCount, &g.LastSeenAt, &g.FirstContributorTenantName); err != nil {
+		if err := rows.Scan(&g.SGID, &g.Source, &g.Title, &g.Username, &g.TmeLink, &g.GType, &g.MemberCount, &g.FreeSpeechStatus, &g.Status, &g.RefCount, &g.LastSeenAt, &g.FirstContributorTenantName, &g.TelegramChatID); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
