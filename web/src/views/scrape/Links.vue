@@ -36,6 +36,9 @@
           type="button"
           @click="toggleListening"
           class="relative w-12 h-7 rounded-full transition-colors shrink-0"
+          role="switch"
+          :aria-checked="listening"
+          :disabled="!linksAccId"
           :class="listening ? 'bg-cyan' : 'bg-bg-hover'"
           aria-label="链接监听开关"
         ><span class="absolute top-1 w-5 h-5 rounded-full bg-white transition-all" :class="listening ? 'left-6' : 'left-1'" /></button>
