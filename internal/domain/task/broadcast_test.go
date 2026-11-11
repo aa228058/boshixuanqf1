@@ -29,7 +29,7 @@ func TestAcquireBroadcastSlotAcquiresAvailableSlot(t *testing.T) {
 		t.Fatalf("semaphore length=%d, want 1", got)
 	}
 }
- 
+
 func TestDedupeTargetsPerAccountPreservesCrossAccountAssignments(t *testing.T) {
 	accountA := uuid.New()
 	accountB := uuid.New()
