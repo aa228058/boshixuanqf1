@@ -179,17 +179,11 @@
       <!-- 消息内容 -->
       <div>
       <label class="block text-sm font-medium mb-2">消息内容</label>
-        <!-- 变量插入(交互示例10标签输入的轻量版): 点变量插入到光标处 -->
-        <div class="flex flex-wrap gap-1.5 mb-2">
-          <button type="button" v-for="v in msgVars" :key="v" @click="insertVar(v)"
-                  class="px-2 py-0.5 rounded-md bg-bg-primary border border-border text-text-secondary text-xs font-mono hover:border-[color:var(--t-brand)] hover:text-[var(--t-brand)] transition-colors">{{ v }}</button>
-          <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] self-center ml-auto">草稿已自动保存</span>
-        </div>
-        <t-textarea ref="msgRef" v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
-                    placeholder="输入要发送的消息... 变量: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}； 随机语法: {你好|Hi|Hello}" />
+        <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] mb-2 block">草稿已自动保存</span>
+        <t-textarea v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
+                    placeholder="输入消息内容；如需随机表达，请使用 {选项一|选项二} 格式。" />
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
-          <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="showPreview = true">预览变量效果</t-button>
         </div>
       </div>
 
@@ -282,28 +276,12 @@
     </template>
     </Modal>
 
-    <!-- 变量预览弹窗(统一走 Modal 封装) -->
-    <Modal v-model="showPreview" title="变量预览">
-      <div class="space-y-3 text-sm">
-        <div class="p-3 rounded-lg bg-bg-card">
-          <div class="text-text-muted mb-1">原始内容:</div>
-          <div class="whitespace-pre-wrap">{{ message }}</div>
-        </div>
-        <div class="p-3 rounded-lg bg-[var(--t-brand)]/5 border border-[color:var(--t-brand-dim)]">
-          <div class="text-[var(--t-brand)] mb-1">替换后效果:</div>
-          <div class="whitespace-pre-wrap">{{ previewMessage }}</div>
-        </div>
-      </div>
-      <template #footer>
-        <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" @click="showPreview = false">关闭</t-button>
-      </template>
-    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { parseTargets } from '@/utils/importTargets'
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { groupApi } from '@/api/group'
@@ -462,25 +440,8 @@ function onImportFile(e: Event) {
 }
 const message = ref('')
 
-// ===== 变量插入 + 草稿自动保存(交互示例 10/09/116, 2026-10-21) =====
-// P0-02 审计修复: 原单花括号与后端 dictVarRe 的双花括号约定不一致——
-// 变量从未生效, 且单花括号会被后端当 spintax 随机改写消息。统一双花括号。
-const msgVars = ['{{first_name}}', '{{group_name}}', '{{user_id}}', '{{now}}', '{{username}}', '{{phone}}']
-const msgRef = ref<any>(null)
+// 消息草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
 const draftSaved = ref(false)
-
-function insertVar(v: string) {
-  // t-textarea 内部是 textarea 元素; 优先插到光标处, 拿不到光标就追加
-  const el = msgRef.value?.$el?.querySelector?.('textarea') || msgRef.value?.$el
-  if (el && typeof el.selectionStart === 'number') {
-    const s = el.selectionStart, e = el.selectionEnd
-    message.value = message.value.slice(0, s) + v + message.value.slice(e)
-    nextTick(() => { el.focus(); el.selectionStart = el.selectionEnd = s + v.length })
-  } else {
-    message.value += v
-  }
-}
-
 // 草稿按租户 + 当前账号隔离，避免切换账号或登录其他租户时串用消息内容。
 let draftTimer: ReturnType<typeof setTimeout> | null = null
 const draftKeyFor = (account: any) => {
@@ -599,7 +560,6 @@ async function precheckTargets() {
     if (requestId === precheckRequestId) validating.value = false
   }
 }
-const showPreview = ref(false)
 
 // ===== 模态框化: 本页任务列表 + 新建弹窗 =====
 const showCreate = ref(false)
@@ -755,14 +715,6 @@ function clearMedia() {
 const canSubmit = computed(() => {
   if (!message.value.trim().length) return false
   return selectedTargets.value.length > 0 && execAccounts.value.length > 0
-})
-
-const previewMessage = computed(() => {
-  return message.value
-    .replace(/\{\{first_name\}\}/g, '张三')
-    .replace(/\{\{group_name\}\}/g, '测试群组')
-    .replace(/\{\{user_id\}\}/g, '123456789')
-    .replace(/\{\{now\}\}/g, new Date().toLocaleString('zh-CN'))
 })
 
 const groupsLoading = ref(false)
