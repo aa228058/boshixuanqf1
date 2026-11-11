@@ -2163,10 +2163,11 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
   .acc-menu {
     left: auto;
     right: 0;
-    bottom: 100%;
+    top: 100%;
+    bottom: auto;
     width: 15rem;
     max-height: min(70vh, 560px);
-    margin-bottom: var(--t-space-2);
+    margin-top: var(--t-space-2);
     border-radius: 14px;
     padding: 8px;
     box-shadow: var(--t-shadow-card);
