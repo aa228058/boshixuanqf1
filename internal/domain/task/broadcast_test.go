@@ -3,8 +3,8 @@ package task
 import (
 	"context"
 	"reflect"
-	"testing"
 	"time"
+	"testing"
 
 	"github.com/google/uuid"
 )
@@ -104,7 +104,6 @@ func TestDedupeAccountTargetsTrimsWhitespace(t *testing.T) {
 	}
 }
 
-
 func TestWaitBroadcastDelayRespectsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -152,15 +151,15 @@ func TestCountBroadcastTargetProgress(t *testing.T) {
 
 func TestReconcileBroadcastTimeoutProgress(t *testing.T) {
 	tests := []struct {
-		name string
+		name           string
 		total, done, failed int
-		timedOut bool
-		wantFailed int
-		wantTimedOut bool
+		timedOut       bool
+		wantFailed     int
+		wantTimedOut   bool
 	}{
-		{name:"timeout accounts for unprocessed targets", total:10, done:4, failed:2, timedOut:true, wantFailed:6, wantTimedOut:true},
-		{name:"timeout preserves fully reconciled counters", total:10, done:10, failed:0, timedOut:true, wantFailed:0, wantTimedOut:true},
-		{name:"normal completion leaves counters unchanged", total:10, done:8, failed:2, timedOut:false, wantFailed:2, wantTimedOut:false},
+		{name: "timeout accounts for unprocessed targets", total: 10, done: 4, failed: 2, timedOut: true, wantFailed: 6, wantTimedOut: true},
+		{name: "timeout preserves fully reconciled counters", total: 10, done: 10, failed: 0, timedOut: true, wantFailed: 0, wantTimedOut: true},
+		{name: "normal completion leaves counters unchanged", total: 10, done: 8, failed: 2, timedOut: false, wantFailed: 2, wantTimedOut: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
