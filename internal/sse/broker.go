@@ -117,9 +117,13 @@ func (b *Broker) Broadcast(topic string, payload any) {
 			default:
 				// A slow client must never block publishers. Evict the oldest queued
 				// event and enqueue a resync marker so the client reloads durable state.
-				select {
-				case <-ch:
-				default:
+				draining := true
+				for draining {
+					select {
+					case <-ch:
+					default:
+						draining = false
+					}
 				}
 				marker := Event{
 					Topic: topic,
