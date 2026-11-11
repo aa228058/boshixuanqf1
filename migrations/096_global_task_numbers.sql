@@ -1,9 +1,9 @@
 -- +goose Up
 -- One monotonically increasing number space shared by regular tasks and group-import jobs.
-CREATE SEQUENCE global_task_number_seq AS BIGINT;
+CREATE SEQUENCE IF NOT EXISTS global_task_number_seq AS BIGINT;
 
-ALTER TABLE tasks ADD COLUMN task_number BIGINT;
-ALTER TABLE group_library_import_jobs ADD COLUMN task_number BIGINT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_number BIGINT;
+ALTER TABLE group_library_import_jobs ADD COLUMN IF NOT EXISTS task_number BIGINT;
 
 -- Backfill both tables in creation-time order so historical numbers are also globally unique.
 CREATE TEMP TABLE global_task_number_backfill ON COMMIT DROP AS
