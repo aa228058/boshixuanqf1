@@ -221,6 +221,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 					}
 					// A pending private invite has no confirmed Telegram chat identity yet.
 					// Keep only the PendingApproval row; create the groups row after membership is confirmed.
+				} else if isAlreadyMember(joinErr) {
+					status = "success"
+					errCode = "already_member"
 				} else {
 					status = "failed"
 					errCode = "join_failed"
