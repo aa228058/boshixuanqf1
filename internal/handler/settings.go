@@ -219,10 +219,10 @@ func (h *SettingsHandler) CreateTextDict(c echo.Context) error {
 		return err
 	}
 	var req struct {
-		Name    string                  `json:"name"`
-		Enabled *bool                   `json:"enabled"`
-		Items   []string                `json:"items"`
-		Entries []domain.TextDictEntry  `json:"entries"`
+		Name    string                 `json:"name"`
+		Enabled *bool                  `json:"enabled"`
+		Items   []string               `json:"items"`
+		Entries []domain.TextDictEntry `json:"entries"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
