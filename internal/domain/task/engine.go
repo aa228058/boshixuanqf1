@@ -234,20 +234,31 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 		return fmt.Errorf("query tenants: %w", err)
 	}
 	defer rows.Close()
-	count := 0
-	for rows.Next() {
-		var tenantID uuid.UUID
-		var maxConcurrent int
-		if err := rows.Scan(&tenantID, &maxConcurrent); err != nil {
-			continue
-		}
-		if maxConcurrent <= 0 {
-			maxConcurrent = 1
-		}
-		e.scheduler.RegisterTenant(tenantID, maxConcurrent)
-		count++
+
+	// Stage the complete snapshot before mutating the scheduler. A scan or
+	// iteration error must not leave a partially refreshed quota set in memory.
+	type tenantQuota struct {
+		tenantID      uuid.UUID
+		maxConcurrent int
 	}
-	log.Printf("[engine] 已加载 %d 个租户配额到调度器", count)
+	quotas := make([]tenantQuota, 0)
+	for rows.Next() {
+		var quota tenantQuota
+		if err := rows.Scan(&quota.tenantID, &quota.maxConcurrent); err != nil {
+			return fmt.Errorf("scan tenant concurrency quota: %w", err)
+		}
+		if quota.maxConcurrent <= 0 {
+			quota.maxConcurrent = 1
+		}
+		quotas = append(quotas, quota)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate tenant concurrency quotas: %w", err)
+	}
+	for _, quota := range quotas {
+		e.scheduler.RegisterTenant(quota.tenantID, quota.maxConcurrent)
+	}
+	log.Printf("[engine] 已加载 %d 个租户配额到调度器", len(quotas))
 	return nil
 }
 
@@ -377,9 +388,9 @@ func (e *Engine) Start(ctx context.Context) error {
 		e.wg.Done()
 	}()
 
-	// Load all active tenants and register their plan quotas.
+	// Do not start queue workers with an incomplete tenant-quota snapshot.
 	if err := e.loadTenantQuotas(runtimeCtx); err != nil {
-		log.Printf("[engine] 加载租户配额失败: %v", err)
+		return fmt.Errorf("load tenant concurrency quotas: %w", err)
 	}
 
 	if err := e.startListen(runtimeCtx); err != nil {
@@ -452,7 +463,11 @@ func (e *Engine) unblockExpiredLoop(ctx context.Context) {
 				}
 				recovered = append(recovered, ra)
 			}
+			iterationErr := rows.Err()
 			rows.Close()
+			if iterationErr != nil {
+				log.Printf("[engine] 恢复账号结果迭代不完整: %v", iterationErr)
+			}
 			for _, ra := range recovered {
 				if err := e.accEngine.UpdateAccountStatus(ctx, ra.tenantID, ra.accountID, domain.AccountStatusOnline); err != nil {
 					log.Printf("[engine] 恢复账号广播状态失败 %s: %v", ra.accountID, err)
@@ -727,6 +742,19 @@ func (e *Engine) pollLoop(ctx context.Context) {
 	}
 }
 
+// shouldDeferGlobalClaim fails closed when the cross-worker running-task
+// count cannot be read. Continuing on a database error could bypass the
+// configured global concurrency limit across application replicas.
+func shouldDeferGlobalClaim(running, limit int, countErr error) bool {
+	if limit <= 0 {
+		return false
+	}
+	if countErr != nil {
+		return true
+	}
+	return running >= limit
+}
+
 func (e *Engine) claimAndExecute(ctx context.Context) {
 	// Activate pending tasks whose scheduled_at has passed
 	if err := e.repo.ActivatePendingTasks(ctx); err != nil {
@@ -737,7 +765,10 @@ func (e *Engine) claimAndExecute(ctx context.Context) {
 	if e.GlobalLimitFn != nil {
 		if limit := e.GlobalLimitFn(); limit > 0 {
 			running, err := e.repo.CountRunningGlobal(ctx)
-			if err == nil && running >= limit {
+			if shouldDeferGlobalClaim(running, limit, err) {
+				if err != nil {
+					taskLog.Printf("[engine] 全局运行任务数读取失败，暂停本轮认领以保护并发上限: %v", err)
+				}
 				return
 			}
 		}

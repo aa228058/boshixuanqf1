@@ -770,6 +770,9 @@ func (r *TaskRepository) AccountStats(ctx context.Context, tenantID, accountID u
 		}
 		trend = append(trend, cnt)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate account task trend: %w", err)
+	}
 	if len(trend) == 0 {
 		trend = []int{0, 0, 0, 0, 0, 0, 0}
 	}
