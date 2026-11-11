@@ -35,6 +35,9 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 	if sg == nil {
 		return fmt.Errorf("nil system group")
 	}
+	if strings.EqualFold(strings.TrimSpace(sg.GType), "channel") {
+		return fmt.Errorf("broadcast channels are excluded from the group library")
+	}
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -59,6 +62,9 @@ func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domai
 	for _, group := range groups {
 		if group == nil {
 			return fmt.Errorf("nil system group in batch")
+		}
+		if strings.EqualFold(strings.TrimSpace(group.GType), "channel") {
+			return fmt.Errorf("broadcast channels are excluded from the group library")
 		}
 		if err := upsertSystemGroupTx(ctx, tx, group); err != nil {
 			return err
