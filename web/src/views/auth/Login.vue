@@ -14,8 +14,8 @@
         账号、群发、采集、任务与监控，一处掌控。从手机体验出发的轻量界面，触控友好、卡片柔和。
       </p>
       <div class="mt-7 flex gap-2.5 flex-wrap">
-        <span v-for="f in ['✦ 多账号工作区', '↗ 任务实时状态', '◉ 操作记录可查']" :key="f"
-              class="px-3 py-2 rounded-full text-[12px] font-semibold"
+        <span v-for="(f, i) in ['✦ 多账号工作区', '↗ 任务实时状态', '◉ 操作记录可查']" :key="f" :style="{ '--chip-index': i }"
+              class="login-feature-chip px-3 py-2 rounded-full text-[12px] font-semibold"
               style="border: 1px solid var(--t-line); color: var(--t-text-3);">{{ f }}</span>
       </div>
     </div>
@@ -39,24 +39,24 @@
           账号、群发、采集、任务与监控，一处掌控
         </p>
         <div class="mt-4 flex gap-2 flex-wrap justify-center">
-          <span v-for="f in ['✦ 多账号工作区', '↗ 任务实时状态', '◉ 操作记录可查']" :key="f"
-                class="px-2.5 py-1.5 rounded-full text-[11px] font-semibold"
+          <span v-for="(f, i) in ['✦ 多账号工作区', '↗ 任务实时状态', '◉ 操作记录可查']" :key="f" :style="{ '--chip-index': i }"
+                class="login-feature-chip px-2.5 py-1.5 rounded-full text-[11px] font-semibold"
                 style="border: 1px solid var(--t-line); color: var(--t-text-3);">{{ f }}</span>
         </div>
       </div>
 
       <div class="rounded-[24px] p-7 sm:p-8"
            style="background: var(--t-surface-1); border: 1px solid var(--t-line); box-shadow: var(--t-shadow-card);">
-        <div class="text-[10px] font-extrabold tracking-[0.14em] uppercase" style="color: var(--t-brand);">WELCOME BACK</div>
-        <h2 class="mt-1.5 text-[24px] font-black tracking-tight">登录工作台</h2>
-        <p class="mt-1 text-[13px]" style="color: var(--t-text-3);">使用租户账号进入控制台</p>
+        <div 
+        <h2 class="mt-1.5 text-[24px] font-black tracking-tight text-center">登录工作台</h2>
+        <p class="mt-1 text-[13px] text-center" style="color: var(--t-text-3);">使用租户账号进入控制台</p>
 
         <form @submit.prevent="handleLogin" class="mt-6 grid gap-4">
           <div class="grid gap-1.5">
             <label class="text-[12px] font-bold" style="color: var(--t-text-3);">用户名</label>
             <!-- R140: 与密码框统一纯 CSS focus(品牌紫描边+柔光), 删除 JS 内联焦点方案 -->
             <input v-model="form.username" autocomplete="username" required
-                   class="ui-input !min-h-[48px] !rounded-xl !px-4 !py-3 !text-base"
+                   class="ui-input !min-h-[44px] !rounded-xl !px-4 !py-3 !text-base"
                    placeholder="请输入用户名" />
           </div>
           <div class="grid gap-1.5">
@@ -64,7 +64,7 @@
             <div class="relative">
               <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
                      autocomplete="current-password" required
-                     class="ui-input !min-h-[48px] !rounded-xl !px-4 !py-3 !pr-11 !text-base"
+                     class="ui-input !min-h-[44px] !rounded-xl !px-4 !py-3 !pr-11 !text-base"
                      placeholder="请输入密码" @keyup.enter="handleLogin" />
               <button type="button" class="ui-icon-btn absolute right-3 top-1/2 -translate-y-1/2 transition-colors" aria-label="显示或隐藏密码" @click="showPassword = !showPassword"
                       style="color: var(--t-text-3);">
@@ -187,3 +187,17 @@ async function doRenew() {
   }
 }
 </script>
+
+<style scoped>
+.login-feature-chip {
+  animation: feature-chip-in 520ms cubic-bezier(.22,1,.36,1) both;
+  animation-delay: calc(var(--chip-index, 0) * 90ms);
+}
+@keyframes feature-chip-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-feature-chip { animation: none; }
+}
+</style>
