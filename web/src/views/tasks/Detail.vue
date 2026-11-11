@@ -73,7 +73,7 @@
         <span>·</span>
         <span class="truncate">账号 {{ accountMap[waitState.account_id] || '...' }}</span>
         <span>等待后进入下一目标</span>
-        <span class="truncate text-text-muted">→ {{ groupMap[normId(waitState.target_id)] || waitState.target_id }}<template v-if="waitState.total">（{{ waitState.next_index }}/{{ waitState.total }}）</template></span>
+        <span class="truncate text-text-muted">→ {{ targetDisplayName(waitState.target_id) }}<template v-if="waitState.total">（{{ waitState.next_index }}/{{ waitState.total }}）</template></span>
       </div>
     </div>
 
@@ -160,7 +160,7 @@
               <span class="text-[10.5px] font-medium text-text-muted/70 shrink-0 w-14">{{ getActionLabel(log.action) }}</span>
               <span class="flex items-center gap-1 text-text-primary truncate">
                 <Send class="w-3 h-3 text-[var(--t-brand)] shrink-0" />
-                <span class="truncate">{{ log.target_name || groupMap[normId(log.target_id)] || log.target_id }}</span>
+                <span class="truncate">{{ targetDisplayName(log.target_id, log.target_name) }}</span>
               </span>
             </div>
             <!-- message 渲染(2026-10-22): 成功行的"耗时 X.Xs"和限速行的"N 秒后进入下一目标"
@@ -382,7 +382,23 @@ const accountMap = ref<Record<string, string>>({})
 const groupMap = ref<Record<string, string>>({})
 
 // 规范化群ID: 去掉 -100 前缀, 兼容 groups.tg_chat_id 与日志 target_id 的两种存法
-const normId = (id: any): string => String(id ?? '').replace(/^-100/, '')
+const normId = (id: any): string => {
+  const raw = String(id ?? '').trim()
+  const linkUser = raw.match(/(?:t\.me\/|@)([A-Za-z0-9_]+)/i)?.[1]
+  return (linkUser || raw.replace(/^-100/, '')).toLowerCase()
+}
+
+// 优先显示日志快照名称，其次匹配本租户群组库；无法匹配时不把长数字 ID/邀请链接直接暴露在日志行。
+function targetDisplayName(targetId: any, explicitName?: any): string {
+  const explicit = String(explicitName ?? '').trim()
+  if (explicit && !/^[-+]?\d{5,}$/.test(explicit) && !/^https?:\/\//i.test(explicit)) return explicit
+  const raw = String(targetId ?? '').trim()
+  const mapped = groupMap.value[normId(raw)]
+  if (mapped) return mapped
+  const username = raw.match(/(?:t\.me\/|@)([A-Za-z0-9_]+)/i)?.[1]
+  if (username) return '@' + username
+  return raw ? '未匹配名称' : '未知目标'
+}
 let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
 let sseConnecting = false
@@ -695,7 +711,7 @@ onMounted(async () => {
       const accs = await accountApi.list()
       if (!pageActive) return
       const accData = (accs as any).data || accs || []
-      accountMap.value = Object.fromEntries(accData.map((a: any) => [a.account_id, a.remark || a.phone]))
+      accountMap.value = Object.fromEntries(accData.map((a: any) => [a.account_id, a.first_name || a.remark || a.username || a.phone || '未知账号']))
     } catch { /* optional labels */ }
   })()
 
@@ -711,10 +727,10 @@ onMounted(async () => {
         : Array.isArray(raw?.list) ? raw.list : []
       const entries: [string, string][] = []
       grpData.forEach((g: any) => {
-        const name = g.title || g.name || g.username || g.group_id
+        const name = g.title || g.name || g.group_name || (g.username ? '@' + String(g.username).replace(/^@/, '') : '') || '未命名群组'
         if (g.group_id) entries.push([normId(g.group_id), name])
         if (g.tg_chat_id) entries.push([normId(g.tg_chat_id), name])
-        if (g.username) entries.push([g.username, name])
+        if (g.username) entries.push([normId(g.username), name])
       })
       groupMap.value = Object.fromEntries(entries)
     } catch { /* optional labels */ }
