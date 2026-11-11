@@ -2,10 +2,13 @@ package repository
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	// R117 修复: domain import 已删(写方法移除后 WordsByNames 只返 []string, 零引用)
+	"tg-sender/internal/domain"
 )
 
 // TextDictRepository 文案变量(数据字典), 租户级。
@@ -17,9 +20,38 @@ func NewTextDictRepository(db *pgxpool.Pool) *TextDictRepository {
 	return &TextDictRepository{db: db}
 }
 
-// R117: 词典写侧五方法(Create/Delete/List/AddEntries/DeleteEntry/ListEntries)已删
-// ——词典管理 HTTP 层(r116)删除后零调用; 引擎变量替换只读 WordsByNames。
-// 若将来词典管理界面回归, 从版本历史恢复本段即可。
+// List returns the current tenant's named text collections and their saved items.
+func (r *TextDictRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.TextDict, error) {
+	rows, err := r.db.Query(ctx, `SELECT d.dict_id,d.tenant_id,d.name,d.created_at,e.word
+		FROM text_dicts d LEFT JOIN text_dict_entries e ON e.dict_id=d.dict_id
+		WHERE d.tenant_id=$1 ORDER BY d.created_at DESC,e.entry_id`, tenantID)
+	if err != nil { return nil, err }; defer rows.Close()
+	byID:=map[uuid.UUID]*domain.TextDict{}; var list []*domain.TextDict
+	for rows.Next() {
+		var id,tid uuid.UUID; var name string; var created time.Time; var word *string
+		if err:=rows.Scan(&id,&tid,&name,&created,&word);err!=nil{return nil,err}
+		item,ok:=byID[id]; if !ok { item=&domain.TextDict{DictID:id,TenantID:tid,Name:name,Items:[]string{},CreatedAt:created};byID[id]=item;list=append(list,item) }
+		if word!=nil { item.Items=append(item.Items,*word) }
+	}
+	return list,rows.Err()
+}
+func (r *TextDictRepository) Create(ctx context.Context,tenantID uuid.UUID,name string,items []string)(*domain.TextDict,error) {
+	tx,err:=r.db.BeginTx(ctx,pgx.TxOptions{});if err!=nil{return nil,err};defer tx.Rollback(ctx)
+	d:=&domain.TextDict{TenantID:tenantID,Name:name,Items:[]string{}}
+	if err=tx.QueryRow(ctx,`INSERT INTO text_dicts(tenant_id,name) VALUES($1,$2) RETURNING dict_id,created_at`,tenantID,name).Scan(&d.DictID,&d.CreatedAt);err!=nil{return nil,err}
+	for _,item:=range items { if _,err=tx.Exec(ctx,`INSERT INTO text_dict_entries(dict_id,word,weight) VALUES($1,$2,1)`,d.DictID,item);err!=nil{return nil,err};d.Items=append(d.Items,item) }
+	if err=tx.Commit(ctx);err!=nil{return nil,err};return d,nil
+}
+func (r *TextDictRepository) Update(ctx context.Context,tenantID,dictID uuid.UUID,name string,items []string)error {
+	tx,err:=r.db.BeginTx(ctx,pgx.TxOptions{});if err!=nil{return err};defer tx.Rollback(ctx)
+	res,err:=tx.Exec(ctx,`UPDATE text_dicts SET name=$3 WHERE dict_id=$1 AND tenant_id=$2`,dictID,tenantID,name);if err!=nil{return err};if res.RowsAffected()==0{return pgx.ErrNoRows}
+	if _,err=tx.Exec(ctx,`DELETE FROM text_dict_entries WHERE dict_id=$1`,dictID);err!=nil{return err}
+	for _,item:=range items { if _,err=tx.Exec(ctx,`INSERT INTO text_dict_entries(dict_id,word,weight) VALUES($1,$2,1)`,dictID,item);err!=nil{return err} }
+	return tx.Commit(ctx)
+}
+func (r *TextDictRepository) Delete(ctx context.Context,tenantID,dictID uuid.UUID)error {
+	res,err:=r.db.Exec(ctx,`DELETE FROM text_dicts WHERE dict_id=$1 AND tenant_id=$2`,dictID,tenantID);if err!=nil{return err};if res.RowsAffected()==0{return pgx.ErrNoRows};return nil
+}
 
 // WordsByNames 一次取出多个词典的全部词条(群发前构建替换池, 避免逐条查库)
 func (r *TextDictRepository) WordsByNames(ctx context.Context, tenantID uuid.UUID, names []string) (map[string][]string, error) {
