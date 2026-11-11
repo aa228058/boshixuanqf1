@@ -238,7 +238,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			} else {
 				// Direct join success: extract group info from Updates
 				if updates, ok := result.(*tg.Updates); ok && e.groupRepo != nil {
-					e.extractAndSaveGroupFromUpdates(ctx, task, updates, link)
+					e.extractAndSaveGroupFromUpdates(ctx, task, accID, updates, link)
 				} else if !ok {
 					taskLog.Printf("[join] ImportChatInvite result is not *tg.Updates, type: %T", result)
 				}
@@ -775,7 +775,7 @@ func defaultFreeSpeechStatus(rights *tg.ChatBannedRights) string {
 
 // extractAndSaveGroupFromUpdates extracts group info from Updates (ImportChatInvite result)
 // and saves/updates the groups table. Handles both *tg.Chat and *tg.Channel.
-func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, updates *tg.Updates, sourceLink string) {
+func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, accountID uuid.UUID, updates *tg.Updates, sourceLink string) {
 	for _, chat := range updates.Chats {
 		var chatID int64
 		var sharedChatID int64
@@ -869,8 +869,8 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 			log.Printf("[join] 查询群组失败: %v", lookupErr)
 			continue
 		}
-		if err := e.groupRepo.UpsertAccountGroup(ctx, task.AccountIDs[0], groupID, true); err != nil {
-			log.Printf("[join] 邀请加入后关联群组到账号失败 account=%s group=%s: %v", task.AccountIDs[0], groupID, err)
+		if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, groupID, true); err != nil {
+			log.Printf("[join] 邀请加入后关联群组到账号失败 account=%s group=%s: %v", accountID, groupID, err)
 		}
 	}
 }
