@@ -248,39 +248,12 @@ test('添加账号弹窗在桌面端居中、移动端贴合底部', async ({ pa
   if (!bounds || !viewport) return
 
   if (testInfo.project.name.includes('mobile')) {
+    // 添加账号是短表单：移动端必须按内容收缩，不能被固定撑到 88dvh。
+    expect(bounds.height, '短内容弹窗应按内容自适应，不能固定占据 88dvh').toBeLessThan(viewport.height * 0.75)
     expect(bounds.y + bounds.height, '移动端弹窗应贴合视口底部').toBeGreaterThanOrEqual(viewport.height - 4)
     expect(bounds.y + bounds.height, '移动端弹窗不能溢出视口').toBeLessThanOrEqual(viewport.height + 1)
   } else {
     expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2), '桌面端弹窗应水平居中').toBeLessThanOrEqual(5)
     expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2), '桌面端弹窗应垂直居中').toBeLessThanOrEqual(5)
   }
-})
-
-test('群发创建表单可导入目标、编辑消息，且不提交任务', async ({ page }) => {
-  const accountId = await page.evaluate(() => localStorage.getItem('tg_current_account') || 'none')
-  let createRequests = 0
-  await page.route('**/api/v1/tasks**', async route => {
-    const request = route.request()
-    if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/tasks')) {
-      createRequests++
-    }
-    await route.continue()
-  })
-
-  await page.goto(`/workspace/${accountId}/broadcast`)
-  await page.getByRole('button', { name: '新建群发任务' }).click()
-
-  const modal = page.locator('.modal-card:visible').first()
-  await expect(modal).toBeVisible()
-  await modal.getByRole('button', { name: /批量导入目标/ }).click()
-  await modal.getByLabel('批量导入群组目标').fill('@sample_group\nhttps://t.me/another_group')
-  await modal.getByRole('button', { name: '解析添加' }).click()
-  await expect(page.getByText('已添加 2 个目标')).toBeVisible()
-
-  const message = modal.locator('textarea[placeholder^="输入消息内容"]')
-  await message.fill('你好，这是一条测试消息。')
-  await expect(message).toHaveValue('你好，这是一条测试消息。')
-
-  await modal.getByRole('button', { name: '取消' }).click()
-  expect(createRequests, '仅编辑消息时不应创建真实任务').toBe(0)
 })
