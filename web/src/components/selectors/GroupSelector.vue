@@ -375,30 +375,18 @@ async function onRefresh() {
   syncStatus.value = 'syncing'
   try {
     await groupApi.sync(accountId)
-    let delay = 1000
-    const startedAt = Date.now()
-    while (Date.now() - startedAt < 30000) {
-      if (!isCurrent()) break
-      try {
-        const raw: any = await groupApi.list(accountId)
-        if (!isCurrent()) break
-        const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-        if (list.length > 0) {
-          syncStatus.value = 'done'
-          localGroups.value = list
-          groupStore.setGroups(accountId, list)
-          markSyncing(accountId)
-          emit('refresh')
-          await nextTick()
-          break
-        }
-      } catch (e) {
-        if (isCurrent()) console.error('[GroupSelector] poll error:', e)
-      }
-      await new Promise(r => setTimeout(r, delay))
-      delay = Math.min(delay * 2, 8000)
-    }
-    if (isCurrent() && syncStatus.value !== 'done') syncStatus.value = 'timeout'
+    if (!isCurrent()) return
+    // POST /groups/sync now returns only after the Telegram sync is complete.
+    // An empty result is valid; never use list.length as a completion signal.
+    const raw: any = await groupApi.list(accountId)
+    if (!isCurrent()) return
+    const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
+    localGroups.value = list
+    groupStore.setGroups(accountId, list)
+    syncStatus.value = 'done'
+    markSyncing(accountId)
+    emit('refresh')
+    await nextTick()
   } catch (e: unknown) {
     if (isCurrent()) {
       console.error('[GroupSelector] sync failed:', e)
