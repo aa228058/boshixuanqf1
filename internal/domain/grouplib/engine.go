@@ -355,6 +355,7 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 		SELECT group_id, tenant_id, title, username, type, member_count, created_at, updated_at
 		FROM groups
 		WHERE is_joined = TRUE AND username IS NOT NULL AND username <> ''
+		  AND COALESCE(type, '') <> 'channel'
 		  AND (GREATEST(created_at, updated_at), group_id) > ($1, $2)
 		ORDER BY GREATEST(created_at, updated_at) ASC, group_id ASC LIMIT 5000`, cursor.at, cursor.id)
 	if err != nil {
@@ -376,8 +377,11 @@ func (e *Engine) aggregateJoinedGroups(ctx context.Context) error {
 			ct = ut
 		}
 		gt := "public"
-		if gtype == "channel" {
+		switch strings.ToLower(strings.TrimSpace(gtype)) {
+		case "channel":
 			gt = "channel"
+		case "supergroup", "megagroup":
+			gt = "supergroup"
 		}
 		sg := &domain.SystemGroup{
 			Source: "joined", Title: firstNonEmpty(title, "@"+username), Username: username,

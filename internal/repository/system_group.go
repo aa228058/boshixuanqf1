@@ -35,6 +35,9 @@ func (r *SystemGroupRepository) Upsert(ctx context.Context, sg *domain.SystemGro
 	if sg == nil {
 		return fmt.Errorf("nil system group")
 	}
+	if strings.EqualFold(strings.TrimSpace(sg.GType), "channel") {
+		return fmt.Errorf("broadcast channels are excluded from the group library")
+	}
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -59,6 +62,9 @@ func (r *SystemGroupRepository) UpsertBatch(ctx context.Context, groups []*domai
 	for _, group := range groups {
 		if group == nil {
 			return fmt.Errorf("nil system group in batch")
+		}
+		if strings.EqualFold(strings.TrimSpace(group.GType), "channel") {
+			return fmt.Errorf("broadcast channels are excluded from the group library")
 		}
 		if err := upsertSystemGroupTx(ctx, tx, group); err != nil {
 			return err
@@ -222,7 +228,7 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 	rows, err := r.db.Query(ctx, `
 		SELECT sg_id, source, COALESCE(title,''), COALESCE(username,''), COALESCE(tme_link,''),
 		       gtype, member_count, COALESCE(free_speech_status,'unknown'), status, ref_count, last_seen_at, COALESCE(first_contributor_tenant_name,''), COALESCE(telegram_chat_id,0)
-		FROM system_groups WHERE sg_id = ANY($1)`, ids)
+		FROM system_groups WHERE sg_id = ANY($1) AND COALESCE(gtype,'') <> 'channel'`, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +253,7 @@ func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) (
 // List 分页查询
 func (r *SystemGroupRepository) List(ctx context.Context, f SystemGroupFilter) ([]domain.SystemGroup, int64, error) {
 	// Exclude Telegram bot usernames, including legacy rows imported before bot filtering.
-	var where []string = []string{"(COALESCE(username,'') = '' OR username NOT ILIKE '%bot')"}
+	var where []string = []string{"COALESCE(gtype,'') <> 'channel'", "(COALESCE(username,'') = '' OR username NOT ILIKE '%bot')"}
 	var args []interface{}
 	n := 0
 	// 关键字三字段模糊(同一参数复用)

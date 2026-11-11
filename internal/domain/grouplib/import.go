@@ -264,6 +264,14 @@ func (e *Engine) importByLinks(ctx context.Context, tenantID, accountID uuid.UUI
 			res.Processed++
 			continue
 		}
+		// The shared library stores groups and supergroups, not broadcast channels.
+		// Count a confirmed channel as processed+skipped so resumable import offsets
+		// still advance past this Telegram target.
+		if isBroadcastChannelType(gtype) {
+			res.Skipped++
+			res.Processed++
+			continue
+		}
 		sg.Title, sg.MemberCount, sg.GType, sg.TelegramChatID = title, count, gtype, chatID
 		pendingGroups = append(pendingGroups, &sg)
 		res.Processed++
