@@ -272,3 +272,46 @@ func TestImportWorkerConcurrentWorkersClaimJobOnlyOnce(t *testing.T) {
 		t.Fatalf("concurrent claim calls=%d status=%s processed=%d; want 1/completed/1", calls.Load(), status, processed)
 	}
 }
+
+
+func TestDeleteImportJobRequiresTenantAndNoActiveLease(t *testing.T) {
+	pool := importWorkerTestPool(t)
+	tenantID, jobID, _ := createImportWorkerFixture(t, pool, 1, "cancelled", 0)
+	engine := &Engine{pool: pool}
+
+	if err := engine.DeleteImportJob(context.Background(), uuid.New(), jobID); err == nil {
+		t.Fatal("delete with a different tenant must be rejected")
+	}
+
+	leaseToken := uuid.New()
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE group_library_import_jobs
+		SET lease_token=$2, lease_expires_at=NOW()+INTERVAL '1 minute'
+		WHERE job_id=$1
+	`, jobID, leaseToken); err != nil {
+		t.Fatalf("create active lease fixture: %v", err)
+	}
+	if err := engine.DeleteImportJob(context.Background(), tenantID, jobID); err == nil {
+		t.Fatal("delete with an active lease must be rejected")
+	}
+
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE group_library_import_jobs
+		SET lease_expires_at=NOW()-INTERVAL '1 second'
+		WHERE job_id=$1 AND lease_token=$2
+	`, jobID, leaseToken); err != nil {
+		t.Fatalf("expire lease fixture: %v", err)
+	}
+	if err := engine.DeleteImportJob(context.Background(), tenantID, jobID); err != nil {
+		t.Fatalf("delete inactive job history: %v", err)
+	}
+	var remaining int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT COUNT(*) FROM group_library_import_jobs WHERE job_id=$1
+	`, jobID).Scan(&remaining); err != nil {
+		t.Fatalf("verify deleted job: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("job rows remaining = %d, want 0", remaining)
+	}
+}
