@@ -58,20 +58,10 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 		return fmt.Errorf("get account: %w", err)
 	}
 
-	// Use saved device profile, or generate new if empty
-	deviceType := ""
-	if acc.DeviceProfile != nil {
-		if v, ok := acc.DeviceProfile["device_type"].(string); ok {
-			deviceType = v
-		} else if raw, exists := acc.DeviceProfile["device_type"]; exists && raw != nil {
-			// 值存在但类型不对才是异常(历史脏数据)；键缺失/空对象是
-			// 新账号的正常初始状态，断言失败日志会严重误导排查方向
-			log.Printf("[auth] device_type 类型异常(应为 string) account=%s value=%T", accountID, raw)
-		}
-	}
-	if deviceType == "" {
-		deviceType = pickDeviceType(accountID)
-	}
+	// All account connections use the iOS device profile. Legacy macOS/Desktop
+	// profiles are converted by deviceProfileToConfig without replacing the
+	// existing authorized Telegram session.
+	deviceType := pickDeviceType(accountID)
 
 	// R182: 手机号只在"无存档需登录兜底"时使用。DB 有手机号 ≠ 要走登录流——
 	// 协议号导入后合法 session 已存档, 读档直连即可; 发码登录仅在无存档时兜底。
@@ -114,7 +104,17 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 		hasStoredSession = hasStored
 		if hasStoredSession {
 			if _, profileErr := deviceProfileFromMap(acc.DeviceProfile); profileErr != nil {
-				return fmt.Errorf("refuse to restore account %s: saved session exists but device profile is invalid: %w", accountID, profileErr)
+				// Protocol sessions imported from Telethon/Pyrogram may legitimately
+				// have no device metadata. Initialize only metadata-only/empty profiles;
+				// never silently replace a partially populated or corrupt identity.
+				if acc.Source != "protocol" || hasDeviceIdentityFields(acc.DeviceProfile) {
+					return fmt.Errorf("refuse to restore account %s: saved session exists but device profile is invalid: %w", accountID, profileErr)
+				}
+				deviceCfg := generateDeviceConfig(newSessionName)
+				acc.DeviceProfile = mergeDeviceConfigProfile(acc.DeviceProfile, deviceCfg, "ios")
+				if err := e.repo.Update(ctx, acc); err != nil {
+					return fmt.Errorf("initialize iOS device profile for imported session: %w", err)
+				}
 			}
 		}
 	}
@@ -134,9 +134,9 @@ func (e *Engine) connectAccount(ctx context.Context, tenantID, accountID uuid.UU
 
 	deviceCfg := deviceProfileToConfig(acc.DeviceProfile, newSessionName)
 	if deviceCfg.DeviceModel == "" {
-		deviceCfg = generateDeviceConfig(newSessionName, deviceType)
+		deviceCfg = generateDeviceConfig(newSessionName)
 	}
-	acc.DeviceProfile = deviceConfigToProfile(deviceCfg, deviceType)
+	acc.DeviceProfile = mergeDeviceConfigProfile(acc.DeviceProfile, deviceCfg, deviceType)
 	if err := e.repo.Update(ctx, acc); err != nil {
 		log.Printf("[auth] 更新账号信息失败: %v", err)
 	}
