@@ -78,7 +78,6 @@ func TestDeviceProfileFromMapAcceptsLegacyMetadata(t *testing.T) {
 	}
 }
 
-
 func TestPickDeviceTypeUsesIOS(t *testing.T) {
 	if got := pickDeviceType(uuid.Nil); got != "ios" {
 		t.Fatalf("pickDeviceType() = %q, want ios", got)
