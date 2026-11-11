@@ -1,7 +1,7 @@
 <template>
-  <main class="space-y-6">
+  <main class="space-y-4 md:space-y-6">
     <!-- R125 重设计(示例3 hero 语言): 渐变欢迎卡 + CTA -->
-    <section class="rounded-[24px] p-6 sm:p-7 relative overflow-hidden reveal"
+    <section class="rounded-[24px] p-4 sm:p-6 md:p-7 relative overflow-hidden reveal"
              style="background: linear-gradient(135deg, var(--t-brand), color-mix(in srgb, var(--t-brand) 62%, #8f7bff)); color: #fff; box-shadow: 0 14px 40px color-mix(in srgb, var(--t-brand) 30%, transparent);">
       <div class="absolute w-[170px] h-[170px] rounded-full pointer-events-none"
            style="border: 1px solid rgba(255,255,255,0.25); right: -50px; top: -50px; box-shadow: 0 0 0 24px rgba(255,255,255,0.06), 0 0 0 48px rgba(255,255,255,0.03);"></div>
@@ -35,7 +35,7 @@
       <!-- R98 仪表盘双栏: 趋势+分布并排(桌面端), 高度占用减半 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <!-- 任务趋势 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-5 md:p-6 min-h-[320px] lift">
+      <article class="glass rounded-[var(--t-r-lg)] p-3.5 sm:p-5 md:p-6 min-h-[260px] md:min-h-[320px] lift">
         <h3 class="text-body font-semibold text-text-primary mb-4">近 7 天任务趋势</h3>
         <div v-if="loading" class="h-56 flex items-center justify-center">
           <span class="w-5 h-5 rounded-full border-2 animate-spin inline-block" style="border-color: var(--t-brand); border-top-color: transparent;"></span>
@@ -45,7 +45,7 @@
           <LottieAnim src="@/assets/lottie/empty-tasks.json" width="150px" height="150px" />
           <p class="mt-1">暂无任务数据，去创建一个新任务吧~</p>
         </div>
-        <v-chart v-else class="h-56" :option="taskChartOption" autoresize />
+        <v-chart v-else class="h-48 md:h-56" :option="taskChartOption" autoresize />
       </article>
 
       <!-- 账号状态分布 -->
@@ -63,7 +63,7 @@
           <p class="text-sm">暂无账号</p>
           <router-link to="/accounts" class="text-xs text-[var(--t-brand)] hover:underline">去添加第一个 Telegram 账号 →</router-link>
         </div>
-        <v-chart v-else class="h-56" :option="accountChartOption" autoresize />
+        <v-chart v-else class="h-48 md:h-56" :option="accountChartOption" autoresize />
       </article>
       </div><!-- /R98 双栏 -->
     </section>
@@ -71,12 +71,12 @@
     <!-- 风险事件 & 最近活动 -->
     <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 reveal reveal-delay-2">
       <!-- 风险事件 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-5 md:p-6 lift">
+      <article class="glass rounded-[var(--t-r-lg)] p-3.5 sm:p-5 md:p-6 lift">
         <div class="flex items-center justify-between mb-5">
           <h3 class="text-body font-semibold text-text-primary">最近风险事件</h3>
           <router-link to="/accounts" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] font-medium transition-colors">查看全部</router-link>
         </div>
-        <div class="space-y-3">
+        <div class="space-y-2.5 md:space-y-3">
           <div
             v-for="event in riskEvents"
             :key="event.risk_id"
