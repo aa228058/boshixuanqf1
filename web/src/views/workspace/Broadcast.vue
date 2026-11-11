@@ -293,6 +293,18 @@
             <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-24" />
             <span class="text-xs text-text-muted shrink-0">分钟开始下一轮</span>
           </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="block text-xs font-semibold text-text-secondary mb-1">最大执行轮数</label>
+              <t-input v-model="loopMaxRounds" type="number" :min="0" :max="10000" placeholder="0 表示不限" class="w-full" />
+              <p class="text-[10px] text-text-muted mt-1">完成指定轮数后自动停止</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-text-secondary mb-1">自动结束时间（可选）</label>
+              <input v-model="loopEndAt" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+              <p class="text-[10px] text-text-muted mt-1">到期后不再安排下一轮</p>
+            </div>
+          </div>
           <p class="text-[11px] text-text-muted leading-relaxed">循环任务会重复执行相同的账号分配、群组和消息配置。可在任务列表中暂停或停止；暂停后可继续。</p>
         </div>
         <p v-else class="text-xs text-text-muted mt-1">本任务只执行一轮，完成后自动结束。</p>
@@ -347,6 +359,8 @@ const activeTab = ref<'tasks' | 'calendar'>('tasks')
 const pageTabs = [{ key: 'tasks', label: '任务列表' }, { key: 'calendar', label: '发送日历' }] as const
 const isLoop = ref(false)
 const loopIntervalMin = ref(60)
+const loopMaxRounds = ref(0)
+const loopEndAt = ref('')
 const authStore = useAuthStore()
 const loopFeature = computed(() => {
   const pf: any = (authStore.tenant as any)?.plan_features
@@ -571,6 +585,8 @@ function resetCreateForm() {
   priority.value = 5
   isLoop.value = false
   loopIntervalMin.value = 60
+  loopMaxRounds.value = 0
+  loopEndAt.value = ''
   scheduledAtTs.value = null
   clearMedia()
   obfuscate.value = false
@@ -840,6 +856,15 @@ async function submit() {
   }
   if (isLoop.value && (!Number.isInteger(loopMinutes) || loopMinutes < 1 || loopMinutes > 10080)) {
     toast({ type: 'error', title: '循环间隔无效', message: '循环间隔须为 1–10080 分钟' })
+    return
+  }
+  const maxRounds = Number(loopMaxRounds.value)
+  if (isLoop.value && (!Number.isInteger(maxRounds) || maxRounds < 0 || maxRounds > 10000)) {
+    toast({ type: 'error', title: '最大轮数无效', message: '请输入 0–10000 的整数，0 表示不限' })
+    return
+  }
+  if (isLoop.value && loopEndAt.value && new Date(loopEndAt.value).getTime() <= Date.now()) {
+    toast({ type: 'error', title: '结束时间无效', message: '结束时间必须晚于当前时间' })
     return
   }
   if (isLoop.value && scheduledAtTs.value) {
