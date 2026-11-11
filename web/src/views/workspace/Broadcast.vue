@@ -1,5 +1,5 @@
 <template>
-  <div class="p-3 sm:p-5 md:p-6 max-w-3xl mx-auto">
+  <div class="w-full min-w-0 p-3 sm:p-5 md:p-6 max-w-3xl mx-auto">
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="min-w-0">
         <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">群发消息</h1>
