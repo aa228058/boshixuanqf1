@@ -2096,7 +2096,8 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-menu {
   left: var(--t-space-3);
   right: var(--t-space-3);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  /* 抬高面板，避开移动端固定底部导航栏 */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
   width: auto;
   max-height: min(76dvh, 640px);
   overflow-y: auto;
