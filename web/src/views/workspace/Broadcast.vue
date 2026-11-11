@@ -937,7 +937,7 @@ async function submit() {
     return
   }
   if (isLoop.value && loopScheduleMode.value !== 'interval') {
-    if (!scheduleTimezone.value.trim() || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(scheduleLocalTime.value)) {
+    if (!scheduleTimezone.value.trim() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduleLocalTime.value)) {
       toast({ type: 'error', title: '日历排期无效', message: '请填写有效的 IANA 时区和 HH:MM 执行时间' })
       return
     }
