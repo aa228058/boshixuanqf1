@@ -30,6 +30,8 @@ func TestSystemGroupUpsertBatchPersistsLinksAndContributions(t *testing.T) {
 	if err := repo.UpsertBatch(ctx, groups); err != nil {
 		t.Fatalf("upsert batch: %v", err)
 	}
+	// A URL spelling variant must normalize to the same contribution identity.
+	groups[0].TmeLink = "https://www.t.me/batchgroupone/?start=campaign"
 	// Replaying the same import chunk must not inflate the number of distinct links.
 	if err := repo.UpsertBatch(ctx, groups); err != nil {
 		t.Fatalf("replay batch: %v", err)

@@ -51,7 +51,9 @@ export const useGroupStore = defineStore('group', () => {
     if (hit && hit.groups.length) {
       // R151 自动同步: 缓存超 30 分钟后台补一次(秒开 + 保鲜)
       if (Date.now() - new Date(hit.syncedAt).getTime() > STALE_MS) {
-        refresh(accountId).catch(() => {})
+        // Do not return the stale snapshot while refreshing in the background:
+        // selectors copy the returned array and otherwise never see the new result.
+        return refresh(accountId)
       }
       return hit.groups
     }

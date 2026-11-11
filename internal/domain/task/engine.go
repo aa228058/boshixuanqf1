@@ -92,6 +92,7 @@ type Engine struct {
 	// 读这里而不是每秒查库——N 个前端同时看进度时 DB QPS 归零。
 	// 任务结束时由 goroutine defer 删除。
 	progressCache sync.Map
+	progressMu    sync.Mutex // keeps concurrent callback progress snapshots monotonic
 	// scheduler provides resource-aware, plan-based dynamic concurrency control
 	scheduler *AutoScheduler
 
@@ -132,6 +133,7 @@ type AccountEngine interface {
 	ReleaseClient(tenantID, accountID uuid.UUID, client *telegram.Client)
 	GetAccountLevel(ctx context.Context, tenantID, accountID uuid.UUID) domain.AccountLevel
 	UpdateAccountStatus(ctx context.Context, tenantID, accountID uuid.UUID, status domain.AccountStatus) error
+	UpdateAccountRestriction(ctx context.Context, tenantID, accountID uuid.UUID, blockedUntil time.Time) error
 	GetByID(ctx context.Context, tenantID, accountID uuid.UUID) (*domain.Account, error)
 	WarmClient(ctx context.Context, tenantID, accountID uuid.UUID)
 }
@@ -233,20 +235,31 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 		return fmt.Errorf("query tenants: %w", err)
 	}
 	defer rows.Close()
-	count := 0
-	for rows.Next() {
-		var tenantID uuid.UUID
-		var maxConcurrent int
-		if err := rows.Scan(&tenantID, &maxConcurrent); err != nil {
-			continue
-		}
-		if maxConcurrent <= 0 {
-			maxConcurrent = 1
-		}
-		e.scheduler.RegisterTenant(tenantID, maxConcurrent)
-		count++
+
+	// Stage the complete snapshot before mutating the scheduler. A scan or
+	// iteration error must not leave a partially refreshed quota set in memory.
+	type tenantQuota struct {
+		tenantID      uuid.UUID
+		maxConcurrent int
 	}
-	log.Printf("[engine] 已加载 %d 个租户配额到调度器", count)
+	quotas := make([]tenantQuota, 0)
+	for rows.Next() {
+		var quota tenantQuota
+		if err := rows.Scan(&quota.tenantID, &quota.maxConcurrent); err != nil {
+			return fmt.Errorf("scan tenant concurrency quota: %w", err)
+		}
+		if quota.maxConcurrent <= 0 {
+			quota.maxConcurrent = 1
+		}
+		quotas = append(quotas, quota)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate tenant concurrency quotas: %w", err)
+	}
+	for _, quota := range quotas {
+		e.scheduler.RegisterTenant(quota.tenantID, quota.maxConcurrent)
+	}
+	log.Printf("[engine] 已加载 %d 个租户配额到调度器", len(quotas))
 	return nil
 }
 
@@ -254,6 +267,13 @@ func (e *Engine) loadTenantQuotas(ctx context.Context) error {
 // Uses "events" topic to match frontend subscription via Handler("events").
 // 同时写入 progressCache，供 StreamProgress 免库读取。
 func (e *Engine) publishProgress(tenantID uuid.UUID, taskID uuid.UUID, progress domain.TaskProgress) {
+	e.progressMu.Lock()
+	defer e.progressMu.Unlock()
+	if cached, ok := e.progressCache.Load(taskID); ok {
+		if previous, valid := cached.(domain.TaskProgress); valid && progress.Done < previous.Done {
+			progress = previous
+		}
+	}
 	e.progressCache.Store(taskID, progress)
 	if e.sseBroker != nil {
 		e.sseBroker.BroadcastToTenant(tenantID, "events", map[string]any{
@@ -369,9 +389,9 @@ func (e *Engine) Start(ctx context.Context) error {
 		e.wg.Done()
 	}()
 
-	// Load all active tenants and register their plan quotas.
+	// Do not start queue workers with an incomplete tenant-quota snapshot.
 	if err := e.loadTenantQuotas(runtimeCtx); err != nil {
-		log.Printf("[engine] 加载租户配额失败: %v", err)
+		return fmt.Errorf("load tenant concurrency quotas: %w", err)
 	}
 
 	if err := e.startListen(runtimeCtx); err != nil {
@@ -444,7 +464,11 @@ func (e *Engine) unblockExpiredLoop(ctx context.Context) {
 				}
 				recovered = append(recovered, ra)
 			}
+			iterationErr := rows.Err()
 			rows.Close()
+			if iterationErr != nil {
+				log.Printf("[engine] 恢复账号结果迭代不完整: %v", iterationErr)
+			}
 			for _, ra := range recovered {
 				if err := e.accEngine.UpdateAccountStatus(ctx, ra.tenantID, ra.accountID, domain.AccountStatusOnline); err != nil {
 					log.Printf("[engine] 恢复账号广播状态失败 %s: %v", ra.accountID, err)
@@ -719,6 +743,19 @@ func (e *Engine) pollLoop(ctx context.Context) {
 	}
 }
 
+// shouldDeferGlobalClaim fails closed when the cross-worker running-task
+// count cannot be read. Continuing on a database error could bypass the
+// configured global concurrency limit across application replicas.
+func shouldDeferGlobalClaim(running, limit int, countErr error) bool {
+	if limit <= 0 {
+		return false
+	}
+	if countErr != nil {
+		return true
+	}
+	return running >= limit
+}
+
 func (e *Engine) claimAndExecute(ctx context.Context) {
 	// Activate pending tasks whose scheduled_at has passed
 	if err := e.repo.ActivatePendingTasks(ctx); err != nil {
@@ -729,7 +766,10 @@ func (e *Engine) claimAndExecute(ctx context.Context) {
 	if e.GlobalLimitFn != nil {
 		if limit := e.GlobalLimitFn(); limit > 0 {
 			running, err := e.repo.CountRunningGlobal(ctx)
-			if err == nil && running >= limit {
+			if shouldDeferGlobalClaim(running, limit, err) {
+				if err != nil {
+					taskLog.Printf("[engine] 全局运行任务数读取失败，暂停本轮认领以保护并发上限: %v", err)
+				}
 				return
 			}
 		}
@@ -849,7 +889,7 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		defer e.runningTasks.Delete(taskKey)
 		// P1修复(精读发现): progressCache 只 Store 从不 Delete(注释承诺的删除并不存在),
 		// 每个任务永久泄漏一个 TaskProgress, sync.Map 随任务数无限增长。
-		defer e.progressCache.Delete(taskKey)
+		defer e.progressCache.Delete(task.TaskID)
 		defer func() {
 			if r := recover(); r != nil {
 				taskLog.Printf("task panic: %v\n%s\n", r, debug.Stack())
@@ -942,14 +982,16 @@ func (e *Engine) PauseTask(taskID uuid.UUID) {
 }
 
 func (e *Engine) CancelTask(taskID uuid.UUID) {
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbCancel()
 	// M-05: 取消立即落库(原只触发内存cancel, DB状态要等worker退出才更新,
 	// 取消后列表长时间显示running造成"取消没生效"的错觉; worker认领时的状态双查会跳过已取消任务)
-	if t, err := e.repo.GetByTaskIDAnyTenant(context.Background(), taskID); err == nil && t != nil {
-		if _, uerr := e.repo.CancelIfActive(context.Background(), t.TenantID, taskID); uerr != nil {
+	if t, err := e.repo.GetByTaskIDAnyTenant(dbCtx, taskID); err == nil && t != nil {
+		if _, uerr := e.repo.CancelIfActive(dbCtx, t.TenantID, taskID); uerr != nil {
 			taskLog.Printf("[task] cancel落库失败: %v", uerr)
 		}
 		if e.approvalRepo != nil {
-			if uerr := e.approvalRepo.CancelPendingForTask(context.Background(), t.TenantID, taskID); uerr != nil {
+			if uerr := e.approvalRepo.CancelPendingForTask(dbCtx, t.TenantID, taskID); uerr != nil {
 				taskLog.Printf("[task] cancel pending approval failed: %v", uerr)
 			}
 		}
@@ -1000,12 +1042,9 @@ func (e *Engine) markAccountRestricted(ctx context.Context, tenantID, accountID 
 	if waitSec > 0 {
 		blockedUntil = time.Now().UTC().Add(time.Duration(waitSec) * time.Second)
 	}
-	if err := e.accEngine.UpdateAccountStatus(ctx, tenantID, accountID, domain.AccountStatusRestricted); err != nil {
-		log.Printf("[engine] 更新状态失败: %v", err)
-	}
-	if _, err := e.db.Pool.Exec(ctx, `UPDATE accounts SET blocked_until = $1 WHERE tenant_id = $2 AND account_id = $3`,
-		blockedUntil, tenantID, accountID); err != nil {
-		log.Printf("[engine] 更新封禁时间失败: %v", err)
+	if err := e.accEngine.UpdateAccountRestriction(ctx, tenantID, accountID, blockedUntil); err != nil {
+		log.Printf("[engine] 原子更新账号受限状态和冷却截止时间失败: %v", err)
+		return
 	}
 	e.sendTelegramAlert(fmt.Sprintf("⚠️ 账号受限告警\n账号ID: %s\n原因: %s\n冷却至: %s\n详情: %s",
 		accountID, eventType, blockedUntil.Format("01-02 15:04"), detail))
@@ -1153,6 +1192,9 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	scrapedCount := 0
 	scrapedUsers := make(map[string]bool)
 	var countMu sync.Mutex
+	maxReached := make(chan struct{})
+	var maxReachedOnce sync.Once
+	maxReachedFlag := false
 
 	// Register OnMessage handler for real-time message listening
 	clientKey := task.TenantID.String() + ":" + accountID.String()
@@ -1163,6 +1205,9 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		taskLog.Printf("[monitor_scrape] client %s already has OnMessage registered, falling back to polling", clientKey)
 		// Fallback to polling if OnMessage already registered (by monitor engine or another task)
 		e.runMonitorScrapePolling(ctx, task, group, matcher, durationMinutes, maxResults, &scrapedCount, scrapedUsers, &countMu)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[task] failed to mark unsupported monitor polling task as failed: %v", err)
+		}
 		return
 	}
 	e.scrapeRegistered[clientKey] = true
@@ -1183,17 +1228,21 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	acceptingCallbacks := true
 	var handler telegram.Handler
 
-	defer func() {
-		callbackMu.Lock()
-		acceptingCallbacks = false
-		callbackMu.Unlock()
-		client.RemoveHandler(handler)
-		callbackWG.Wait()
+	var stopCallbacksOnce sync.Once
+	stopCallbacks := func() {
+		stopCallbacksOnce.Do(func() {
+			callbackMu.Lock()
+			acceptingCallbacks = false
+			callbackMu.Unlock()
+			client.RemoveHandler(handler)
+			callbackWG.Wait()
 
-		countMu.Lock()
-		scrapedUsers = nil
-		countMu.Unlock()
-	}()
+			countMu.Lock()
+			scrapedUsers = nil
+			countMu.Unlock()
+		})
+	}
+	defer stopCallbacks()
 
 	handler = client.OnMessage(func(c *telegram.Client, msg *types.Message) {
 		callbackMu.Lock()
@@ -1228,16 +1277,17 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		// Deduplicate by sender ID
 		countMu.Lock()
 		key := fmt.Sprintf("%d", msg.FromID)
-		if scrapedUsers[key] {
+		if scrapedUsers == nil || maxReachedFlag || scrapedUsers[key] ||
+			(maxResults > 0 && scrapedCount >= int(maxResults)) {
 			countMu.Unlock()
 			return
 		}
 		scrapedUsers[key] = true
-		currentCount := scrapedCount + 1
-		scrapedCount = currentCount
-		countMu.Unlock()
+		scrapedCount++
+		currentCount := scrapedCount
 
-		// Save member to database (TGUserID only, username fetched if possible)
+		// Serialize slot reservation and persistence so concurrent callbacks cannot
+		// overrun maxResults or publish completion before an earlier write fails.
 		member := &domain.Member{
 			MemberID:  uuid.New(),
 			TenantID:  task.TenantID,
@@ -1246,8 +1296,16 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			ScrapedAt: time.Now(),
 		}
 		if err := e.memberRepo.BatchCreate(ctx, []*domain.Member{member}); err != nil {
+			delete(scrapedUsers, key)
+			scrapedCount--
+			countMu.Unlock()
 			taskLog.Printf("[task] failed to save member: %v", err)
+			return
 		}
+		if maxResults > 0 && currentCount >= int(maxResults) {
+			maxReachedFlag = true
+		}
+		countMu.Unlock()
 
 		// Update progress
 		e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
@@ -1269,10 +1327,12 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			taskLog.Printf("[task] failed to create scrape log: %v", err)
 		}
 
-		// Check if max results reached
+		// Stop as soon as the configured maximum is persisted.
 		if maxResults > 0 && currentCount >= int(maxResults) {
 			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 				taskLog.Printf("[task] failed to update status to completed: %v", err)
+			} else {
+				maxReachedOnce.Do(func() { close(maxReached) })
 			}
 		}
 	})
@@ -1283,18 +1343,26 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		duration = 30 * time.Minute
 	}
 
+	reachedMax := false
 	select {
 	case <-time.After(duration):
 	case <-ctx.Done():
+	case <-maxReached:
+		reachedMax = true
 	}
+
+	// Drain accepted callbacks before reading the final count or publishing terminal progress.
+	stopCallbacks()
 
 	// Finalize
 	countMu.Lock()
 	finalCount := scrapedCount
 	countMu.Unlock()
 
-	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
-		taskLog.Printf("[task] failed to update status to completed: %v", err)
+	if !reachedMax && ctx.Err() == nil {
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
+			taskLog.Printf("[task] failed to update status to completed: %v", err)
+		}
 	}
 
 	e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{

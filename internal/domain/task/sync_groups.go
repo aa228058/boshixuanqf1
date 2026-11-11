@@ -2,8 +2,11 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/google/uuid"
 	"tg-sender/internal/domain"
@@ -132,7 +135,10 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 			log.Printf("[sync] 处理对话 id=%d 标题=%q 类型=%s 成员=%d", chat.ID, chat.Title, gtype, memberCount)
 
 			// Check if group already exists by TGChatID to avoid duplicate inserts
-			existing, _ := e.groupRepo.GetByTGChatID(ctx, tenantID, chat.ID)
+			existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, tenantID, chat.ID)
+			if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+				return fmt.Errorf("lookup group by Telegram chat ID %d: %w", chat.ID, lookupErr)
+			}
 			var groupID uuid.UUID
 			if existing != nil {
 				existing.Title = chat.Title
@@ -144,7 +150,7 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 				existing.MemberCount = memberCount
 				// Preserve existing AccessHash (GetDialogs doesn't provide it)
 				if err := e.groupRepo.Update(ctx, existing); err != nil {
-					log.Printf("[sync] 更新群组 %d 失败: %v", chat.ID, err)
+					return fmt.Errorf("update group %d: %w", chat.ID, err)
 				}
 				groupID = existing.GroupID
 			} else {
@@ -161,17 +167,23 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 					// AccessHash will be filled later via ResolvePeer when needed
 				}
 				if err := e.groupRepo.Create(ctx, g); err != nil {
-					log.Printf("[sync] upsert group %d failed: %v", chat.ID, err)
-					continue
+					return fmt.Errorf("upsert group %d: %w", chat.ID, err)
 				}
+				// Create uses ON CONFLICT (tenant_id, tg_chat_id). If another
+				// worker inserted the same chat after our lookup, the attempted
+				// UUID is not the canonical row ID; reload it before linking.
+				persisted, err := e.groupRepo.GetByTGChatID(ctx, tenantID, chat.ID)
+				if err != nil {
+					return fmt.Errorf("reload group %d after upsert: %w", chat.ID, err)
+				}
+				groupID = persisted.GroupID
 			}
 
 			// Link group to account
 			if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, groupID, isJoined); err != nil {
-				log.Printf("[sync] 关联群组 %d 到账号失败: %v", chat.ID, err)
-			} else {
-				log.Printf("[sync] 已关联群组 %d（group_id=%s）到账号 %s", chat.ID, groupID, accountID)
+				return fmt.Errorf("link group %d (group_id=%s) to account %s: %w", chat.ID, groupID, accountID, err)
 			}
+			log.Printf("[sync] 已关联群组 %d（group_id=%s）到账号 %s", chat.ID, groupID, accountID)
 			processed++
 		}
 
@@ -196,10 +208,11 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 		}
 		// #nosec G115 -- page length is explicitly bounded to MaxInt32 above.
 		offset += int32(len(dialogs))
-		// Safety limit: max 200 batches (约 2 万个会话), 防止极端情况下无限分页
+		// Safety limit: max 200 batches (约 2 万个会话). A capped scan is
+		// incomplete, so abort before prune; otherwise unseen joined groups
+		// would be incorrectly marked as left.
 		if batchCount >= 200 {
-			log.Printf("[sync] 达到最大批次数量（200），停止")
-			break
+			return fmt.Errorf("get dialogs reached safety limit after %d batches; skip prune to preserve joined groups", batchCount)
 		}
 	}
 
@@ -210,34 +223,29 @@ func (e *Engine) SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.
 	// 反向 diff: 分页遍历本地该账号的全部已加入群, 不在 seenIDs 里的标 left。
 	pruned := 0
 	const prunePage = 500
+	var localSnapshot []*domain.Group
 	for off := 0; ; off += prunePage {
 		localGroups, err := e.groupRepo.ListByAccount(ctx, tenantID, accountID, prunePage, off)
 		if err != nil {
-			log.Printf("[sync] prune 阶段读取本地群组失败(offset=%d): %v", off, err)
-			break
+			// Do not partially prune when the snapshot could not be read completely.
+			return fmt.Errorf("prune snapshot list groups (offset %d): %w", off, err)
 		}
-		if len(localGroups) == 0 {
-			break
-		}
-		for _, lg := range localGroups {
-			if lg == nil || !lg.IsJoined {
-				continue
-			}
-			if seenIDs[lg.TGChatID] {
-				continue // 本次同步见到了, 保持已加入
-			}
-			if err := e.groupRepo.UpdateJoinStatus(ctx, tenantID, lg.GroupID, false); err != nil {
-				log.Printf("[sync] prune 标记群 %d left 失败: %v", lg.TGChatID, err)
-				continue
-			}
-			if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, lg.GroupID, false); err != nil {
-				log.Printf("[sync] prune 更新关联表失败 group=%s: %v", lg.GroupID, err)
-			}
-			pruned++
-		}
+		localSnapshot = append(localSnapshot, localGroups...)
 		if len(localGroups) < prunePage {
-			break // 最后一页
+			break
 		}
+	}
+	for _, lg := range localSnapshot {
+		if lg == nil || !lg.IsJoined || seenIDs[lg.TGChatID] {
+			continue
+		}
+		if err := e.groupRepo.UpdateJoinStatus(ctx, tenantID, lg.GroupID, false); err != nil {
+			return fmt.Errorf("prune mark group %d as left: %w", lg.TGChatID, err)
+		}
+		if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, lg.GroupID, false); err != nil {
+			return fmt.Errorf("prune update account-group association for group %s: %w", lg.GroupID, err)
+		}
+		pruned++
 	}
 	if pruned > 0 {
 		log.Printf("[sync] prune 完成：标记 %d 个已退出群组", pruned)

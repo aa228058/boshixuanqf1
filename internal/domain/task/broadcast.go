@@ -25,25 +25,6 @@ import (
 	"github.com/mtgo-labs/mtgo/tg"
 )
 
-// dedupeTargetsPerAccount removes duplicate targets for one account without
-// removing the same target from another account's assignment.
-func dedupeTargetsPerAccount(input map[uuid.UUID][]string) map[uuid.UUID][]string {
-	out := make(map[uuid.UUID][]string, len(input))
-	for accountID, targets := range input {
-		seen := make(map[string]struct{}, len(targets))
-		unique := make([]string, 0, len(targets))
-		for _, target := range targets {
-			if _, exists := seen[target]; exists {
-				continue
-			}
-			seen[target] = struct{}{}
-			unique = append(unique, target)
-		}
-		out[accountID] = unique
-	}
-	return out
-}
-
 // acquireBroadcastSlot waits for an account worker slot but always respects task cancellation.
 func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	if ctx.Err() != nil {
@@ -55,6 +36,123 @@ func acquireBroadcastSlot(ctx context.Context, semaphore chan struct{}) bool {
 	case <-ctx.Done():
 		return false
 	}
+}
+
+// waitBroadcastDelay waits for a pacing interval without trapping a worker after
+// task cancellation, pause, or engine shutdown.
+func waitBroadcastDelay(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func dedupeAccountIDs(accountIDs []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]bool, len(accountIDs))
+	result := make([]uuid.UUID, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID == uuid.Nil || seen[accountID] {
+			continue
+		}
+		seen[accountID] = true
+		result = append(result, accountID)
+	}
+	return result
+}
+
+func dedupeAccountTargets(accountTargets map[uuid.UUID][]string) map[uuid.UUID][]string {
+	result := make(map[uuid.UUID][]string, len(accountTargets))
+	for accountID, targets := range accountTargets {
+		seen := make(map[string]bool, len(targets))
+		unique := make([]string, 0, len(targets))
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			if target == "" || seen[target] {
+				continue
+			}
+			seen[target] = true
+			unique = append(unique, target)
+		}
+		result[accountID] = unique
+	}
+	return result
+}
+
+// countBroadcastTargetProgress keeps already successful account-target pairs
+// out of the failure count when an account is skipped during task recovery.
+func countBroadcastTargetProgress(accountID uuid.UUID, targets []string, successSet map[string]bool) (done, pending int) {
+	for _, target := range targets {
+		if successSet[accountID.String()+"|"+target] {
+			done++
+		} else {
+			pending++
+		}
+	}
+	return done, pending
+}
+
+// reconcileBroadcastTimeoutProgress accounts for targets left unprocessed when
+// the broadcast's hard execution deadline expires.
+func reconcileBroadcastTimeoutProgress(total, done, failed int, timedOut bool) (int, bool) {
+	if !timedOut {
+		return failed, false
+	}
+	remaining := total - done - failed
+	if remaining > 0 {
+		failed += remaining
+	}
+	return failed, true
+}
+
+// shouldSendBroadcastTarget prevents sends after an account-level failure or
+// when peer resolution did not produce a usable chat ID.
+func shouldSendBroadcastTarget(status string, chatID int64) bool {
+	return status != "failed" && chatID != 0
+}
+
+func parseBroadcastMappings(raw any, allowedAccounts []uuid.UUID) (map[uuid.UUID][]string, error) {
+	mappings, ok := raw.([]any)
+	if !ok || len(mappings) == 0 {
+		return nil, fmt.Errorf("mapping mode requires a non-empty mappings array")
+	}
+	allowed := make(map[uuid.UUID]bool, len(allowedAccounts))
+	for _, id := range allowedAccounts {
+		allowed[id] = true
+	}
+	result := make(map[uuid.UUID][]string, len(mappings))
+	for i, item := range mappings {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("mapping[%d] must be an object", i)
+		}
+		accountText, ok := entry["account_id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("mapping[%d] account_id must be a UUID string", i)
+		}
+		accountID, err := uuid.Parse(accountText)
+		if err != nil || !allowed[accountID] {
+			return nil, fmt.Errorf("mapping[%d] account_id is invalid or not selected", i)
+		}
+		targetValues, ok := entry["targets"].([]any)
+		if !ok || len(targetValues) == 0 {
+			return nil, fmt.Errorf("mapping[%d] targets must be a non-empty array", i)
+		}
+		for j, value := range targetValues {
+			target, ok := value.(string)
+			if !ok || strings.TrimSpace(target) == "" {
+				return nil, fmt.Errorf("mapping[%d] targets[%d] must be a non-empty string", i, j)
+			}
+			result[accountID] = append(result[accountID], target)
+		}
+	}
+	return dedupeAccountTargets(result), nil
 }
 
 func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
@@ -123,6 +221,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		log.Printf("[broadcast] 任务 %s 执行器收到 %d 个按钮", task.TaskID, len(urlButtons))
 	}
 
+	// Duplicate account IDs would otherwise launch duplicate workers for the
+	// same (account,target) pair while the progress total counts it only once.
+	task.AccountIDs = dedupeAccountIDs(task.AccountIDs)
+
 	// Determine broadcast mode
 	modeStr, _ := task.Payload["mode"].(string)
 	mode := domain.BroadcastMode(modeStr)
@@ -130,50 +232,31 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		mode = domain.BroadcastModeCartesian // default to legacy mode
 	}
 
-	// Build account -> targets mapping
+	// Build account -> targets mapping. Invalid mapping input must fail closed:
+	// silently falling back to cartesian can send to groups the user did not select.
 	accountTargets := make(map[uuid.UUID][]string)
 	var total int
-
-	if mode == domain.BroadcastModeMapping {
-		// Parse mappings from payload
-		var mappingsData []any
-		if v, ok := task.Payload["mappings"]; ok {
-			switch val := v.(type) {
-			case []any:
-				mappingsData = val
+	switch mode {
+	case domain.BroadcastModeMapping:
+		var mappingErr error
+		accountTargets, mappingErr = parseBroadcastMappings(task.Payload["mappings"], task.AccountIDs)
+		if mappingErr != nil {
+			taskLog.Printf("[broadcast] invalid account-target mapping task=%s: %v", task.TaskID, mappingErr)
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+				taskLog.Printf("[broadcast] failed to mark invalid mapping task failed: %v", err)
 			}
+			return
 		}
-		for _, m := range mappingsData {
-			mMap, ok := m.(map[string]any)
-			if !ok {
-				continue
-			}
-			accIDStr, _ := mMap["account_id"].(string)
-			accID, err := uuid.Parse(accIDStr)
-			if err != nil {
-				continue
-			}
-			targetsRaw, _ := mMap["targets"].([]any)
-			var targets []string
-			for _, t := range targetsRaw {
-				if ts, ok := t.(string); ok {
-					targets = append(targets, ts)
-				}
-			}
-			accountTargets[accID] = targets
-			total += len(targets)
-		}
-		// Fallback: if no valid mappings parsed, use cartesian
-		if len(accountTargets) == 0 {
-			mode = domain.BroadcastModeCartesian
-		}
-	}
-
-	if mode == domain.BroadcastModeCartesian {
+	case domain.BroadcastModeCartesian:
 		for _, accID := range task.AccountIDs {
 			accountTargets[accID] = task.TargetIDs
 		}
-		total = len(task.TargetIDs) * len(task.AccountIDs)
+	default:
+		taskLog.Printf("[broadcast] unsupported broadcast mode task=%s mode=%q", task.TaskID, mode)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] failed to mark unsupported mode task failed: %v", err)
+		}
+		return
 	}
 
 	done := 0
@@ -269,10 +352,20 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	semaphore := make(chan struct{}, maxConcurrentAccounts)
 	var wg sync.WaitGroup
 
-	// Deduplicate targets within each account only. The same target must remain
-	// assigned to multiple accounts in cartesian mode; global deduplication
-	// silently removed valid account-target send units.
-	accountTargets = dedupeTargetsPerAccount(accountTargets)
+	// Deduplicate repeated targets within each account only. The same target
+	// assigned to different accounts remains distinct work.
+	accountTargets = dedupeAccountTargets(accountTargets)
+	total = 0
+	for _, targets := range accountTargets {
+		total += len(targets)
+	}
+	if total == 0 {
+		taskLog.Printf("[broadcast] task %s has no valid account-target work", task.TaskID)
+		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+			taskLog.Printf("[broadcast] failed to mark empty task failed: %v", err)
+		}
+		return
+	}
 
 	// P1-47 审计修复: 续传防重原先是每目标一次 count(*) 查询(N+1), 上千目标时
 	// 拖慢发送循环。这里在 worker 扇出前一次性批量查回成功目标集; 运行期新成功
@@ -311,7 +404,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	// Always reset the progress snapshot, including a zero-success restart, so
 	// stale failures from the previous attempt are not shown while retrying.
 	resumedProgress := domain.TaskProgress{Total: total, Done: done}
-	if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, resumedProgress); err != nil {
+	if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), resumedProgress); err != nil {
 		taskLog.Printf("[broadcast] 恢复检查点进度写入失败 task=%s: %v", task.TaskID, err)
 		if statusErr := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); statusErr != nil {
 			taskLog.Printf("[broadcast] 标记进度恢复失败任务失败时出错 task=%s: %v", task.TaskID, statusErr)
@@ -365,11 +458,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				}
 				taskLog.Printf("[task] skip account %s: status=%s (not active)", accID, status)
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -378,11 +472,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			if acc.BlockedUntil != nil && acc.BlockedUntil.After(time.Now().UTC()) {
 				taskLog.Printf("[task] skip account %s: blocked_until=%s", accID, acc.BlockedUntil.Format(time.RFC3339))
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -392,11 +487,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			client, err := e.accEngine.GetClient(ctx, task.TenantID, accID)
 			if err != nil {
 				mu.Lock()
-				failed += len(targets)
+				accountDone, accountPending := countBroadcastTargetProgress(accID, targets, successSet)
+				failed += accountPending
 				accountProgress[accID] = &domain.AccountProgress{
 					AccountID: accID,
-					Done:      0,
-					Failed:    len(targets),
+					Done:      accountDone,
+					Failed:    accountPending,
 					Total:     len(targets),
 				}
 				mu.Unlock()
@@ -431,6 +527,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			accFailed := 0
 			progressAccum := domain.TaskProgress{}
 			progressFlushThreshold := 10 // flush progress every N messages to reduce DB writes
+			accountFlooded := false
 
 			for i, targetID := range targets {
 				// 2026-10-21: 目标级耗时统计——结果日志带"耗时 Xs", 用户要的完整 时间-群名-状态-耗时
@@ -439,7 +536,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				case <-e.stopCh:
 					// Flush pending progress before pausing
 					if progressAccum.Total > 0 {
-						if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progressAccum); err != nil {
+						if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), progressAccum); err != nil {
 							log.Printf("[broadcast] 更新进度失败: %v", err)
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
@@ -451,7 +548,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				case <-ctx.Done():
 					// Flush pending progress before cancel exit
 					if progressAccum.Total > 0 {
-						if err := e.repo.UpdateProgressExact(ctx, task.TenantID, task.TaskID, progressAccum); err != nil {
+						if err := e.repo.UpdateProgressExactOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), progressAccum); err != nil {
 							log.Printf("[broadcast] 更新进度失败: %v", err)
 						}
 						e.publishProgress(task.TenantID, task.TaskID, progressAccum)
@@ -480,7 +577,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 				var errCode string
 				var chatID int64
 				var peer any
-				if parsedID, parseErr := strconv.ParseInt(targetID, 10, 64); parseErr == nil {
+				if accountFlooded {
+					status = "failed"
+					errCode = "account_restricted_flood_wait"
+					accFailed++
+				} else if parsedID, parseErr := strconv.ParseInt(targetID, 10, 64); parseErr == nil {
 					chatID = parsedID
 					// 超级群/频道必须用 AccessHash, 否则 PEER_ID_INVALID。
 					// 前端选择器现在统一存 TG chat ID, 查库补全 hash 直发, 零解析。
@@ -519,10 +620,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						status = "failed"
 						errCode = "resolve_peer_failed"
 						accFailed++
+						if isGlobalFlood(resolveErr) {
+							accountFlooded = true
+							e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_resolve_flood_wait", resolveErr.Error(), extractFloodSeconds(resolveErr.Error()))
+						}
 						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
-						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\n",
+						taskLog.Printf("[broadcast] target %s resolve failed for account %s: %s (target may be invalid or account restricted)\\n",
 							targetID, accID, resolveErr.Error())
-						continue
 					}
 					switch p := peer.(type) {
 					case *tg.InputPeerUser:
@@ -533,11 +637,15 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						chatID = p.ChannelID
 					}
 				}
-				if chatID == 0 {
-					status = "failed"
-					errCode = "unsupported peer type"
-					accFailed++
-					e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+				if !shouldSendBroadcastTarget(status, chatID) {
+					// A prior account cooldown or peer-resolution failure is terminal
+					// for this target. Do not attempt a send with an unresolved chatID.
+					if status != "failed" {
+						status = "failed"
+						errCode = "unsupported peer type"
+						accFailed++
+						e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", errCode)
+					}
 				} else {
 					// Replace template variables with target info before sending
 					// 先 spintax 随机语法(每个目标独立), 再变量替换
@@ -561,7 +669,9 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					} else if chatID < 0 {
 						_, _ = client.Raw().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: &tg.InputPeerChat{ChatID: chatID}, Action: &tg.SendMessageTypingAction{}})
 					}
-					time.Sleep(time.Duration(1000+securerand.IntN(2000)) * time.Millisecond)
+					if !waitBroadcastDelay(ctx, time.Duration(1000+securerand.IntN(2000))*time.Millisecond) {
+						return
+					}
 
 					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax/变量/混淆已全部解析,
 					// 转义后的 \{ \} 不再参与语法匹配, 用户写的 {你好|Hi} 能正常随机取值)
@@ -595,9 +705,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						case isGlobalFlood(sendErr):
 							waitSec := extractFloodSeconds(errStr)
 							if waitSec >= 60 {
+								accountFlooded = true
 								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), waitSec)
 							} else if waitSec > 0 {
-								// Light flood: wait and retry once
+								// Light FloodWait: wait and retry once.
 								select {
 								case <-ctx.Done():
 									return
@@ -605,19 +716,27 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 								}
 								retryMsgID, retryErr := trySend()
 								if retryErr != nil {
-									e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
+									if isGlobalFlood(retryErr) {
+										accountFlooded = true
+										e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_retry_flood_wait", retryErr.Error(), extractFloodSeconds(retryErr.Error()))
+									} else {
+										e.recordRiskEvent(ctx, task.TenantID, accID, "broadcast_fail", "medium", retryErr.Error())
+									}
 								} else {
 									if retryMsgID != 0 {
 										sentMsgID = retryMsgID
 									}
 									accDone++
-									// Retry succeeded: decrement failed count, but guard against negative
 									if accFailed > 0 {
 										accFailed--
 									}
 									status = "success"
 									errCode = ""
 								}
+							} else {
+								// PEER_FLOOD has no duration; use the conservative default cooldown.
+								accountFlooded = true
+								e.markAccountRestricted(ctx, task.TenantID, accID, "broadcast_flood_wait", sendErr.Error(), 0)
 							}
 						case isGroupLevelRestriction(sendErr):
 							// Group-level restriction: skip this target only, do not mark account
@@ -739,7 +858,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					accum := progressAccum
 					progressAccum = domain.TaskProgress{} // reset
 					mu.Unlock()
-					if err := e.repo.UpdateProgress(ctx, task.TenantID, task.TaskID, accum); err != nil {
+					if err := e.repo.UpdateProgressOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), accum); err != nil {
 						taskLog.Printf("progress update failed: %v\n", err)
 					}
 				}
@@ -832,6 +951,12 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		accProgList = append(accProgList, *ap)
 	}
 
+	// A hard execution deadline must never turn a partially processed broadcast
+	// into "completed". Durable successes are retained; unprocessed remainder is
+	// surfaced as failed so the final counters reconcile to Total.
+	var timedOut bool
+	failed, timedOut = reconcileBroadcastTimeoutProgress(total, done, failed, ctx.Err() == context.DeadlineExceeded)
+
 	// Set final exact progress and status
 	finalProgress := domain.TaskProgress{
 		Total:           total,
@@ -839,13 +964,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		Failed:          failed,
 		AccountProgress: accProgList,
 	}
-	if err := e.repo.UpdateProgressExact(finalCtx, task.TenantID, task.TaskID, finalProgress); err != nil {
+	if err := e.repo.UpdateProgressExactOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalProgress); err != nil {
 		log.Printf("[broadcast] 更新进度失败: %v", err)
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
 	finalStatus := domain.TaskStatusCompleted
-	if (failed == total && total > 0) || checkpointPersistErr != nil {
+	if timedOut || (failed == total && total > 0) || checkpointPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
 	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
@@ -853,10 +978,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	}
 }
 
+// replaceMessageVars replaces template variables in the message with actual target info.
+// Supported variables: {{first_name}}, {{group_name}}, {{user_id}}, {{now}}
+// dictVarRe 匹配 {{词典名}}(与现有 {{first_name}} 同风格; 单花括号留给 spintax)
 var dictVarRe = regexp.MustCompile(`\{\{([A-Za-z0-9_\-\x{4e00}-\x{9fa5}]{1,32})\}\}`)
 
-// isLegacyMessageVariable marks the retired built-in placeholders. They are no
-// longer resolved as recipient/group metadata or treated as dictionary names.
+
+// isLegacyMessageVariable marks retired built-in placeholders; custom dictionary names remain supported.
 func isLegacyMessageVariable(name string) bool {
 	switch strings.ToLower(name) {
 	case "first_name", "group_name", "user_id", "now", "username", "phone":
