@@ -147,12 +147,11 @@
           · 约需 {{ estMinutes }} 分钟
         </p>
         <!-- R101 P1-第二刀: 覆盖预览 -->
-        <div v-if="selectedTargets.length && execAccounts.length && coverage.ok + coverage.fail > 0"
+        <div v-if="selectedTargets.length && execAccounts.length && (coverage.ok > 0 || coverage.unreachable.length > 0)"
              class="mt-3 rounded-lg border p-3 text-xs"
-             :class="(coverage.fail > 0 || coverage.unreachable.length) ? 'border-[color:var(--t-warn)]/30 bg-[var(--t-warn)]/5' : 'border-[color:var(--t-ok)]/30 bg-[var(--t-ok)]/5'">
+             :class="coverage.unreachable.length ? 'border-[color:var(--t-warn)]/30 bg-[var(--t-warn)]/5' : 'border-[color:var(--t-ok)]/30 bg-[var(--t-ok)]/5'">
           <div>
             <span class="text-[var(--t-ok)]">✅ 可发 {{ coverage.ok }} 条</span>
-            <span v-if="coverage.fail" class="text-[var(--t-warn)] ml-2">⚠️ 预计失败 {{ coverage.fail }} 条（账号未加入该群）</span>
             <span v-if="coverage.unreachable.length" class="text-[var(--t-err)] ml-2">⛔ {{ coverage.unreachable.length }} 个群无账号加入</span>
           </div>
           <div v-if="coverage.unreachable.length" class="text-[10.5px] text-[var(--t-warn)]/90 mt-1.5 leading-relaxed">
@@ -809,6 +808,10 @@ async function submit() {
 
   if (!accountIds.length || !targetIds.length) {
     toast({ type: 'warning', title: '请至少选择一个执行账号和一个发送目标' })
+    return
+  }
+  if (!isLoop.value && coverage.value.mappings.length === 0) {
+    toast({ type: 'warning', title: '没有可发送的账号群组组合', message: '请确认已加载群组数据，并至少有一个所选账号加入目标群组' })
     return
   }
   if (!Number.isInteger(minSeconds) || !Number.isInteger(maxSeconds) ||
