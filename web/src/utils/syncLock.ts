@@ -3,7 +3,7 @@
 
 let syncingAccountId: string | null = null
 let syncStartTime = 0
-const SYNC_LOCK_TTL = 60000 // 60 seconds max lock duration (safety net)
+const SYNC_LOCK_TTL = 120000 // Slightly above the 110s backend sync deadline
 const SYNC_INTERVAL = 10 * 60 * 1000 // 10 minutes between syncs
 
 export const syncLock = {

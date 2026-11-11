@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	securerand "tg-sender/internal/secure"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 )
@@ -53,6 +55,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	total := len(task.TargetIDs)
 	done := 0
 	failed := 0
+	joinedTargetLinks := make([]string, 0, total)
 
 	if len(task.AccountIDs) == 0 {
 		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
@@ -165,13 +168,25 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		// Distinguish private invite link vs public group link
 		if strings.Contains(link, "+") || strings.Contains(link, "joinchat") {
 			// Private group: use ImportChatInvite with hash
-			// Deduplication: skip if already pending approval for this link
-			if e.approvalRepo != nil {
-				if existing, _ := e.approvalRepo.GetByAccountAndLink(ctx, accID, link); existing != nil {
-					status = "pending_approval"
-					errCode = "already_pending"
-					goto logAndContinue
-				}
+			// Fail closed when the approval store cannot be checked: otherwise a retry
+			// could submit the same private join request again after an earlier request.
+			if e.approvalRepo == nil {
+				status = "failed"
+				errCode = "approval_repository_unavailable"
+				errMsg = "pending approval repository is unavailable"
+				goto logAndContinue
+			}
+			existing, lookupErr := e.approvalRepo.GetByAccountAndLink(ctx, accID, link)
+			if lookupErr == nil && existing != nil {
+				status = "pending_approval"
+				errCode = "already_pending"
+				goto logAndContinue
+			}
+			if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+				status = "failed"
+				errCode = "approval_lookup_failed"
+				errMsg = lookupErr.Error()
+				goto logAndContinue
 			}
 			hash := extractInviteHash(link)
 			req := &tg.MessagesImportChatInviteRequest{Hash: hash}
@@ -183,13 +198,11 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 				if isInviteRequestSent(joinErr) {
 					// Join request automatically sent by Telegram server
 					status = "pending_approval"
-					// A pending UI state is valid only when the background checker can
-					// actually find a persisted approval record.
-					if e.approvalRepo == nil {
-						status = "failed"
-						errCode = "approval_repository_unavailable"
-						errMsg = "pending approval repository is unavailable"
-					} else if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
+					// The Telegram side effect may already have happened. Persist the
+					// approval record with an independent bounded context so task cancellation
+					// cannot erase the only durable evidence of the pending request.
+					approvalCtx, approvalCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					approvalErr := e.approvalRepo.Create(approvalCtx, &domain.PendingApproval{
 						TaskID:     task.TaskID,
 						TenantID:   task.TenantID,
 						AccountID:  accID,
@@ -198,27 +211,19 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 						TargetLink: link,
 						Status:     "pending",
 						MaxChecks:  12,
-					}); err != nil {
+					})
+					approvalCancel()
+					if approvalErr != nil {
 						status = "failed"
 						errCode = "approval_record_create_failed"
-						errMsg = err.Error()
-						log.Printf("[join] 创建待审批记录失败: %v", err)
+						errMsg = approvalErr.Error()
+						log.Printf("[join] 创建待审批记录失败: %v", approvalErr)
 					}
-					// Create a temporary group record only when approval polling is persisted.
-					if status == "pending_approval" && e.groupRepo != nil {
-						now := time.Now()
-						g := &domain.Group{
-							GroupID:  uuid.New(),
-							TenantID: task.TenantID,
-							Title:    link,
-							Type:     "pending",
-							IsJoined: false,
-							JoinedAt: &now,
-						}
-						if err := e.groupRepo.Create(ctx, g); err != nil {
-							log.Printf("[join] 创建群组失败: %v", err)
-						}
-					}
+					// A pending private invite has no confirmed Telegram chat identity yet.
+					// Keep only the PendingApproval row; create the groups row after membership is confirmed.
+				} else if isAlreadyMember(joinErr) {
+					status = "success"
+					errCode = "already_member"
 				} else {
 					status = "failed"
 					errCode = "join_failed"
@@ -233,7 +238,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 			} else {
 				// Direct join success: extract group info from Updates
 				if updates, ok := result.(*tg.Updates); ok && e.groupRepo != nil {
-					e.extractAndSaveGroupFromUpdates(ctx, task, updates, link)
+					e.extractAndSaveGroupFromUpdates(ctx, task, accID, updates, link)
 				} else if !ok {
 					taskLog.Printf("[join] ImportChatInvite result is not *tg.Updates, type: %T", result)
 				}
@@ -262,13 +267,90 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 					errCode = "not a group"
 				}
 				if chatID != 0 {
-					// Deduplication: skip if already joined this group
-					if e.groupRepo != nil {
-						if existing, _ := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID); existing != nil && existing.IsJoined {
+					// Do not attempt a Telegram side effect when the local membership
+					// lookup failed; only a confirmed not-found result is safe to proceed.
+					if e.groupRepo == nil {
+						status = "failed"
+						errCode = "group_repository_unavailable"
+						goto logAndContinue
+					}
+					existingGroup, groupLookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+					if groupLookupErr == nil && existingGroup != nil && existingGroup.IsJoined {
+						// The group row may predate its account_groups association.
+						// Repair the association before treating this target as complete.
+						if linkErr := e.groupRepo.UpsertAccountGroup(ctx, accID, existingGroup.GroupID, true); linkErr != nil {
+							status = "failed"
+							errCode = "group_account_link_failed"
+							errMsg = linkErr.Error()
+						} else {
 							status = "success"
 							errCode = "already_joined"
-							goto logAndContinue
 						}
+						goto logAndContinue
+					}
+					if groupLookupErr != nil && !errors.Is(groupLookupErr, pgx.ErrNoRows) {
+						status = "failed"
+						errCode = "group_lookup_failed"
+						errMsg = groupLookupErr.Error()
+						goto logAndContinue
+					}
+					// A Telegram join can succeed while local persistence fails. Reuse
+					// this persistence path for both fresh joins and ALREADY_PARTICIPANT
+					// retries so a retry can repair the missing local group row.
+					persistJoinedGroup := func() error {
+						if e.groupRepo == nil {
+							return fmt.Errorf("group repository is unavailable")
+						}
+						if strings.HasPrefix(link, "@") {
+							username = link[1:]
+						} else if strings.HasPrefix(link, "https://t.me/") {
+							username = strings.TrimPrefix(link, "https://t.me/")
+						} else if strings.HasPrefix(link, "http://t.me/") {
+							username = strings.TrimPrefix(link, "http://t.me/")
+						} else if !strings.Contains(link, "/") {
+							username = link
+						}
+						existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+						var groupID uuid.UUID
+						if lookupErr == nil && existing != nil {
+							existing.AccessHash = accessHash
+							existing.IsJoined = true
+							existing.Type = gtype
+							if username != "" {
+								existing.Username = username
+							}
+							if existing.JoinedAt == nil {
+								now := time.Now()
+								existing.JoinedAt = &now
+							}
+							if err := e.groupRepo.Update(ctx, existing); err != nil {
+								return fmt.Errorf("update joined group: %w", err)
+							}
+							groupID = existing.GroupID
+						} else if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+							return fmt.Errorf("lookup joined group: %w", lookupErr)
+						} else {
+							now := time.Now()
+							groupID = uuid.New()
+							if err := e.groupRepo.Create(ctx, &domain.Group{
+								GroupID: groupID, TenantID: task.TenantID, TGChatID: chatID,
+								Title: link, Username: username, Type: gtype, AccessHash: accessHash,
+								IsJoined: true, JoinedAt: &now,
+							}); err != nil {
+								return fmt.Errorf("create joined group: %w", err)
+							}
+							// Create uses ON CONFLICT; re-read to obtain the canonical ID
+							// if another worker inserted the same Telegram chat concurrently.
+							persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+							if err != nil {
+								return fmt.Errorf("reload joined group: %w", err)
+							}
+							groupID = persisted.GroupID
+						}
+						if err := e.groupRepo.UpsertAccountGroup(ctx, accID, groupID, true); err != nil {
+							return fmt.Errorf("link joined group to account: %w", err)
+						}
+						return nil
 					}
 					var joinErr error
 					switch p := peer.(type) {
@@ -296,23 +378,34 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 								status = "failed"
 								errCode = "approval_repository_unavailable"
 								errMsg = "pending approval repository is unavailable"
-							} else if err := e.approvalRepo.Create(ctx, &domain.PendingApproval{
-								TaskID:     task.TaskID,
-								TenantID:   task.TenantID,
-								AccountID:  accID,
-								ChatID:     chatID,
-								TargetLink: link,
-								Status:     "pending",
-								MaxChecks:  12,
-							}); err != nil {
-								status = "failed"
-								errCode = "approval_record_create_failed"
-								errMsg = err.Error()
-								log.Printf("[join] 创建待审批记录失败: %v", err)
+							} else {
+								approvalCtx, approvalCancel := context.WithTimeout(context.Background(), 5*time.Second)
+								approvalErr := e.approvalRepo.Create(approvalCtx, &domain.PendingApproval{
+									TaskID:     task.TaskID,
+									TenantID:   task.TenantID,
+									AccountID:  accID,
+									ChatID:     chatID,
+									TargetLink: link,
+									Status:     "pending",
+									MaxChecks:  12,
+								})
+								approvalCancel()
+								if approvalErr != nil {
+									status = "failed"
+									errCode = "approval_record_create_failed"
+									errMsg = approvalErr.Error()
+									log.Printf("[join] 创建待审批记录失败: %v", approvalErr)
+								}
 							}
 						} else if isAlreadyMember(joinErr) {
 							status = "success"
 							errCode = "already_member"
+							if persistErr := persistJoinedGroup(); persistErr != nil {
+								status = "failed"
+								errCode = "group_persist_failed"
+								errMsg = persistErr.Error()
+								log.Printf("[join] 已在群组中，但修复本地群组记录失败: %v", persistErr)
+							}
 						} else {
 							status = "failed"
 							errMsg = joinErr.Error()
@@ -329,45 +422,11 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							}
 						}
 					} else {
-						// Join success: save to groups table immediately
-						if e.groupRepo != nil {
-							now := time.Now()
-							// Extract username from public link
-							if strings.HasPrefix(link, "@") {
-								username = link[1:]
-							} else if strings.HasPrefix(link, "https://t.me/") {
-								username = strings.TrimPrefix(link, "https://t.me/")
-							} else if strings.HasPrefix(link, "http://t.me/") {
-								username = strings.TrimPrefix(link, "http://t.me/")
-							} else if !strings.Contains(link, "/") {
-								username = link
-							}
-							g := &domain.Group{
-								GroupID:    uuid.New(),
-								TenantID:   task.TenantID,
-								TGChatID:   chatID,
-								Title:      link,
-								Username:   username,
-								Type:       gtype,
-								AccessHash: accessHash,
-								IsJoined:   true,
-								JoinedAt:   &now,
-							}
-							existing, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-							if err == nil && existing != nil {
-								existing.AccessHash = accessHash
-								existing.IsJoined = true
-								if g.Username != "" {
-									existing.Username = g.Username
-								}
-								if err := e.groupRepo.Update(ctx, existing); err != nil {
-									log.Printf("[join] 更新群组失败: %v", err)
-								}
-							} else {
-								if err := e.groupRepo.Create(ctx, g); err != nil {
-									log.Printf("[join] 创建群组失败: %v", err)
-								}
-							}
+						if persistErr := persistJoinedGroup(); persistErr != nil {
+							status = "failed"
+							errCode = "group_persist_failed"
+							errMsg = persistErr.Error()
+							log.Printf("[join] 加群成功但保存本地群组记录失败: %v", persistErr)
 						}
 					}
 				}
@@ -401,6 +460,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 		}
 		persistCancel()
 		e.publishLog(task.TenantID, task.TaskID, joinLog)
+		if status == "success" {
+			joinedTargetLinks = append(joinedTargetLinks, link)
+		}
 
 		// Only a confirmed invalid/expired Telegram URL changes that URL's validity.
 		// Other aliases for the same group remain independently usable.
@@ -479,9 +541,12 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 	}
 	e.publishProgress(task.TenantID, task.TaskID, finalProgress)
 
-	// Sync joined groups to groups table (always try, even if already_member or failed)
-	if e.groupRepo != nil && total > 0 {
-		e.syncJoinedGroups(ctx, task, accID, client)
+	// Enrich only confirmed memberships. Resolving a failed target is not proof
+	// that this account joined it; never mark failed or pending approvals as joined.
+	if e.groupRepo != nil && len(joinedTargetLinks) > 0 {
+		syncTask := *task
+		syncTask.TargetIDs = joinedTargetLinks
+		e.syncJoinedGroups(ctx, &syncTask, accID, client)
 	}
 
 	if failed == total && total > 0 {
@@ -623,9 +688,8 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 				}
 			}
 		}
-		if !metadataResolved {
-			gtype = "unknown"
-		}
+		// Keep the type derived from ResolvePeer when metadata lookup fails.
+		// "unknown" violates the groups.type constraint and loses useful peer data.
 		// Fallback to link for the tenant-local record only; never publish this as a shared group title.
 		if title == "" {
 			title = link
@@ -657,22 +721,44 @@ func (e *Engine) syncJoinedGroups(ctx context.Context, task *domain.Task, accID 
 			IsJoined:   true,
 			JoinedAt:   &now,
 		}
-		// Check if group already exists by tg_chat_id + tenant_id
-		existing, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-		if err == nil && existing != nil {
-			// Update existing with latest info
+		// Check if group already exists by Telegram chat ID + tenant.
+		existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+		var groupID uuid.UUID
+		if lookupErr == nil && existing != nil {
 			existing.AccessHash = accessHash
 			existing.IsJoined = true
+			existing.Title = title
+			existing.Type = gtype
+			existing.MemberCount = memberCount
 			if username != "" {
 				existing.Username = username
 			}
+			if existing.JoinedAt == nil {
+				now := time.Now()
+				existing.JoinedAt = &now
+			}
 			if err := e.groupRepo.Update(ctx, existing); err != nil {
 				log.Printf("[join] 更新群组失败: %v", err)
+				continue
 			}
-		} else {
+			groupID = existing.GroupID
+		} else if errors.Is(lookupErr, pgx.ErrNoRows) {
 			if err := e.groupRepo.Create(ctx, g); err != nil {
 				log.Printf("[join] 创建群组失败: %v", err)
+				continue
 			}
+			persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+			if err != nil {
+				log.Printf("[join] 重载群组失败: %v", err)
+				continue
+			}
+			groupID = persisted.GroupID
+		} else {
+			log.Printf("[join] 查询群组失败: %v", lookupErr)
+			continue
+		}
+		if err := e.groupRepo.UpsertAccountGroup(ctx, accID, groupID, true); err != nil {
+			log.Printf("[join] 关联群组到账号失败 account=%s group=%s: %v", accID, groupID, err)
 		}
 	}
 }
@@ -687,7 +773,7 @@ func defaultFreeSpeechStatus(rights *tg.ChatBannedRights) string {
 
 // extractAndSaveGroupFromUpdates extracts group info from Updates (ImportChatInvite result)
 // and saves/updates the groups table. Handles both *tg.Chat and *tg.Channel.
-func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, updates *tg.Updates, sourceLink string) {
+func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domain.Task, accountID uuid.UUID, updates *tg.Updates, sourceLink string) {
 	for _, chat := range updates.Chats {
 		var chatID int64
 		var sharedChatID int64
@@ -755,18 +841,34 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 			JoinedAt:   &now,
 		}
 
-		existing, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-		if err == nil && existing != nil {
+		existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+		var groupID uuid.UUID
+		if lookupErr == nil && existing != nil {
 			existing.AccessHash = accessHash
 			existing.IsJoined = true
 			existing.Title = title
 			if err := e.groupRepo.Update(ctx, existing); err != nil {
 				log.Printf("[join] 更新群组失败: %v", err)
+				continue
 			}
-		} else {
+			groupID = existing.GroupID
+		} else if errors.Is(lookupErr, pgx.ErrNoRows) {
 			if err := e.groupRepo.Create(ctx, g); err != nil {
 				log.Printf("[join] 创建群组失败: %v", err)
+				continue
 			}
+			persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+			if err != nil {
+				log.Printf("[join] 重载群组失败: %v", err)
+				continue
+			}
+			groupID = persisted.GroupID
+		} else {
+			log.Printf("[join] 查询群组失败: %v", lookupErr)
+			continue
+		}
+		if err := e.groupRepo.UpsertAccountGroup(ctx, accountID, groupID, true); err != nil {
+			log.Printf("[join] 邀请加入后关联群组到账号失败 account=%s group=%s: %v", accountID, groupID, err)
 		}
 	}
 }

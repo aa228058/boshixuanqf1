@@ -139,7 +139,7 @@ func (h *GroupHandler) List(c echo.Context) error {
 		total, countErr = h.svc.CountByAccount(c.Request().Context(), tenantID, accountID)
 		if countErr != nil {
 			log.Printf("[handler] CountByAccount failed: %v", countErr)
-			total = 0
+			return echo.NewHTTPError(http.StatusInternalServerError, "获取群组总数失败")
 		}
 		log.Printf("[handler] ListByAccount返回%d个群组，总计=%d，错误=%v", len(groups), total, err)
 	} else {
@@ -437,7 +437,7 @@ type SyncGroupsRequest struct {
 
 // SyncGroups godoc
 // @Summary 同步已加入群组
-// @Description 从Telegram同步账户已加入的群组/频道到本地数据库（异步）
+// @Description 从Telegram同步账户已加入的群组/频道到本地数据库，完成后返回
 // @Tags 群组
 // @Accept json
 // @Produce json
@@ -447,7 +447,7 @@ type SyncGroupsRequest struct {
 // @Failure 500 {object} ErrorResponse
 // @Security BearerAuth
 // @Router /groups/sync [post]
-// SyncGroups triggers syncing joined groups from Telegram asynchronously.
+// SyncGroups synchronizes joined groups from Telegram and returns after completion.
 func (h *GroupHandler) SyncGroups(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
 	if err != nil {
@@ -469,25 +469,19 @@ func (h *GroupHandler) SyncGroups(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "同步服务暂不可用")
 	}
 
-	log.Printf("[handler] SyncGroups开始后台同步 for tenant=%s account=%s", tenantID, accountID)
-	// Run sync in background so it continues even if HTTP request times out
-	safego.Go(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("[handler] 后台同步异常: %v", r)
-			}
-		}()
-		log.Printf("[handler] 后台同步协程已启动 for account %s", accountID)
-		// Use timeout context to prevent goroutine leak on network blockage
-		syncCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		if err := h.syncer.SyncJoinedGroups(syncCtx, tenantID, accountID); err != nil {
-			log.Printf("[handler] 后台同步失败 for account %s: %v", accountID, err)
-		} else {
-			log.Printf("[handler] 后台同步完成 for account %s", accountID)
+	log.Printf("[handler] SyncGroups开始同步 for tenant=%s account=%s", tenantID, accountID)
+	// Complete the sync before acknowledging success. The UI can then fetch a
+	// consistent snapshot instead of mistaking an old non-empty list for completion.
+	// Keep this below the frontend request timeout (120s).
+	syncCtx, cancel := context.WithTimeout(c.Request().Context(), 110*time.Second)
+	defer cancel()
+	if err := h.syncer.SyncJoinedGroups(syncCtx, tenantID, accountID); err != nil {
+		log.Printf("[handler] 群组同步失败 for account %s: %v", accountID, err)
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(syncCtx.Err(), context.DeadlineExceeded) {
+			return echo.NewHTTPError(http.StatusGatewayTimeout, "群组同步超时，请稍后重试")
 		}
-	})
-
-	log.Printf("[handler] SyncGroups返回同步状态")
-	return Success(c, map[string]string{"status": "syncing"})
+		return echo.NewHTTPError(http.StatusBadGateway, "Telegram 群组同步失败")
+	}
+	log.Printf("[handler] 群组同步完成 for account %s", accountID)
+	return Success(c, map[string]string{"status": "done"})
 }
