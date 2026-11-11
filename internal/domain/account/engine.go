@@ -223,6 +223,15 @@ func (e *Engine) updateStatus(ctx context.Context, tenantID, accountID uuid.UUID
 	return nil
 }
 
+// UpdateAccountRestriction atomically stores restricted status and cooldown expiry.
+func (e *Engine) UpdateAccountRestriction(ctx context.Context, tenantID, accountID uuid.UUID, blockedUntil time.Time) error {
+	if err := e.repo.UpdateStatusAndBlockedUntil(ctx, tenantID, accountID, domain.AccountStatusRestricted, blockedUntil); err != nil {
+		return err
+	}
+	e.notifyAccountStatus(tenantID, accountID, domain.AccountStatusRestricted)
+	return nil
+}
+
 // notifyAccountStatus 向租户广播账号状态事件（BroadcastToTenant 非阻塞）。
 func (e *Engine) notifyAccountStatus(tenantID, accountID uuid.UUID, status domain.AccountStatus) {
 	if e.sseBroker == nil {
