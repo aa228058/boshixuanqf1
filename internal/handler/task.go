@@ -342,12 +342,16 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 		LoopIntervalMinutes int            `json:"loop_interval_minutes"`
 		MinIntervalSeconds  int            `json:"min_interval_seconds"`
 		MaxIntervalSeconds  int            `json:"max_interval_seconds"`
+		Mappings            []struct {
+			AccountID string   `json:"account_id"`
+			Targets   []string `json:"targets"`
+		} `json:"mappings,omitempty"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "请求参数错误")
 	}
 	message, _ := req.Payload["message"].(string)
-	if message == "" || len(req.TargetIDs) == 0 || len(req.AccountIDs) == 0 {
+	if message == "" || len(req.TargetIDs) == 0 || (len(req.AccountIDs) == 0 && len(req.Mappings) == 0) {
 		return echo.NewHTTPError(http.StatusBadRequest, "定时广播需要指定账号、目标群组和消息内容")
 	}
 	accountIDs := make([]uuid.UUID, 0, len(req.AccountIDs))
@@ -358,6 +362,14 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 		}
 		accountIDs = append(accountIDs, uid)
 	}
+	mappings := make([]domain.AccountTargetMapping, 0, len(req.Mappings))
+	for _, m := range req.Mappings {
+		accountID, parseErr := uuid.Parse(m.AccountID)
+		if parseErr != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "映射账号ID格式错误: "+m.AccountID)
+		}
+		mappings = append(mappings, domain.AccountTargetMapping{AccountID: accountID, Targets: m.Targets})
+	}
 	isLoop := true
 	if req.IsLoop != nil {
 		isLoop = *req.IsLoop
@@ -366,8 +378,8 @@ func (h *TaskHandler) CreateScheduledBroadcast(c echo.Context) error {
 	if interval <= 0 {
 		interval = 60
 	}
-	task, err := h.svc.CreateScheduledBroadcast(c.Request().Context(), tenantID,
-		accountIDs, req.TargetIDs, message, interval, req.MinIntervalSeconds, req.MaxIntervalSeconds, isLoop)
+	task, err := h.svc.CreateScheduledBroadcastWithMapping(c.Request().Context(), tenantID,
+		mappings, accountIDs, req.TargetIDs, message, interval, req.MinIntervalSeconds, req.MaxIntervalSeconds, isLoop)
 	if err != nil {
 		log.Printf("[handler] 创建定时广播任务失败: %v", err)
 		log.Printf("[handler] 内部错误已脱敏: %v", err)
