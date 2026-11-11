@@ -47,8 +47,10 @@
           <div v-if="job.last_error" class="text-[11px] text-[var(--t-err)] mt-1 break-words">{{ job.last_error }}</div>
         </div>
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
+        <span v-if="job.status === 'cancelling'" class="text-xs text-text-muted">正在停止…</span>
         <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
         <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
+        <t-button v-if="['review', 'completed', 'failed', 'cancelled'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="deleteImportJob(job.job_id)">删除记录</t-button>
       </div>
     </section>
 
@@ -315,9 +317,10 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
-import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
+import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, deleteGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
 
@@ -474,6 +477,26 @@ async function retryFailedImportJob(jobId: string) {
     void pollImportJob(job.job_id)
   } catch (err: any) {
     toast({ type: 'error', title: '重试失败', message: err?.message || '无法创建失败链接重试任务' })
+  }
+}
+
+async function deleteImportJob(jobId: string) {
+  const confirmed = await ask('确定删除这条导入任务记录？', {
+    title: '删除导入记录',
+    detail: '只删除任务历史和失败明细，不影响已入库群组。',
+    danger: true,
+    confirmText: '删除',
+  })
+  if (!confirmed) return
+
+  try {
+    await deleteGroupLibraryImportJob(jobId)
+    importJobs.value = importJobs.value.filter((item: any) => item.job_id !== jobId)
+    if (importJob.value?.job_id === jobId) importJob.value = null
+    toast({ type: 'success', title: '已删除导入记录', message: '仅删除任务历史，不影响已入库的群组' })
+  } catch (err: any) {
+    toast({ type: 'error', title: '删除失败', message: err?.message || '任务仍在运行或暂时无法删除' })
+    void loadImportJobs()
   }
 }
 
