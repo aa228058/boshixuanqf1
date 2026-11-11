@@ -280,7 +280,7 @@
                 <div class="acc-menu-label">资料与备注</div>
                 <button type="button" @click="openMenuId = ''; openProfile(acc)"
                         class="ui-menu-item w-full">
-                  <UserRoundPen class="w-3.5 h-3.5" />修改资料
+                  <UserRound class="w-3.5 h-3.5" />修改资料
                 </button>
                 <button type="button" @click="openMenuId = ''; editRemark(acc)"
                         class="ui-menu-item w-full">
@@ -672,9 +672,9 @@
             <span class="text-text-muted">已选 {{ cloneTargets.length }} 个</span>
           </div>
           <div v-if="cloneTargets.length" class="flex flex-wrap gap-1.5">
-            <span v-for="target in cloneTargets.slice(0, 6)" :key="target.account_id"
+            <span v-for="(target, index) in cloneTargets.slice(0, 6)" :key="target?.account_id || index"
                   class="max-w-full truncate rounded-md px-2 py-1 text-[11px] bg-bg-hover text-text-secondary">
-              {{ target.remark || target.first_name || target.phone || '未命名账号' }}
+              {{ target?.remark || target?.first_name || target?.phone || '未命名账号' }}
             </span>
             <span v-if="cloneTargets.length > 6" class="text-[11px] text-text-muted self-center">另有 {{ cloneTargets.length - 6 }} 个</span>
           </div>
