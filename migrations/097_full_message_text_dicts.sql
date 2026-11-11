@@ -41,5 +41,4 @@ CREATE INDEX IF NOT EXISTS idx_text_dict_entries_enabled
 DROP INDEX IF EXISTS idx_text_dict_entries_enabled;
 DROP INDEX IF EXISTS idx_text_dicts_tenant_enabled;
 ALTER TABLE text_dict_entries DROP COLUMN IF EXISTS enabled;
-ALTER TABLE text_dict_entries ALTER COLUMN word TYPE VARCHAR(512);
 ALTER TABLE text_dicts DROP COLUMN IF EXISTS enabled;
