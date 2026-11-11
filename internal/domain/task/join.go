@@ -819,18 +819,34 @@ func (e *Engine) extractAndSaveGroupFromUpdates(ctx context.Context, task *domai
 			JoinedAt:   &now,
 		}
 
-		existing, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
-		if err == nil && existing != nil {
+		existing, lookupErr := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+		var groupID uuid.UUID
+		if lookupErr == nil && existing != nil {
 			existing.AccessHash = accessHash
 			existing.IsJoined = true
 			existing.Title = title
 			if err := e.groupRepo.Update(ctx, existing); err != nil {
 				log.Printf("[join] 更新群组失败: %v", err)
+				continue
 			}
-		} else {
+			groupID = existing.GroupID
+		} else if errors.Is(lookupErr, pgx.ErrNoRows) {
 			if err := e.groupRepo.Create(ctx, g); err != nil {
 				log.Printf("[join] 创建群组失败: %v", err)
+				continue
 			}
+			persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
+			if err != nil {
+				log.Printf("[join] 重载群组失败: %v", err)
+				continue
+			}
+			groupID = persisted.GroupID
+		} else {
+			log.Printf("[join] 查询群组失败: %v", lookupErr)
+			continue
+		}
+		if err := e.groupRepo.UpsertAccountGroup(ctx, task.AccountIDs[0], groupID, true); err != nil {
+			log.Printf("[join] 邀请加入后关联群组到账号失败 account=%s group=%s: %v", task.AccountIDs[0], groupID, err)
 		}
 	}
 }
