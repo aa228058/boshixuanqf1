@@ -750,7 +750,7 @@ import {
   Plus, FolderPlus, User, Pencil, Trash2, Plug, Unplug,
   KeyRound, ShieldAlert, Shield, Loader2, Search,
   RefreshCw, Play, Archive, LogOut, MoreHorizontal,
-  ShieldCheck, ArrowRightLeft, UserRoundPen,
+  ShieldCheck, ArrowRightLeft, UserRound,
 } from 'lucide-vue-next'
 import { useAccountStore } from '@/stores/account'
 import { accountApi, importSessions, importSessionFiles, setAccountProxy, testAccountProxy, uploadAvatar } from '@/api/account'
