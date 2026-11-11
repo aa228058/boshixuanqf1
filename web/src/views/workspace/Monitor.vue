@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-4xl mx-auto">
+  <div class="min-w-0 w-full p-3 sm:p-5 md:p-6 max-w-4xl mx-auto">
     <h1 class="text-title font-extrabold tracking-tight text-text-primary truncate">消息监控</h1>
     <p class="text-sm text-text-muted mt-1 mb-6">
       <!-- R109: 账号下拉(源群组选择/规则展示跟随), 不依赖顶栏切换器 -->
