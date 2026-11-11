@@ -273,9 +273,9 @@ test('群发创建表单可导入目标、编辑消息，且不提交任务', as
   const modal = page.locator('.modal-card:visible').first()
   await expect(modal).toBeVisible()
   await modal.getByRole('button', { name: /批量导入目标/ }).click()
-  await modal.getByLabel('批量导入群组目标').fill('@sample_group\\nhttps://t.me/another_group')
+  await modal.getByLabel('批量导入群组目标').fill('@sample_group\nhttps://t.me/another_group')
   await modal.getByRole('button', { name: '解析添加' }).click()
-  await expect(modal.getByText('已选 2 个目标')).toBeVisible()
+  await expect(page.getByText('已添加 2 个目标')).toBeVisible()
 
   const message = modal.locator('textarea[placeholder^="输入消息内容"]')
   await message.fill('你好，这是一条测试消息。')
