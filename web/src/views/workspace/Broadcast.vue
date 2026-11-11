@@ -124,22 +124,23 @@
             {{ acc.first_name || acc.phone }}
           </button>
         </div>
-        <div v-if="!isLoop" class="mt-3">
-          <label class="block text-xs font-semibold text-text-secondary mb-2">发送策略</label>
+        <div class="mt-3">
+          <label class="block text-xs font-semibold text-text-secondary mb-2">账号分配策略</label>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" @click="sendStrategy = 'assign'"
               class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
               :class="sendStrategy === 'assign' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
-              <span class="block font-semibold">分配发送</span>
-              <span class="block mt-1 opacity-75">每个群分配给一个已加入的账号</span>
+              <span class="block font-semibold">均衡分配</span>
+              <span class="block mt-1 opacity-75">每个群由一个已加入的账号负责</span>
             </button>
             <button type="button" @click="sendStrategy = 'all'"
               class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
               :class="sendStrategy === 'all' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
-              <span class="block font-semibold">全部账号发送</span>
-              <span class="block mt-1 opacity-75">每个已加入该群的账号各发送一次</span>
+              <span class="block font-semibold">全部符合条件账号</span>
+              <span class="block mt-1 opacity-75">每个已加入该群的所选账号各执行一次</span>
             </button>
           </div>
+          <p class="text-[10.5px] text-text-muted mt-1.5">{{ isLoop ? '循环任务每一轮沿用此账号分配关系。' : '单次任务按此分配关系执行一轮。' }}</p>
         </div>
         <p v-if="selectedTargets.length && execAccounts.length" class="text-[10.5px] text-text-muted mt-1.5">
           按账号入群情况预计发送 <strong class="text-text-primary">{{ coverage.ok }}</strong> 条
@@ -275,12 +276,16 @@
             <span v-if="!loopFeature" class="absolute -top-1 -right-1 text-[9px] px-1 rounded bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/40">锁</span>
           </button>
         </div>
-        <div v-if="isLoop" class="flex items-center gap-2 mt-2">
-          <span class="text-xs text-text-secondary">每轮间隔</span>
-          <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-28" />
-          <span class="text-xs text-text-muted">分钟</span>
+        <div v-if="isLoop" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
+          <label class="block text-xs font-semibold text-text-secondary">循环周期</label>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-text-muted shrink-0">上一轮完成后，间隔</span>
+            <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-24" />
+            <span class="text-xs text-text-muted shrink-0">分钟开始下一轮</span>
+          </div>
+          <p class="text-[11px] text-text-muted leading-relaxed">循环任务会重复执行相同的账号分配、群组和消息配置。可在任务列表中暂停或停止；暂停后可继续。</p>
         </div>
-        <p v-if="isLoop" class="text-xs text-text-muted mt-1">混淆文案每轮重新随机, 目标列表去重不重复轰炸</p>
+        <p v-else class="text-xs text-text-muted mt-1">本任务只执行一轮，完成后自动结束。</p>
       </div>
 
     </div>
@@ -792,7 +797,7 @@ async function submit() {
     toast({ type: 'warning', title: '请至少选择一个执行账号和一个发送目标' })
     return
   }
-  if (!isLoop.value && coverage.value.mappings.length === 0) {
+  if (coverage.value.mappings.length === 0) {
     toast({ type: 'warning', title: '没有可发送的账号群组组合', message: '请确认已加载群组数据，并至少有一个所选账号加入目标群组' })
     return
   }
@@ -840,6 +845,7 @@ async function submit() {
         account_ids: accountIds,
         target_ids: targetIds,
         payload: { message: messageText },
+        mappings: coverage.value.mappings,
         is_loop: true,
         loop_interval_minutes: loopMinutes,
         min_interval_seconds: minSeconds,
