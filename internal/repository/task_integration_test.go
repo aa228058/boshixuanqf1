@@ -116,7 +116,9 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 			task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')
 		)
 	`)
-	if err != nil { t.Fatalf("create group import jobs fixture: %v", err) }
+	if err != nil {
+		t.Fatalf("create group import jobs fixture: %v", err)
+	}
 	if _, err := pool.Exec(context.Background(), `ALTER TABLE group_library_import_jobs ADD COLUMN IF NOT EXISTS task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')`); err != nil {
 		t.Fatalf("ensure import job task_number: %v", err)
 	}
