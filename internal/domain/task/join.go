@@ -335,7 +335,7 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							// if another worker inserted the same Telegram chat concurrently.
 							persisted, err := e.groupRepo.GetByTGChatID(ctx, task.TenantID, chatID)
 							if err != nil {
-								return fmt.Errorf("reload joined group: %w", err)
+							return fmt.Errorf("reload joined group: %w", err)
 							}
 							groupID = persisted.GroupID
 							}
@@ -423,9 +423,9 @@ func (e *Engine) executeJoinGroups(ctx context.Context, task *domain.Task) {
 							log.Printf("[join] 加群成功但保存本地群组记录失败: %v", persistErr)
 						}
 					}
-					}
 				}
 			}
+		}
 
 	logAndContinue:
 		joinLog := &domain.TaskLog{
