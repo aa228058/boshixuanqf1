@@ -744,7 +744,6 @@
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useAccountAvatar } from '@/composables/useAccountAvatar'
 import {
   Plus, FolderPlus, User, Pencil, Trash2, Plug, Unplug,
@@ -786,11 +785,29 @@ const nowTs = ref(Date.now())
 const nowTick = setInterval(() => {
   if (!document.hidden) nowTs.value = Date.now()
 }, 1000)
-// 状态自动刷新统一由页面末尾的 useAutoRefresh 管理：
-// 账号、统计与任务摘要共用一个 30 秒节奏，切后台暂停、回前台立即刷新。
-// 避免旧 statusPoll 与 useAutoRefresh 同时请求账号列表。
+// 账号、统计与任务摘要统一走同一个 30 秒刷新入口。
+// 账号列表使用 force=true 绕过 store 的 60 秒新鲜期，保持原有状态刷新频率。
+let refreshInFlight = false
+async function refreshAccountView() {
+  if (document.hidden || refreshInFlight) return
+  refreshInFlight = true
+  try {
+    await Promise.all([
+      accountStore.fetchAccounts(true),
+      loadStats(),
+      loadTaskSummary(),
+    ])
+  } finally {
+    refreshInFlight = false
+  }
+}
+const statusPoll = setInterval(() => { void refreshAccountView() }, 30000)
+const onVisBack = () => { if (!document.hidden) void refreshAccountView() }
+document.addEventListener('visibilitychange', onVisBack)
 onUnmounted(() => {
   clearInterval(nowTick)
+  clearInterval(statusPoll)
+  document.removeEventListener('visibilitychange', onVisBack)
 })
 function cooldownText(acc: Account): string {
   const until = acc.blocked_until
@@ -1987,10 +2004,7 @@ onMounted(() => {
   loadStats()
   loadTaskSummary()
 })
-// 30 秒轮询: 在线/受限状态与冷却恢复倒计时自动更新(配合 store 的 60 秒缓存平滑生效)
-// P0-29: 原轮询只刷账号列表,统计徽标(风控/任务摘要)只在挂载时加载一次——
-// 中途变化永不更新。统计一并纳入轮询。
-useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummary() }, 30000)
+// 30 秒轮询已在 nowTs 附近统一注册，页面卸载时一并清理。
 </script>
 
 <style scoped>
