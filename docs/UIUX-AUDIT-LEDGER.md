@@ -21,8 +21,8 @@
 | ID | 页面/组件（完整路径） | 问题描述 | 严重度 | 归类 | 源码状态 | 触及层 | 验收方式 | 整改提交/备注 |
 |---|---|---|---|---|---|---|---|---|
 | #4 | `src/components/ui/CountUp.vue` | 清洗货币符号后动画只写数字，`¥` 不恢复 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 单测 + dashboard 手动 | 已提交修复 `51740bc`：动画过程保留数字前缀/后缀；待构建和货币值回归 |
-| #9 | `src/components/MobileTabBar.vue` | `startsWith(t.path)` 将账号 ID 纳入匹配，切换账号后 Tab 可能失活 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 多账号切换 E2E | 路径匹配需按路由段/名称设计 |
-| #10 | `src/components/MobileTabBar.vue` | 当前账号缺失时使用 `none` 生成工作区路由，无有效 fallback | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 无账号点群发 Tab，验证跳转账号页 | 需确认路由守卫目标 |
+| #9 | `src/components/MobileTabBar.vue` | Tab 激活态依赖包含 accountId 的完整路径，切号/嵌套路由可能失活 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 多账号切换与任务详情 E2E | 已提交 `ded9030`：按 workspace 功能段匹配，不再绑定具体账号 ID；新增路由 helper 单测 |
+| #10 | `src/components/MobileTabBar.vue` | 当前账号缺失时使用 `none` 生成工作区路由，无有效 fallback | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 无账号点群发/任务 Tab，验证跳转账号页且账号 Tab 高亮 | 已提交 `ded9030`：无账号时群发/任务均回退 `/accounts`；新增路由 helper 单测 |
 | #20 | `src/components/ui/Breadcrumb.vue` | 模板固定渲染“首页”，管理端传入仪表盘后重复层级 | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 租户端、管理端面包屑逐页检查 | 已提交修复 `e7be58b` / `042fcc1`：当 items 首项已是主题首页时不重复插入；首项不是首页时保留首页入口 |
 | #26 | `src/components/ui/ConfirmActions.vue` | 移动端使用 `column-reverse`，按钮视觉顺序与 DOM/焦点顺序不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 移动端键盘焦点与视觉顺序手测 | 需确定产品期望按钮顺序 |
 | #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动父级时 `canPull()` 返回 true | 🟡 | 待验证 | 已确认（行为） | 触及逻辑 | 页面级滚动容器/无滚动容器两种场景实测 | 源码注释明确这是整页场景的有意 fallback；是否误触需实测 |
@@ -183,3 +183,25 @@
 | #159 | `src/views/admin/audit/Logs.vue` | 删除未被使用的 format 属性；同名插槽原本已正确渲染，属于技术债清理而非用户可见 bug | `cb53076` | 纯展示/清理 | 确认审计日志三列仍由插槽格式化 |
 
 以上管理端修改未执行构建和浏览器回归。
+
+
+## L. MobileTabBar 路由问题修复
+
+- 文件：`src/components/MobileTabBar.vue`
+- 新增：`src/components/mobileTabRuntime.ts`
+- 新增测试：`src/components/mobileTabRuntime.test.ts`
+- 组件提交：`ded9030`；路由 helper 与测试提交：`07d2755`、`cf5a386`
+
+修改内容：
+1. Tab 激活态不再用 `startsWith(t.path)` 比较完整动态路径，而是按 workspace 功能段匹配，切换账号后当前群发/任务 Tab 仍保持高亮。
+2. 当前没有选中账号时，群发和任务 Tab 不再拼出 `/workspace/none/...`，统一跳转到 `/accounts`。
+3. 增加 helper 单测覆盖无账号 fallback、切换账号、任务详情嵌套路由和固定 Tab 匹配。
+
+验收状态：
+- [x] 源码修改已提交
+- [x] 新增 Vitest 用例
+- [ ] 执行 `npm run test -- src/components/mobileTabRuntime.test.ts`
+- [ ] 移动端实际切换账号与无账号点击回归
+- [ ] 三主题视觉回归
+
+注意：新增单测尚未执行，不能标记为通过。
