@@ -455,16 +455,24 @@ const onlineAccounts = computed(() => (accountStore.accounts || []).filter((a: a
 // 提交前摊开: 可发/预计失败/完全无账号加入的群。
 const _allGroups = ref<any[]>([])
 let allGroupsRequestId = 0
+let allGroupsController: AbortController | null = null
+let textDictController: AbortController | null = null
+let broadcastTasksController: AbortController | null = null
 async function loadAllGroups() {
+  allGroupsController?.abort()
+  const controller = new AbortController()
+  allGroupsController = controller
   const requestId = ++allGroupsRequestId
   // R182.4: request.ts 已把列表响应统一包装为 {list,total} 对象(P0-35 审计修复), 不能当数组直用;
   // 直接 for...of 会抛 "not iterable" 导致群发页整页爆红。兼容数组/包装两种形态。
   try {
-    const res: any = await groupApi.list()
+    const res: any = await groupApi.list(undefined, undefined, { signal: controller.signal })
     if (requestId !== allGroupsRequestId || !showCreate.value) return
     _allGroups.value = Array.isArray(res) ? res : (res?.list ?? [])
   } catch {
-    if (requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
+    if (!controller.signal.aborted && requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
+  } finally {
+    if (allGroupsController === controller) allGroupsController = null
   }
 }
 function groupNameOf(t: string): string {
@@ -551,8 +559,12 @@ const selectedTextDict = computed(() => {
 })
 async function loadTextSnippets() {
   if (!authStore.tenant?.plan_features?.dict) return
-  try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] })) }
-  catch (e) { console.warn('加载文本素材失败', e) }
+  textDictController?.abort()
+  const controller = new AbortController()
+  textDictController = controller
+  try { const res = await settingsApi.getTextDicts({ signal: controller.signal }); if (!controller.signal.aborted) textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] })) }
+  catch (e) { if (!controller.signal.aborted) console.warn('加载文本素材失败', e) }
+  finally { if (textDictController === controller) textDictController = null }
 }
 function insertTextSnippet(item: string) {
   if (!item) return
@@ -610,6 +622,11 @@ watch([currentAccount, () => authStore.tenant?.tenant_id], ([account]) => {
 })
 onMounted(() => restoreDraft(activeDraftKey.value, true))
 onUnmounted(() => {
+  allGroupsRequestId++
+  allGroupsController?.abort()
+  textDictController?.abort()
+  broadcastTasksController?.abort()
+  tasksRequestId++
   if (draftTimer) clearTimeout(draftTimer)
   persistDraft(activeDraftKey.value, message.value)
 })
@@ -696,6 +713,9 @@ const tasksError = ref('')
 
 let tasksRequestId = 0
 async function fetchTasks() {
+  broadcastTasksController?.abort()
+  const controller = new AbortController()
+  broadcastTasksController = controller
   const requestId = ++tasksRequestId
   const accountId = currentAccount.value?.account_id
   if (!accountId) {
@@ -706,15 +726,16 @@ async function fetchTasks() {
   }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any)
+    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any, { signal: controller.signal })
     if (requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
-    if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
+    if (!controller.signal.aborted && requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
       tasksError.value = e?.message || '加载失败, 点击重试'
     }
   } finally {
+    if (broadcastTasksController === controller) broadcastTasksController = null
     if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
       tasksLoading.value = false
     }
@@ -733,6 +754,7 @@ useTaskEvents((evt: any) => {
 watch(currentAccount, () => {
   // 顶栏账号切换后立即清空旧账号任务，并让尚未完成的旧请求失效。
   tasksRequestId++
+  broadcastTasksController?.abort()
   tasks.value = []
   tasksError.value = ''
   tasksLoading.value = true
