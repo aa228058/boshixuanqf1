@@ -31,20 +31,25 @@ describe('downloadCSV', () => {
   const revokeObjectURL = vi.fn()
   const click = vi.fn()
   const setTimeout = vi.fn((_handler: () => void, _delay: number) => 0)
-  let anchor: { href: string; download: string; click: typeof click }
+  const remove = vi.fn()
+  const appendChild = vi.fn()
+  let anchor: { href: string; download: string; click: typeof click; remove: typeof remove }
 
   beforeEach(() => {
     createObjectURL.mockClear()
     revokeObjectURL.mockClear()
     click.mockClear()
     setTimeout.mockClear()
-    anchor = { href: '', download: '', click }
+    remove.mockClear()
+    appendChild.mockClear()
+    anchor = { href: '', download: '', click, remove }
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
     vi.stubGlobal('document', {
       createElement: vi.fn((tag: string) => {
         expect(tag).toBe('a')
         return anchor
       }),
+      body: { appendChild },
     })
     vi.stubGlobal('window', { setTimeout })
   })
@@ -67,7 +72,9 @@ describe('downloadCSV', () => {
 
     expect(anchor.download).toBe('members.csv')
     expect(anchor.href).toBe('blob:test-export')
+    expect(appendChild).toHaveBeenCalledWith(anchor)
     expect(click).toHaveBeenCalledOnce()
+    expect(remove).toHaveBeenCalledOnce()
     expect(captured).toHaveLength(1)
     const bytes = new Uint8Array(await captured[0].arrayBuffer())
     // Blob.text() 按规范会剥离 UTF-8 BOM；直接检查字节，避免误报。
