@@ -28,7 +28,12 @@
           <t-button @click="openAddRule" class="ui-t-button--primary ui-t-button">添加规则</t-button>
         </div>
         <div class="space-y-2">
-          <EmptyState v-if="rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
+          <div v-if="rulesLoading" role="status" aria-live="polite" class="py-6 text-center text-sm text-text-secondary">正在读取监控规则…</div>
+          <div v-if="rulesError" class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[color:var(--t-err)]/20 p-3" role="alert">
+            <span class="text-sm text-[var(--t-err)]">{{ rulesError }}</span>
+            <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="rulesLoading" @click="fetchRules">重新加载</t-button>
+          </div>
+          <EmptyState v-if="!rulesLoading && !rulesError && rules.length === 0" icon="Eye" title="暂无监控规则" description="添加关键词规则，命中消息的群会被自动监控" class="py-8" />
           <div v-for="rule in rules" :key="rule.rule_id"
                class="p-4 rounded-[18px] flex items-center justify-between"
                style="background: var(--t-surface-1); border: 1px solid var(--t-line);">
@@ -264,6 +269,8 @@ async function fetchGroups() {
 }
 
 const rules = ref<any[]>([])
+const rulesLoading = ref(true)
+const rulesError = ref('')
 const isMonitoring = ref(false) // 精读注: 预留字段, 当前由 rules.length+isAccountOnline 推导运行态
 const anyRuleActive = computed(() => rules.value.some(r => r.is_active))
 const showAddRule = ref(false)
@@ -315,11 +322,16 @@ function applyContact() {
 }
 
 async function fetchRules() {
+  rulesLoading.value = true
+  rulesError.value = ''
   try {
     const res = await monitorApi.listRules()
     rules.value = res.list || []
   } catch (e: any) {
-    toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+    rulesError.value = e?.message || '监控规则读取失败，请稍后重试'
+    toast({ type: 'error', title: '加载规则失败', message: rulesError.value })
+  } finally {
+    rulesLoading.value = false
   }
 }
 
