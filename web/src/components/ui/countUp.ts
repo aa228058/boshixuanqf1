@@ -1,5 +1,5 @@
 // Parse a numeric value while tolerating common currency prefixes, grouping separators and units.
-const NUMBER_PATTERN = /[+-]?(?:\\d{1,3}(?:,\\d{3})+|\\d+|\\.\\d+)(?:\\.\\d*)?(?:e[+-]?\\d+)?/i
+const NUMBER_PATTERN = /[+-]?(?:\d{1,3}(?:,\d{3})+|\d+|\.\d+)(?:\.\d*)?(?:e[+-]?\d+)?/i
 
 export function parseCountValue(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
