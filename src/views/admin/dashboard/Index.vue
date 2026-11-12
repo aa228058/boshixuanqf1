@@ -118,26 +118,26 @@ const tenantColumns = [
 // Phase 6: 图表颜色走 useChartTheme(切主题自动跟随), 不再硬编码深色值
 const tenantChartOption = computed(() => ({
   backgroundColor: 'transparent',
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(17,24,39,0.9)', borderColor: 'rgba(255,255,255,0.1)', textStyle: { color: chartTheme.textPrimary.value } },
+  tooltip: { trigger: 'axis', backgroundColor: chartTheme.surface.value, borderColor: chartTheme.border.value, textStyle: { color: chartTheme.textPrimary.value } },
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-  xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'], axisLine: { lineStyle: { color: chartTheme.border.value + '66' } }, axisLabel: { color: chartTheme.textMuted.value } },
-  yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: chartTheme.border.value + '55' } }, axisLabel: { color: chartTheme.textMuted.value } },
+  xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'], axisLine: { lineStyle: { color: chartTheme.border.value } }, axisLabel: { color: chartTheme.textMuted.value } },
+  yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: chartTheme.border.value } }, axisLabel: { color: chartTheme.textMuted.value } },
   series: [{
     type: 'line', smooth: true, data: [2, 5, 3, 8, 6, 10, 7],
-    lineStyle: { color: '#38bdf8', width: 2 }, itemStyle: { color: '#38bdf8' }, // P0-23: ECharts 不认 Tailwind 类名
-    areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(90,184,232,0.2)' }, { offset: 1, color: 'rgba(90,184,232,0)' }] } },
+    lineStyle: { color: chartTheme.palette.value[0], width: 2 }, itemStyle: { color: chartTheme.palette.value[0] },
+    areaStyle: { color: chartTheme.palette.value[0], opacity: 0.16 },
   }]
 }))
 
 const revenueChartOption = computed(() => ({
   backgroundColor: 'transparent',
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(17,24,39,0.9)', borderColor: 'rgba(255,255,255,0.1)', textStyle: { color: chartTheme.textPrimary.value } },
+  tooltip: { trigger: 'axis', backgroundColor: chartTheme.surface.value, borderColor: chartTheme.border.value, textStyle: { color: chartTheme.textPrimary.value } },
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-  xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'], axisLine: { lineStyle: { color: chartTheme.border.value + '66' } }, axisLabel: { color: chartTheme.textMuted.value } },
-  yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: chartTheme.border.value + '55' } }, axisLabel: { color: chartTheme.textMuted.value } },
+  xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'], axisLine: { lineStyle: { color: chartTheme.border.value } }, axisLabel: { color: chartTheme.textMuted.value } },
+  yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: chartTheme.border.value } }, axisLabel: { color: chartTheme.textMuted.value } },
   series: [{
     type: 'bar', data: [150, 230, 180, 320, 280, 450, 380],
-    itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#a3d2f2' }, { offset: 1, color: 'rgba(163,210,242,0.3)' }] }, borderRadius: [4, 4, 0, 0] },
+    itemStyle: { color: chartTheme.palette.value[1], opacity: 0.82, borderRadius: [4, 4, 0, 0] },
   }]
 }))
 
