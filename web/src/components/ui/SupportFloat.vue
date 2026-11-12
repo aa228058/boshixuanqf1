@@ -75,6 +75,8 @@ const expanded = ref(false)
 const config = ref<SupportConfig | null>(null)
 const copied = ref(false)
 let copyTimer: ReturnType<typeof setTimeout> | null = null
+let dragResetTimer: ReturnType<typeof setTimeout> | null = null
+let disposed = false
 const authStore = useAuthStore()
 
 const pos = ref({ right: 20, bottom: 20 })
@@ -85,6 +87,8 @@ const wrapper = ref<HTMLElement | null>(null)
 const dragBtn = ref<HTMLElement | null>(null)
 
 function startDrag(e: MouseEvent | TouchEvent) {
+  if (dragResetTimer) clearTimeout(dragResetTimer)
+  dragResetTimer = null
   isDragging.value = false
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
@@ -139,7 +143,11 @@ function stopDrag() {
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
   document.removeEventListener('touchcancel', stopDrag)
-  setTimeout(() => { isDragging.value = false }, 50)
+  if (dragResetTimer) clearTimeout(dragResetTimer)
+  dragResetTimer = setTimeout(() => {
+    isDragging.value = false
+    dragResetTimer = null
+  }, 50)
 }
 
 function toggle() {
@@ -214,14 +222,16 @@ function safeQrUrl(url: string): string {
 onMounted(async () => {
   try {
     const res = await settingsApi.getSupport()
-    config.value = res
+    if (!disposed) config.value = res
   } catch (e) {
     // ignore
   }
 })
 
 onUnmounted(() => {
+  disposed = true
   if (copyTimer) clearTimeout(copyTimer)
+  if (dragResetTimer) clearTimeout(dragResetTimer)
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
