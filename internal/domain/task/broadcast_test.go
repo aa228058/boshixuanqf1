@@ -194,3 +194,15 @@ func TestReconcileBroadcastTimeoutProgress(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldPreserveBroadcastLease(t *testing.T) {
+	if !shouldPreserveBroadcastLease(context.Canceled) {
+		t.Fatal("cancelled task context must leave the running lease recoverable")
+	}
+	if shouldPreserveBroadcastLease(context.DeadlineExceeded) {
+		t.Fatal("hard execution deadline must finalize as failed, not preserve the lease")
+	}
+	if shouldPreserveBroadcastLease(nil) {
+		t.Fatal("normal completion must finalize task status")
+	}
+}

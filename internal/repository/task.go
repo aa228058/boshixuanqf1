@@ -819,7 +819,7 @@ func (r *TaskRepository) CountCompletedLast7Days(ctx context.Context, tenantID u
 func (r *TaskRepository) SetLoopConfig(ctx context.Context, tenantID, taskID uuid.UUID, isLoop bool, loopInterval, minInt, maxInt int, taskType domain.TaskType) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE tasks SET is_loop = $3, loop_interval_minutes = $4, min_interval_seconds = $5,
-		                 max_interval_seconds = $6, type = $7, next_run_at = NOW()
+		                 max_interval_seconds = $6, type = $7, next_run_at = scheduled_at
 		WHERE tenant_id = $1 AND task_id = $2`,
 		tenantID, taskID, isLoop, loopInterval, minInt, maxInt, taskType)
 	return err
@@ -878,7 +878,44 @@ func (r *TaskRepository) RescheduleLoopTask(ctx context.Context, tenantID, taskI
 		        (l.max_rounds > 0 AND l.next_round >= l.max_rounds)
 		        OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
 		    THEN t.progress ELSE '{"total":0,"done":0,"failed":0}'::jsonb END,
-		    payload = jsonb_set(COALESCE(t.payload, '{}'::jsonb), '{round_count}', to_jsonb(l.next_round), TRUE)
+		    payload = jsonb_set(
+				jsonb_set(
+					jsonb_set(COALESCE(t.payload, '{}'::jsonb), '{round_count}', to_jsonb(l.next_round), TRUE),
+					'{round_started_at}', to_jsonb(to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')), TRUE
+				),
+				'{round_history}',
+				(
+					SELECT COALESCE(jsonb_agg(recent.item ORDER BY recent.ord), '[]'::jsonb)
+					FROM (
+						SELECT history.item, history.ord
+						FROM jsonb_array_elements(
+							COALESCE(t.payload->'round_history', '[]'::jsonb) ||
+							jsonb_build_array(jsonb_build_object(
+								'round', l.next_round,
+								'started_at', COALESCE(
+									t.payload->>'round_started_at',
+									to_char(t.scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+								),
+								'completed_at', to_jsonb(NOW()),
+								'total', COALESCE((t.progress->>'total')::int, 0),
+								'success', COALESCE((t.progress->>'done')::int, 0),
+								'failed', COALESCE((t.progress->>'failed')::int, 0),
+								'next_run_at', CASE WHEN
+									(l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+									OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+									THEN NULL ELSE to_jsonb($3::timestamptz) END,
+								'status', CASE WHEN
+									(l.max_rounds > 0 AND l.next_round >= l.max_rounds)
+									OR (l.end_at IS NOT NULL AND l.end_at <= GREATEST(NOW(), $3))
+									THEN 'finished' ELSE 'scheduled' END
+							))
+						) WITH ORDINALITY AS history(item, ord)
+						ORDER BY history.ord DESC
+						LIMIT 50
+					) recent
+				),
+				TRUE
+			)
 		FROM limits l
 		WHERE t.tenant_id = $1 AND t.task_id = l.task_id
 		  AND t.status = 'completed' AND t.is_loop = TRUE`, tenantID, taskID, nextRunAt)

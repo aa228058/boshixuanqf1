@@ -111,6 +111,14 @@ func reconcileBroadcastTimeoutProgress(total, done, failed int, timedOut bool) (
 	return failed, true
 }
 
+// A cancelled parent/task context usually means shutdown, pause, or cancellation.
+// Do not turn an interrupted broadcast into a terminal completed state: on shutdown
+// the running lease must remain reclaimable after its timeout, while pause/cancel
+// already clear the lease and persist their own status.
+func shouldPreserveBroadcastLease(ctxErr error) bool {
+	return ctxErr == context.Canceled
+}
+
 // shouldSendBroadcastTarget prevents sends after an account-level failure or
 // when peer resolution did not produce a usable chat ID.
 func shouldSendBroadcastTarget(status string, chatID int64) bool {
@@ -182,20 +190,11 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		return
 	}
 
-	// R119-fix: Markdown 转义移到发送前(所有 spintax/变量/混淆解析之后)统一兜底,
+	// R119-fix: Markdown 转义移到发送前(spintax 和文案变量解析之后)统一兜底,
 	// 这里先转义会把 { } | 变成 \{ \} 导致 spintax 失效({你好|Hi} 原样发出)。
-
-	// 一键自动变化: 群发创建时勾选"每条消息自动变化"即可, 无需写任何变量语法
-	autoVary := false
-	if v, ok := task.Payload["auto_vary"]; ok {
-		autoVary = fmt.Sprint(v) == "true"
-	}
 
 	// 文案变量(数据字典): 预建 {{词典名}} → 词条池, 发送时每个目标随机替换
 	dictBag := e.buildDictBag(ctx, task.TenantID, message)
-
-	// 消息混淆开关: 发送前(每个目标独立)加随机emoji+隐形字符, 保证每条消息都不同
-	obfEnabled, _ := task.Payload["obfuscate"].(bool)
 
 	// 富媒体与 URL 按钮 (可选, 来自 payload)
 	var mediaType, mediaSource string
@@ -381,7 +380,23 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		}
 	}
 	successSet := map[string]bool{}
-	ss, checkpointErr := e.logRepo.HasSuccessForTargets(ctx, task.TenantID, task.TaskID, allTargets)
+	var roundStartedAt *time.Time
+	if raw, ok := task.Payload["round_started_at"].(string); ok && raw != "" {
+		if parsed, parseErr := time.Parse(time.RFC3339Nano, raw); parseErr == nil {
+			roundStartedAt = &parsed
+		} else {
+			taskLog.Printf("[broadcast] invalid round_started_at task=%s: %v", task.TaskID, parseErr)
+			if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusFailed); err != nil {
+				taskLog.Printf("[broadcast] failed to mark invalid round checkpoint: %v", err)
+			}
+			return
+		}
+	} else if task.Type == domain.TaskTypeScheduledBroadcast && task.ScheduledAt != nil {
+		// Compatibility for legacy loop tasks created before round_started_at existed:
+		// rescheduling stores the next run time in scheduled_at, which bounds its log window.
+		roundStartedAt = task.ScheduledAt
+	}
+	ss, checkpointErr := e.logRepo.HasSuccessForTargets(ctx, task.TenantID, task.TaskID, allTargets, roundStartedAt)
 	if checkpointErr != nil {
 		// Never send when durable idempotency state cannot be verified. Failing open
 		// here can duplicate messages after a worker restart or database interruption.
@@ -654,26 +669,22 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						rawMsg = dictBag.fill(message)
 					}
 					personalizedMsg := spintaxSpin(rawMsg)
-					if obfEnabled {
-						// 混淆每条重新随机 — TG按内容查重时每条都是"不同消息"
-						if autoVary {
-							personalizedMsg = autoVaryMessage(personalizedMsg)
-						}
-						personalizedMsg = obfuscateMessage(personalizedMsg)
-					}
-					// R104+R118: 拟人化 —— 发送前模拟"正在输入..." 1~3 秒再发(风控规避,
-					// 真实用户行为: 先打字后发送, 机器人则消息凭空出现)
-					// 时长从 3~8s 压到 1~3s: 行为特征保留, 随机发送间隔已承担主要防封作用
+					// 系统默认发送前提示：对当前目标触发 Telegram 原生“正在输入”状态，
+					// 等待 2 秒后发送；该行为不向租户暴露配置项，所有群发模式统一执行。
 					if tp, ok := peer.(tg.InputPeerClass); ok {
 						_, _ = client.Raw().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: tp, Action: &tg.SendMessageTypingAction{}})
 					} else if chatID < 0 {
 						_, _ = client.Raw().MessagesSetTyping(ctx, &tg.MessagesSetTypingRequest{Peer: &tg.InputPeerChat{ChatID: chatID}, Action: &tg.SendMessageTypingAction{}})
 					}
-					if !waitBroadcastDelay(ctx, time.Duration(1000+securerand.IntN(2000))*time.Millisecond) {
+					if !waitBroadcastDelay(ctx, 2*time.Second) {
+						return
+					}
+					// Re-check after the wait: pause/cancel may race with timer expiry.
+					if ctx.Err() != nil {
 						return
 					}
 
-					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax/变量/混淆已全部解析,
+					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax 和文案变量已解析,
 					// 转义后的 \{ \} 不再参与语法匹配, 用户写的 {你好|Hi} 能正常随机取值)
 					personalizedMsg = escapeTelegramMarkdown(personalizedMsg)
 
@@ -681,10 +692,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					// trySend 同时提取 TG 返回的 message_id 用于发送结果可核对
 					trySend := func() (int64, error) {
 						if mediaSource != "" {
-							if err := e.sendBroadcastMedia(ctx, client, chatID, personalizedMsg, mediaType, mediaSource, urlButtons); err != nil {
-								return 0, err
-							}
-							return 0, nil // 富媒体路径 message_id 提取待后续增强
+							return e.sendBroadcastMedia(ctx, client, chatID, personalizedMsg, mediaType, mediaSource, urlButtons)
 						}
 						// 协议号网络卡死时 SendMessage 会无限阻塞，包超时让失败可见
 						sCtx, sCancel := context.WithTimeout(ctx, 60*time.Second)
@@ -973,6 +981,10 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 	if timedOut || (failed == total && total > 0) || checkpointPersistErr != nil {
 		finalStatus = domain.TaskStatusFailed
 	}
+	if shouldPreserveBroadcastLease(ctx.Err()) {
+		taskLog.Printf("[broadcast] task context cancelled; preserving running lease for recovery task=%s", task.TaskID)
+		return
+	}
 	if err := e.repo.UpdateStatusOwned(finalCtx, task.TenantID, task.TaskID, e.taskLeaseID(task), finalStatus); err != nil {
 		taskLog.Printf("[task] UpdateStatus failed: %v", err)
 	}
@@ -1032,101 +1044,6 @@ func (b *dictBag) fill(msg string) string {
 		}
 		return ws[securerand.IntN(len(ws))]
 	})
-}
-
-// autoVarySynonyms 内置同义变换池: 命中即随机换, 让每条消息措辞不同(无需用户配置)
-var autoVarySynonyms = map[string][]string{
-	"你好": {"您好", "你好", "Hi", "哈喽", "嗨"},
-	"您好": {"你好", "您好", "Hi", "哈喽"},
-	"欢迎": {"欢迎", "歡迎", "喜迎"},
-	"加入": {"加入", "进", "加入", "入"},
-	"进群": {"进群", "加群", "加入群聊"},
-	"免费": {"免费", "免費", "无偿"},
-	"需要": {"需要", "要", "想用"},
-	"可以": {"可以", "能", "可"},
-	"点击": {"点击", "点", "戳"},
-	"了解": {"了解", "看下", "看看"},
-	"回复": {"回复", "回", "回信"},
-	"咨询": {"咨询", "问", "询问"},
-	"感谢": {"感谢", "谢谢", "谢啦"},
-	"现在": {"现在", "眼下", "如今"},
-}
-
-// varyPuncts 标点抖动: 句末语气词随机后缀
-var varySuffixes = []string{"", "", "！", "~", "～", " 😊", " 👍", " 🌟"}
-
-// autoVaryMessage 自动内容变化(一键开关, 面向不懂语法的租户):
-// 同义替换 → 标点/表情后缀抖动 → 随机全半角 → 保留 send 侧既有的零宽字符混淆。
-func autoVaryMessage(msg string) string {
-	// 1. 同义替换(按 key 长度降序, 先长后短避免部分命中)
-	s := msg
-	for _, k := range varyKeysByLen {
-		if v, ok := autoVarySynonyms[k]; ok && strings.Contains(s, k) {
-			s = strings.ReplaceAll(s, k, v[securerand.IntN(len(v))])
-		}
-	}
-	// 2. 每个换行段落后随机追加语气后缀(部分段不加, 保持自然)
-	lines := strings.Split(s, "\n")
-	for i, ln := range lines {
-		ln = strings.TrimRight(ln, "。！!~～")
-		if ln != "" && securerand.IntN(3) > 0 {
-			lines[i] = ln + "。" + varySuffixes[securerand.IntN(len(varySuffixes))]
-		} else if ln != "" {
-			lines[i] = ln + "。"
-		}
-	}
-	s = strings.Join(lines, "\n")
-	// 3. 随机全角化部分标点
-	s = varyFullWidth(s)
-	return s
-}
-
-// varyKeysByLen 同义词 key 按长度降序预排序
-var varyKeysByLen = func() []string {
-	ks := make([]string, 0, len(autoVarySynonyms))
-	for k := range autoVarySynonyms {
-		ks = append(ks, k)
-	}
-	for i := 0; i < len(ks); i++ {
-		for j := i + 1; j < len(ks); j++ {
-			if len(ks[j]) > len(ks[i]) {
-				ks[i], ks[j] = ks[j], ks[i]
-			}
-		}
-	}
-	return ks
-}()
-
-// varyFullWidth 把约一半的半角标点随机换成全角
-func varyFullWidth(s string) string {
-	pairs := map[rune]rune{',': '，', '!': '！', '?': '？', ';': '；', ':': '：'}
-	return strings.Map(func(r rune) rune {
-		if fw, ok := pairs[r]; ok && securerand.IntN(2) == 0 {
-			return fw
-		}
-		return r
-	}, s)
-}
-
-// escapeTelegramMarkdown escapes characters that Telegram interprets as Markdown formatting.
-// This prevents user messages from being accidentally formatted.
-// 混淆素材池: 常用emoji + 零宽字符(肉眼不可见, TG视为不同消息)
-var obfEmojis = []string{"😀", "😊", "👍", "🎉", "🔥", "✨", "💯", "🌟", "🚀", "💪", "😄", "🙌", "❤️", "🤝", "👏"}
-var obfZeroWidth = []rune{0x200b, 0x200c, 0x200d, 0xfeff}
-
-func obfuscateMessage(text string) string {
-	runes := []rune(text)
-	n := 1 + securerand.IntN(2)
-	for i := 0; i < n; i++ {
-		e := obfEmojis[securerand.IntN(len(obfEmojis))]
-		pos := securerand.IntN(len(runes) + 1)
-		runes = append(runes[:pos], append([]rune(e), runes[pos:]...)...)
-	}
-	zn := 1 + securerand.IntN(4)
-	for i := 0; i < zn; i++ {
-		runes = append(runes, obfZeroWidth[securerand.IntN(len(obfZeroWidth))])
-	}
-	return string(runes)
 }
 
 func escapeTelegramMarkdown(text string) string {
@@ -1203,7 +1120,7 @@ func broadcastSendOpts(buttons []urlButton) []*params.SendMessage {
 
 // sendBroadcastMedia 发送图文/视频消息。
 // source 为 http(s) URL 时由 Telegram 远端抓取; 为相对路径时从媒体目录读取上传。
-func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client, chatID int64, caption, mediaType, mediaSource string, buttons []urlButton) error {
+func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client, chatID int64, caption, mediaType, mediaSource string, buttons []urlButton) (int64, error) {
 	opts := broadcastSendOpts(buttons)
 	var media tg.InputMediaClass
 	if strings.HasPrefix(mediaSource, "http://") || strings.HasPrefix(mediaSource, "https://") {
@@ -1216,15 +1133,15 @@ func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client
 		// 防路径穿越校验抽成纯函数 validateMediaPath，便于表驱动测试
 		path, verr := validateMediaPath(e.cfg.MediaDir, mediaSource)
 		if verr != nil {
-			return verr
+			return 0, verr
 		}
 		relPath, relErr := filepath.Rel(e.cfg.MediaDir, path)
 		if relErr != nil || relPath == "." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) || filepath.IsAbs(relPath) {
-			return fmt.Errorf("媒体文件路径不在允许目录内")
+			return 0, fmt.Errorf("媒体文件路径不在允许目录内")
 		}
 		mediaRoot, rootErr := os.OpenRoot(e.cfg.MediaDir)
 		if rootErr != nil {
-			return fmt.Errorf("打开媒体目录失败: %w", rootErr)
+			return 0, fmt.Errorf("打开媒体目录失败: %w", rootErr)
 		}
 		defer func() {
 			if err := mediaRoot.Close(); err != nil {
@@ -1233,7 +1150,7 @@ func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client
 		}()
 		f, err := mediaRoot.Open(relPath)
 		if err != nil {
-			return fmt.Errorf("打开媒体文件失败: %w", err)
+			return 0, fmt.Errorf("打开媒体文件失败: %w", err)
 		}
 		defer func() {
 			if err := f.Close(); err != nil {
@@ -1242,11 +1159,11 @@ func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client
 		}()
 		fi, err := f.Stat()
 		if err != nil {
-			return err
+			return 0, err
 		}
 		up, err := client.UploadFile(ctx, f, filepath.Base(path), fi.Size(), nil)
 		if err != nil {
-			return fmt.Errorf("上传媒体失败: %w", err)
+			return 0, fmt.Errorf("上传媒体失败: %w", err)
 		}
 		if mediaType == "video" {
 			media = &tg.InputMediaUploadedDocument{File: up.File, MimeType: mime.TypeByExtension(filepath.Ext(path))}
@@ -1254,8 +1171,14 @@ func (e *Engine) sendBroadcastMedia(ctx context.Context, client *telegram.Client
 			media = &tg.InputMediaUploadedPhoto{File: up.File}
 		}
 	}
-	_, err := client.SendMedia(ctx, chatID, media, caption, opts...)
-	return err
+	msg, err := client.SendMedia(ctx, chatID, media, caption, opts...)
+	if err != nil {
+		return 0, err
+	}
+	if msg == nil || msg.ID == 0 {
+		return 0, fmt.Errorf("Telegram media send returned no message ID")
+	}
+	return int64(msg.ID), nil
 }
 
 // spintaxSpin 处理 {a|b|c} 随机语法, 每个目标独立随机选取, 防文案雷同进垃圾箱。
