@@ -370,7 +370,7 @@ const tabs = [
   { key: 'notify', label: '通知' },
   { key: 'data', label: '数据' },
   { key: 'templates', label: '模板' },
-  { key: 'textdicts', label: '文本分组' },
+  { key: 'textdicts', label: '字典' },
   { key: 'support', label: '客服' },
 ]
 // R119+R120: 通知中心状态(租户级 SMTP)
@@ -659,7 +659,7 @@ function fallbackCopy(text: string) {
 
 async function fetchTextDicts() {
   try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
-  catch (e: unknown) { toast({ type: 'error', title: '文本分组加载失败', message: (e as Error)?.message || '请稍后重试' }) }
+  catch (e: unknown) { toast({ type: 'error', title: '字典加载失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
 async function createTextDict() {
@@ -672,7 +672,7 @@ async function createTextDict() {
     })
     newDictName.value = ''; newDictItems.value = ''
     await fetchTextDicts()
-    toast({ type: 'success', message: '文本字典已创建' })
+    toast({ type: 'success', message: '字典已创建' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '创建失败', message: (e as Error)?.message || '请稍后重试' })
   } finally { dictSaving.value = false }
@@ -690,9 +690,9 @@ async function saveTextDict(d: import('@/api/settings').TextDict) {
   } finally { dictSaving.value = false }
 }
 async function deleteTextDict(id: string) {
-  const confirmed = await ask('确定删除这个文本分组吗？', {
-    title: '删除文本分组',
-    detail: '删除后无法恢复，请确认分组内容已不再需要。',
+  const confirmed = await ask('确定删除这个字典吗？', {
+    title: '删除字典',
+    detail: '删除后无法恢复，请确认字典内容已不再需要。',
     danger: true,
     confirmText: '删除',
   })
