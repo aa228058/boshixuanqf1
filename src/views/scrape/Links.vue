@@ -65,6 +65,10 @@
         <span class="text-sm text-[var(--t-err)]">{{ tasksError }}</span>
         <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="tasksLoading" @click="fetchTasks">重新加载任务</t-button>
       </div>
+      <div v-if="allLinksError" class="ui-card p-3 flex flex-wrap items-center justify-between gap-3" role="alert">
+        <span class="text-sm text-[var(--t-err)]">{{ allLinksError }}</span>
+        <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="allLinksLoading" @click="loadAllLinks">重新加载全部链接</t-button>
+      </div>
       <EmptyState v-if="!tasksError && !allLinksError && !tasks.length && !allLinksLoading && !allLinks.length && !allLinksOpen" icon="Link" title="暂无数据" description="暂无历史任务，也没有采集到链接" class="mb-3" />
 
       <!-- 总开关模式: 全部采集链接 -->
@@ -84,10 +88,6 @@
         </div>
         <div v-if="allLinksOpen" class="border-t border-border">
           <div v-if="allLinksLoading" class="flex justify-center py-6 text-sm text-text-muted">加载中...</div>
-          <div v-else-if="allLinksError" class="p-6 flex flex-wrap items-center justify-center gap-2 text-sm" role="alert">
-            <span class="text-[var(--t-err)]">{{ allLinksError }}</span>
-            <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="allLinksLoading" @click="loadAllLinks">重新加载链接</t-button>
-          </div>
           <div v-else-if="!allLinks.length" class="p-6 text-center text-text-muted text-sm">暂无链接, 先在"链接监听"Tab 开启监听, 收到含链接的群消息后会自动入库</div>
           <div v-else>
             <!-- 单行横向布局: 链接截断 + 类型徽标 + 复制, 手机上不再一链接占一整块 -->
@@ -160,7 +160,7 @@
             </div>
             <div v-else-if="taskLinksErrors[task.task_id]" class="p-6 flex flex-wrap items-center justify-center gap-2 text-sm" role="alert">
               <span class="text-[var(--t-err)]">{{ taskLinksErrors[task.task_id] }}</span>
-              <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="toggleTask(task)">重新加载</t-button>
+              <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="loadTaskLinks(task)">重新加载</t-button>
             </div>
             <div v-else-if="!taskLinks[task.task_id]?.length" class="p-6 text-center text-text-muted text-sm">
               该任务窗口内暂无采集到链接(链接可能被去重过滤, 或服务未监听到消息)
@@ -341,6 +341,10 @@ async function toggleTask(task: ScrapeTask) {
     return
   }
   expandedTaskId.value = task.task_id
+  await loadTaskLinks(task)
+}
+
+async function loadTaskLinks(task: ScrapeTask) {
   if (taskLinks.value[task.task_id]) return
   const requestId = (taskLinksRequestIds[task.task_id] || 0) + 1
   taskLinksRequestIds[task.task_id] = requestId
