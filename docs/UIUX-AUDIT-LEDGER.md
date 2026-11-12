@@ -24,9 +24,9 @@
 | #9 | `src/components/MobileTabBar.vue` | Tab 激活态依赖包含 accountId 的完整路径，切号/嵌套路由可能失活 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 多账号切换与任务详情 E2E | 已提交 `ded9030`：按 workspace 功能段匹配，不再绑定具体账号 ID；新增路由 helper 单测 |
 | #10 | `src/components/MobileTabBar.vue` | 当前账号缺失时使用 `none` 生成工作区路由，无有效 fallback | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 无账号点群发/任务 Tab，验证跳转账号页且账号 Tab 高亮 | 已提交 `ded9030`：无账号时群发/任务均回退 `/accounts`；新增路由 helper 单测 |
 | #20 | `src/components/ui/Breadcrumb.vue` | 模板固定渲染“首页”，管理端传入仪表盘后重复层级 | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 租户端、管理端面包屑逐页检查 | 已提交修复 `e7be58b` / `042fcc1`：当 items 首项已是主题首页时不重复插入；首项不是首页时保留首页入口 |
-| #26 | `src/components/ui/ConfirmActions.vue` | 移动端使用 `column-reverse`，按钮视觉顺序与 DOM/焦点顺序不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 移动端键盘焦点与视觉顺序手测 | 需确定产品期望按钮顺序 |
-| #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动父级时 `canPull()` 返回 true | 🟡 | 待验证 | 已确认（行为） | 触及逻辑 | 页面级滚动容器/无滚动容器两种场景实测 | 源码注释明确这是整页场景的有意 fallback；是否误触需实测 |
-| #34 | `src/components/ui/SupportFloat.vue` | 拖拽后 click 未拦截 | 🟡 | 误报/待复核 | 误报（当前代码有防护） | 触及逻辑 | 拖拽后松手、轻点分别手测 | `toggle()` 已检查 `isDragging`；仍需手测事件时序 |
+| #26 | `src/components/ui/ConfirmActions.vue` | 移动端 `column-reverse` 导致视觉顺序与 DOM/焦点顺序不一致 | 🟡 | 细节/可访问性 | 已确认 | 纯展示 | 移动端键盘焦点与视觉顺序手测 | 已提交 `49d0202`：改为 column，使取消在上、确认在下，顺序与 DOM 一致 |
+| #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动父级时未检查 window/page scrollTop，页面滚动到中段也允许下拉刷新 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 页面滚动到顶部/中段分别下拉验证 | 已提交 `7200d8d` / `7a89b48`：无滚动父时检查 window/document scrollTop，只允许页面顶部触发 |
+| #34 | `src/components/ui/SupportFloat.vue` | touch 拖拽结束后合成 click 可能在 50ms 复位后触发展开 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 拖拽后松手不展开；停顿后轻点可展开 | 已提交 `7029378` / `bfd6777`：记录最后拖动时间，400ms 内抑制合成 click |
 | #36 | `src/components/ui/EmptyState.vue` | `title` 传入 TDesign `description`，真描述另行渲染 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 组件用例/页面手测 | 已提交修复 `5827ff5`：title 放入 image slot 标题区，description 交给 TDesign description；待页面视觉回归 |
 | #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 已提交修复 `ec0f05b`：弧与文本共用 0.1% 精度的夹紧值；待边界测试 |
 | #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 36px 源码已定位；按 44px 目标评估布局空间 |
@@ -226,3 +226,14 @@
 - `391b12f` / `e7dff0c` 移除 lottie-web 直接依赖并同步锁文件
 
 验收仍待 `npm ci`、`npm run typecheck`、`npm run test`、`npm run build`。本地环境无法连接 GitHub，尚未检出代码执行构建；不能把清理标记为构建通过。
+
+
+## N. 组件层补充修复
+
+| 问题 | 文件 | 修改 | 提交 | 触及层 | 验收 |
+|---|---|---|---|---|---|
+| #26 | `src/components/ui/ConfirmActions.vue` | 移动端按钮改为 column，保持 DOM 顺序与视觉/键盘焦点顺序一致 | `49d0202` | 纯展示/可访问性 | 待移动端焦点顺序检查 |
+| #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动容器时检查页面 scrollTop，只有整页位于顶部才能触发下拉 | `7200d8d`, `7a89b48` | 触及逻辑 | 待页面顶部/中段触摸回归 |
+| #34 | `src/components/ui/SupportFloat.vue` | 记录最后拖动时间，拖拽结束后的 400ms 内抑制合成 click，避免拖动后意外展开 | `7029378`, `bfd6777` | 触及逻辑 | 待 iOS/Android 拖拽后松手回归 |
+
+以上逻辑项均需手动回归；当前尚未执行浏览器/真机验证。
