@@ -106,34 +106,34 @@
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
            class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
-        <button type="button" class="flex items-center justify-between gap-3 w-full text-left" @click="toggleExpand(task.task_id)" :aria-expanded="!!expanded[task.task_id]" :aria-controls="'scrape-members-' + task.task_id">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-[color:var(--t-warn-dim)] flex items-center justify-center shrink-0">
-              <Users class="w-5 h-5 text-[var(--t-warn)]" />
-            </div>
-            <div class="min-w-0">
-              <div class="text-sm font-medium truncate">{{ task.config?.group_title || '成员采集' }} #{{ task.task_id?.slice(-6) }}</div>
-              <div class="text-xs text-text-muted flex items-center gap-2 mt-0.5">
-                <span>{{ formatDate(task.created_at) }}</span>
-                <span class="w-1 h-1 rounded-full bg-text-muted" />
-                <span v-if="task.status === 'running'">采集中...</span>
-                <span v-else-if="task.status === 'completed' && (task.result_count || task.config?.member_count)">{{ task.result_count || task.config?.member_count }} 成员</span>
-                <span v-else-if="task.status === 'completed'">点击展开查看结果</span>
-                <!-- R112: 导出前置 —— 完成后无需展开即可导出名单 -->
-                <template v-if="task.status === 'completed'">
-                  <t-button @click.stop="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</t-button>
-                  <t-button @click.stop="exportExcel(task.task_id)" class="ui-t-button--primary ui-t-button">Excel</t-button>
-                </template>
-                <span v-else>{{ task.result_count || task.config?.member_count || 0 }} 成员</span>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <button type="button" class="flex min-w-0 flex-1 items-center justify-between gap-3 text-left" @click="toggleExpand(task.task_id)" :aria-expanded="!!expanded[task.task_id]" :aria-controls="'scrape-members-' + task.task_id">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-[color:var(--t-warn-dim)] flex items-center justify-center shrink-0">
+                <Users class="w-5 h-5 text-[var(--t-warn)]" />
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium truncate">{{ task.config?.group_title || '成员采集' }} #{{ task.task_id?.slice(-6) }}</div>
+                <div class="text-xs text-text-muted flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span>{{ formatDate(task.created_at) }}</span>
+                  <span class="w-1 h-1 rounded-full bg-text-muted" />
+                  <span v-if="task.status === 'running'">采集中...</span>
+                  <span v-else-if="task.status === 'completed' && (task.result_count || task.config?.member_count)">{{ task.result_count || task.config?.member_count }} 成员</span>
+                  <span v-else>{{ task.result_count || task.config?.member_count || 0 }} 成员</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <span class="px-2 py-0.5 rounded text-xs font-medium"
-                  :class="task.status === 'completed' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : task.status === 'running' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : task.status === 'failed' ? 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]' : 'bg-text-muted/10 text-text-muted'">
-              {{ statusText(task.status) }}
-            </span>
-            <ChevronDown class="w-4 h-4 text-text-muted transition-transform" :class="expanded[task.task_id] ? 'rotate-180' : ''" />
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="px-2 py-0.5 rounded text-xs font-medium"
+                    :class="task.status === 'completed' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : task.status === 'running' ? 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : task.status === 'failed' ? 'bg-[color:var(--t-err-dim)] text-[var(--t-err)]' : 'bg-text-muted/10 text-text-muted'">
+                {{ statusText(task.status) }}
+              </span>
+              <ChevronDown class="w-4 h-4 text-text-muted transition-transform" :class="expanded[task.task_id] ? 'rotate-180' : ''" />
+            </div>
+          </button>
+          <div v-if="task.status === 'completed'" class="flex items-center gap-1 shrink-0">
+            <t-button size="small" @click="exportCSV(task.task_id)" class="ui-t-button--secondary ui-t-button">导出 CSV</t-button>
+            <t-button size="small" @click="exportExcel(task.task_id)" class="ui-t-button--primary ui-t-button">Excel</t-button>
           </div>
         </div>
         <div v-if="task.status === 'running' && task.progress" class="mt-2">
