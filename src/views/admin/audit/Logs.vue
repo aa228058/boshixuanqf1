@@ -84,9 +84,9 @@ const startDate = ref('')
 const endDate = ref('')
 
 const columns = [
-  { key: 'created_at', title: '时间', format: (v: any) => new Date(v).toLocaleString('zh-CN') },
-  { key: 'tenant_id', title: '租户ID', format: (v: any) => v ? v.slice(0, 8) + '...' : '系统' },
-  { key: 'user_id', title: '用户', format: (v: any) => v ? v.slice(0, 8) + '...' : '-' },
+  { key: 'created_at', title: '时间' },
+  { key: 'tenant_id', title: '租户ID' },
+  { key: 'user_id', title: '用户' },
   { key: 'action', title: '操作' },
   { key: 'target', title: '目标' },
   { key: 'ip', title: 'IP 地址' },
