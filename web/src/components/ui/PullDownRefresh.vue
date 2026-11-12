@@ -76,7 +76,11 @@ function canPull(): boolean {
 }
 
 function onStart(e: TouchEvent) {
-  if (e.touches.length !== 1) return
+  if (e.touches.length !== 1) {
+    tracking = false
+    pullY.value = 0
+    return
+  }
   if (!canPull()) return
   tracking = true
   startY = e.touches[0].clientY
@@ -85,6 +89,12 @@ function onStart(e: TouchEvent) {
 
 function onMove(e: TouchEvent) {
   if (!tracking) return
+  // Multi-touch gestures belong to the browser; cancel rather than reading an ambiguous touch.
+  if (e.touches.length !== 1) {
+    tracking = false
+    pullY.value = 0
+    return
+  }
   const delta = e.touches[0].clientY - startY
   if (delta <= 0) {
     // 向上滑——交还滚动, 停止跟踪
