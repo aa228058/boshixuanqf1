@@ -139,7 +139,7 @@
   <!-- 批量操作吸底栏：选中卡密时弹出 -->
   <Teleport to="body">
     <Transition name="batch-bar">
-      <div v-if="selectedIds.length" class="fixed bottom-[calc(92px_+_env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
+      <div v-if="selectedIds.length" class="fixed bottom-[calc(20px_+_env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
         <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke">批量作废</t-button>
         <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete">批量删除</t-button>
