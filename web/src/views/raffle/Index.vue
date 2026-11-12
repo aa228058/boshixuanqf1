@@ -135,7 +135,7 @@
       <div v-if="raffleEnabled" class="mt-4 pt-4 border-t border-border/50">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs text-text-muted">参与账号（关闭后该账号不再抢抽奖）</span>
-          <t-button class="ui-t-button--text ui-t-button" @click="toggleAll" variant="text">
+          <t-button class="ui-t-button--text ui-t-button" @click="toggleAll" :disabled="toggleAllPending" variant="text">
             {{ allSelected ? '全不选' : '全选' }}
           </t-button>
         </div>
@@ -148,6 +148,7 @@
             <input
               type="checkbox"
               :checked="acc.raffle_enabled !== false"
+              :disabled="accountTogglePending.has(acc.account_id) || toggleAllPending"
               class="accent-cyan w-4 h-4"
               @change="toggleAccount(acc)"
             />
@@ -243,6 +244,8 @@ import { ask } from '@/utils/confirm'
 
 const raffleEnabled = ref(false)
 const toggling = ref(false)
+const accountTogglePending = ref(new Set<string>())
+const toggleAllPending = ref(false)
 const accounts = ref<any[]>([])
 // 中奖回复设置(060)
 const replyEnabled = ref(false)
@@ -376,18 +379,41 @@ async function toggleMaster() {
 }
 
 async function toggleAccount(acc: any) {
+  const id = String(acc.account_id || '')
+  if (!id || accountTogglePending.value.has(id) || toggleAllPending.value) return
   const next = acc.raffle_enabled === false
+  accountTogglePending.value = new Set(accountTogglePending.value).add(id)
   try {
-    await accountApi.setRaffle(acc.account_id, next)
+    await accountApi.setRaffle(id, next)
     acc.raffle_enabled = next
     toast({ type: 'success', message: `${acc.remark || acc.phone} 抽奖已${next ? '开启' : '关闭'}` })
-  } catch { /* 请求层统一报错 */ }
+  } catch (e: any) {
+    toast({ type: 'error', message: e?.message || '账号抽奖状态更新失败' })
+  } finally {
+    const pending = new Set(accountTogglePending.value)
+    pending.delete(id)
+    accountTogglePending.value = pending
+  }
 }
 
 async function toggleAll() {
+  if (toggleAllPending.value || accountTogglePending.value.size) return
+  toggleAllPending.value = true
   const target = !allSelected.value
-  for (const acc of accounts.value) {
-    if ((acc.raffle_enabled !== false) !== target) await toggleAccount(acc)
+  try {
+    for (const acc of accounts.value) {
+      if ((acc.raffle_enabled !== false) !== target) {
+        const id = String(acc.account_id || '')
+        try {
+          await accountApi.setRaffle(id, target)
+          acc.raffle_enabled = target
+        } catch (e: any) {
+          toast({ type: 'error', message: `${acc.remark || acc.phone || id} 更新失败：${e?.message || '请重试'}` })
+        }
+      }
+    }
+  } finally {
+    toggleAllPending.value = false
   }
 }
 
