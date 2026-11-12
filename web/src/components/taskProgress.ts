@@ -36,7 +36,7 @@ export function normalizeTaskProgress(value: unknown): TaskProgress {
 
 /** Merge a newest-first live SSE buffer with an older API snapshot without dropping events
  * that arrived while the snapshot request was in flight. */
-export function mergeRecentTaskLogs<T extends { log_id?: string | number | null }>(
+export function mergeRecentTaskLogs<T extends { log_id?: string | number | null; [key: string]: unknown }>(
   apiLogs: T[],
   liveLogs: T[],
   limit = 6,
