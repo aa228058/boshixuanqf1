@@ -146,33 +146,50 @@ const contactIcon = computed<Component>(() => {
 // R182.6: 客服联系方式为空 → 不渲染悬浮球(空按钮碍眼且无功能)
 const hasContact = computed(() => !!config.value?.contact_value)
 
-// P1-32: 原 navigator.clipboard 无 ?.——非 HTTPS 环境 clipboard 为 undefined,
-// 直接抛 TypeError 触发全局红条。加 ?. + execCommand 兜底。
-function fallbackCopy(text: string) {
+// 旧环境或非安全上下文可能没有 Clipboard API；execCommand 返回 false 时不能假报成功。
+function fallbackCopy(text: string): boolean {
   const ta = document.createElement('textarea')
   ta.value = text
+  ta.setAttribute('readonly', '')
   ta.style.position = 'fixed'
   ta.style.opacity = '0'
   document.body.appendChild(ta)
   ta.select()
-  try { document.execCommand('copy') } catch { /* 尽力而为 */ }
-  document.body.removeChild(ta)
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(ta)
+  }
 }
 
-function copyContact() {
-  if (!config.value?.contact_value) return
-  navigator.clipboard?.writeText(config.value.contact_value).then(() => {
-    copied.value = true
-    toast({ type: 'success', title: '已复制到剪贴板' })
-    if (copyTimer) clearTimeout(copyTimer)
-    copyTimer = setTimeout(() => { copied.value = false }, 2000)
-  }).catch(() => {
-    fallbackCopy(config.value!.contact_value)
-    copied.value = true
-    toast({ type: 'success', title: '已复制到剪贴板' })
-    if (copyTimer) clearTimeout(copyTimer)
-    copyTimer = setTimeout(() => { copied.value = false }, 2000)
-  })
+function markCopied() {
+  copied.value = true
+  toast({ type: 'success', title: '已复制到剪贴板' })
+  if (copyTimer) clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => { copied.value = false }, 2000)
+}
+
+async function copyContact() {
+  const text = config.value?.contact_value
+  if (!text) return
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else if (!fallbackCopy(text)) {
+      throw new Error('Clipboard API unavailable and fallback copy failed')
+    }
+    markCopied()
+  } catch {
+    // Clipboard API 可能存在但被权限策略拒绝；再尝试传统复制。
+    if (navigator.clipboard?.writeText && fallbackCopy(text)) {
+      markCopied()
+      return
+    }
+    toast({ type: 'error', title: '复制失败，请手动复制联系方式' })
+  }
 }
 
 // P1-25: 原 safeQrUrl 只判 http 前缀——客服二维码存 base64(data:image/...)时
