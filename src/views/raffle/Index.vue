@@ -182,11 +182,16 @@
         <div class="flex items-center gap-3 shrink-0">
           <!-- R128 清空记录: 确认后调 DELETE 端点, 日志不再无限叠加 -->
           <t-button class="ui-t-button--danger ui-t-button" @click="clearAllResults">清空</t-button>
-          <t-button class="ui-t-button--text ui-t-button" @click="loadResults" variant="text">刷新</t-button>
+          <t-button class="ui-t-button--text ui-t-button" :disabled="resultsLoading" @click="loadResults" variant="text">{{ resultsLoading ? '刷新中…' : '刷新' }}</t-button>
         </div>
       </div>
 
-      <div v-if="!results.length" class="empty-pretty">
+      <div v-if="resultsLoading" role="status" aria-live="polite" class="py-8 text-center text-sm text-text-secondary">正在读取参与记录…</div>
+      <div v-else-if="resultsError" role="alert" class="py-8 text-center space-y-3">
+        <p class="text-sm text-[var(--t-err)]">{{ resultsError }}</p>
+        <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="loadResults">重新加载</t-button>
+      </div>
+      <div v-else-if="!results.length" class="empty-pretty">
         <div class="ep-icon">
           <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M21 12a9 9 0 1 1-9-9" stroke-linecap="round" />
@@ -388,11 +393,19 @@ async function toggleAll() {
 
 // ===== 参与记录(058) =====
 const results = ref<any[]>([])
+const resultsLoading = ref(false)
+const resultsError = ref('')
 async function loadResults() {
+  resultsLoading.value = true
+  resultsError.value = ''
   try {
     const res = await request.get<{ list: any[] }>('/raffle/results')
     results.value = res.list || []
-  } catch { /* 未开通套餐时 403, 静默 */ }
+  } catch (e: any) {
+    resultsError.value = e?.message || '读取参与记录失败，请重试'
+  } finally {
+    resultsLoading.value = false
+  }
 }
 // R148: 记录按活动分组(同一群+同一关键词=同一活动), 最新活动在前, 卡内账号按时间排序
 const groupedResults = computed(() => {
