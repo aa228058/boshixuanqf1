@@ -264,3 +264,21 @@
 
 
 补充：#38 组件复核时发现背景轨道曾使用字面量 `stroke-width="stroke"`，而非 Vue 属性绑定。已在 `553dba7` 改为 `:stroke-width="stroke"`，确保轨道粗细与两段进度弧一致。
+
+## R. SupportFloat 剪贴板降级修复
+
+- 文件：`src/components/ui/SupportFloat.vue`
+- 提交：`9aec6528cf49999a7120a1255e76bc51b8843c54`
+- 问题：原实现对 `navigator.clipboard` 使用可选链后直接串接 `.then().catch()`。当 Clipboard API 不存在时，整个表达式短路为 `undefined`，传统复制兜底不会执行；同时旧兜底不检查 `execCommand('copy')` 的返回值，可能错误提示复制成功。
+- 修改：
+  1. 将复制流程改为 async/await，显式区分 Clipboard API 可用与不可用。
+  2. Clipboard API 缺失或权限拒绝时，尝试传统 textarea 复制。
+  3. 传统复制检查返回值并在 finally 中清理临时 textarea。
+  4. 只有复制确实成功才提示成功；所有路径失败时提示用户手动复制。
+- 归类：真缺陷；触及逻辑。
+- 回归步骤：
+  - HTTPS/支持 Clipboard API：点击复制，确认剪贴板内容正确且显示成功。
+  - 禁用 Clipboard API：确认自动走 textarea 降级且内容正确。
+  - 模拟 Clipboard API 拒绝权限：确认降级成功。
+  - 同时让降级复制失败：确认显示失败提示，不显示“已复制”。
+- 验收状态：源码修复已提交；尚未运行 lint/typecheck/build，也未进行浏览器权限场景回归。
