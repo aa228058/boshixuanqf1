@@ -65,14 +65,14 @@
     <div class="space-y-4">
       <!-- R108: 执行账号选择(普通号模式) —— 不再依赖顶栏切换器 -->
       <div v-if="joinMode === 'invite'">
-        <label class="block text-sm font-medium mb-2">执行账号</label>
-        <select v-model="phoneAccId" class="ui-input !text-sm" aria-label="执行账号">
+        <label for="join-phone-account" class="block text-sm font-medium mb-2">执行账号</label>
+        <select id="join-phone-account" v-model="phoneAccId" class="ui-input !text-sm" aria-label="执行账号">
           <option v-for="a in onlineAccounts" :key="a.account_id" :value="a.account_id">{{ a.first_name || a.phone }}</option>
         </select>
       </div>
       <div v-else class="space-y-2">
-        <div class="flex items-center justify-between"><label class="block text-sm font-medium">执行账号（可多选）</label><span class="text-xs text-text-muted">已选 {{ joinAccounts.length }} 个在线账号</span></div>
-        <div class="max-h-36 overflow-y-auto rounded-lg border border-border p-2 space-y-1">
+        <div class="flex items-center justify-between"><span class="block text-sm font-medium">执行账号（可多选）</span><span class="text-xs text-text-muted">已选 {{ joinAccounts.length }} 个在线账号</span></div>
+        <div role="group" aria-label="选择执行账号" class="max-h-36 overflow-y-auto rounded-lg border border-border p-2 space-y-1">
           <label v-for="a in onlineAccounts" :key="a.account_id" class="flex items-center gap-2 p-2 rounded hover:bg-bg-hover cursor-pointer">
             <input type="checkbox" :value="a.account_id" v-model="joinAccounts" class="accent-[var(--t-brand)]" />
             <span class="text-sm">{{ a.remark || a.first_name || a.phone }}</span><span class="text-xs text-text-muted ml-auto">{{ a.phone }}</span>
@@ -80,8 +80,8 @@
           <p v-if="!onlineAccounts.length" class="text-xs text-text-muted text-center py-3">没有在线账号，请先启动账号。</p>
         </div>
         <div v-if="joinAccounts.length > 1" class="space-y-1">
-          <label class="block text-xs text-text-secondary">多账号分配方式</label>
-          <select v-model="joinDistribution" class="ui-input !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="多账号分配方式"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
+          <label for="join-distribution" class="block text-xs text-text-secondary">多账号分配方式</label>
+          <select id="join-distribution" v-model="joinDistribution" class="ui-input !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="多账号分配方式"><option value="all">每个账号都执行全部链接</option><option value="round_robin">均分链接（每个群只分配给一个账号）</option></select>
         </div>
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
@@ -101,15 +101,15 @@
       <!-- 邀请成员模式: 目标群(我的群) + 来源群(有采集成员的群) -->
       <div v-if="joinMode === 'invite'" class="space-y-3">
         <div>
-          <label class="block text-xs font-semibold mb-1">我的群(邀请进这个群)</label>
-          <select v-model="inviteTargetId" class="ui-input !text-sm">
+          <label for="join-invite-target" class="block text-xs font-semibold mb-1">我的群(邀请进这个群)</label>
+          <select id="join-invite-target" v-model="inviteTargetId" class="ui-input !text-sm">
             <option value="">选择目标群</option>
             <option v-for="g in joinedGroups" :key="g.group_id" :value="g.group_id">{{ g.title || g.username || ('群' + g.tg_chat_id) }}</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold mb-1">来源群(邀请这个群的成员)</label>
-          <select v-model="inviteSourceId" class="ui-input !text-sm">
+          <label for="join-invite-source" class="block text-xs font-semibold mb-1">来源群(邀请这个群的成员)</label>
+          <select id="join-invite-source" v-model="inviteSourceId" class="ui-input !text-sm">
             <option value="">选择来源群</option>
             <option v-for="g in inviteGroups" :key="g.group_id" :value="g.group_id">{{ g.title || g.username || ('群' + g.tg_chat_id) }} ({{ g.member_count || 0 }}人)</option>
           </select>
@@ -119,8 +119,8 @@
       <!-- 协议号协同模式 -->
       <!-- R111: 协议协同死分支已删(view 恒 'phone')。群链接输入两模式本共用 -->
       <div>
-        <label class="block text-sm font-medium mb-2">群链接 / 邀请链接</label>
-        <textarea v-model="linksInput" rows="6" placeholder="每行一个链接，如:&#10;https://t.me/groupname&#10;https://t.me/+AbCdEfGhIjK"
+        <label for="join-links-input" class="block text-sm font-medium mb-2">群链接 / 邀请链接</label>
+        <textarea id="join-links-input" v-model="linksInput" rows="6" placeholder="每行一个链接，如:&#10;https://t.me/groupname&#10;https://t.me/+AbCdEfGhIjK"
                   class="ui-input !min-h-[144px] resize-none font-mono text-sm" aria-label="群链接或邀请链接" />
         <div class="flex items-center justify-between mt-2">
           <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
