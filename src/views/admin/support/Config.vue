@@ -27,15 +27,17 @@
           </div>
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">联系账号/链接</label>
+          <label for="support-contact-value" class="block text-sm text-text-secondary mb-1.5">联系账号/链接</label>
           <input
+            id="support-contact-value"
             v-model="form.contact_value"
             placeholder="如微信号、TG号、QQ号或邮箱"
             class="ui-input !text-sm" aria-label="如微信号、TG号、QQ号或邮箱" />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">显示名称</label>
+          <label for="support-display-name" class="block text-sm text-text-secondary mb-1.5">显示名称</label>
           <input
+            id="support-display-name"
             v-model="form.display_name"
             placeholder="如：联系客服开通套餐"
             class="ui-input !text-sm" aria-label="如：联系客服开通套餐" />
