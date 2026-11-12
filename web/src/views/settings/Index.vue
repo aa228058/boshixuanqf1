@@ -329,10 +329,10 @@
               class="bg-transparent text-sm font-medium focus:outline-none flex-1 min-w-0" 
             />
             <div class="flex items-center gap-1 shrink-0">
-              <t-button @click="saveTemplate(t)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
+              <t-button @click="saveTemplate(t)" :disabled="templateSavingIds.has(t.template_id) || templateDeletingIds.has(t.template_id)" :loading="templateSavingIds.has(t.template_id)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
                 保存
               </t-button>
-              <button type="button" @click="deleteTemplate(t.template_id)" class="ui-icon-btn" aria-label="删除消息模板">
+              <button type="button" @click="deleteTemplate(t.template_id)" :disabled="templateDeletingIds.has(t.template_id) || templateSavingIds.has(t.template_id)" class="ui-icon-btn disabled:opacity-40" aria-label="删除消息模板">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
@@ -348,7 +348,7 @@
             <!-- R121: 删掉手写计数 —— tdesign textarea 的 maxlength 自带右下角计数器, 双份叠印成"重影" -->
           </div>
         </div>
-        <t-button @click="addTemplate" class="ui-t-button ui-t-button--secondary w-full">
+        <t-button @click="addTemplate" :disabled="templateCreating" :loading="templateCreating" class="ui-t-button ui-t-button--secondary w-full">
           + 添加模板
         </t-button>
       </div>
@@ -678,6 +678,7 @@ async function createTextDict() {
   } finally { dictSaving.value = false }
 }
 async function saveTextDict(d: import('@/api/settings').TextDict) {
+  if (dictSaving.value) return
   dictSaving.value = true
   try {
     const entries = d.entries.filter(entry => entry.word.trim()).map(entry => ({ word: entry.word.trim(), enabled: !!entry.enabled }))
@@ -695,13 +696,16 @@ async function deleteTextDict(id: string) {
     danger: true,
     confirmText: '删除',
   })
-  if (!confirmed) return
+  if (!confirmed || dictSaving.value) return
+  dictSaving.value = true
   try {
     await settingsApi.deleteTextDict(id)
     await fetchTextDicts()
     toast({ type: 'success', message: '分组已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' })
+  } finally {
+    dictSaving.value = false
   }
 }
 async function copyDictItems(id: string) {
@@ -716,13 +720,21 @@ async function fetchTemplates() {
   }
 }
 
+const templateCreating = ref(false)
+const templateSavingIds = ref(new Set<string>())
+const templateDeletingIds = ref(new Set<string>())
+
 async function addTemplate() {
+  if (templateCreating.value) return
+  templateCreating.value = true
   try {
-    const t = await settingsApi.createTemplate({ name: '新模板', content: '' })
-    templates.value.push(t)
+    const created = await settingsApi.createTemplate({ name: '新模板', content: '' })
+    templates.value.push(created)
   } catch (err: unknown) {
-    // P1-38: 模板创建失败原来静默吞掉——用户以为成功实际没有
+    // P1-38: 创建失败必须明确反馈，避免用户误以为已保存。
     toast({ type: 'error', title: '创建模板失败', message: (err as Error)?.message || '请稍后重试' })
+  } finally {
+    templateCreating.value = false
   }
 }
 
@@ -740,11 +752,17 @@ function featureLabel(key: string): string {
 }
 
 async function deleteTemplate(id: string) {
+  if (templateDeletingIds.value.has(id)) return
+  templateDeletingIds.value = new Set(templateDeletingIds.value).add(id)
   try {
     await settingsApi.deleteTemplate(id)
     templates.value = templates.value.filter(t => t.template_id !== id)
   } catch (err: unknown) {
     toast({ type: 'error', title: '删除模板失败', message: (err as Error)?.message || '请稍后重试' })
+  } finally {
+    const next = new Set(templateDeletingIds.value)
+    next.delete(id)
+    templateDeletingIds.value = next
   }
 }
 
@@ -758,10 +776,19 @@ function updateTemplateContent(id: string, content: string) {
 }
 
 async function saveTemplate(t: MessageTemplate) {
+  const id = t.template_id
+  if (templateSavingIds.value.has(id) || templateDeletingIds.value.has(id)) return
+  const payload = { name: t.name, content: t.content }
+  templateSavingIds.value = new Set(templateSavingIds.value).add(id)
   try {
-    await settingsApi.updateTemplate(t.template_id, { name: t.name, content: t.content })
+    await settingsApi.updateTemplate(id, payload)
+    toast({ type: 'success', title: '模板已保存' })
   } catch (err: unknown) {
     toast({ type: 'error', title: '保存模板失败', message: (err as Error)?.message || '请稍后重试' })
+  } finally {
+    const next = new Set(templateSavingIds.value)
+    next.delete(id)
+    templateSavingIds.value = next
   }
 }
 
