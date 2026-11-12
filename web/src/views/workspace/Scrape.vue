@@ -363,6 +363,8 @@ function exportCSV(taskId: string) {
   link.href = URL.createObjectURL(blob)
   link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.csv`
   link.click()
+  // Keep the object URL alive until the browser has started the download.
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 }
 
 // 导出单元格消毒：数据来自 TG 用户名/昵称等外部输入，恶意用户可设 =cmd|...!A1
@@ -395,6 +397,8 @@ function exportExcel(taskId: string) {
   link.href = URL.createObjectURL(blob)
   link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.xls`
   link.click()
+  // Keep the object URL alive until the browser has started the download.
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 }
 
 // 群组走缓存 store: 有缓存零请求, 只有 GroupSelector 里点"同步"才调接口
