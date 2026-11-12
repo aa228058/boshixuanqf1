@@ -665,3 +665,19 @@
 - [x] 当前分支 56 个 Vue SFC 的显式 `label for` 与同文件 `id` 做了静态交叉检查；本节修复后未发现剩余悬空 for 引用。
 - [x] 已发现的非表单分组标题改为普通说明文本，避免伪造 label 关联。
 - [ ] TDesign Input/Select 的 id 是否最终透传到内部原生控件，仍须浏览器/读屏验证。
+
+
+## AU. 语义色 Token 全量静态交叉检查
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/settings/Index.vue` | 使用未定义的 `--t-danger`，验证失败提示会退回无效颜色值 | `4a9762beb25dd39fbb2ce16e341ad70388886b7a` | 纯展示 | AI 验证失败时三主题下错误文字均显示为语义错误色 |
+| `src/views/groups/Discover.vue` | 失效群链接徽章引用未定义的 `--t-danger` / `--t-danger-dim`，失败状态徽章颜色可能失效 | `12ef0d1289e451f0b1d39b2c189fc8f5e8c729f8`、`20de356bb19225dcc631fcf1e289828eb8864fbc` | 纯展示 | 三主题检查有效/失效/待验证三种群链接状态徽章 |
+| `src/views/tasks/Detail.vue` | 任务日志 checkpoint 持久化失败状态引用未定义的 `--t-warning`，警告色无效 | `9a327ea83713938af2b58093b955fdb635da381e` | 纯展示 | 触发 checkpoint_persist_failed 日志，三主题下显示警告色 |
+
+### 全量 Token 静态扫描结果
+
+- [x] 当前分支全部 56 个 Vue SFC 的 `var(--t-*)` 引用与 `src/styles/tokens.css` 声明做了交叉检查。
+- [x] 当前分支 12 个样式文件的 `var(--t-*)` 引用也做了同样检查。
+- [x] 除本节三处错误别名外，未发现其他未定义 `--t-*` 引用。
+- [ ] 仍需检查 Tailwind 任意值类最终是否进入构建产物；CSS var 存在不代表所有动态 class 均被扫描生成。
