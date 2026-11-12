@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onScopeDispose } from 'vue'
 import { accountApi } from '@/api/account'
 import type { Account, AccountGroup, AccountStatus } from '@/types'
 import { onMutation } from '@/utils/mutationBus'
@@ -90,7 +90,7 @@ export const useAccountStore = defineStore('account', () => {
         const online = accounts.value.find((a: Account) => a.status === 'online')
         currentAccount.value = online || accounts.value[0]
       }
-      } finally {
+    } finally {
       if (loadingRequestId === requestId) loading.value = false
     }
   }
@@ -132,7 +132,8 @@ export const useAccountStore = defineStore('account', () => {
   // P2-70: 原 /\/accounts/ 过宽——/accounts/import、/accounts/profile-batch、
   // /accounts/clone-profile 等批量端点每处理完一个号就触发一次全量列表刷新,
   // 批量改 100 个号 = 100 次全量拉取。排除已知批量子路径, 只响应单号增删改。
-  onMutation(/\/accounts(?!\/(import|profile-batch|clone-profile)\b)/, () => fetchAccounts(true))
+  const stopAccountMutation = onMutation(/\/accounts(?!\/(import|profile-batch|clone-profile)\b)/, () => fetchAccounts(true))
+  onScopeDispose(stopAccountMutation)
 
   return { accounts, groups, loading, currentAccount, fetchAccounts, createAccount, deleteAccount,
     view, phoneAccounts, protocolAccounts, applyStatus }
