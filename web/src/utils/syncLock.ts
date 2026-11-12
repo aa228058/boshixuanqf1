@@ -1,13 +1,15 @@
 // Per-account sync locks prevent duplicate Telegram requests without allowing
 // one account's completion to release another account's in-flight sync.
-const syncingAccounts = new Map<string, number>()
+interface SyncLease { startedAt: number; token: number }
+const syncingAccounts = new Map<string, SyncLease>()
+let nextLeaseToken = 0
 const SYNC_LOCK_TTL = 120000 // Slightly above the 110s backend sync deadline
 const SYNC_INTERVAL = 10 * 60 * 1000 // 10 minutes between syncs
 
 function pruneExpiredLocks() {
   const now = Date.now()
-  for (const [accountId, startedAt] of syncingAccounts) {
-    if (now - startedAt > SYNC_LOCK_TTL) syncingAccounts.delete(accountId)
+  for (const [accountId, lease] of syncingAccounts) {
+    if (now - lease.startedAt > SYNC_LOCK_TTL) syncingAccounts.delete(accountId)
   }
 }
 
@@ -16,15 +18,15 @@ export const syncLock = {
     pruneExpiredLocks()
     return accountId ? syncingAccounts.has(accountId) : syncingAccounts.size > 0
   },
-  acquire(accountId: string): boolean {
-    if (this.isSyncing(accountId)) return false
-    syncingAccounts.set(accountId, Date.now())
-    return true
+  acquire(accountId: string): number | null {
+    if (this.isSyncing(accountId)) return null
+    const token = ++nextLeaseToken
+    syncingAccounts.set(accountId, { startedAt: Date.now(), token })
+    return token
   },
-  release(accountId?: string) {
-    // Keep no-argument release for compatibility with any external callers.
-    if (accountId) syncingAccounts.delete(accountId)
-    else syncingAccounts.clear()
+  release(accountId: string, token: number) {
+    // An expired request must never release a newer lease for the same account.
+    if (syncingAccounts.get(accountId)?.token === token) syncingAccounts.delete(accountId)
   },
   getAccountId(): string | null {
     pruneExpiredLocks()
