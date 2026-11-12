@@ -2,6 +2,12 @@
      用法: <ProgressRing :percent="51" :size="44" :stroke="4" /> -->
 <script setup lang="ts">
 import { computed } from 'vue'
+import {
+  normalizeRingPercent,
+  normalizeRingSize,
+  normalizeRingStroke,
+  normalizeRingSuccess,
+} from './progressRing'
 
 const props = withDefaults(defineProps<{
   percent: number          // 0-100, 已处理口径(成功+失败)
@@ -10,16 +16,10 @@ const props = withDefaults(defineProps<{
   success?: number         // 成功占比 0-100(画绿色弧, 剩余为青)
 }>(), { size: 44, stroke: 4, success: 0 })
 
-const safeSize = computed(() => Number.isFinite(props.size) ? Math.max(1, props.size) : 44)
-const safeStroke = computed(() => Number.isFinite(props.stroke)
-  ? Math.min(safeSize.value, Math.max(0, props.stroke))
-  : 4)
-const progress = computed(() => Number.isFinite(props.percent)
-  ? Math.min(100, Math.max(0, props.percent))
-  : 0)
-const success = computed(() => Number.isFinite(props.success)
-  ? Math.min(progress.value, Math.max(0, props.success))
-  : 0)
+const safeSize = computed(() => normalizeRingSize(props.size))
+const safeStroke = computed(() => normalizeRingStroke(props.stroke, safeSize.value))
+const progress = computed(() => normalizeRingPercent(props.percent))
+const success = computed(() => normalizeRingSuccess(props.success, progress.value))
 const r = computed(() => Math.max(0, (safeSize.value - safeStroke.value) / 2))
 const circ = computed(() => 2 * Math.PI * r.value)
 // 总进度弧长
