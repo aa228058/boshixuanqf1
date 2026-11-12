@@ -119,6 +119,7 @@ let logsRequestId = 0
 async function fetchLogs() {
   const requestId = ++logsRequestId
   const params: any = { page: page.value, page_size: 20 }
+  try {
     // 时区修正：此前直接拼 'T00:00:00Z'（UTC 零点 = 北京时间 08:00），
     // 会漏掉当天 0-8 点的日志。改为本地零点/末点转 UTC ISO 串，与后端
     // parseAuditTime 的 RFC3339 分支对齐，筛选边界与管理员预期一致。
