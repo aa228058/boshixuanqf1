@@ -1,35 +1,34 @@
-// Global sync lock to prevent multiple components from syncing simultaneously for the same accountId.
-// This prevents duplicate Telegram API calls and reduces flood wait risk.
-
-let syncingAccountId: string | null = null
-let syncStartTime = 0
+// Per-account sync locks prevent duplicate Telegram requests without allowing
+// one account's completion to release another account's in-flight sync.
+const syncingAccounts = new Map<string, number>()
 const SYNC_LOCK_TTL = 120000 // Slightly above the 110s backend sync deadline
 const SYNC_INTERVAL = 10 * 60 * 1000 // 10 minutes between syncs
 
+function pruneExpiredLocks() {
+  const now = Date.now()
+  for (const [accountId, startedAt] of syncingAccounts) {
+    if (now - startedAt > SYNC_LOCK_TTL) syncingAccounts.delete(accountId)
+  }
+}
+
 export const syncLock = {
   isSyncing(accountId?: string): boolean {
-    if (!syncingAccountId) return false
-    // Safety: auto-release if lock is too old
-    if (Date.now() - syncStartTime > SYNC_LOCK_TTL) {
-      this.release()
-      return false
-    }
-    // If no accountId specified, any sync is considered active
-    if (!accountId) return true
-    return syncingAccountId === accountId
+    pruneExpiredLocks()
+    return accountId ? syncingAccounts.has(accountId) : syncingAccounts.size > 0
   },
   acquire(accountId: string): boolean {
     if (this.isSyncing(accountId)) return false
-    syncingAccountId = accountId
-    syncStartTime = Date.now()
+    syncingAccounts.set(accountId, Date.now())
     return true
   },
-  release() {
-    syncingAccountId = null
-    syncStartTime = 0
+  release(accountId?: string) {
+    // Keep no-argument release for compatibility with any external callers.
+    if (accountId) syncingAccounts.delete(accountId)
+    else syncingAccounts.clear()
   },
   getAccountId(): string | null {
-    return syncingAccountId
+    pruneExpiredLocks()
+    return syncingAccounts.keys().next().value ?? null
   },
 }
 
