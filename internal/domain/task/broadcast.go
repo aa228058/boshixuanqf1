@@ -820,7 +820,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					Action:     "send_message",
 					Status:     status,
 					// 2026-10-21: 目标级耗时——用户要的完整日志 时间-群名-状态-耗时
-					Message:     fmt.Sprintf("%s\\n耗时 %.1fs", loggedMessage, time.Since(targetStart).Seconds()),
+					Message:     fmt.Sprintf("%s\n耗时 %.1fs", loggedMessage, time.Since(targetStart).Seconds()),
 					ErrorCode:   errCode,
 					TGMessageID: sentMsgID,
 					ExecutedAt:  time.Now(),
