@@ -13,11 +13,11 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
-        <h3 class="text-sm font-medium text-text-secondary mb-4">租户增长趋势 <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning">示例数据</span></h3>
+        <h3 class="text-sm font-medium text-text-secondary mb-4">租户增长趋势 <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber/15 text-amber">示例数据</span></h3>
         <v-chart class="h-64" :option="tenantChartOption" autoresize />
       </div>
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
-        <h3 class="text-sm font-medium text-text-secondary mb-4">收入趋势 <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning">示例数据</span></h3>
+        <h3 class="text-sm font-medium text-text-secondary mb-4">收入趋势 <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber/15 text-amber">示例数据</span></h3>
         <v-chart class="h-64" :option="revenueChartOption" autoresize />
       </div>
     </div>
