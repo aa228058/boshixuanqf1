@@ -136,13 +136,13 @@ const regFailed = ref(false)
 const error = ref('')
 const success = ref(false)
 let redirectTimer: ReturnType<typeof setTimeout> | null = null
+let failureTimer: ReturnType<typeof setTimeout> | null = null
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 
 onUnmounted(() => {
-  if (redirectTimer) {
-    clearTimeout(redirectTimer)
-  }
+  if (redirectTimer) clearTimeout(redirectTimer)
+  if (failureTimer) clearTimeout(failureTimer)
 })
 
 const form = reactive({
@@ -176,7 +176,8 @@ async function handleRegister() {
   } catch (err: unknown) {
     error.value = (err instanceof Error ? err.message : String(err)) || '注册失败，请稍后重试'
     regFailed.value = true
-    setTimeout(() => { regFailed.value = false }, 2000)
+    if (failureTimer) clearTimeout(failureTimer)
+    failureTimer = setTimeout(() => { regFailed.value = false; failureTimer = null }, 2000)
   } finally {
     loading.value = false
   }
