@@ -191,6 +191,7 @@ function fallbackCopy(text: string): boolean {
 }
 
 function showCopyResult(succeeded: boolean) {
+  if (disposed) return
   if (copyTimer) clearTimeout(copyTimer)
   copied.value = succeeded
   toast({
@@ -207,6 +208,7 @@ async function copyContact() {
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(value)
+      if (disposed) return
       showCopyResult(true)
       return
     }
@@ -214,7 +216,7 @@ async function copyContact() {
     // 权限拒绝或非安全上下文时尝试兼容性回退。
   }
 
-  showCopyResult(fallbackCopy(value))
+  if (!disposed) showCopyResult(fallbackCopy(value))
 }
 
 // P1-25: 原 safeQrUrl 只判 http 前缀——客服二维码存 base64(data:image/...)时
