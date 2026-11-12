@@ -286,6 +286,8 @@ const importLines = computed(() => importText.value.split('\n').map(s => s.trim(
 
 const sessionFileInput = ref<HTMLInputElement>()
 const sessionFiles = ref<File[]>([])
+let importRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let importCloseTimer: ReturnType<typeof setTimeout> | null = null
 
 function onSessionFilesPicked(e: Event) {
   const input = e.target as HTMLInputElement
@@ -307,10 +309,12 @@ async function doImport() {
     if (res.created > 0) {
       toast({ type: 'success', title: `成功导入 ${res.created} 个`, message: '正在后台连接验证…' })
       accountStore.fetchAccounts(true) // 立即刷新——行已在DB，无需等8秒
-      setTimeout(() => { refresh(); accountStore.fetchAccounts(true) }, 8000) // 8秒后二次刷新获取连接状态
+      if (importRefreshTimer) clearTimeout(importRefreshTimer)
+      importRefreshTimer = setTimeout(() => { importRefreshTimer = null; refresh(); accountStore.fetchAccounts(true) }, 8000) // 8秒后二次刷新获取连接状态
     }
     if (res.failed === 0) {
-      setTimeout(() => { showImport.value = false; importText.value = ''; sessionFiles.value = []; importResult.value = null }, 1500)
+      if (importCloseTimer) clearTimeout(importCloseTimer)
+      importCloseTimer = setTimeout(() => { importCloseTimer = null; showImport.value = false; importText.value = ''; sessionFiles.value = []; importResult.value = null }, 1500)
     }
   } catch (e: any) {
     toast({ type: 'error', title: '导入失败', message: e?.message })
@@ -397,6 +401,8 @@ onMounted(() => {
 })
 onUnmounted(() => {
   if (statusPoll) clearInterval(statusPoll)
+  if (importRefreshTimer) clearTimeout(importRefreshTimer)
+  if (importCloseTimer) clearTimeout(importCloseTimer)
 })
 </script>
 
