@@ -20,18 +20,18 @@
 
 | ID | 页面/组件（完整路径） | 问题描述 | 严重度 | 归类 | 源码状态 | 触及层 | 验收方式 | 整改提交/备注 |
 |---|---|---|---|---|---|---|---|---|
-| #4 | `src/components/ui/CountUp.vue` | 清洗货币符号后动画只写数字，`¥` 不恢复 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 单测 + dashboard 手动 | `animateTo` 写入 String(number)，需保留前后缀 |
+| #4 | `src/components/ui/CountUp.vue` | 清洗货币符号后动画只写数字，`¥` 不恢复 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 单测 + dashboard 手动 | 已提交修复 `51740bc`：动画过程保留数字前缀/后缀；待构建和货币值回归 |
 | #9 | `src/components/MobileTabBar.vue` | `startsWith(t.path)` 将账号 ID 纳入匹配，切换账号后 Tab 可能失活 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 多账号切换 E2E | 路径匹配需按路由段/名称设计 |
 | #10 | `src/components/MobileTabBar.vue` | 当前账号缺失时使用 `none` 生成工作区路由，无有效 fallback | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 无账号点群发 Tab，验证跳转账号页 | 需确认路由守卫目标 |
-| #20 | `src/components/ui/Breadcrumb.vue` | 模板固定渲染“首页”，管理端传入仪表盘后重复层级 | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 租户端、管理端面包屑逐页检查 | 根因在组件 API/模板层 |
+| #20 | `src/components/ui/Breadcrumb.vue` | 模板固定渲染“首页”，管理端传入仪表盘后重复层级 | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 租户端、管理端面包屑逐页检查 | 已提交修复 `e7be58b`：传入 items 时不再额外插入首页；无 items 时保留默认首页+当前页 |
 | #26 | `src/components/ui/ConfirmActions.vue` | 移动端使用 `column-reverse`，按钮视觉顺序与 DOM/焦点顺序不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 移动端键盘焦点与视觉顺序手测 | 需确定产品期望按钮顺序 |
 | #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动父级时 `canPull()` 返回 true | 🟡 | 待验证 | 已确认（行为） | 触及逻辑 | 页面级滚动容器/无滚动容器两种场景实测 | 源码注释明确这是整页场景的有意 fallback；是否误触需实测 |
 | #34 | `src/components/ui/SupportFloat.vue` | 拖拽后 click 未拦截 | 🟡 | 误报/待复核 | 误报（当前代码有防护） | 触及逻辑 | 拖拽后松手、轻点分别手测 | `toggle()` 已检查 `isDragging`；仍需手测事件时序 |
-| #36 | `src/components/ui/EmptyState.vue` | `title` 传入 TDesign `description`，真描述另行渲染 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 组件用例/页面手测 | 组件 prop 语义需修正 |
-| #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 文本与弧统一精度策略 |
+| #36 | `src/components/ui/EmptyState.vue` | `title` 传入 TDesign `description`，真描述另行渲染 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 组件用例/页面手测 | 已提交修复 `5827ff5`：title 放入 image slot 标题区，description 交给 TDesign description；待页面视觉回归 |
+| #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 已提交修复 `ec0f05b`：弧与文本共用 0.1% 精度的夹紧值；待边界测试 |
 | #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 36px 源码已定位；按 44px 目标评估布局空间 |
-| #58 | `src/views/accounts/List.vue` | `codeAge()` 使用 `Date.now()`，没有响应式时间依赖 | 🟠 | 真缺陷候选 | 已确认（源码） | 触及逻辑 | 验证验证码年龄是否随时间刷新 | 页面有 `nowTs`，但函数未读取它 |
-| #68 | `src/views/accounts/List.vue` | `statusPoll` 与 `useAutoRefresh` 都触发账号刷新，可能重复轮询 | 🟠 | 横切/性能 | 已确认（双触发存在） | 触及逻辑 | 网络面板统计 30 秒请求次数、切后台恢复 | 需检查 store 缓存/去重语义后决定是否合并 |
+| #58 | `src/views/accounts/List.vue` | `loginCodeFresh()` / `codeAge()` 未读取响应式时间依赖 | 🟠 | 真缺陷候选 | 已确认（源码） | 触及逻辑 | 验证验证码年龄是否随时间刷新及 10 分钟到期隐藏 | 已提交修复 `dea6832`：两个函数统一读取 `nowTs.value`；待手动回归 |
+| #68 | `src/views/accounts/List.vue` | `statusPoll` 与 `useAutoRefresh` 都触发账号刷新，可能重复轮询 | 🟠 | 横切/性能 | 已确认（双触发存在） | 触及逻辑 | 网络面板统计 30 秒请求次数、切后台恢复 | 已提交修复 `dea6832`：移除重复 statusPoll，保留 useAutoRefresh 对账号/统计/任务摘要的统一刷新；待网络面板回归 |
 | #99 | `src/views/workspace/Scrape.vue` | 导出 Excel 的独立 HTML 使用 CSS 变量 `var(--t-line)` | 🟡 | 真缺陷 | 已确认 | 纯展示 | 下载 XLS 并检查边框 | 独立 Blob 文档不继承应用主题变量 |
 | #100 | `src/views/workspace/Scrape.vue` | CSV/XLS 导出创建 Object URL 后未 revoke | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 连续导出后检查 URL 生命周期 | 两处 createObjectURL 均未释放 |
 | #109 | `src/views/raffle/Index.vue` | 清空记录使用原生 `confirm()` | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 桌面/移动端确认交互回归 | 改用项目统一确认组件/ask |
@@ -120,3 +120,24 @@
 - [ ] 桌面 / 移动端三主题回归
 
 **注意：GitHub 源码提交不等于构建或浏览器回归已通过。当前环境尚未执行这些验证。**
+
+
+## H. 组件层集中整改（第二批源码修改）
+
+| 问题 | 文件 | 修改 | 提交 | 触及层 | 验收 |
+|---|---|---|---|---|---|
+| #4 | `src/components/ui/CountUp.vue` | 动画数字使用输入值的前缀/后缀格式，保留 `¥` 等货币符号 | `51740bc` | 触及逻辑 | 待运行测试：`¥0 → ¥120`、纯数字、单位后缀 |
+| #20 | `src/components/ui/Breadcrumb.vue` | 传入 items 时不再自动插入首页，避免仪表盘重复 | `e7be58b` | 触及逻辑 | 待租户端/管理端路由逐页检查 |
+| #36 | `src/components/ui/EmptyState.vue` | title 移入 image slot 的标题区域，description 交给 TDesign description | `5827ff5` | 纯展示 | 待空态页面截图回归 |
+| #38 | `src/components/ui/ProgressRing.vue` | 进度弧与文字统一使用夹紧到 0–100、精度 0.1 的值 | `ec0f05b` | 纯展示 | 待 0、0.5、99.5、100、越界值测试 |
+| #7 | `src/components/LiveTaskFeed.vue` | 倒计时期间用 Clock3，其他状态才显示旋转 Loader2 | `665a62c` | 纯展示 | 待等待发送状态手动检查 |
+
+### 当前验证状态
+
+- [x] 5 个组件源码修改已提交
+- [ ] `npm run typecheck`
+- [ ] `npm run test`
+- [ ] `npm run build`
+- [ ] 桌面/移动端三主题视觉回归
+
+此批尚无 CI 或本地构建结果；代码已提交不等于验证通过。
