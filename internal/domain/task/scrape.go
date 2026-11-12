@@ -810,7 +810,7 @@ finish:
 // memberActivity 提取用户名/最后上线/头像标记; bio 为成员简介(简介挖掘的数据源)。
 
 // fetchTelegramUserBio reads the Telegram profile About field. Calls are
- // deliberately serialized and rate-limited; callers must not fan this out.
+// deliberately serialized and rate-limited; callers must not fan this out.
 func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg.User) (string, error) {
 	if client == nil || user == nil || user.ID == 0 || user.AccessHash == 0 {
 		return "", fmt.Errorf("user reference is incomplete")
