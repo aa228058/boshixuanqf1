@@ -27,21 +27,27 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
 
   const onTouchStart = (e: TouchEvent) => {
     const el = elRef.value
-    if (!el) return
+    if (!el || (attachedEl && el !== attachedEl)) return
     const touch = e.touches[0]
     if (!touch) return
+
+    // A new gesture can begin during the 400ms spring-back. Keep the
+    // pre-gesture styles rather than snapshotting the temporary spring transition.
+    const restoring = resetTimer !== null
     clearResetTimer()
+    if (!pulling && !restoring) {
+      originalTransition = el.style.transition
+      originalTransform = el.style.transform
+      originalOverscrollBehavior = el.style.overscrollBehavior
+    }
     startY = touch.clientY
     startScrollTop = el.scrollTop
     pulling = false
-    originalTransition = el.style.transition
-    originalTransform = el.style.transform
-    originalOverscrollBehavior = el.style.overscrollBehavior
   }
 
   const onTouchMove = (e: TouchEvent) => {
     const el = elRef.value
-    if (!el) return
+    if (!el || (attachedEl && el !== attachedEl)) return
     // Multi-touch streams are ambiguous; restore instead of indexing an absent touch.
     if (e.touches.length !== 1) {
       if (pulling) onTouchEnd()
@@ -74,7 +80,7 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
 
   const onTouchEnd = () => {
     const el = elRef.value
-    if (!el || !pulling) return
+    if (!el || (attachedEl && el !== attachedEl) || !pulling) return
     pulling = false
     el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
     el.style.transform = originalTransform
