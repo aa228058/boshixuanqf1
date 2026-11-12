@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { adminApiMod } from '@/api/admin'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -115,21 +115,25 @@ function actionClass(action: string) {
   return 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]'
 }
 
+let logsRequestId = 0
 async function fetchLogs() {
-  try {
-    const params: any = { page: page.value, page_size: 20 }
+  const requestId = ++logsRequestId
+  const params: any = { page: page.value, page_size: 20 }
     // 时区修正：此前直接拼 'T00:00:00Z'（UTC 零点 = 北京时间 08:00），
     // 会漏掉当天 0-8 点的日志。改为本地零点/末点转 UTC ISO 串，与后端
     // parseAuditTime 的 RFC3339 分支对齐，筛选边界与管理员预期一致。
     if (startDate.value) params.start_time = new Date(startDate.value + 'T00:00:00').toISOString()
     if (endDate.value) params.end_time = new Date(endDate.value + 'T23:59:59').toISOString()
     const res = await adminApiMod.getAuditLogs(params)
+    if (requestId !== logsRequestId) return
     logs.value = (res.list || []) as any
     total.value = res.total || 0
   } catch (e: unknown) {
+    if (requestId !== logsRequestId) return
     toast({ type: 'error', title: '查询失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
+onUnmounted(() => { logsRequestId++ })
 onMounted(fetchLogs)
 </script>
