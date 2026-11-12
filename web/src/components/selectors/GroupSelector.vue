@@ -353,7 +353,7 @@ async function onRefresh() {
   if (accountId && syncToken === null) {
     loading.value = true
     syncStatus.value = 'syncing'
-    const syncFinished = await waitForGlobalSync(accountId)
+    const syncFinished = await waitForGlobalSync(accountId, isCurrent)
     if (!isCurrent()) return
     if (!syncFinished || syncLock.isSyncing(accountId)) {
       syncStatus.value = 'timeout'
@@ -423,11 +423,12 @@ watch(() => props.modelValue, (v) => {
 })
 
 // Wait for another component to finish syncing, then return
-async function waitForGlobalSync(accountId: string): Promise<boolean> {
+async function waitForGlobalSync(accountId: string, shouldContinue: () => boolean = () => true): Promise<boolean> {
   const checkInterval = 500
   const maxWait = 120000
   const start = Date.now()
   while (Date.now() - start < maxWait) {
+    if (!shouldContinue()) return false
     if (!syncLock.isSyncing(accountId)) {
       return true
     }
