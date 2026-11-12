@@ -7,12 +7,12 @@
     />
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
     <div class="grid gap-2 mb-3.5">
-      <div class="flex gap-2">
-        <t-button theme="primary" class="flex-1 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
+      <div class="flex flex-wrap gap-2">
+        <t-button theme="primary" class="flex-1 min-w-0 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
-        <t-button theme="default" class="flex-1 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
+        <t-button theme="default" class="flex-1 min-w-0 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
         <!-- 多选模式入口(桌面端; 移动端可长按列表行进入) -->
-        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap"
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap ml-auto"
                 @click="enterSelecting">多选</t-button>
       </div>
       <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full">
@@ -2026,10 +2026,47 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-actions { gap: 4px; }
 .acc-action-btn { min-width: 0; }
 @media (max-width: 639px) {
-  .acc-row { gap: 8px; padding: 10px 9px; }
-  .acc-actions { gap: 4px; }
-  .acc-action-btn { padding-left: 7px !important; padding-right: 7px !important; font-size: 11px !important; }
-  .acc-action-btn :deep(svg) { width: 12px; height: 12px; }
+  /* 移动端将账号信息与操作区分行，避免三个按钮挤在卡片右侧 */
+  .acc-row {
+    display: grid;
+    grid-template-columns: 0 36px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 12px 10px;
+  }
+  .acc-group.selecting .acc-row {
+    grid-template-columns: 26px 36px minmax(0, 1fr);
+  }
+  .check-col { width: auto; }
+  .acc-main { grid-column: 3; grid-row: 1; }
+  .acc-actions {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+    margin-top: 3px;
+  }
+  .acc-action-btn {
+    display: inline-flex !important;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 8px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    line-height: 1;
+  }
+  .acc-action-btn :deep(svg) { width: 14px; height: 14px; }
+  .acc-actions .relative { display: flex; }
+  .more-btn { min-width: 64px; min-height: 36px; justify-content: center; }
+  .acc-group.selecting .acc-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acc-title { flex-wrap: wrap; }
+  .send-report { margin-left: 0; }
 }
 
 /* 复选框列: 默认收起(width:0), 多选模式滑出 */

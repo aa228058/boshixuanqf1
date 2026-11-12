@@ -23,9 +23,13 @@
             class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-secondary">
             <span aria-hidden="true">＋</span> 添加账号
           </router-link>
+          <router-link :to="joinPath"
+            class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-secondary">
+            <span aria-hidden="true">＋</span> 创建加群任务
+          </router-link>
           <router-link :to="broadcastPath"
-            class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.98]"
-            style="background: var(--t-brand);">
+            class="ui-native-button ui-native-button--primary min-h-11 rounded-xl px-4 shadow-sm">
+
             <span aria-hidden="true">↗</span> 创建群发任务
           </router-link>
         </div>
@@ -143,38 +147,14 @@
           </div>
         </article>
 
-        <article class="rounded-2xl border border-border bg-bg-primary p-4 sm:p-5">
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-bold text-text-primary">最近操作</h2>
-              <p class="mt-1 text-xs text-text-muted">工作台内的最近操作记录</p>
-            </div>
-            <span class="text-[11px] text-text-muted">最近 5 条</span>
-          </div>
-          <div class="space-y-3">
-            <div v-for="log in auditLogs" :key="log.log_id" class="flex min-w-0 items-start gap-3">
-              <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-dim text-cyan">
-                <Activity class="h-4 w-4" />
-              </span>
-              <div class="min-w-0 flex-1 border-b border-border/70 pb-3">
-                <p class="truncate text-sm font-medium text-text-primary">{{ auditActionLabel(log.action) }}</p>
-                <p class="mt-1 truncate text-xs text-text-muted">{{ targetLabel(log.target || '') }}</p>
-                <p class="mt-1 text-[11px] text-text-muted">{{ formatRelativeTime(log.created_at) }}</p>
-              </div>
-            </div>
-            <div v-if="!auditLogs.length" class="py-6 text-center">
-              <Clock class="mx-auto mb-2 h-6 w-6 text-text-muted" />
-              <p class="text-sm text-text-secondary">暂无操作记录</p>
-            </div>
-          </div>
-        </article>
+        
       </div>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { riskTypeLabel, severityLabel, auditActionLabel, targetLabel } from '@/utils/labels'
+import { riskTypeLabel, severityLabel } from '@/utils/labels'
 import { ref, onMounted, computed, onUnmounted, onBeforeUnmount, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -182,7 +162,7 @@ import { LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { useChartTheme } from '@/composables/useChartTheme'
-import { AlertTriangle, Activity, Shield, Clock } from 'lucide-vue-next'
+import { AlertTriangle, Shield } from 'lucide-vue-next'
 import { dashboardApi } from '@/api/dashboard'
 import { toast } from '@/utils/toast'
 import { useAccountStore } from '@/stores/account'
@@ -191,7 +171,7 @@ import StatCard from '@/components/charts/StatCard.vue'
 import SendCalendar from '@/components/SendCalendar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { formatRelativeTime, formatDate } from '@/utils/format'
-import type { RiskEvent, AuditLog } from '@/types'
+import type { RiskEvent } from '@/types'
 
 const greeting = (() => {
   const h = new Date().getHours()
@@ -208,6 +188,10 @@ const broadcastPath = computed(() => {
   const accountId = currentAccount.value?.account_id
   return accountId ? `/workspace/${accountId}/broadcast` : '/accounts'
 })
+const joinPath = computed(() => {
+  const accountId = currentAccount.value?.account_id
+  return accountId ? `/workspace/${accountId}/join` : '/accounts'
+})
 let dashboardRequestId = 0
 watch(currentAccount, () => { loadDashboardData() })
 
@@ -220,7 +204,6 @@ const stats = ref([
   { label: '风险事件', value: '0', icon: 'AlertTriangle', color: 'rose', trend: '0' },
 ])
 const riskEvents = ref<RiskEvent[]>([])
-const auditLogs = ref<AuditLog[]>([])
 function riskAccName(id: string) {
   const a = (accountStore.accounts || []).find((x: any) => String(x.account_id) === String(id))
   if (!a) return '账号 ' + String(id).slice(0, 6)
@@ -344,9 +327,6 @@ async function loadDashboardData() {
     const re = await dashboardApi.getRiskEvents({ limit: 5 })
     if (requestId !== dashboardRequestId) return
     riskEvents.value = (re as any)?.list || (Array.isArray(re) ? re : [])
-    const al = await dashboardApi.getAuditLogs({ limit: 5 })
-    if (requestId !== dashboardRequestId) return
-    auditLogs.value = (al)?.list || []
     try {
       const profile = await settingsApi.getProfile()
       if (requestId !== dashboardRequestId) return

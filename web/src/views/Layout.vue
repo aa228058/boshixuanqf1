@@ -838,7 +838,7 @@ async function submit2FA() {
 // oldTwoFAPassword/authError)与 switchAccount/deleteAccount/sortedAccounts/
 // statusRank 已全部删除 —— 均为死侧栏切换器的孤儿, 零调用
 
-const unreadCount = computed(() => notifStore.unreadCount)
+const unreadCount = computed(() => notifStore.notifications.filter(n => !n.read && ['task_failed', 'account_risk', 'account_offline', 'plan_expiring'].includes(n.type)).length)
 const unreadAnnouncements = ref(0)
 
 // 全局菜单（未选中账号时显示）

@@ -71,8 +71,11 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
     ] : undefined,
     last_seen_at: new Date(Date.UTC(2026, 10, 6 - i, 9, 30)).toISOString(),
   }))
-  await page.route(/\/api\/v1\/group-library(?:\\?.*)?$/, async route => {
+  let groupLibraryMockHits = 0
+  let groupLibraryFixtureRows = 0
+  await page.route(/\/group-library\/?(?:\?.*)?$/, async route => {
     if (route.request().method() !== 'GET') return route.continue()
+    groupLibraryMockHits++
     const url = new URL(route.request().url())
     const keyword = (url.searchParams.get('keyword') || '').toLowerCase()
     const gtype = url.searchParams.get('gtype') || ''
@@ -84,6 +87,7 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
       (!status || (status === 'active' ? group.status !== 'invalid' : group.status === status)) &&
       (!source || group.source === source),
     )
+    groupLibraryFixtureRows = rows.length
     await route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ code: 0, data: rows, total: rows.length, page: 1, page_size: 20 }),
@@ -92,6 +96,9 @@ test('群组发现页演示数据视觉回归（内容态与已选态）', async
 
   await page.goto('/groups/discover')
   await expect(page.getByRole('heading', { name: '发现群组' })).toBeVisible()
+  // 先证明测试请求确实命中拦截器且返回了演示行，避免把 API mock 失效误判成页面渲染问题。
+  await expect.poll(() => groupLibraryMockHits, { message: '群组库 GET 请求应命中演示数据拦截器' }).toBeGreaterThan(0)
+  expect(groupLibraryFixtureRows, '演示接口应返回 10 条群组数据').toBe(10)
   // 表格与移动卡片可能同时存在于 DOM，且 TDesign 会包装表格节点。
   // 用浏览器 innerText 检查当前视口实际呈现的文本，天然排除 display:none 内容。
   for (const title of ['产品交流与资源分享', '跨境电商运营讨论', '运营素材与案例库']) {
