@@ -32,7 +32,8 @@ const tabs = computed(() => [
   { path: '/more', label: '更多', icon: MoreHorizontal },
 ])
 
-function isActive(t: any) {
-  return String(route.path).startsWith(t.path)
+function isActive(t: { path: string }) {
+  const currentPath = String(route.path)
+  return currentPath === t.path || currentPath.startsWith(`${t.path}/`)
 }
 </script>
