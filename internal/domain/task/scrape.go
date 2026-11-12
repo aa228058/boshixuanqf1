@@ -1003,6 +1003,14 @@ historyLoop:
 				continue
 			}
 			seen[user.ID] = true
+			bio := ""
+			if task.Payload["bio_links"] == true && user.AccessHash != 0 {
+				var bioErr error
+				bio, bioErr = fetchTelegramUserBio(ctx, client, user)
+				if bioErr != nil {
+					taskLog.Printf("[scrape] 读取历史发言用户简介失败 user=%d: %v", user.ID, bioErr)
+				}
+			}
 			collected = append(collected, &domain.Member{
 				TenantID:   task.TenantID,
 				GroupID:    groupID,
@@ -1010,7 +1018,9 @@ historyLoop:
 				Username:   user.Username,
 				FirstName:  user.FirstName,
 				LastName:   user.LastName,
+				Bio:        bio,
 				AccessHash: user.AccessHash,
+				ScrapedAt:  time.Now(),
 			})
 		}
 		scanned += len(mm.Messages)
