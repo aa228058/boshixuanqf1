@@ -142,7 +142,7 @@
         <!-- 执行账号多选；实际发送范围按每个账号已加入的群组映射计算 -->
         <span class="block text-sm font-medium mb-2 mt-4">执行账号（可多选）</span>
         <div class="flex flex-wrap gap-1.5" role="group" aria-label="选择执行账号">
-          <button v-for="acc in onlineAccounts" :key="acc.account_id" type="button" @click="toggleExec(acc.account_id)"
+          <button v-for="acc in onlineAccounts" :key="acc.account_id" type="button" @click="toggleExec(acc.account_id)" :aria-pressed="execAccounts.includes(acc.account_id)"
                   class="px-2.5 py-1.5 rounded-lg text-xs border transition-colors whitespace-nowrap"
                   :class="execAccounts.includes(acc.account_id) ? 'border-[color:var(--t-brand)]/50 bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] font-medium' : 'border-border text-text-secondary hover:border-border-hover'">
             {{ acc.first_name || acc.phone }}
@@ -151,13 +151,13 @@
         <div class="mt-3">
           <span class="block text-xs font-semibold text-text-secondary mb-2">账号分配策略</span>
           <div class="grid grid-cols-2 gap-2">
-            <button type="button" @click="sendStrategy = 'assign'"
+            <button type="button" @click="sendStrategy = 'assign'" :aria-pressed="sendStrategy === 'assign'"
               class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
               :class="sendStrategy === 'assign' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
               <span class="block font-semibold">均衡分配</span>
               <span class="block mt-1 opacity-75">每个群由一个已加入的账号负责</span>
             </button>
-            <button type="button" @click="sendStrategy = 'all'"
+            <button type="button" @click="sendStrategy = 'all'" :aria-pressed="sendStrategy === 'all'"
               class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
               :class="sendStrategy === 'all' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">
               <span class="block font-semibold">全部符合条件账号</span>
@@ -277,10 +277,10 @@
         <div class="flex rounded-lg bg-ink-01 p-1 gap-1 w-fit" role="group" aria-label="发送模式">
           <button type="button" class="ui-segmented__item"
                   :class="!isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary'"
-                  @click="isLoop = false">只发一次</button>
+                  @click="isLoop = false" :aria-pressed="!isLoop">只发一次</button>
           <button type="button" class="ui-segmented__item relative"
                   :class="[isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary', !loopFeature && 'opacity-60']"
-                  @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', title: '套餐未开通循环群发', message: '请联系管理员升级' })">
+                  @click="loopFeature ? (isLoop = true) : toast({ type: 'warning', title: '套餐未开通循环群发', message: '请联系管理员升级' })" :aria-pressed="isLoop">
             循环群发
             <span v-if="!loopFeature" class="absolute -top-1 -right-1 text-[9px] px-1 rounded bg-[color:var(--t-warn-dim)] text-[var(--t-warn)] border border-[color:var(--t-warn)]/40">锁</span>
           </button>
@@ -288,11 +288,11 @@
         <div v-if="isLoop" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
           <span class="block text-xs font-semibold text-text-secondary">循环方式</span>
           <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="循环方式">
-            <button type="button" @click="loopScheduleMode = 'interval'" class="rounded-lg border px-2 py-2 text-xs"
+            <button type="button" @click="loopScheduleMode = 'interval'" :aria-pressed="loopScheduleMode === 'interval'" class="rounded-lg border px-2 py-2 text-xs"
               :class="loopScheduleMode === 'interval' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">间隔循环</button>
-            <button type="button" @click="loopScheduleMode = 'daily'" class="rounded-lg border px-2 py-2 text-xs"
+            <button type="button" @click="loopScheduleMode = 'daily'" :aria-pressed="loopScheduleMode === 'daily'" class="rounded-lg border px-2 py-2 text-xs"
               :class="loopScheduleMode === 'daily' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">每天固定时间</button>
-            <button type="button" @click="loopScheduleMode = 'weekly'" class="rounded-lg border px-2 py-2 text-xs"
+            <button type="button" @click="loopScheduleMode = 'weekly'" :aria-pressed="loopScheduleMode === 'weekly'" class="rounded-lg border px-2 py-2 text-xs"
               :class="loopScheduleMode === 'weekly' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">每周固定时间</button>
           </div>
           <div v-if="loopScheduleMode === 'interval'" class="flex items-center gap-2">
@@ -312,7 +312,7 @@
             <div v-if="loopScheduleMode === 'weekly'">
               <span class="block text-xs font-semibold text-text-secondary mb-1">执行星期</span>
               <div class="grid grid-cols-7 gap-1" role="group" aria-label="执行星期">
-                <button v-for="day in weekDayOptions" :key="day.value" type="button" @click="toggleScheduleWeekday(day.value)"
+                <button v-for="day in weekDayOptions" :key="day.value" type="button" @click="toggleScheduleWeekday(day.value)" :aria-pressed="scheduleWeekdays.includes(day.value)"
                   class="rounded-md border py-2 text-[11px]"
                   :class="scheduleWeekdays.includes(day.value) ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">{{ day.label }}</button>
               </div>
