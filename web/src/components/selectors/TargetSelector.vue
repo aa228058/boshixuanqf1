@@ -380,7 +380,10 @@ function removeTarget(t: string) {
 
 async function fetchDialogs(requestId = ++selectorRequestId, accountId = props.accountId || '') {
   if (!accountId) {
-    dialogs.value = []
+    if (requestId === selectorRequestId) {
+      dialogs.value = []
+      loading.value = false
+    }
     return
   }
   loading.value = true
