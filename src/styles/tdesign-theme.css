@@ -1,0 +1,43 @@
+/* TDesign semantic bridge — all values resolve from the shared token source. */
+
+:root,
+html.theme-eye,
+html.theme-stripe,
+html.theme-dark {
+  --td-brand-color: var(--t-brand);
+  --td-brand-color-hover: var(--t-brand-hover);
+  --td-brand-color-active: var(--t-brand-active);
+  --td-brand-color-focus: var(--t-brand-dim);
+  --td-brand-color-light: var(--t-brand-dim);
+  --td-brand-color-light-hover: var(--t-brand-dim);
+
+  --td-success-color: var(--t-ok);
+  --td-warning-color: var(--t-warn);
+  --td-error-color: var(--t-err);
+
+  --td-radius-small: var(--t-radius-xs);
+  --td-radius-default: var(--t-control-radius);
+  --td-radius-medium: var(--t-radius-md);
+  --td-radius-large: var(--t-radius-lg);
+  --td-radius-round: var(--t-radius-pill);
+  --td-radius-circle: 50%;
+
+  --td-font-family: var(--font-sans);
+  --td-text-color-primary: var(--t-text-1);
+  --td-text-color-secondary: var(--t-text-2);
+  --td-text-color-placeholder: var(--t-text-3);
+  --td-text-color-disabled: var(--t-disabled-text);
+  --td-bg-color-page: var(--t-bg);
+  --td-bg-color-container: var(--t-card);
+  --td-bg-color-container-hover: var(--t-surface-2);
+  --td-bg-color-container-select: var(--t-surface-3);
+  --td-bg-color-secondarycontainer: var(--t-surface-1);
+  --td-component-border: var(--t-line);
+  --td-component-stroke: var(--t-line-strong);
+  --td-component-shadow: var(--t-shadow-sm);
+  --td-bg-color-secondarypanel: var(--t-card);
+  --td-bg-color-table-hover: var(--t-surface-2);
+  --td-bg-color-table-expand: var(--t-card);
+}
+
+/* TDesign dialog geometry is centralized in tdesign-overrides.css. */

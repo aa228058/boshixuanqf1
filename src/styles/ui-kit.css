@@ -1,0 +1,462 @@
+/* ══════════════════════════════════════════════════════════════
+   ui-kit.css —— 规范 v2.0 五大基类(唯一组件层真相源)
+   原则: 卡片/输入/徽章=实底(surface-1/2); 玻璃只属浮层(.glass-float)。
+   页面禁止再手写散装的卡片/按钮/输入样式, 一律挂基类。
+   ══════════════════════════════════════════════════════════════ */
+
+/* ---------- .ui-card 内容卡片: 实底 + 细边框 + 极弱弥散阴影 ---------- */
+.ui-card {
+  background: var(--t-card, var(--t-surface-1));
+  /* R131-2 用户拍板: 边框加深一档, 增强浅色下轮廓感 */
+  border: 1px solid var(--t-line-strong);
+  border-radius: var(--t-radius-lg);
+  box-shadow: var(--t-shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ui-card--lg { border-radius: var(--t-radius-xl); }
+.ui-card--hover:hover { border-color: var(--t-text-3); }
+
+/* ---------- .ui-segmented 分段切换: 统一标签页/模式切换 ---------- */
+.ui-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius-lg);
+  background: var(--t-surface-2);
+}
+.ui-segmented__item {
+  display: inline-flex;
+  min-height: var(--t-control-height-sm);
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--t-radius-md);
+  background: transparent;
+  color: var(--t-text-2);
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, box-shadow var(--t-duration-normal) ease;
+}
+.ui-segmented__item:hover { color: var(--t-text-1); }
+.ui-segmented__item.is-active {
+  background: var(--t-card);
+  color: var(--t-brand);
+  box-shadow: var(--t-shadow-xs);
+  font-weight: var(--t-weight-semibold);
+}
+.ui-segmented__item:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+@media (max-width: 420px) {
+  .ui-segmented { width: 100%; }
+  .ui-segmented__item { flex: 1; padding-inline: 10px; }
+}
+
+/* ---------- TDesign 按钮几何统一: 颜色仍由 theme/variant 决定 ---------- */
+.t-button {
+  min-height: var(--t-control-height-md);
+  border-radius: var(--t-control-radius);
+  font-family: inherit;
+  font-weight: var(--t-weight-medium);
+  box-shadow: none;
+  transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, box-shadow var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
+}
+.t-button.t-size-s, .t-button--size-small {
+  min-height: var(--t-control-height-sm);
+  padding-inline: 10px;
+  font-size: var(--t-font-xs);
+}
+.t-button:not(.t-is-disabled):active { transform: translateY(1px); }
+.t-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+
+/* ---------- .ui-icon-btn 图标操作按钮: 表格复制/更多/关闭 ---------- */
+.ui-icon-btn {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--t-control-radius);
+  background: transparent;
+  color: var(--t-text-3);
+  cursor: pointer;
+  transition: color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease;
+}
+.ui-icon-btn--danger { color: var(--t-err); }
+.ui-icon-btn:not(:disabled):hover {
+  color: var(--t-brand);
+  background: var(--t-brand-dim);
+  border-color: var(--t-line);
+}
+.ui-icon-btn--danger:not(:disabled):hover {
+  color: var(--t-err);
+  background: var(--t-err-dim);
+  border-color: color-mix(in srgb, var(--t-err) 25%, transparent);
+}
+.ui-icon-btn:active:not(:disabled) { transform: scale(0.96); }
+.ui-icon-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ui-icon-btn:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+
+/* ---------- .ui-input 输入框: 无边框实底, 聚焦只亮边 ---------- */
+.ui-input {
+  width: 100%;
+  min-height: var(--t-control-height-lg);           /* h-11 */
+  padding: 10px var(--t-control-padding-x);
+  background: var(--t-surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--t-control-radius);
+  color: var(--t-text-1);
+  font-size: var(--t-font-md);
+  outline: none;
+  transition: border-color var(--t-duration-normal) ease, background-color var(--t-duration-normal) ease;
+}
+.ui-input::placeholder { color: var(--t-text-3); }
+.ui-input:hover { background: color-mix(in srgb, var(--t-surface-2) 80%, var(--t-text-1) 4%); }
+.ui-input:focus { border-color: var(--t-brand); background: var(--t-surface-1); }
+.ui-input:disabled { opacity: 0.55; cursor: not-allowed; }
+textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
+
+/* ---------- .ui-badge 状态徽章: 半透明浅底 + 同色文字 ---------- */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-space-1);
+  padding: 2px var(--t-space-2);
+  border-radius: var(--t-radius-sm);
+  font-size: var(--t-font-xs);
+  font-weight: var(--t-weight-bold);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ui-badge--ok    { background: var(--t-ok-dim); color: var(--t-ok); }
+.ui-badge--warn  { background: var(--t-warn-dim); color: var(--t-warn); }
+.ui-badge--err   { background: var(--t-err-dim); color: var(--t-err); }
+.ui-badge--info  { background: var(--t-brand-dim);         color: var(--t-brand); }
+.ui-badge--mute  { background: var(--t-surface-2);         color: var(--t-text-3); }
+.ui-badge i { width: var(--t-space-1); height: var(--t-space-1); border-radius: 50%; background: currentColor; opacity: 0.85; }
+
+/* ---------- .glass-float 浮层玻璃(仅 5 处): 统一配方 ---------- */
+/* Modal 遮罩 / 底部 TabBar / 顶栏(滚动) / Toast 灵动岛 / 批量操作栏 */
+.glass-float {
+  background: color-mix(in srgb, var(--t-bg) 82%, transparent) !important;
+  backdrop-filter: blur(20px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.4) !important;
+  border: 1px solid var(--t-line-light);
+}
+
+/* ---------- Toast 灵动岛: 固定黑岛(三主题不变, 同 iPhone 硬件岛) ---------- */
+[data-sonner-toast].ts-toast,
+[data-sonner-toast] {
+  background: var(--t-toast-bg) !important;   /* 黑毛玻璃, 任何主题下不变 */
+  color: var(--t-toast-fg) !important;
+  border: 1px solid var(--t-toast-line) !important;
+  backdrop-filter: blur(22px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.5) !important;
+}
+[data-sonner-toast] .ts-toast-title,
+[data-sonner-toast] [data-title] { color: var(--t-toast-fg) !important; }
+
+/* ==================================================================
+   R138 终极灵动岛 Toast (10号原生系统风 · 用户终态版 · 唯一收口处)
+   - top: 72px + env(safe-area-inset-top) —— 自动适配刘海/各家浏览器地址栏
+   - flex 居中(弃 transform) + z-index 999999 + blur 12px + GPU 加速
+   - 动画: 进场 island-drop-system(系统回弹), 退场 island-suck-out(吸回顶部)
+   ================================================================== */
+
+/* 1. 外层容器: 全宽 + Flex 居中 + 上移到顶栏正下方 */
+[data-sonner-toaster] {
+  position: fixed !important;
+  /* 72px + 安全区, 完美贴住顶栏底部(刘海/地址栏自动适配) */
+  top: calc(72px + env(safe-area-inset-top, 0px)) !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important; /* 占满宽, 防止左边被切 */
+  display: flex !important;
+  justify-content: center !important; /* flex 居中, 彻底抛弃 transform */
+  pointer-events: none !important; /* 空白区域点透 */
+  z-index: 999999 !important; /* 核武器层级: 不被任何大卡片盖住 */
+}
+
+/* 2. 卡片本体: 真·黑岛毛玻璃(性能优化版: blur 20→12 + GPU 加速) */
+[data-sonner-toast] {
+  pointer-events: auto !important; /* 恢复卡片自身点击 */
+  width: fit-content !important;
+  min-width: 0 !important;
+  max-width: 90vw !important;
+  margin: 0 !important; /* 不要 margin auto, flex 已居中 */
+
+  /* 核心玻璃态(12px 肉眼无差, 性能提升约半) */
+  background: rgba(20, 22, 38, 0.85) !important;
+  backdrop-filter: blur(12px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.5) !important;
+
+  /* GPU 硬件加速, 防滚动掉帧 */
+  transform: translateZ(0) !important;
+  will-change: transform, opacity !important;
+
+  /* 圆润胶囊 + 白边高光 + 阴影 */
+  border-radius: 9999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3) !important;
+
+  padding: 10px 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+
+  /* 灵魂: 10号 原生系统风滑出动画(越过终点的回弹);
+     R139 第二条动画 = CSS 生命周期兜底: 2.3s 后无论 sonner 删不删元素,
+     岛强制 opacity→0 并点透(该环境实测 duration=2500 可能从未生效, 老毛病) */
+  animation: island-drop-system 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both,
+             toast-auto-hide 0.3s linear 2.3s forwards !important;
+}
+
+/* 进场: 从上方较远处滑出, 带有明显的回弹 */
+@keyframes island-drop-system {
+  0%   { opacity: 0; transform: translateY(-40px); }
+  70%  { opacity: 1; transform: translateY(4px); } /* 稍微越过终点, 形成回弹 */
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* 退场: 像被吸回顶部一样, 平滑收缩消失 */
+[data-sonner-toast][data-mounted="false"] {
+  animation: island-suck-out 0.25s cubic-bezier(0.6, -0.28, 0.735, 0.045) both !important;
+}
+
+@keyframes island-suck-out {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-20px) scale(0.85); }
+}
+
+/* R139: 生命周期兜底 —— 2.3s 后强制淡出+点透(视觉移除, 不赌 sonner 的 duration) */
+@keyframes toast-auto-hide {
+  to { opacity: 0; pointer-events: none; }
+}
+
+/* 3. 强制文字纯白 */
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-description] {
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
+
+/* 4. 图标大小(r137 随岛微增大) */
+[data-sonner-toast] [data-icon] {
+  margin: 0 !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* ==================================================================
+   R137 移动端毛玻璃减负: theme-dark 的 .glass blur 带 !important,
+   在移动端盖过了 tailwind 的性能剥离(437行), 深色模式手机发烫的元凶。
+   此处(ui-kit 尾部)夺回最终话语权: 移动端内容卡一律不模糊。
+   白名单不动: 顶栏/底栏/Modal遮罩/Toast(12px)/下拉面板(瞬态)。
+   ================================================================== */
+@media (max-width: 768px) {
+  html.theme-dark .glass,
+  html.theme-dark .glass-strong,
+  html.theme-dark .sidebar-glass,
+  html.theme-dark .apple-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+
+/* ═══════════ R146 新皮肤收敛: 旧玻璃类 → 实底卡(深色不透字 / 浅色不发灰) ═══════════ */
+.glass, .apple-card {
+  background: var(--t-card) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border-color: var(--t-line-strong) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+.glass-strong {
+  background: var(--t-card) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  color: var(--t-text-1) !important;
+  border-color: var(--t-line-strong) !important;
+}
+.apple-card:hover, .glass-hover:hover {
+  background: var(--t-card) !important;
+  border-color: var(--t-line-strong) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+.elev-pop { box-shadow: var(--t-shadow-card) !important; }
+
+
+/* TDesign buttons: shared visual variants for legacy t-button call sites.
+   Keep the component's native loading/disabled/event behavior. */
+.t-button.ui-t-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--t-space-2);
+  padding-inline: var(--t-space-4);
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-semibold);
+  transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
+}
+.t-button.ui-t-button--sm { min-height: var(--t-control-height-sm); padding-inline: var(--t-space-3); font-size: var(--t-font-xs); }
+.t-button.ui-t-button--primary { color: var(--t-brand-ink); background: var(--t-brand); border-color: var(--t-brand); }
+.t-button.ui-t-button--primary:not(.t-is-disabled):hover { color: var(--t-brand-ink); background: var(--t-brand-hover); border-color: var(--t-brand-hover); }
+.t-button.ui-t-button--secondary { color: var(--t-button-secondary-text); background: var(--t-button-secondary-bg); border-color: var(--t-button-secondary-border); }
+.t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-button-secondary-text); background: var(--t-button-secondary-hover); border-color: var(--t-button-secondary-border); }
+.t-button.ui-t-button--danger { color: #fff; background: var(--t-err); border-color: var(--t-err); }
+.t-button.ui-t-button--warning { color: var(--t-warn); background: var(--t-warn-dim); border-color: color-mix(in srgb, var(--t-warn) 38%, transparent); }
+.t-button.ui-t-button--warning:not(.t-is-disabled):hover { background: color-mix(in srgb, var(--t-warn) 18%, var(--t-card)); border-color: var(--t-warn); }
+.t-button.ui-t-button--danger:not(.t-is-disabled):hover { color: #fff; background: color-mix(in srgb, var(--t-err) 88%, #000); border-color: color-mix(in srgb, var(--t-err) 88%, #000); }
+.t-button.ui-t-button--text { color: var(--t-brand); background: transparent; border-color: transparent; }
+.t-button.ui-t-button--text:not(.t-is-disabled):hover { color: var(--t-brand-hover); background: var(--t-brand-dim); border-color: transparent; }
+.t-button.ui-t-button.t-is-disabled { opacity: .45; }
+
+/* Pagination controls keep a predictable row and touch-sized buttons across viewports. */
+.ui-pagination {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--t-space-1);
+}
+.ui-pagination button,
+.ui-pagination .t-button {
+  min-width: 36px;
+  min-height: 36px;
+}
+@media (max-width: 768px) {
+  .ui-pagination button,
+  .ui-pagination .t-button {
+    min-width: 40px;
+    min-height: 44px;
+  }
+}
+
+/* Account action menu: consistent compact rows across desktop popover/mobile sheet. */
+.ui-menu-item {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: 0 var(--t-space-3);
+  border: 0;
+  border-radius: var(--t-radius-sm);
+  background: transparent;
+  color: var(--t-text-2);
+  font-size: var(--t-font-xs);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease;
+}
+.ui-menu-item:hover { background: var(--t-surface-2); color: var(--t-text-1); }
+.ui-menu-item:focus-visible { outline: 2px solid var(--t-brand); outline-offset: -2px; }
+.ui-menu-item--danger { color: var(--t-err); }
+.ui-menu-item--danger:hover { color: var(--t-err); background: var(--t-err-dim); }
+.ui-icon-btn--xs { width: 20px; height: 20px; border-radius: 6px; background: var(--t-card); border-color: var(--t-line); }
+
+/* Mobile touch targets: keep compact desktop geometry, enlarge common actions on touch screens.
+   The xs avatar affordance is intentionally excluded because it is a hover-only decoration. */
+@media (max-width: 768px) {
+  .ui-icon-btn:not(.ui-icon-btn--xs) {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .ui-menu-item {
+    min-height: 44px;
+  }
+
+  /* Small visual variants must still meet the 44px mobile touch-target baseline. */
+  .t-button.ui-t-button--sm,
+  .ui-native-button--sm {
+    min-height: 44px;
+  }
+}
+
+
+
+/* Native action buttons share the same geometry and interaction states as TDesign buttons.
+   Use this only where a native button is required by the component structure. */
+.ui-native-button {
+  display: inline-flex;
+  min-height: var(--t-control-height-md);
+  align-items: center;
+  justify-content: center;
+  gap: var(--t-space-2);
+  padding: 0 var(--t-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--t-control-radius);
+  font-family: inherit;
+  font-size: var(--t-font-sm);
+  font-weight: var(--t-weight-semibold);
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
+}
+.ui-native-button--sm {
+  min-height: var(--t-control-height-sm);
+  padding-inline: var(--t-space-3);
+  font-size: var(--t-font-xs);
+}
+.ui-native-button--secondary {
+  color: var(--t-button-secondary-text);
+  background: var(--t-button-secondary-bg);
+  border-color: var(--t-button-secondary-border);
+}
+.ui-native-button--secondary:hover:not(:disabled) {
+  color: var(--t-button-secondary-text);
+  background: var(--t-button-secondary-hover);
+  border-color: var(--t-button-secondary-border);
+}
+.ui-native-button--danger {
+  color: var(--t-err);
+  background: var(--t-err-dim);
+  border-color: color-mix(in srgb, var(--t-err) 28%, transparent);
+}
+.ui-native-button--danger:hover {
+  color: var(--t-err);
+  background: color-mix(in srgb, var(--t-err) 14%, var(--t-card));
+  border-color: color-mix(in srgb, var(--t-err) 42%, transparent);
+}
+
+/* 主操作按钮：前景、背景、悬停和按下状态全部使用当前主题语义令牌。 */
+.ui-native-button--primary {
+  color: var(--t-brand-ink);
+  background: var(--t-brand);
+  border-color: var(--t-brand);
+  box-shadow: var(--t-shadow-sm);
+}
+.ui-native-button--primary:hover {
+  color: var(--t-brand-ink);
+  background: var(--t-brand-hover);
+  border-color: var(--t-brand-hover);
+}
+.ui-native-button--primary:active:not(:disabled) {
+  color: var(--t-brand-ink);
+  background: var(--t-brand-active);
+  border-color: var(--t-brand-active);
+}
+.ui-native-button--primary:focus-visible {
+  outline: 2px solid var(--t-brand);
+  outline-offset: 2px;
+}
+.ui-native-button:active:not(:disabled) { transform: translateY(1px); }
+.ui-native-button:disabled { opacity: .5; cursor: not-allowed; }
+.ui-native-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
+@media (max-width: 768px) {
+  .ui-native-button--sm { min-height: 44px; }
+}
