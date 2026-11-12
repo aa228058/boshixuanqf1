@@ -9,6 +9,36 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestDecorateBroadcastMessage(t *testing.T) {
+	tests := []struct {
+		name       string
+		message    string
+		decoration string
+		want       string
+	}{
+		{name: "disabled leaves message unchanged", message: "Hello", want: "Hello"},
+		{name: "enabled appends visible accent", message: "Hello", decoration: "✨", want: "Hello\n\n✨"},
+		{name: "trims trailing whitespace before accent", message: "Hello  \n", decoration: "🌟", want: "Hello\n\n🌟"},
+		{name: "empty message stays empty", message: "", decoration: "✨", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := decorateBroadcastMessage(tt.message, tt.decoration)
+			if got != tt.want {
+				t.Fatalf("decorateBroadcastMessage() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecorateBroadcastMessageDoesNotMutateTemplate(t *testing.T) {
+	template := "Hello {{name}}"
+	_ = decorateBroadcastMessage(template, "✨")
+	if template != "Hello {{name}}" {
+		t.Fatalf("source template mutated: %q", template)
+	}
+}
+
 func TestShouldSendBroadcastTarget(t *testing.T) {
 	tests := []struct {
 		name   string
