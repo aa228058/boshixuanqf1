@@ -79,6 +79,7 @@ const copied = ref(false)
 let copyTimer: ReturnType<typeof setTimeout> | null = null
 let dragResetTimer: ReturnType<typeof setTimeout> | null = null
 let disposed = false
+let supportController: AbortController | null = null
 const authStore = useAuthStore()
 
 const pos = ref({ right: 20, bottom: 20 })
@@ -228,16 +229,22 @@ function safeQrUrl(url: string): string {
 }
 
 onMounted(async () => {
+  const controller = new AbortController()
+  supportController = controller
   try {
-    const res = await settingsApi.getSupport()
-    if (!disposed) config.value = res
+    const res = await settingsApi.getSupport({ signal: controller.signal })
+    if (!disposed && !controller.signal.aborted) config.value = res
   } catch (e) {
     // ignore
+  } finally {
+    if (supportController === controller) supportController = null
   }
 })
 
 onUnmounted(() => {
   disposed = true
+  supportController?.abort()
+  supportController = null
   if (copyTimer) clearTimeout(copyTimer)
   if (dragResetTimer) clearTimeout(dragResetTimer)
   document.removeEventListener('mousemove', onDrag)
