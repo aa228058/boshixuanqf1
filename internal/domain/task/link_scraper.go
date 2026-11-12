@@ -223,14 +223,20 @@ func (ls *LinkScraper) GetStats() map[string]any {
 	queueDropped := atomic.LoadInt64(&ls.queueDropped)
 	persistenceFailures := atomic.LoadInt64(&ls.persistenceFailures)
 
-	var handlerCount int
+	var handlerCount, bioEnabledCount int
 	ls.handlers.Range(func(_, _ interface{}) bool {
 		handlerCount++
+		return true
+	})
+	ls.bioEnabled.Range(func(_, _ interface{}) bool {
+		bioEnabledCount++
 		return true
 	})
 
 	return map[string]any{
 		"handlers_active":            handlerCount,
+		"bio_enabled_accounts":       bioEnabledCount,
+		"bio_queue_length":           len(ls.bioQueue),
 		"queue_length":               queueLen,
 		"dedup_cache":                dedupSize,
 		"pending_links":              pendingLinks,
