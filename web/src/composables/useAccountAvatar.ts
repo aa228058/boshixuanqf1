@@ -9,6 +9,7 @@ import { api } from '@/utils/request'
 const TTL = 60 * 60 * 1000
 const cache = reactive<Record<string, { url: string; ts: number }>>({})
 const pending = new Set<string>()
+const requestIds = new Map<string, number>()
 const refreshing = new Set<string>() // R172: 正在自动重拉头像的账号, 防重复触发
 
 export function useAccountAvatar() {
@@ -19,13 +20,23 @@ export function useAccountAvatar() {
     const hit = cache[accountId]
     if (hit && Date.now() - hit.ts < TTL) return hit.url
     if (pending.has(accountId)) return null
+    const requestId = (requestIds.get(accountId) || 0) + 1
+    requestIds.set(accountId, requestId)
     pending.add(accountId)
     api
       .get(`/accounts/${accountId}/avatar`, { responseType: 'blob' })
       .then((res: any) => {
-        cache[accountId] = { url: URL.createObjectURL(res), ts: Date.now() }
+        const url = URL.createObjectURL(res)
+        if (requestIds.get(accountId) !== requestId) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        const previous = cache[accountId]
+        if (previous) URL.revokeObjectURL(previous.url)
+        cache[accountId] = { url, ts: Date.now() }
       })
       .catch((err: any) => {
+        if (requestIds.get(accountId) !== requestId) return
         // R166: 失败不缓存, 下次渲染自动重试(原实现缓存了失败态, 24h 内不再尝试)
         // R172: 404(文件丢失, 如容器重建) → 自动通知后端重新拉取头像, 全程无感,
         // 30s 冷却后可再次触发(头像拉取是异步任务, 立即重试多半还是 404)
@@ -49,12 +60,13 @@ export function useAccountAvatar() {
         }
       })
       .finally(() => {
-        pending.delete(accountId)
+        if (requestIds.get(accountId) === requestId) pending.delete(accountId)
       })
     return null
   }
 
   const invalidate = (accountId: string) => {
+    requestIds.set(accountId, (requestIds.get(accountId) || 0) + 1)
     const old = cache[accountId]
     if (old) {
       try { URL.revokeObjectURL(old.url) } catch { /* 已失效 */ }
