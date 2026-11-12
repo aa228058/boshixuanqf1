@@ -30,6 +30,18 @@ type rawLink struct {
 	SourceChatTitle string
 }
 
+type rawBio struct {
+	TenantID uuid.UUID
+	AccountID uuid.UUID
+	Client *telegram.Client
+	ChatID int64
+	UserID int64
+	AccessHash int64
+	Username string
+	FirstName string
+	LastName string
+}
+
 // scrapedLinkDedupKey scopes the in-memory cache to a tenant. The database
 // uniqueness constraint is (tenant_id, link_hash), so a global hash-only
 // cache would incorrectly suppress another tenant's copy of the same link.
@@ -63,6 +75,12 @@ type LinkScraper struct {
 	linkRepo    domain.ScrapedLinkRepository
 	groupRepo   *repository.GroupRepository
 	accountRepo AccountLister
+	memberRepo domain.MemberRepository
+
+	bioEnabled sync.Map // accountID(string) -> bool
+	bioQueue chan *rawBio
+	bioSeenMu sync.Mutex
+	bioSeen map[string]time.Time
 
 	// Runtime state
 	handlersMu          sync.Mutex
@@ -92,10 +110,26 @@ func NewLinkScraper(cfg *config.Config, accEngine AccountEngine, linkRepo domain
 		groupRepo:    groupRepo,
 		accountRepo:  accountRepo,
 		linkQueue:    make(chan *rawLink, 10000), // Buffer 10k links
+		bioQueue:     make(chan *rawBio, 5000),
+		bioSeen:      make(map[string]time.Time),
 		dedupMap:     make(map[string]time.Time),
 		stopCh:       make(chan struct{}),
 		consumerDone: make(chan struct{}),
 	}
+}
+
+// SetMemberRepository injects member persistence for live Bio collection.
+func (ls *LinkScraper) SetMemberRepository(repo domain.MemberRepository) { ls.memberRepo = repo }
+
+// SetBioScraping toggles live Bio parsing independently from message-body link scraping.
+func (ls *LinkScraper) SetBioScraping(accountID uuid.UUID, enabled bool) {
+	if enabled { ls.bioEnabled.Store(accountID.String(), true) } else { ls.bioEnabled.Delete(accountID.String()) }
+}
+
+// IsBioScrapingEnabled reports whether live Bio parsing is enabled for an account.
+func (ls *LinkScraper) IsBioScrapingEnabled(accountID uuid.UUID) bool {
+	v, ok := ls.bioEnabled.Load(accountID.String())
+	return ok && v == true
 }
 
 // Start begins the link scraper background workers.
@@ -122,6 +156,9 @@ func (ls *LinkScraper) Start(ctx context.Context) {
 
 	ls.wg.Add(1)
 	safego.Go(func() { ls.accountWatcherLoop(ctx) })
+
+	ls.wg.Add(1)
+	safego.Go(func() { ls.bioConsumerLoop(ctx) })
 	ls.handlersMu.Unlock()
 
 	log.Printf("[link-scraper] 常驻链接采集服务已启动")
@@ -259,10 +296,23 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 		h.callbackMu.Unlock()
 		defer h.callbackWG.Done()
 
-		if msg == nil || msg.Text == "" || msg.ChatID >= 0 {
+		if msg == nil || msg.ChatID >= 0 {
 			return
 		}
 
+		// Bio parsing is a separate opt-in path; keep it independent from
+		// message-body link extraction and enqueue only resolved human senders.
+		if ls.IsBioScrapingEnabled(accountID) && msg.Sender != nil && !msg.Sender.IsBot && msg.Sender.ID > 0 && msg.Sender.AccessHash != 0 {
+			select {
+			case ls.bioQueue <- &rawBio{TenantID: tenantID, AccountID: accountID, Client: c, ChatID: msg.ChatID,
+				UserID: msg.Sender.ID, AccessHash: msg.Sender.AccessHash, Username: msg.Sender.Username,
+				FirstName: msg.Sender.FirstName, LastName: msg.Sender.LastName}:
+			default:
+				log.Printf("[link-scraper] Bio queue full; dropped sender=%d account=%s", msg.Sender.ID, accountID.String()[:8])
+			}
+		}
+
+		if msg.Text == "" { return }
 		matches := tmeLinkRe.FindAllStringSubmatch(msg.Text, -1)
 		for _, match := range matches {
 			if len(match) < 5 {
@@ -339,6 +389,62 @@ func (ls *LinkScraper) UnregisterAccount(accountID uuid.UUID) {
 		h.callbackWG.Wait()
 	}
 	log.Printf("[link-scraper] 已注销账号 %s 的消息监听", accountID.String()[:8])
+}
+
+
+func (ls *LinkScraper) bioConsumerLoop(ctx context.Context) {
+	defer ls.wg.Done()
+	ticker := time.NewTicker(350 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ls.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			select {
+			case item := <-ls.bioQueue:
+				ls.processBio(ctx, item)
+			default:
+			}
+		}
+	}
+}
+
+func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
+	if item == nil || ls.memberRepo == nil || ls.groupRepo == nil || item.Client == nil { return }
+	key := item.TenantID.String()+":"+fmt.Sprint(item.UserID)
+	ls.bioSeenMu.Lock()
+	if at, ok := ls.bioSeen[key]; ok && time.Since(at) < 24*time.Hour {
+		ls.bioSeenMu.Unlock()
+		return
+	}
+	ls.bioSeenMu.Unlock()
+	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	result, err := item.Client.Raw().UsersGetFullUser(callCtx, &tg.UsersGetFullUserRequest{
+		ID: &tg.InputUser{UserID: item.UserID, AccessHash: item.AccessHash},
+	})
+	if err != nil { log.Printf("[link-scraper] getFullUser failed user=%d: %v", item.UserID, err); return }
+	fullResult, ok := result.(*tg.UsersUserFull)
+	if !ok || fullResult == nil { return }
+	full, ok := fullResult.FullUser.(*tg.UserFull)
+	if !ok || full == nil || strings.TrimSpace(full.About) == "" { return }
+	group, err := ls.groupRepo.GetByTGChatID(callCtx, item.TenantID, item.ChatID)
+	if err != nil || group == nil { return }
+	now := time.Now()
+	member := &domain.Member{MemberID: uuid.New(), TenantID: item.TenantID, GroupID: group.GroupID,
+		TGUserID: item.UserID, Username: item.Username, FirstName: item.FirstName, LastName: item.LastName,
+		Bio: full.About, AccessHash: item.AccessHash, ScrapedAt: now}
+	if err := ls.memberRepo.BatchCreate(callCtx, []*domain.Member{member}); err != nil {
+		log.Printf("[link-scraper] persist live Bio failed user=%d: %v", item.UserID, err)
+		return
+	}
+	ls.bioSeenMu.Lock()
+	ls.bioSeen[key] = now
+	if len(ls.bioSeen) > 50000 { ls.bioSeen = make(map[string]time.Time) }
+	ls.bioSeenMu.Unlock()
 }
 
 // consumerLoop processes links from the queue with rate limiting.
