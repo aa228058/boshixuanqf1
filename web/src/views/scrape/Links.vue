@@ -359,17 +359,32 @@ async function toggleTask(task: ScrapeTask) {
 // 复制链接到剪贴板(clipboard API 不可用时降级)
 async function copyLink(url: string) {
   try {
-    await navigator.clipboard.writeText(url)
-    toast({ type: 'success', title: '已复制链接' })
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url)
+      toast({ type: 'success', title: '已复制链接' })
+      return
+    }
   } catch {
-    const ta = document.createElement('textarea')
-    ta.value = url
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
-    toast({ type: 'success', title: '已复制链接' })
+    // Clipboard API may be unavailable or denied; try the legacy browser command.
   }
+
+  const ta = document.createElement('textarea')
+  ta.value = url
+  ta.setAttribute('readonly', '')
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  let copied = false
+  try {
+    copied = document.execCommand('copy')
+  } catch {
+    copied = false
+  } finally {
+    ta.remove()
+  }
+  if (copied) toast({ type: 'success', title: '已复制链接' })
+  else toast({ type: 'error', title: '复制失败', message: '请手动选择并复制链接' })
 }
 
 // 导出纯文本(每行一个链接), 与"自动加群-导入链接"的格式一致
