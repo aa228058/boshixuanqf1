@@ -493,6 +493,7 @@ import { useCopy } from '@/composables/useCopy'
 import { MessageCircle, Trash2, Loader2 } from 'lucide-vue-next'
 import { settingsApi } from '@/api/settings'
 import { toast } from '@/utils/toast'
+import { downloadBlob } from '@/utils/export'
 import { ask } from '@/utils/confirm'
 import { getAIConfig, saveAIConfig, testAIConfig, setVerifierEnabled } from '@/api/verifier'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -583,13 +584,7 @@ async function exportMyData() {
     const res = await fetch('/api/v1/tenant/export', { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) throw new Error('导出失败: ' + res.status)
     const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'my-data-export.json'
-    a.click()
-    // Keep the object URL alive until the browser has consumed the download URL.
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    downloadBlob('my-data-export.json', blob)
     toast({ type: 'success', title: '导出成功', message: '已下载 my-data-export.json' })
   } catch (e) {
     toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
