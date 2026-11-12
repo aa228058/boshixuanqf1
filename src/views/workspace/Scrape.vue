@@ -98,7 +98,11 @@
         <div class="animate-spin w-6 h-6 border-2 border-[color:var(--t-brand)] border-t-transparent rounded-full mx-auto mb-3" />
         <p class="text-sm text-text-muted">加载中...</p>
       </div>
-      <EmptyState v-else-if="!tasks.length" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
+      <div v-if="taskError" class="ui-card p-3 flex flex-wrap items-center justify-between gap-3" role="alert">
+        <span class="text-sm text-[var(--t-err)]">{{ taskError }}</span>
+        <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="taskLoading" @click="fetchTasks">重新加载</t-button>
+      </div>
+      <EmptyState v-else-if="!tasks.length && !taskError" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
            class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
@@ -145,6 +149,10 @@
         <!-- 展开: 成员结果列表 -->
         <div v-if="expanded[task.task_id]" class="mt-3 pt-3 border-t border-border">
           <div v-if="memberLoading[task.task_id]" class="py-4 text-center text-sm text-text-muted">加载成员中...</div>
+          <div v-else-if="memberErrors[task.task_id]" class="py-4 flex flex-wrap items-center justify-center gap-2 text-sm" role="alert">
+            <span class="text-[var(--t-err)]">{{ memberErrors[task.task_id] }}</span>
+            <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="loadMembers(task.task_id)">重新加载成员</t-button>
+          </div>
           <div v-else-if="!members[task.task_id]?.length" class="py-4 text-center text-sm text-text-muted">该任务暂无采集到成员</div>
           <template v-else>
             <div class="flex items-center justify-between text-xs text-text-muted px-2 pb-2">
@@ -222,6 +230,7 @@ watch(scrapeAccId, () => {
   for (const taskId of Object.keys(memberRequestIds)) memberRequestIds[taskId]++
   members.value = {}
   memberLoading.value = {}
+  memberErrors.value = {}
   skippedBots.value = {}
   expanded.value = {}
   fetchGroups()
@@ -260,9 +269,11 @@ const tasks = ref<any[]>([])
 let taskListRequestId = 0
 let pageActive = true
 const taskLoading = ref(false)
+const taskError = ref('')
 const expanded = ref<Record<string, boolean>>({})
 const members = ref<Record<string, any[]>>({})
 const memberLoading = ref<Record<string, boolean>>({})
+const memberErrors = ref<Record<string, string>>({})
 const skippedBots = ref<Record<string, number>>({})
 const memberRequestIds: Record<string, number> = {}
 
@@ -330,6 +341,7 @@ async function loadMembers(taskId: string) {
   const isCurrent = () => memberRequestIds[taskId] === requestId &&
     accountId === scrapeAccId.value && tasks.value.some(t => t.task_id === taskId)
   memberLoading.value[taskId] = true
+  memberErrors.value[taskId] = ''
   try {
     if (!groupId) {
       if (isCurrent()) members.value[taskId] = []
@@ -341,8 +353,8 @@ async function loadMembers(taskId: string) {
     // 自动跳过机器人结果(源头已在采集时过滤, 这里兜底处理历史数据)
     skippedBots.value[taskId] = raw.filter(isBot).length
     members.value[taskId] = raw.filter((m: any) => !isBot(m))
-  } catch {
-    if (isCurrent()) members.value[taskId] = []
+  } catch (e: any) {
+    if (isCurrent()) memberErrors.value[taskId] = e?.message || '成员读取失败，请重试'
   } finally {
     if (isCurrent()) memberLoading.value[taskId] = false
   }
@@ -421,16 +433,18 @@ async function fetchTasks() {
   const requestId = ++taskListRequestId
   if (!accountId) {
     tasks.value = []
+    taskError.value = ''
     taskLoading.value = false
     return
   }
   taskLoading.value = true
+  taskError.value = ''
   try {
     const res = await taskApi.list({ type: 'scrape_members', account_id: accountId })
     if (!pageActive || requestId !== taskListRequestId || accountId !== scrapeAccId.value) return
     tasks.value = res.list || []
-  } catch {
-    if (pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) tasks.value = []
+  } catch (e: any) {
+    if (pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) taskError.value = e?.message || '采集任务读取失败，请重试'
   } finally {
     if (pageActive && requestId === taskListRequestId) taskLoading.value = false
   }
