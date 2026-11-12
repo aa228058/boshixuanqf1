@@ -265,17 +265,17 @@
       <!-- 步骤1：手机号 -->
       <div v-if="addStep === 'phone'" class="space-y-4">
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">手机号</label>
+          <label for="layout-add-phone" class="block text-sm text-text-secondary mb-1.5">手机号</label>
           <!-- 单号输入(2026-10-20 清理: 原多行批量加号使用率低已移除, 队列逻辑保留恒为 1) -->
           <div class="flex items-center">
             <span class="inline-flex items-center px-3 h-[44px] rounded-l-lg bg-bg-card border border-r-0 border-border text-text-secondary text-sm">+</span>
-            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" />
+            <input id="layout-add-phone" v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" />
           </div>
           <p class="text-xs text-text-secondary mt-1">只需输入号码数字（+ 前缀已自带）</p>
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">备注（可选）</label>
-          <input v-model="newRemark" placeholder="如：主号-客服" class="ui-input !min-h-[44px] !text-sm" aria-label="如：主号-客服" />
+          <label for="layout-add-remark" class="block text-sm text-text-secondary mb-1.5">备注（可选）</label>
+          <input id="layout-add-remark" v-model="newRemark" placeholder="如：主号-客服" class="ui-input !min-h-[44px] !text-sm" aria-label="如：主号-客服" />
         </div>
       </div>
       <!-- 步骤2：验证码 -->
@@ -285,8 +285,8 @@
         <div v-if="queueProcessing && phoneQueue.length" class="max-h-32 overflow-y-auto rounded-lg border border-border divide-y divide-border text-left mb-2">
           <div v-for="(q, i) in phoneQueue" :key="i" class="px-3 py-1.5 text-xs flex items-center gap-2" :class="i === queueIndex ? 'bg-cyan/5' : ''">
             <span class="text-text-secondary shrink-0">{{ q.phone }}</span>
-            <span v-if="q.step === 'done'" class="text-green-500">完成</span>
-            <span v-else-if="q.step === 'failed'" class="text-red-500">{{ q.error || '失败' }}</span>
+            <span v-if="q.step === 'done'" style="color: var(--t-ok);">完成</span>
+            <span v-else-if="q.step === 'failed'" style="color: var(--t-err);">{{ q.error || '失败' }}</span>
             <span v-else-if="i === queueIndex" class="text-cyan">处理中</span>
             <span v-else class="text-text-muted">排队中</span>
           </div>
