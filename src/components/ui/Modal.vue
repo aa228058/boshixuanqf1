@@ -200,7 +200,7 @@ onUnmounted(() => {
 .modal-footer {
   flex-shrink: 0;
   padding: 12px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgba(128, 128, 128, 0.10);
+  border-top: 1px solid var(--t-line);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -208,7 +208,7 @@ onUnmounted(() => {
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.04);
   position: relative;
   z-index: 1;
-  background: var(--modal-bg, var(--td-bg-color-container, #fff));
+  background: var(--t-modal-bg, var(--td-bg-color-container, #fff));
 }
 
 /* ===== 桌面端: 圆角全包 ===== */
