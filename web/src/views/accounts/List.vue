@@ -866,13 +866,19 @@ const probeRunning = ref(false)
 const probeCooldownText = ref('') // 冷却中提示(后端 429 返回)
 
 let probeRequestId = 0
+let probeController: AbortController | null = null
 watch(showProbe, (visible) => {
   if (!visible) {
+    probeController?.abort()
+    probeController = null
     probeRequestId++
     probeRunning.value = false
   }
 })
 async function openProbe(acc: any) {
+  probeController?.abort()
+  const controller = new AbortController()
+  probeController = controller
   const requestId = ++probeRequestId
   const accountId = acc?.account_id
   probeAccount.value = acc
@@ -882,11 +888,12 @@ async function openProbe(acc: any) {
   if (!accountId) return
   // 先展示上次结果(不触发检测)；切换账号或关闭弹窗后丢弃过期响应。
   try {
-    const cached = await accountApi.getProbe(accountId)
+    const cached = await accountApi.getProbe(accountId, { signal: controller.signal })
     if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
       probeResult.value = cached || null
     }
   } catch { /* 无历史结果, 忽略 */ }
+  finally { if (probeController === controller) probeController = null }
 }
 
 async function runProbe() {
