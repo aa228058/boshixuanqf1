@@ -633,7 +633,8 @@ async function activate() {
     toast({ type: 'error', title: '激活失败', message: msg })
   } finally {
     activating.value = false
-  }}
+  }
+}
 
 function copyContact() {
   if (!supportConfig.value?.contact_value) return
