@@ -6,16 +6,16 @@ export interface TextDict { dict_id: string; tenant_id: string; name: string; en
 
 export const settingsApi = {
   getProfile: (options?: RequestOptions) => api.get<Tenant>('/tenant/profile', options),
-  getMessageDecoration: () => api.get<{ enabled: boolean }>('/tenant/message-decoration'),
+  getMessageDecoration: (options?: RequestOptions) => api.get<{ enabled: boolean }>('/tenant/message-decoration', options),
   updateMessageDecoration: (enabled: boolean) => api.put<{ enabled: boolean }>('/tenant/message-decoration', { enabled }),
   activateCode: (code: string) => api.post<Tenant>('/tenant/activate', { code }),
-  getPlans: () => api.get<Plan[]>('/plans'),
-  getSupport: () => api.get<SupportConfig>('/support'),
+  getPlans: (options?: RequestOptions) => api.get<Plan[]>('/plans', options),
+  getSupport: (options?: RequestOptions) => api.get<SupportConfig>('/support', options),
   getAnnouncements: (options?: RequestOptions) => api.get<Announcement[]>('/announcements', options),
   markAnnouncementRead: (id: string) => api.post<void>(`/announcements/${id}/read`),
 
   // Message Templates
-  getTemplates: () => api.get<ListResponse<MessageTemplate>>('/templates'),
+  getTemplates: (options?: RequestOptions) => api.get<ListResponse<MessageTemplate>>('/templates', options),
   createTemplate: (data: { name: string; content: string }) => api.post<MessageTemplate>('/templates', data),
   updateTemplate: (id: string, data: { name: string; content: string }) => api.put<void>(`/templates/${id}`, data),
   deleteTemplate: (id: string) => api.delete<void>(`/templates/${id}`),
@@ -40,7 +40,7 @@ export const settingsApi = {
   },
 
   // R119+R120: 通知中心(租户级 SMTP)
-  getNotify: () => api.get<{ email: string; settings: Record<string, boolean>; events: Record<string, string>; smtp: Record<string, any>; smtp_configured: boolean }>('/tenant/notify'),
+  getNotify: (options?: RequestOptions) => api.get<{ email: string; settings: Record<string, boolean>; events: Record<string, string>; smtp: Record<string, any>; smtp_configured: boolean }>('/tenant/notify', options),
   updateNotify: (email: string, settings: Record<string, boolean>, smtp?: Record<string, any>) => api.put('/tenant/notify', { email, settings, smtp }),
   testNotify: () => api.post<{ message: string }>('/tenant/notify/test'),
 }
