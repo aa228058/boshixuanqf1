@@ -1,4 +1,4 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 import type { Tenant, Plan, ActivationCode, SupportConfig, Announcement, MessageTemplate, AccountGroup, ListResponse } from '@/types'
 
 export interface TextDictEntry { entry_id: string; dict_id: string; word: string; weight: number; enabled: boolean }
@@ -11,7 +11,7 @@ export const settingsApi = {
   activateCode: (code: string) => api.post<Tenant>('/tenant/activate', { code }),
   getPlans: () => api.get<Plan[]>('/plans'),
   getSupport: () => api.get<SupportConfig>('/support'),
-  getAnnouncements: () => api.get<Announcement[]>('/announcements'),
+  getAnnouncements: (options?: RequestOptions) => api.get<Announcement[]>('/announcements', options),
   markAnnouncementRead: (id: string) => api.post<void>(`/announcements/${id}/read`),
 
   // Message Templates
