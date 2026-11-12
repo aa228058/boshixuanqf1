@@ -9,6 +9,8 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
 export function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob)
   let anchor: HTMLAnchorElement | null = null
+  let failed = false
+  let failure: unknown
   try {
     anchor = document.createElement('a')
     anchor.href = url
@@ -16,10 +18,22 @@ export function downloadBlob(filename: string, blob: Blob): void {
     document.body.appendChild(anchor)
     anchor.click()
   } catch (error) {
-    URL.revokeObjectURL(url)
-    throw error
-  } finally {
+    failed = true
+    failure = error
+  }
+
+  // 即使浏览器/测试环境的锚点清理抛错，也必须释放 URL，不能跳过后续回收。
+  try {
     anchor?.remove()
+  } catch (error) {
+    if (!failed) {
+      failed = true
+      failure = error
+    }
+  }
+  if (failed) {
+    URL.revokeObjectURL(url)
+    throw failure
   }
   try {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
