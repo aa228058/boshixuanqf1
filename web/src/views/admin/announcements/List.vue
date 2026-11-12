@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { formatDate } from '@/utils/format'
@@ -122,17 +122,23 @@ const editing = ref(false)
 const editId = ref('')
 const deleteConfirm = ref()
 const deletingAnnouncement = ref<Announcement | null>(null)
+let announcementsRequestId = 0
+let announcementsPageActive = false
 
 const form = ref<Partial<Announcement>>({
   title: '', content: '', priority: 'normal', target_type: 'all', target_plans: [],
 })
 
 async function fetchAnnouncements() {
+  const requestId = ++announcementsRequestId
   try {
     const res = await adminApiMod.listAnnouncements()
+    if (!announcementsPageActive || requestId !== announcementsRequestId) return
     announcements.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取公告失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (announcementsPageActive && requestId === announcementsRequestId) {
+      toast({ type: 'error', title: '获取公告失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    }
   }
 }
 
@@ -180,6 +186,7 @@ async function doDelete() {
 }
 
 onMounted(async () => {
+  announcementsPageActive = true
   await fetchAnnouncements()
   try {
     const res = await adminApiMod.listPlans()
@@ -187,5 +194,9 @@ onMounted(async () => {
   } catch (e: unknown) {
     toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
+})
+onUnmounted(() => {
+  announcementsPageActive = false
+  announcementsRequestId++
 })
 </script>
