@@ -28,8 +28,8 @@
             <span aria-hidden="true">＋</span> 创建加群任务
           </router-link>
           <router-link :to="broadcastPath"
-            class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.98]"
-            style="background: var(--t-brand);">
+            class="ui-native-button ui-native-button--primary min-h-10 rounded-xl px-4 shadow-sm">
+
             <span aria-hidden="true">↗</span> 创建群发任务
           </router-link>
         </div>
