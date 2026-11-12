@@ -37,6 +37,12 @@
         <template #code="{ row }">
           <span class="font-mono text-sm">{{ row.code }}</span>
         </template>
+        <template #plan_id="{ row }">
+          <span class="text-sm">{{ planLabel(row.plan_id as string) }}</span>
+        </template>
+        <template #created_at="{ row }">
+          <span class="text-sm">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '—' }}</span>
+        </template>
         <template #status="{ row }">
           <span class="text-xs px-2 py-0.5 rounded-full" :class="codeStatusClass(row.status as string)">
             {{ row.status === 'unused' ? '未使用' : row.status === 'used' ? '已使用' : row.status === 'expired' ? '已过期' : '已作废' }}
@@ -165,19 +171,26 @@ import { ask } from '@/utils/confirm'
 const codes = ref<ActivationCode[]>([])
 
 // 模板 17/48 行的"复制"按钮此前调用不存在的 copySelected/copyCode（点击无反应）。
+async function copyText(text: string, successMessage: string) {
+  if (!text) return
+  if (!navigator.clipboard?.writeText) {
+    toast({ type: 'warning', title: '当前浏览器不支持复制', message: '请手动选择并复制内容' })
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(text)
+    toast({ type: 'success', title: '已复制', message: successMessage })
+  } catch {
+    toast({ type: 'error', title: '复制失败', message: '请检查浏览器剪贴板权限后重试' })
+  }
+}
 function copyCode(code: string) {
-  navigator.clipboard?.writeText(code).then(
-    () => toast({ type: 'success', title: '已复制', message: code }),
-    () => toast({ type: 'error', title: '复制失败' })
-  )
+  void copyText(code, code)
 }
 function copySelected() {
   const text = codes.value.filter(c => selectedIds.value.includes(c.code_id)).map(c => c.code).join('\n')
   if (!text) return
-  navigator.clipboard?.writeText(text).then(
-    () => toast({ type: 'success', title: '已复制', message: `${selectedIds.value.length} 条卡密` }),
-    () => toast({ type: 'error', title: '复制失败' })
-  )
+  void copyText(text, `${selectedIds.value.length} 条卡密`)
 }
 const plans = ref<Plan[]>([])
 const statusFilter = ref('')
@@ -258,7 +271,7 @@ async function exportCodes() {
     a.href = url
     a.download = `codes_export_${new Date().toISOString().slice(0, 10)}.txt`
     a.click()
-    URL.revokeObjectURL(url)
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   } catch (e: any) {
     toast({ type: 'error', title: '导出失败', message: e?.message || '请稍后重试' })
   }
