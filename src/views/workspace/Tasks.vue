@@ -10,6 +10,7 @@
       <div class="ui-segmented flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="按任务类型筛选">
         <button type="button" v-for="t in typeTabs" :key="t.value" @click="typeFilter = t.value"
                 class="ui-segmented__item whitespace-nowrap"
+                :aria-pressed="typeFilter === t.value"
                 :class="{ 'is-active': typeFilter === t.value }">
           {{ t.label }}
         </button>
@@ -18,6 +19,7 @@
   <button type="button" v-for="r in [['today','今日'],['7d','近7日'],['all','全部']]" :key="r[0]"
     @click="range = r[0]; page = 1; fetchTasks()"
     class="ui-segmented__item"
+    :aria-pressed="range === r[0]"
     :class="{ 'is-active': range === r[0] }">
     {{ r[1] }}
   </button>
