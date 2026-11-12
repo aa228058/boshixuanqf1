@@ -88,7 +88,7 @@
         </div>
         <div v-if="allLinksOpen" class="border-t border-border">
           <div v-if="allLinksLoading" class="flex justify-center py-6 text-sm text-text-muted">加载中...</div>
-          <div v-else-if="!allLinks.length" class="p-6 text-center text-text-muted text-sm">暂无链接, 先在"链接监听"Tab 开启监听, 收到含链接的群消息后会自动入库</div>
+          <div v-else-if="!allLinks.length && !allLinksError" class="p-6 text-center text-text-muted text-sm">暂无链接, 先在"链接监听"Tab 开启监听, 收到含链接的群消息后会自动入库</div>
           <div v-else>
             <!-- 单行横向布局: 链接截断 + 类型徽标 + 复制, 手机上不再一链接占一整块 -->
             <div class="px-4 py-2 text-xs text-text-muted">
