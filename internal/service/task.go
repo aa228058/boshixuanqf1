@@ -55,6 +55,8 @@ type LinkScraperController interface {
 	RegisterAccount(ctx context.Context, tenantID, accountID uuid.UUID)
 	UnregisterAccount(accountID uuid.UUID)
 	IsRegistered(accountID uuid.UUID) bool
+	SetBioScraping(accountID uuid.UUID, enabled bool)
+	IsBioScrapingEnabled(accountID uuid.UUID) bool
 }
 
 // NewTaskService creates a new task service.
@@ -134,6 +136,16 @@ func (s *TaskService) SetLinkScraping(ctx context.Context, tenantID, accountID u
 // LinkScrapingEnabled 返回某账号的常驻链接监听是否开启。
 func (s *TaskService) LinkScrapingEnabled(accountID uuid.UUID) bool {
 	return s.linkScraper != nil && s.linkScraper.IsRegistered(accountID)
+}
+
+// SetBioLinkScraping toggles real-time user Bio parsing independently of message-link listening.
+func (s *TaskService) SetBioLinkScraping(accountID uuid.UUID, enabled bool) {
+	if s.linkScraper != nil { s.linkScraper.SetBioScraping(accountID, enabled) }
+}
+
+// BioLinkScrapingEnabled reports the real-time Bio parsing switch state.
+func (s *TaskService) BioLinkScrapingEnabled(accountID uuid.UUID) bool {
+	return s.linkScraper != nil && s.linkScraper.IsBioScrapingEnabled(accountID)
 }
 
 // validateAccountOwnership checks that all account IDs belong to the tenant.
