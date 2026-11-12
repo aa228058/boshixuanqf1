@@ -342,6 +342,10 @@ async function toggleTask(task: ScrapeTask) {
   }
   expandedTaskId.value = task.task_id
   if (taskLinks.value[task.task_id]) return
+  const requestId = (taskLinksRequestIds[task.task_id] || 0) + 1
+  taskLinksRequestIds[task.task_id] = requestId
+  const accountId = linksAccId.value
+  taskLinksErrors.value = { ...taskLinksErrors.value, [task.task_id]: '' }
   linksLoading.value = { ...linksLoading.value, [task.task_id]: true }
   try {
     // since=任务创建时间, 圈出该任务的采集窗口
@@ -351,12 +355,16 @@ async function toggleTask(task: ScrapeTask) {
       page: 1,
       page_size: 100,
     })
+    if (requestId !== taskLinksRequestIds[task.task_id] || accountId !== linksAccId.value) return
     const raw = res as any
     taskLinks.value = { ...taskLinks.value, [task.task_id]: raw.list || raw.items || [] }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (requestId === taskLinksRequestIds[task.task_id] && accountId === linksAccId.value) {
+      taskLinksErrors.value = { ...taskLinksErrors.value, [task.task_id]: e instanceof Error ? e.message : '加载链接失败，请稍后重试' }
+      toast({ type: 'error', title: '加载链接失败', message: taskLinksErrors.value[task.task_id] })
+    }
   } finally {
-    linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
+    if (requestId === taskLinksRequestIds[task.task_id]) linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
   }
 }
 
