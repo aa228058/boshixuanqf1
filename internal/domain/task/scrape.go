@@ -360,6 +360,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 						TGUserID:  userID,
 						Username:  username,
 						Bio:       memberBio,
+						AccessHash: userAccessHash(user),
 						LastSeen:  lastSeen,
 						HasPhoto:  hasPhoto,
 						ScrapedAt: time.Now(),
