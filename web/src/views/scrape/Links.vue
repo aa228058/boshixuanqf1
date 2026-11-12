@@ -268,8 +268,12 @@ let taskListController: AbortController | null = null
 let allLinksController: AbortController | null = null
 const taskLinkRequestIds = new Map<string, number>()
 const taskLinkControllers = new Map<string, AbortController>()
+let messageStatusController: AbortController | null = null
+let bioStatusController: AbortController | null = null
 watch(linksAccId, () => {
   // 切换账号时立即取消旧账号网络请求并清空旧数据。
+  messageStatusController?.abort()
+  bioStatusController?.abort()
   taskListController?.abort()
   allLinksController?.abort()
   for (const controller of taskLinkControllers.values()) controller.abort()
@@ -495,6 +499,8 @@ function statusLabel(s: string) {
 
 
 onUnmounted(() => {
+  messageStatusController?.abort()
+  bioStatusController?.abort()
   taskListController?.abort()
   allLinksController?.abort()
   for (const controller of taskLinkControllers.values()) controller.abort()
@@ -518,13 +524,20 @@ const bioListening = ref(false)
 const bioSaving = ref(false)
 
 async function loadBioListeningStatus(accountId: string) {
+  bioStatusController?.abort()
+  bioStatusController = null
   if (!accountId) { bioListening.value = false; return }
+  const controller = new AbortController()
+  bioStatusController = controller
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}&mode=bio`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
+      signal: controller.signal,
     })
     if (res.ok && linksAccId.value === accountId) bioListening.value = (await res.json()).enabled
-  } catch {}
+  } catch {} finally {
+    if (bioStatusController === controller) bioStatusController = null
+  }
 }
 
 async function toggleBioListening() {
@@ -550,13 +563,20 @@ async function toggleBioListening() {
 }
 
 async function loadMessageListeningStatus(accountId: string) {
+  messageStatusController?.abort()
+  messageStatusController = null
   if (!accountId) { listening.value = false; return }
+  const controller = new AbortController()
+  messageStatusController = controller
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
+      signal: controller.signal,
     })
     if (res.ok && linksAccId.value === accountId) listening.value = (await res.json()).enabled
-  } catch {}
+  } catch {} finally {
+    if (messageStatusController === controller) messageStatusController = null
+  }
 }
 
 onMounted(() => {
