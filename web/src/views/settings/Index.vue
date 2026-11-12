@@ -404,9 +404,9 @@ function pickProvider(key: string) {
   smtpForm.value.host = p.host
   smtpForm.value.port = p.port
 }
-async function loadMessageDecoration() {
+async function loadMessageDecoration(options?: RequestOptions) {
   try {
-    const result = await settingsApi.getMessageDecoration()
+    const result = await settingsApi.getMessageDecoration(options)
     messageDecorationEnabled.value = !!result.enabled
   } catch { /* toast 已由拦截器统一处理 */ }
 }
@@ -419,10 +419,10 @@ async function saveMessageDecoration() {
   } catch { /* 拦截器已提示 */ }
   finally { messageDecorationSaving.value = false }
 }
-async function loadNotify() {
+async function loadNotify(options?: RequestOptions) {
   notifyLoading.value = true
   try {
-    const d: any = await settingsApi.getNotify()
+    const d: any = await settingsApi.getNotify(options)
     notifyEmail.value = d.email || ''
     notifySettings.value = d.settings || {}
     notifyEvents.value = d.events || {}
