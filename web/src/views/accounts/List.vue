@@ -763,21 +763,38 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import { getHealthBg } from '@/utils/health'
 
 // ===== 数字滚动(交互示例21): 统计卡数值从旧值缓动到新值 =====
+// 同一元素快速收到新值时取消旧动画，避免旧 RAF 覆盖新目标；卸载时释放帧回调。
+const countUpFrames = new WeakMap<HTMLElement, number>()
 function runCountUp(el: HTMLElement, to: number) {
+  const previousFrame = countUpFrames.get(el)
+  if (previousFrame !== undefined) cancelAnimationFrame(previousFrame)
   const from = Number(el.textContent) || 0
-  if (from === to) { el.textContent = String(to); return }
+  if (!Number.isFinite(to) || from === to) {
+    el.textContent = String(Number.isFinite(to) ? to : 0)
+    countUpFrames.delete(el)
+    return
+  }
   const start = performance.now(), dur = 600
   const tick = (now: number) => {
     const p = Math.min(1, (now - start) / dur)
     const eased = 1 - Math.pow(1 - p, 3)
     el.textContent = String(Math.round(from + (to - from) * eased))
-    if (p < 1) requestAnimationFrame(tick)
+    if (p < 1) {
+      countUpFrames.set(el, requestAnimationFrame(tick))
+    } else {
+      countUpFrames.delete(el)
+    }
   }
-  requestAnimationFrame(tick)
+  countUpFrames.set(el, requestAnimationFrame(tick))
 }
 const vCountup = {
   mounted(el: HTMLElement, b: any) { runCountUp(el, Number(b.value) || 0) },
-  updated(el: HTMLElement, b: any) { if (b.value !== b.oldValue) runCountUp(el, Number(b.value) || 0) }
+  updated(el: HTMLElement, b: any) { if (b.value !== b.oldValue) runCountUp(el, Number(b.value) || 0) },
+  beforeUnmount(el: HTMLElement) {
+    const frame = countUpFrames.get(el)
+    if (frame !== undefined) cancelAnimationFrame(frame)
+    countUpFrames.delete(el)
+  },
 }
 
 // 模板"受限"按钮的倒计时文案。此前模板(137行)调用了不存在的 cooldownText（白屏级）；
