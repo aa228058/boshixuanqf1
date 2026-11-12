@@ -343,3 +343,13 @@
 - 归类：可访问性缺陷；纯展示/模板。
 - 回归步骤：Tab 应聚焦私聊复选框；读屏分别播报“选择私聊对象 + 联系人名称”和“选择群组 + 群组名称”；Space 可切换复选框；鼠标点击卡片仍可切换。
 - 验收状态：源码已修；待键盘与屏幕阅读器回归。
+
+## Y. StatCard 遗留展示映射清理
+
+- 文件：`src/components/charts/StatCard.vue`、`src/views/dashboard/Index.vue`
+- 提交：`918dbb544393e364787c7f8942f028169020f045`、`769b0fe1f96c3e655b8fd186e891848cc375f09e`
+- 发现：StatCard 当前模板只展示 label/value/trend，但脚本仍保留未被模板使用的图标映射、背景色映射和文字色映射；Dashboard 也保留了一个未使用的 StatCard import。
+- 修改：删除未使用的映射计算与图标依赖，移除 Dashboard 死 import；保留 icon/color props 声明，避免影响仍可能存在的调用方属性传递。
+- 归类：死代码/技术债，不计作用户可见 bug。
+- 验收：typecheck/build；若其他页面仍使用 StatCard，确认 label/value/trend 正常。
+- 状态：源码已清理；待构建验证。
