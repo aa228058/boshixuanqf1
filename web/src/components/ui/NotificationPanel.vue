@@ -13,7 +13,7 @@
           <component :is="typeIcon(n.type)" class="w-5 h-5 shrink-0 mt-0.5" :class="typeColor(n.type)" />
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium">{{ notificationTitle(n.type) }}</p>
-            <p class="text-xs text-text-secondary mt-0.5">{{ notificationMessage(n.type) }}</p>
+            <p class="text-xs text-text-secondary mt-0.5">{{ notificationMessage(n.type, n.message) }}</p>
             <p class="text-xs text-text-muted mt-1">{{ formatRelativeTime(n.created_at) }}</p>
           </div>
           <div v-if="!n.read" class="w-2 h-2 rounded-full bg-cyan shrink-0 mt-1.5" />
@@ -80,7 +80,9 @@ function notificationTitle(type: string): string {
   return labels[type] || '系统提醒'
 }
 
-function notificationMessage(type: string): string {
+function notificationMessage(type: string, rawMessage?: string): string {
+  const detail = (rawMessage || '').trim()
+  if (detail && /[\u3400-\u9fff]/.test(detail)) return detail
   const messages: Record<string, string> = {
     task_failed: '任务未能完成，请前往任务列表查看失败原因。',
     account_risk: '账号状态可能受到限制，请前往账号管理检查。',
