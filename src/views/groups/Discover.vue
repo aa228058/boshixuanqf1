@@ -107,7 +107,7 @@
                   {{ gtypeLabel(row.gtype) }}
                 </span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap shrink-0"
-                      :class="row.status === 'invalid' ? 'bg-[color:var(--t-danger-dim)] text-[var(--t-danger)]' : row.status === 'valid' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'">
+                      :class="row.status === 'invalid' ? 'bg-[color:var(--t-err-dim)] text-[var(--t-danger)]' : row.status === 'valid' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'">
                   {{ statusLabel(row.status) }}
                 </span>
                 <button v-if="(row as any).entry_count > 1" type="button"
