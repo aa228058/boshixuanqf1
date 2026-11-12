@@ -72,6 +72,8 @@ let timer: ReturnType<typeof setInterval> | null = null
 let completionRefreshTimer: ReturnType<typeof setTimeout> | null = null
 // Polls and prop changes can overlap; only the newest account/task-type response may update UI.
 let loadRequestId = 0
+let listController: AbortController | null = null
+let logsController: AbortController | null = null
 
 const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
 
@@ -161,6 +163,10 @@ function elapsed(iso: string): string {
 }
 
 async function load() {
+  listController?.abort()
+  logsController?.abort()
+  listController = null
+  logsController = null
   const accountId = props.accountId
   const taskType = props.taskType
   if (!accountId || !taskType) {
@@ -171,10 +177,13 @@ async function load() {
     return
   }
   const requestId = ++loadRequestId
+  const controller = new AbortController()
+  listController = controller
   const isCurrent = () => requestId === loadRequestId
     && props.accountId === accountId && props.taskType === taskType
+    && !controller.signal.aborted
   try {
-    const res: any = await taskApi.list({ account_id: accountId, type: taskType, page: 1, page_size: 5 })
+    const res: any = await taskApi.list({ account_id: accountId, type: taskType, page: 1, page_size: 5 }, { signal: controller.signal })
     if (!isCurrent()) return
     const arr = res.list || res.items || []
     const active = arr.find((t: any) => ['queued', 'running', 'pending'].includes(t.status))
@@ -184,7 +193,9 @@ async function load() {
       task.value = active
       lastDone.value = null
       // 运行中才拉取最新一条日志作为当前动作
-      const lr: any = await taskApi.getLogs(active.task_id)
+      const logsAbort = new AbortController()
+      logsController = logsAbort
+      const lr: any = await taskApi.getLogs(active.task_id, 1, 50, undefined, undefined, { signal: logsAbort.signal })
       if (!isCurrent() || task.value?.task_id !== active.task_id) return
       const logs = lr?.list || lr?.data || (Array.isArray(lr) ? lr : [])
       if (logs.length) liveLogs.value = logs.slice(-6).reverse()
@@ -196,6 +207,10 @@ async function load() {
       if (lastDone.value?.task_id !== done?.task_id) lastDone.value = done || null
     }
   } catch { /* 静默, 下轮再试 */ }
+  finally {
+    if (listController === controller) listController = null
+    if (controller.signal.aborted && logsController) { logsController.abort(); logsController = null }
+  }
 }
 
 // SSE 实时事件: 进度/日志亚秒级推送, 轮询降为兜底(10 秒)
@@ -250,6 +265,10 @@ watch(liveLogs, (logs: any[]) => {
 
 onUnmounted(() => {
   loadRequestId++
+  listController?.abort()
+  logsController?.abort()
+  listController = null
+  logsController = null
   if (timer) clearInterval(timer)
   if (waitTimer) clearInterval(waitTimer)
   if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
@@ -259,6 +278,10 @@ watch(() => [props.accountId, props.taskType], () => {
   // Do not keep the previous account/type's task visible while the new query is in flight.
   // Invalidate any pending response before clearing the old task and its associated logs.
   loadRequestId++
+  listController?.abort()
+  logsController?.abort()
+  listController = null
+  logsController = null
   task.value = null
   lastDone.value = null
   liveLogs.value = []
