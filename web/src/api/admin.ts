@@ -23,7 +23,7 @@ export const adminApiMod = {
   getSystemMetrics: (options?: RequestOptions) => adminApi.get<SystemMetrics>('/admin/system', options),
 
   // 租户管理
-  listTenants: (params?: Record<string, unknown>) => adminApi.get<ListResponse<Tenant>>(`/admin/tenants${toQueryString(params)}`),
+  listTenants: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<Tenant>>(`/admin/tenants${toQueryString(params)}`, options),
   getTenant: (id: string) => adminApi.get<Tenant>(`/admin/tenants/${id}`),
   createTenant: (data: Record<string, unknown>) => adminApi.post<Tenant>('/admin/tenants', data),
   updateTenant: (id: string, data: Record<string, unknown>) => adminApi.put<Tenant>(`/admin/tenants/${id}`, data),
@@ -31,7 +31,7 @@ export const adminApiMod = {
   resetApiKey: (id: string) => adminApi.post<{ api_key: string }>(`/admin/tenants/${id}/reset-key`),
 
   // 卡密管理
-  listCodes: (params?: Record<string, unknown>) => adminApi.get<ListResponse<ActivationCode>>(`/admin/codes${toQueryString(params)}`),
+  listCodes: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<ActivationCode>>(`/admin/codes${toQueryString(params)}`, options),
   generateCodes: (data: { plan_id: string; count: number; timing_type: string; expires_days?: number }) => adminApi.post<ActivationCode[]>('/admin/codes', data),
   revokeCode: (id: string) => adminApi.delete<void>(`/admin/codes/${id}`),
   // P0-05: 导出接口返回纯文本(CSV), 通用 adminApi.get 内部一律 response.json(),
@@ -55,13 +55,13 @@ export const adminApiMod = {
   updateProbe: (data: Partial<ProbeConfig>) => adminApi.put<ProbeConfig>('/admin/probe', data),
 
   // 公告管理
-  listAnnouncements: () => adminApi.get<ListResponse<Announcement>>('/admin/announcements'),
+  listAnnouncements: (options?: RequestOptions) => adminApi.get<ListResponse<Announcement>>('/admin/announcements', options),
   createAnnouncement: (data: Partial<Announcement>) => adminApi.post<Announcement>('/admin/announcements', data),
   updateAnnouncement: (id: string, data: Partial<Announcement>) => adminApi.put<Announcement>(`/admin/announcements/${id}`, data),
   deleteAnnouncement: (id: string) => adminApi.delete<void>(`/admin/announcements/${id}`),
 
   // 套餐配置
-  listPlans: () => adminApi.get<ListResponse<Plan>>('/admin/plans'),
+  listPlans: (options?: RequestOptions) => adminApi.get<ListResponse<Plan>>('/admin/plans', options),
   updatePlan: (id: string, data: Partial<Plan>) => adminApi.put<Plan>(`/admin/plans/${id}`, data),
 
   // 审计日志
