@@ -24,7 +24,7 @@ export const adminApiMod = {
 
   // 租户管理
   listTenants: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<Tenant>>(`/admin/tenants${toQueryString(params)}`, options),
-  getTenant: (id: string) => adminApi.get<Tenant>(`/admin/tenants/${id}`),
+  getTenant: (id: string, options?: RequestOptions) => adminApi.get<Tenant>(`/admin/tenants/${id}`, options),
   createTenant: (data: Record<string, unknown>) => adminApi.post<Tenant>('/admin/tenants', data),
   updateTenant: (id: string, data: Record<string, unknown>) => adminApi.put<Tenant>(`/admin/tenants/${id}`, data),
   deleteTenant: (id: string) => adminApi.delete<void>(`/admin/tenants/${id}`),
@@ -47,11 +47,11 @@ export const adminApiMod = {
   batchDeleteCodes: (data: { ids: string[] }) => adminApi.post<void>('/admin/codes/batch-delete', data),
 
   // 客服配置
-  getSupport: () => adminApi.get<SupportConfig>('/admin/support'),
+  getSupport: (options?: RequestOptions) => adminApi.get<SupportConfig>('/admin/support', options),
   updateSupport: (data: Partial<SupportConfig>) => adminApi.put<SupportConfig>('/admin/support', data),
 
   // R119: 账号能力探测配置(全局)
-  getProbe: () => adminApi.get<ProbeConfig>('/admin/probe'),
+  getProbe: (options?: RequestOptions) => adminApi.get<ProbeConfig>('/admin/probe', options),
   updateProbe: (data: Partial<ProbeConfig>) => adminApi.put<ProbeConfig>('/admin/probe', data),
 
   // 公告管理
