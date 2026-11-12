@@ -311,8 +311,8 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .t-button.ui-t-button--sm { min-height: var(--t-control-height-sm); padding-inline: var(--t-space-3); font-size: var(--t-font-xs); }
 .t-button.ui-t-button--primary { color: var(--t-brand-ink); background: var(--t-brand); border-color: var(--t-brand); }
 .t-button.ui-t-button--primary:not(.t-is-disabled):hover { color: var(--t-brand-ink); background: var(--t-brand-hover); border-color: var(--t-brand-hover); }
-.t-button.ui-t-button--secondary { color: var(--t-text-2); background: var(--t-surface-2); border-color: var(--t-line); }
-.t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-text-1); background: var(--t-card); border-color: var(--t-line-strong); }
+.t-button.ui-t-button--secondary { color: var(--t-button-secondary-text); background: var(--t-button-secondary-bg); border-color: var(--t-button-secondary-border); }
+.t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-button-secondary-text); background: var(--t-button-secondary-hover); border-color: var(--t-button-secondary-border); }
 .t-button.ui-t-button--danger { color: #fff; background: var(--t-err); border-color: var(--t-err); }
 .t-button.ui-t-button--warning { color: var(--t-warn); background: var(--t-warn-dim); border-color: color-mix(in srgb, var(--t-warn) 38%, transparent); }
 .t-button.ui-t-button--warning:not(.t-is-disabled):hover { background: color-mix(in srgb, var(--t-warn) 18%, var(--t-card)); border-color: var(--t-warn); }
@@ -411,6 +411,16 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   min-height: var(--t-control-height-sm);
   padding-inline: var(--t-space-3);
   font-size: var(--t-font-xs);
+}
+.ui-native-button--secondary {
+  color: var(--t-button-secondary-text);
+  background: var(--t-button-secondary-bg);
+  border-color: var(--t-button-secondary-border);
+}
+.ui-native-button--secondary:hover:not(:disabled) {
+  color: var(--t-button-secondary-text);
+  background: var(--t-button-secondary-hover);
+  border-color: var(--t-button-secondary-border);
 }
 .ui-native-button--danger {
   color: var(--t-err);

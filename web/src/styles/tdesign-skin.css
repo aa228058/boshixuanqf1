@@ -4,19 +4,60 @@
    ══════════════════════════════════════════════════════════════ */
 
 /* 按钮: 玻璃底 + 紫品牌 */
-.t-button:not(.ui-t-button) {
-  background: var(--t-surface-2) !important;
-  border: 1px solid var(--t-line) !important;
-  color: var(--t-text-1) !important;
+.t-button:not(.ui-t-button):not(.t-button--variant-text) {
+  background: var(--t-button-secondary-bg) !important;
+  border: 1px solid var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
   /* Geometry and interaction timing are owned by ui-kit.css. */
 }
-.t-button:not(.ui-t-button):hover { border-color: var(--t-brand) !important; }
-.t-button.t-button--variant-base:not(.ui-t-button),
+.t-button:not(.ui-t-button):not(.t-button--variant-text):hover:not(.t-is-disabled) {
+  background: var(--t-button-secondary-hover) !important;
+  border-color: var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
+}
+/* Filled default buttons are secondary unless their TDesign theme says otherwise. */
+.t-button.t-button--variant-base:not(.ui-t-button):not(.t-button--theme-primary):not(.t-button--theme-danger):not(.t-button--theme-warning):not(.t-button--theme-success) {
+  background: var(--t-button-secondary-bg) !important;
+  border-color: var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
+  box-shadow: none !important;
+}
+.t-button.t-button--variant-base:not(.ui-t-button):not(.t-button--theme-primary):not(.t-button--theme-danger):not(.t-button--theme-warning):not(.t-button--theme-success):hover:not(.t-is-disabled) {
+  background: var(--t-button-secondary-hover) !important;
+  border-color: var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
+}
+.t-button.t-button--variant-base.t-button--theme-primary:not(.ui-t-button),
 .t-button.t-button--variant-primary:not(.ui-t-button) {
   background: linear-gradient(135deg, var(--t-brand-active), var(--t-brand)) !important;
   border-color: transparent !important;
   color: var(--t-brand-ink) !important;
   box-shadow: var(--t-shadow-sm) !important;
+}
+.t-button.t-button--variant-base.t-button--theme-danger:not(.ui-t-button) {
+  background: var(--t-err) !important;
+  border-color: var(--t-err) !important;
+  color: #fff !important;
+}
+.t-button.t-button--variant-base.t-button--theme-warning:not(.ui-t-button) {
+  background: var(--t-warn-dim) !important;
+  border-color: color-mix(in srgb, var(--t-warn) 38%, transparent) !important;
+  color: var(--t-warn) !important;
+}
+.t-button.t-button--variant-base.t-button--theme-success:not(.ui-t-button) {
+  background: var(--t-ok) !important;
+  border-color: var(--t-ok) !important;
+  color: #fff !important;
+}
+.t-button.t-button--variant-text:not(.ui-t-button) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--t-brand) !important;
+}
+.t-button.t-button--variant-text:not(.ui-t-button):hover:not(.t-is-disabled) {
+  background: var(--t-brand-dim) !important;
+  border-color: transparent !important;
+  color: var(--t-brand-hover) !important;
 }
 .t-button.t-is-disabled:not(.ui-t-button) { opacity: 0.45 !important; }
 

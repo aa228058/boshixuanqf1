@@ -184,15 +184,19 @@ html.theme-dark .t-input-number:focus-within {
   html.theme-dark .glass-strong { background: var(--t-surface-1) !important; }
 }
 /* R87-M10: 深色默认按钮(取消/分组管理等"有框无颜色"按钮)实底兜底 */
-html.theme-dark .t-button--variant-base:not(.ui-t-button) {
-  background: var(--t-surface-2) !important;
-  color: var(--t-text-1) !important;
-  border-color: var(--t-line) !important;
+html.theme-dark .t-button--variant-base:not(.ui-t-button),
+html.theme-dark .ghost-btn,
+html.theme-dark .apple-button-secondary {
+  background: var(--t-button-secondary-bg) !important;
+  color: var(--t-button-secondary-text) !important;
+  border: 1px solid var(--t-button-secondary-border) !important;
 }
-html.theme-dark .t-button--variant-base:not(.ui-t-button):hover {
-  background: var(--t-surface-3) !important;
-  border-color: var(--t-line-strong) !important;
-  color: var(--t-text-1) !important;
+html.theme-dark .t-button--variant-base:not(.ui-t-button):hover,
+html.theme-dark .ghost-btn:hover,
+html.theme-dark .apple-button-secondary:hover {
+  background: var(--t-button-secondary-hover) !important;
+  border-color: var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
 }
 /* 弹窗遮罩: 纯黑半透明无模糊 —— 根治"毛玻璃发脏/屏幕进水"观感 */
 .vfm__overlay, .vfm__mask,

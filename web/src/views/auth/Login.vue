@@ -92,8 +92,7 @@
           <input v-model="renewCode" type="text" placeholder="输入续费卡密"
                  class="ui-input !min-h-[40px] !rounded-lg !px-4 !py-2.5 !text-sm"
                  @keyup.enter="doRenew" />
-          <t-button type="button" class="ui-t-button ui-t-button--primary w-full font-bold disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
-                  style="background: var(--t-warn);"
+          <t-button type="button" class="ui-t-button ui-t-button--warning w-full font-bold disabled:opacity-50" :disabled="renewing || !renewCode.trim()"
                   @click="doRenew">{{ renewing ? '续费中…' : '立即续费并登录' }}</t-button>
           <div v-if="renewMsg" class="text-xs text-center" :style="{ color: renewOk ? 'var(--t-ok)' : 'var(--t-err)' }">{{ renewMsg }}</div>
         </div>
