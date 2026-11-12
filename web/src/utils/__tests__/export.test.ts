@@ -104,10 +104,13 @@ describe('spreadsheet cell sanitizers', () => {
   it('CSV 保留 Unicode、空值、逗号、双引号和换行', () => {
     expect(escapeSpreadsheetCSVCell(null)).toBe('""')
     expect(escapeSpreadsheetCSVCell('中文, "名字"\r\n第二行')).toBe('"中文, ""名字""\r\n第二行"')
+    expect(escapeSpreadsheetCSVCell('  =1+1')).toBe('"\t  =1+1"')
+    expect(escapeSpreadsheetCSVCell('\r\n@cmd')).toBe('"\t\r\n@cmd"')
   })
 
   it('Excel HTML 单元格防公式注入并转义 HTML 特殊字符', () => {
     expect(escapeSpreadsheetHTMLCell('=1+1')).toBe('\t=1+1')
+    expect(escapeSpreadsheetHTMLCell('  =1+1')).toBe('\t  =1+1')
     expect(escapeSpreadsheetHTMLCell(`<img src=x onerror="x">&'\n`)).toBe('&lt;img src=x onerror=&quot;x&quot;&gt;&amp;&#39;\n')
     expect(escapeSpreadsheetHTMLCell(undefined)).toBe('')
   })
