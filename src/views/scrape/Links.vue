@@ -279,16 +279,22 @@ watch(linksAccId, () => {
 
 async function fetchTasks() {
   const accId = linksAccId.value
-  if (!accId) return
+  const requestId = ++tasksRequestId
+  if (!accId) { tasks.value = []; tasksLoading.value = false; return }
   tasksLoading.value = true
+  tasksError.value = ''
   try {
     const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any)
+    if (requestId !== tasksRequestId || accId !== linksAccId.value) return
     const raw = res as any
     tasks.value = raw.list || raw.items || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (requestId === tasksRequestId && accId === linksAccId.value) {
+      tasksError.value = e instanceof Error ? e.message : '加载任务失败，请稍后重试'
+      toast({ type: 'error', title: '加载任务失败', message: tasksError.value })
+    }
   } finally {
-    tasksLoading.value = false
+    if (requestId === tasksRequestId) tasksLoading.value = false
   }
 }
 
@@ -305,16 +311,22 @@ async function onPullRefresh() {
 
 async function loadAllLinks() {
   const accId = linksAccId.value
-  if (!accId) return
+  const requestId = ++allLinksRequestId
+  if (!accId) { allLinks.value = []; allLinksLoading.value = false; return }
   allLinksLoading.value = true
+  allLinksError.value = ''
   try {
     const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 })
+    if (requestId !== allLinksRequestId || accId !== linksAccId.value) return
     const raw = res as any
     allLinks.value = raw.list || raw.items || []
   } catch (e: any) {
-    toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
+    if (requestId === allLinksRequestId && accId === linksAccId.value) {
+      allLinksError.value = e?.message || '加载链接失败，请稍后重试'
+      toast({ type: 'error', title: '加载链接失败', message: allLinksError.value })
+    }
   } finally {
-    allLinksLoading.value = false
+    if (requestId === allLinksRequestId) allLinksLoading.value = false
   }
 }
 
