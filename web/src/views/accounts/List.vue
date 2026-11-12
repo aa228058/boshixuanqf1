@@ -7,12 +7,12 @@
     />
     <!-- 操作栏(R141 新皮肤适配): 第一行双按钮+多选入口, 第二行搜索独占整行 -->
     <div class="grid gap-2 mb-3.5">
-      <div class="flex gap-2">
-        <t-button theme="primary" class="flex-1 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
+      <div class="flex flex-wrap gap-2">
+        <t-button theme="primary" class="flex-1 min-w-0 ui-t-button ui-t-button--primary" @click="openAddModal">添加账号</t-button>
         <!-- 导入协议号入口已整合进"添加账号"弹窗(手机号登录|导入协议号 双模式), 独立按钮删除 -->
-        <t-button theme="default" class="flex-1 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
+        <t-button theme="default" class="flex-1 min-w-0 ui-t-button ui-t-button--secondary" @click="showGroupModal = true">分组管理</t-button>
         <!-- 多选模式入口(桌面端; 移动端可长按列表行进入) -->
-        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap"
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap ml-auto"
                 @click="enterSelecting">多选</t-button>
       </div>
       <t-input v-model="search" placeholder="搜索手机号/备注" class="w-full">
