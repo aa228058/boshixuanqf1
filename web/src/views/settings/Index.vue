@@ -436,7 +436,7 @@ async function loadNotify(options?: RequestOptions) {
     if (s.from) smtpForm.value.from = s.from
     smtpPassSet.value = !!s.pass_set
   } catch { /* toast 已由拦截器统一处理 */ }
-  finally { notifyLoading.value = false }
+  finally { if (!options?.signal?.aborted) notifyLoading.value = false }
 }
 async function saveNotify() {
   if (notifySaving.value) return
@@ -664,7 +664,7 @@ function fallbackCopy(text: string) {
 
 async function fetchTextDicts(options?: RequestOptions) {
   try { const res = await settingsApi.getTextDicts(options); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
-  catch (e: unknown) { toast({ type: 'error', title: '字典加载失败', message: (e as Error)?.message || '请稍后重试' }) }
+  catch (e: unknown) { if (options?.signal?.aborted) return; toast({ type: 'error', title: '字典加载失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
 async function createTextDict() {
