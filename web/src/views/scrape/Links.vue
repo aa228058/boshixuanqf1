@@ -35,6 +35,8 @@
         <button
           type="button"
           @click="toggleListening"
+          :disabled="listeningSaving"
+          :aria-busy="listeningSaving"
           class="relative w-12 h-7 rounded-full transition-colors shrink-0"
           role="switch"
           :aria-checked="listening"
@@ -453,6 +455,7 @@ onMounted(() => {
 
 // ===== 链接监听总开关 =====
 const listening = ref(false)
+const listeningSaving = ref(false)
 
 onMounted(async () => {
   const acc = accountStore.accounts.find((a: any) => a.account_id === linksAccId.value)
@@ -468,9 +471,12 @@ onMounted(async () => {
 // ===== R111: 协议协同脚本已全部删除(loadCampaigns/submitProtocol/controlCampaign/exportLinks) =====
 
 async function toggleListening() {
-  const acc = accountStore.accounts.find((a: any) => a.account_id === linksAccId.value)
+  if (listeningSaving.value) return
+  const accountId = linksAccId.value
+  const acc = accountStore.accounts.find((a: any) => a.account_id === accountId)
   if (!acc) { toast({ type: 'error', title: '请先选择账号' }); return }
   const next = !listening.value
+  listeningSaving.value = true
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/toggle`, {
       method: 'POST',
@@ -478,11 +484,15 @@ async function toggleListening() {
       body: JSON.stringify({ account_id: acc.account_id, enabled: next }),
     })
     if (!res.ok) throw new Error()
-    listening.value = next
-    toast({ type: 'success', title: next ? '链接监听已开启' : '链接监听已关闭' })
-    if (next) switchTab('results')
+    if (linksAccId.value === accountId) {
+      listening.value = next
+      toast({ type: 'success', title: next ? '链接监听已开启' : '链接监听已关闭' })
+      if (next) switchTab('results')
+    }
   } catch {
-    toast({ type: 'error', title: '操作失败, 请重试' })
+    if (linksAccId.value === accountId) toast({ type: 'error', title: '操作失败, 请重试' })
+  } finally {
+    listeningSaving.value = false
   }
 }
 </script>
