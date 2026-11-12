@@ -240,15 +240,15 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					}
 				}
 				allMembers = append(allMembers, domain.Member{
-					TenantID:  task.TenantID,
-					GroupID:   groupID,
-					TGUserID:  userID,
-					Username:  username,
-					Bio:       memberBio,
+					TenantID:   task.TenantID,
+					GroupID:    groupID,
+					TGUserID:   userID,
+					Username:   username,
+					Bio:        memberBio,
 					AccessHash: userAccessHash(user),
-					LastSeen:  lastSeen,
-					HasPhoto:  hasPhoto,
-					ScrapedAt: time.Now(),
+					LastSeen:   lastSeen,
+					HasPhoto:   hasPhoto,
+					ScrapedAt:  time.Now(),
 				})
 				totalScraped++
 				if len(allMembers) >= memberBatchSize {
@@ -355,15 +355,15 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 						}
 					}
 					allMembers = append(allMembers, domain.Member{
-						TenantID:  task.TenantID,
-						GroupID:   groupID,
-						TGUserID:  userID,
-						Username:  username,
-						Bio:       memberBio,
+						TenantID:   task.TenantID,
+						GroupID:    groupID,
+						TGUserID:   userID,
+						Username:   username,
+						Bio:        memberBio,
 						AccessHash: userAccessHash(user),
-						LastSeen:  lastSeen,
-						HasPhoto:  hasPhoto,
-						ScrapedAt: time.Now(),
+						LastSeen:   lastSeen,
+						HasPhoto:   hasPhoto,
+						ScrapedAt:  time.Now(),
 					})
 					totalScraped++
 					if len(allMembers) >= memberBatchSize {
@@ -809,7 +809,7 @@ finish:
 // memberActivity 从用户资料提取 用户名/最近上线时间/是否有头像 (用于死号过滤)
 // memberActivity 提取用户名/最后上线/头像标记; bio 为成员简介(简介挖掘的数据源)。
 
- // fetchTelegramUserBio reads the Telegram profile About field. Calls are
+// fetchTelegramUserBio reads the Telegram profile About field. Calls are
  // deliberately serialized and rate-limited; callers must not fan this out.
 func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg.User) (string, error) {
 	if client == nil || user == nil || user.ID == 0 || user.AccessHash == 0 {
@@ -842,7 +842,9 @@ func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg
 }
 
 func userAccessHash(user *tg.User) int64 {
-	if user == nil { return 0 }
+	if user == nil {
+		return 0
+	}
 	return user.AccessHash
 }
 
