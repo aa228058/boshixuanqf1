@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Modal from './Modal.vue'
 import EmptyState from './EmptyState.vue'
 import { settingsApi } from '@/api/settings'
@@ -37,13 +37,15 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: boolean): void }>()
 
 const visible = computed({ get: () => props.modelValue, set: v => emit('update:modelValue', v) })
 const announcements = ref<Announcement[]>([])
+let disposed = false
 
 onMounted(async () => {
   try {
     const res = await settingsApi.getAnnouncements()
-    announcements.value = Array.isArray(res) ? res : []
+    if (!disposed) announcements.value = Array.isArray(res) ? res : []
   } catch (e: unknown) {
-    announcements.value = []
+    if (!disposed) announcements.value = []
   }
 })
+onUnmounted(() => { disposed = true })
 </script>
