@@ -592,3 +592,25 @@
 - [ ] 管理端创建租户/客服二维码表单回归
 
 **当前只完成源码层修复，不能标记为运行时通过。**
+
+
+## AQ. 三主题图表 Token 与公共组件表面颜色收口
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/composables/useChartTheme.ts` | 图表主题 composable 读取 `--chart-1..6`、`--text-primary`、`--text-muted`、`--border`；当前主题系统并未定义这些旧变量，导致图表颜色全部落到固定 fallback，主题切换无法真正更新色板/文字/边框 | `77fcaf5bcea7b6e82b95aa049d3952975c12556f` | 触及逻辑 | 三主题切换后检查 palette、轴文字、边框、tooltip surface 均重新取当前 Token；确认 observer 在卸载时释放 |
+| `src/views/dashboard/Index.vue` | 租户首页图表 tooltip 背景/边框固定深色；坐标分割线将可能为 rgba() 的主题边框再拼接十六进制透明度，生成无效颜色；饼图图例读取旧变量 | `ac4286d42e430a7b50e9827c8d8369e50fe25282`、`18538b57c87d13cb723a4f5b2c8b95ebe178e68d` | 触及逻辑/展示 | 三主题切换任务趋势与账号状态图；tooltip/图例/坐标文字应清晰；分割线无无效颜色；饼图使用主题 palette |
+| `src/views/admin/dashboard/Index.vue` | 两张示例图表的 series、tooltip 与渐变使用固定蓝色/深色，轴边框同样拼接透明度字符串，切主题后不能一致适配 | `4425e99c20be35575c4fa36f0a352bc5ea8ea5f4` | 展示/逻辑 | 三主题切换管理端首页；增长/收入图表 series、tooltip、轴线、分割线均随主题更新；示例数据角标保持可见 |
+| `src/components/ui/Modal.vue` | R128 已将模态框主面板背景迁移到 `--t-modal-bg`，但 footer 仍引用已删除的 `--modal-bg`，回退到 TDesign container；深色主题该变量被映射为半透明 `--t-surface-2`，与主面板近实底不一致 | `fec602344df3fb6742004b5735e5a60992614293` | 纯展示 | 三主题打开长弹窗，检查主体与 footer 背景连续一致，分隔线跟随 `--t-line` |
+| `src/components/ui/PullDownRefresh.vue` | 下拉刷新提示颜色引用不存在的旧变量 `--text-muted`，因此一直使用静态灰色 fallback | `1cb4c587c5765a81ca2160d66122159ed76dfb01` | 纯展示 | 三主题分别下拉刷新，提示文字颜色应使用 `--t-text-3` 并保持可读 |
+
+### 本批验证状态
+
+- [x] 图表 composable 与两处 dashboard 源码已调整
+- [x] Modal footer 与 PullDownRefresh 颜色已统一到当前 Token
+- [ ] 前端 typecheck / build
+- [ ] 正常/护眼/深色主题截图对比
+- [ ] 图表主题切换后 MutationObserver 更新验证
+- [ ] 长弹窗 footer 背景连续性实机验证
+
+**图表和公共组件改动均未运行构建/浏览器验证；源码正确性仍需通过实际渲染确认。**
