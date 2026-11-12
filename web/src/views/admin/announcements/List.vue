@@ -123,6 +123,8 @@ const editId = ref('')
 const deleteConfirm = ref()
 const deletingAnnouncement = ref<Announcement | null>(null)
 let announcementsRequestId = 0
+let announcementsController: AbortController | null = null
+let plansController: AbortController | null = null
 let announcementsPageActive = false
 
 const form = ref<Partial<Announcement>>({
@@ -130,15 +132,20 @@ const form = ref<Partial<Announcement>>({
 })
 
 async function fetchAnnouncements() {
+  announcementsController?.abort()
+  const controller = new AbortController()
+  announcementsController = controller
   const requestId = ++announcementsRequestId
   try {
-    const res = await adminApiMod.listAnnouncements()
+    const res = await adminApiMod.listAnnouncements({ signal: controller.signal })
     if (!announcementsPageActive || requestId !== announcementsRequestId) return
     announcements.value = res.list || []
   } catch (e: unknown) {
-    if (announcementsPageActive && requestId === announcementsRequestId) {
+    if (!controller.signal.aborted && announcementsPageActive && requestId === announcementsRequestId) {
       toast({ type: 'error', title: '获取公告失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     }
+  } finally {
+    if (announcementsController === controller) announcementsController = null
   }
 }
 
@@ -190,7 +197,8 @@ onMounted(async () => {
   await fetchAnnouncements()
   if (!announcementsPageActive) return
   try {
-    const res = await adminApiMod.listPlans()
+    plansController = new AbortController()
+    const res = await adminApiMod.listPlans({ signal: plansController.signal })
     if (!announcementsPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
@@ -200,5 +208,7 @@ onMounted(async () => {
 onUnmounted(() => {
   announcementsPageActive = false
   announcementsRequestId++
+  announcementsController?.abort()
+  plansController?.abort()
 })
 </script>
