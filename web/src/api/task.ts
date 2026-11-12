@@ -35,8 +35,8 @@ export interface ScrapedLink {
 
 // R128: 第二份重复的 ScrapedLink 定义已删(审计注释与实际不符——两份都在, 删下方这份, 上方 17 行处保留)
 export const taskApi = {
-  list: (params?: { status?: string; account_id?: string; type?: string; task_number?: number | string; hide_loops?: number; range?: string } & PaginationParams) => {
-    return api.get<ListResponse<Task>>(`/tasks${toQueryString(params as Record<string, unknown>)}`)
+  list: (params?: { status?: string; account_id?: string; type?: string; task_number?: number | string; hide_loops?: number; range?: string } & PaginationParams, options?: RequestOptions) => {
+    return api.get<ListResponse<Task>>(`/tasks${toQueryString(params as Record<string, unknown>)}`, options)
   },
   deleteTaskLogs: (taskId: string) => api.delete(`/tasks/${taskId}/logs`),
   // R116: cleanupLogs 封装已删(零页面调用; 对应后端 /logs/cleanup 同步移除)
