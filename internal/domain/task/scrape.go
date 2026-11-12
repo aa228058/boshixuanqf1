@@ -245,7 +245,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					TGUserID:  userID,
 					Username:  username,
 					Bio:       memberBio,
-					AccessHash: func() int64 { if user != nil { return user.AccessHash }; return 0 }(),
+					AccessHash: userAccessHash(user),
 					LastSeen:  lastSeen,
 					HasPhoto:  hasPhoto,
 					ScrapedAt: time.Now(),
@@ -838,6 +838,11 @@ func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg
 		return "", fmt.Errorf("unexpected full user payload: %T", fullResult.FullUser)
 	}
 	return full.About, nil
+}
+
+func userAccessHash(user *tg.User) int64 {
+	if user == nil { return 0 }
+	return user.AccessHash
 }
 
 func memberActivity(user *tg.User) (string, *time.Time, bool, string) {
