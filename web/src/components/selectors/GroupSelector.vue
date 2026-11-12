@@ -347,7 +347,8 @@ async function onRefresh() {
     requestId === selectorRequestId && visible.value && props.accountId === accountId
 
   // 如果其他组件正在同步同一账号，只等待并读取该账号结果；等待期间切换/关闭即放弃 UI 写入。
-  if (accountId && !syncLock.acquire(accountId)) {
+  const syncToken = accountId ? syncLock.acquire(accountId) : null
+  if (accountId && syncToken === null) {
     loading.value = true
     syncStatus.value = 'syncing'
     const syncFinished = await waitForGlobalSync(accountId)
@@ -401,7 +402,7 @@ async function onRefresh() {
   } finally {
     if (isCurrent()) loading.value = false
     // 这次调用持有全局锁；即使 UI 已切换，也必须释放原账号的锁。
-    syncLock.release(accountId)
+    if (syncToken !== null) syncLock.release(accountId, syncToken)
   }
 }
 
