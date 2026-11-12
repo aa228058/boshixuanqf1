@@ -93,7 +93,7 @@ function updateThemeColor() {
 
 // R140: 灵动岛动画 JS 接管(WAAPI) —— CSS 进场动画在该环境多次实测不生效,
 // 不再猜原因; MutationObserver 监听 sonner 容器, 新岛出现即用 Web Animations API
-// 播"10号系统回弹"(与 CSS 层叠/选择器优先级完全无关, 必定执行); 2.3s 后 JS 再
+// 播"10号系统回弹"(与 CSS 层叠/选择器优先级完全无关, 必定执行); 2.2s 后 JS 再
 // 驱动吸出退场(CSS toast-auto-hide 并行兜底, 双保险)。
 let islandObserver: MutationObserver | null = null
 const islandBindTimers: ReturnType<typeof setTimeout>[] = []
@@ -130,7 +130,7 @@ const playIslandDrop = (el: Element) => {
       ],
       { duration: 250, easing: 'cubic-bezier(0.6, -0.28, 0.735, 0.045)', fill: 'forwards' }
     ))
-  }, 2300)
+  }, 2200)
   islandExitTimers.add(exitTimer)
 }
 const bindIslandAnim = () => {
