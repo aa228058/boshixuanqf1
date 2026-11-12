@@ -350,16 +350,23 @@ async function clearFinished() {
 }
 
 let importJobsRequestId = 0
+let importJobsController: AbortController | null = null
+let taskListController: AbortController | null = null
 async function fetchImportJobs() {
+  importJobsController?.abort()
+  const controller = new AbortController()
+  importJobsController = controller
   const requestId = ++importJobsRequestId
   const taskNumber = activeNumberSearch.value
   try {
-    const res: any = await listGroupLibraryImportJobs(taskNumber || undefined)
+    const res: any = await listGroupLibraryImportJobs(taskNumber || undefined, { signal: controller.signal })
     // 5 秒轮询、自动刷新和编号搜索可能并发；只接受当前编号筛选对应的最新响应。
     if (requestId !== importJobsRequestId || taskNumber !== activeNumberSearch.value) return
     importJobs.value = res.list || []
   } catch {
     // keep the last known task list during transient network errors
+  } finally {
+    if (importJobsController === controller) importJobsController = null
   }
 }
 
@@ -449,6 +456,9 @@ async function clearNumberSearch() {
 }
 
 async function fetchTasks() {
+  taskListController?.abort()
+  const controller = new AbortController()
+  taskListController = controller
   const requestId = ++taskListRequestId
   // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
   const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
@@ -459,17 +469,18 @@ async function fetchTasks() {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await taskApi.list(params)
+    const res = await taskApi.list(params, { signal: controller.signal })
     if (requestId !== taskListRequestId) return
     const rawList = Array.isArray(res?.list) ? res.list : []
     // 按 task_id 去重，防止接口异常或重试造成重复行。
     tasks.value = [...new Map(rawList.filter((t: any) => t?.task_id).map((t: any) => [t.task_id, t])).values()]
     total.value = Number(res?.total) || 0
   } catch (e) {
-    if (requestId !== taskListRequestId) return
+    if (controller.signal.aborted || requestId !== taskListRequestId) return
     loadError.value = e instanceof Error ? e.message : '获取任务失败，请稍后重试'
     console.error('获取任务失败:', e)
   } finally {
+    if (taskListController === controller) taskListController = null
     if (requestId === taskListRequestId) loading.value = false
   }
 }
@@ -652,6 +663,7 @@ function elapsed(iso: string): string {
 watch(() => route.params.accountId, () => {
   // 切换执行账号路由时立即清除旧列表并使旧请求失效，避免切换期间短暂展示上一账号数据。
   taskListRequestId++
+  taskListController?.abort()
   tasks.value = []
   total.value = 0
   loading.value = false
@@ -682,6 +694,8 @@ const importJobsTimer = window.setInterval(fetchImportJobs, 5000)
 onUnmounted(() => {
   window.clearInterval(importJobsTimer)
   importJobsRequestId++
+  importJobsController?.abort()
+  taskListController?.abort()
 })
 useTaskEvents((evt: any) => {
   if (evt.type === 'task_wait') {
