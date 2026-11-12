@@ -226,6 +226,9 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 const scrapeAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !scrapeAccId.value) scrapeAccId.value = acc.account_id }, { immediate: true })
 watch(scrapeAccId, () => {
+  taskListController?.abort()
+  taskListController = null
+  for (const controller of Object.values(memberControllers)) controller.abort()
   for (const taskId of Object.keys(memberRequestIds)) memberRequestIds[taskId]++
   members.value = {}
   memberLoading.value = {}
@@ -268,6 +271,8 @@ function relTime(iso: string): string {
 const tasks = ref<any[]>([])
 let taskListRequestId = 0
 let pageActive = true
+let taskListController: AbortController | null = null
+const memberControllers: Record<string, AbortController> = {}
 const taskLoading = ref(false)
 const expanded = ref<Record<string, boolean>>({})
 const members = ref<Record<string, any[]>>({})
@@ -333,6 +338,9 @@ function toggleExpand(taskId: string) {
 async function loadMembers(taskId: string) {
   const requestId = (memberRequestIds[taskId] || 0) + 1
   memberRequestIds[taskId] = requestId
+  memberControllers[taskId]?.abort()
+  const controller = new AbortController()
+  memberControllers[taskId] = controller
   const accountId = scrapeAccId.value
   const task = tasks.value.find(t => t.task_id === taskId)
   const groupId = (task?.payload as any)?.group_id || task?.target_ids?.[0]
@@ -344,16 +352,17 @@ async function loadMembers(taskId: string) {
       if (isCurrent()) members.value[taskId] = []
       return
     }
-    const res = await groupApi.getMembers(groupId)
+    const res = await groupApi.getMembers(groupId, undefined, { signal: controller.signal })
     if (!isCurrent()) return
     const raw = (res as any).members || res.list || res || []
     // 自动跳过机器人结果(源头已在采集时过滤, 这里兜底处理历史数据)
     skippedBots.value[taskId] = raw.filter(isBot).length
     members.value[taskId] = raw.filter((m: any) => !isBot(m))
   } catch {
-    if (isCurrent()) members.value[taskId] = []
+    if (!controller.signal.aborted && isCurrent()) members.value[taskId] = []
   } finally {
     if (isCurrent()) memberLoading.value[taskId] = false
+    if (memberControllers[taskId] === controller) delete memberControllers[taskId]
   }
 }
 
@@ -428,20 +437,25 @@ async function onPullRefresh() {
 async function fetchTasks() {
   const accountId = scrapeAccId.value
   const requestId = ++taskListRequestId
+  taskListController?.abort()
+  taskListController = null
   if (!accountId) {
     tasks.value = []
     taskLoading.value = false
     return
   }
   taskLoading.value = true
+  const controller = new AbortController()
+  taskListController = controller
   try {
-    const res = await taskApi.list({ type: 'scrape_members', account_id: accountId })
+    const res = await taskApi.list({ type: 'scrape_members', account_id: accountId }, { signal: controller.signal })
     if (!pageActive || requestId !== taskListRequestId || accountId !== scrapeAccId.value) return
     tasks.value = res.list || []
   } catch {
-    if (pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) tasks.value = []
+    if (!controller.signal.aborted && pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) tasks.value = []
   } finally {
     if (pageActive && requestId === taskListRequestId) taskLoading.value = false
+    if (taskListController === controller) taskListController = null
   }
 }
 
@@ -510,6 +524,9 @@ onMounted(() => {
 onUnmounted(() => {
   pageActive = false
   taskListRequestId++
+  taskListController?.abort()
+  taskListController = null
+  for (const controller of Object.values(memberControllers)) controller.abort()
 })
 
 </script>
