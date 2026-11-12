@@ -10,8 +10,9 @@
     </div>
 
     <!-- 页面 tab: 任务列表 / 发送日历(发送日历合并自原独立页) -->
-    <div class="flex items-center gap-1 border-b border-border mb-4">
-      <button type="button" v-for="t in pageTabs" :key="t.key"
+    <div class="flex items-center gap-1 border-b border-border mb-4" role="tablist" aria-label="群发页面视图">
+      <button type="button" v-for="t in pageTabs" :key="t.key" role="tab"
+              :aria-selected="activeTab === t.key" :aria-controls="'broadcast-panel-' + t.key"
               @click="activeTab = t.key"
               class="px-4 py-2 text-sm font-medium transition-colors relative"
               :class="activeTab === t.key ? 'text-[var(--t-brand)]' : 'text-text-secondary hover:text-text-primary'">
@@ -21,10 +22,12 @@
     </div>
 
     <!-- 发送日历 tab: 每日成功发送量月历热力图 -->
-    <SendCalendar v-if="activeTab === 'calendar'" />
+    <div v-if="activeTab === 'calendar'" id="broadcast-panel-calendar" role="tabpanel" aria-label="发送日历">
+      <SendCalendar />
+    </div>
 
     <!-- 任务列表 tab(默认): 原有全部内容 -->
-    <div v-show="activeTab === 'tasks'">
+    <div v-show="activeTab === 'tasks'" id="broadcast-panel-tasks" role="tabpanel" aria-label="群发任务列表" tabindex="0">
     <!-- 实时进度面板: 创建任务后在此显示, 无需跳转 -->
     <!-- R110: 协议号协同任务记录块已删(isProtocol 恒 false 死代码; 统一走多号池任务) -->
     <!-- 进行中的任务在下方列表已显示成功/失败/等待进度, 不再重复展示实时卡片 -->
