@@ -48,22 +48,25 @@ const announcements = ref<Announcement[]>([])
 const loading = ref(true)
 const loadError = ref(false)
 let disposed = false
+let loadRequestId = 0
 
 async function loadAnnouncements() {
+  const requestId = ++loadRequestId
   loading.value = true
   loadError.value = false
   try {
     const res = await settingsApi.getAnnouncements()
-    if (!disposed) announcements.value = Array.isArray(res) ? res : []
+    if (!disposed && requestId === loadRequestId) announcements.value = Array.isArray(res) ? res : []
   } catch {
-    if (!disposed) loadError.value = true
+    if (!disposed && requestId === loadRequestId) loadError.value = true
   } finally {
-    if (!disposed) loading.value = false
+    if (!disposed && requestId === loadRequestId) loading.value = false
   }
 }
 
 watch(() => props.modelValue, visible => {
   if (visible) void loadAnnouncements()
+  else loadRequestId++
 }, { immediate: true })
-onUnmounted(() => { disposed = true })
+onUnmounted(() => { disposed = true; loadRequestId++ })
 </script>
