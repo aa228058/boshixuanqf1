@@ -1,6 +1,6 @@
 <template>
   <div class="min-w-0 w-full space-y-3 sm:space-y-4">
-    <!-- 页头与批量操作：统计独立一行，选择/导入为次操作，加入为唯一主操作 -->
+    <!-- 群库批量操作：全库创建与已选创建并列，选择/导入为辅助操作 -->
     <section class="space-y-3">
       <div>
         <h2 class="text-lg font-bold text-text-primary">发现群组</h2>
@@ -683,6 +683,10 @@ async function load() {
   }
 }
 function search() {
+  if (keywordSearchTimer !== undefined) {
+    window.clearTimeout(keywordSearchTimer)
+    keywordSearchTimer = undefined
+  }
   page.value = 1
   load()
 }
