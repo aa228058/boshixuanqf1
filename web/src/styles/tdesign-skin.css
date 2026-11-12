@@ -5,12 +5,16 @@
 
 /* 按钮: 玻璃底 + 紫品牌 */
 .t-button:not(.ui-t-button) {
-  background: var(--t-surface-2) !important;
-  border: 1px solid var(--t-line) !important;
-  color: var(--t-text-1) !important;
+  background: var(--t-button-secondary-bg) !important;
+  border: 1px solid var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
   /* Geometry and interaction timing are owned by ui-kit.css. */
 }
-.t-button:not(.ui-t-button):hover { border-color: var(--t-brand) !important; }
+.t-button:not(.ui-t-button):hover:not(.t-is-disabled) {
+  background: var(--t-button-secondary-hover) !important;
+  border-color: var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
+}
 .t-button.t-button--variant-base:not(.ui-t-button),
 .t-button.t-button--variant-primary:not(.ui-t-button) {
   background: linear-gradient(135deg, var(--t-brand-active), var(--t-brand)) !important;
