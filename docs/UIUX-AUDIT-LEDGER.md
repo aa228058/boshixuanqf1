@@ -697,3 +697,19 @@
 - 12 个 CSS 文件：旧 Token 引用、当前 `--t-*` 变量引用与 tokens.css 声明。
 - 对扫描中发现的悬空 label for、未定义语义色变量和嵌套交互控件已补修。
 - **不代表 180 条原始清单的逐条验收已全部完成**：还需要把每个原始条目映射到源码/页面，并进行浏览器、三主题、设备断点和交互回归。
+
+
+## AW. 筛选控件与开关组的可访问名称补齐
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/admin/codes/List.vue` | 卡密状态 TDesign Select 没有可访问名称 | `089822a00e1bfadb4213cc6c8ac3c11559e2eea0` | 模板 | 读屏应播报“按卡密状态筛选”；筛选行为不变 |
+| `src/views/admin/tenants/List.vue` | 租户状态 TDesign Select 没有可访问名称 | `c9c5478e3aca963af82d08756052d0367a457d0e` | 模板 | 读屏应播报“按租户状态筛选”；筛选行为不变 |
+| `src/views/raffle/Index.vue` | 三个自定义 role=switch 按钮只有 aria-checked，没有 accessible name | `6ddb00d899eba28f0c192c140f259aeb85dfd2e9` | 模板 | VoiceOver/NVDA 分别读出自动参与抽奖、中奖自动回复、私聊激活与中奖通知及其开关状态 |
+| `src/views/workspace/Broadcast.vue` | 账号分配策略两个互斥按钮缺少 group 语义 | `16cb46f1f3cf7399a9dbbaac9c706e5f2fbe924e` | 模板 | 读屏进入策略区时识别为“账号分配策略”组；各按钮 aria-pressed 状态正确 |
+
+### 交互语义静态扫描补充
+
+- [x] 56 个 Vue SFC 中的 `role="switch"` 控件已检查 accessible name；未发现其他缺少 aria-label/aria-labelledby 的 switch。
+- [x] 56 个 Vue SFC 中的 `role="button"` 自定义控件已检查 Enter/Space 键盘处理；本轮新增控件均具备键盘行为。
+- [x] 原生 `<button>` 的 type 属性已扫描；未发现确认的缺失 type 项（含表达式中的 `>` 导致的正则误报已人工排除）。
