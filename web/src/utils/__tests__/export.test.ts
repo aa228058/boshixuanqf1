@@ -144,6 +144,17 @@ describe('downloadBlob', () => {
     vi.unstubAllGlobals()
   })
 
+  it('创建下载锚点失败时立即释放已创建的 Object URL', () => {
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:anchor-failed'), revokeObjectURL })
+    vi.stubGlobal('document', { createElement: vi.fn(() => { throw new Error('anchor creation failed') }) })
+    vi.stubGlobal('window', { setTimeout: vi.fn() })
+
+    expect(() => downloadBlob('report.json', new Blob(['{}']))).toThrow('anchor creation failed')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:anchor-failed')
+    vi.unstubAllGlobals()
+  })
+
   it('点击失败时立即释放 Object URL 并仍然移除临时锚点', () => {
     const remove = vi.fn()
     const revokeObjectURL = vi.fn()
