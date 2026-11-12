@@ -118,13 +118,13 @@
           @click="toggleTarget(String(g.tg_chat_id))"
           class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
           :class="isTargetSelected(String(g.tg_chat_id)) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-         tabindex="0" role="button">
+         >
           <input
             type="checkbox"
             :checked="isTargetSelected(String(g.tg_chat_id))"
             class="rounded border-border bg-bg-card text-cyan shrink-0"
             @click.stop
-            @change="toggleTarget(String(g.tg_chat_id))" aria-label="选择" />
+            @change="toggleTarget(String(g.tg_chat_id))" :aria-label="'选择群组 ' + g.title" />
           <div class="w-8 h-8 rounded-lg bg-bg-card flex items-center justify-center shrink-0">
             <UsersRound v-if="g.type === 'group'" class="w-4 h-4 text-cyan" />
             <Users v-else-if="g.type === 'supergroup'" class="w-4 h-4 text-amber" />
