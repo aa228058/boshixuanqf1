@@ -1,5 +1,5 @@
 <template>
-  <main class="min-w-0 w-full space-y-3 sm:space-y-4">
+  <main class="min-w-0 w-full space-y-3 sm:space-y-4" :class="{ 'pb-40 md:pb-0': selectedIds.size > 0 }">
     <PageHeader
       eyebrow="运营控制中心 · 账号"
       title="账号管理"
