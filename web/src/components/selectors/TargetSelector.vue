@@ -208,7 +208,7 @@ import { groupApi } from '@/api/group'
 import { contactApi } from '@/api/contact'
 import { syncLock } from '@/utils/syncLock'
 import { toast } from '@/utils/toast'
-import { areAllSelectorKeysSelected, createSelectorTitleLookup, filterSelectorItems, toggleAllSelectorKeys } from './selectorRuntime'
+import { areAllSelectorKeysSelected, createSelectorTitleLookup, filterSelectorItems, toggleAllSelectorKeys, uniqueByNormalizedId } from './selectorRuntime'
 import { useGroupStore } from '@/stores/group'
 
 const groupStore = useGroupStore()
@@ -389,7 +389,7 @@ async function fetchDialogs(requestId = ++selectorRequestId, accountId = props.a
     const res: any = await contactApi.list(accountId)
     if (!isCurrentSelectorRequest(requestId, accountId)) return
     const data = res.data || res || []
-    dialogs.value = data.map((d: any) => ({
+    dialogs.value = uniqueByNormalizedId(data, (d: any) => d.tg_user_id).map((d: any) => ({
       id: String(d.tg_user_id),
       title: [d.first_name, d.last_name].filter(Boolean).join(' ') || d.username || String(d.tg_user_id),
       type: 'user',
@@ -533,7 +533,7 @@ async function openSelector() {
         // P0-21: parseResponse 归一后列表接口统一 {list,total}, 但纯数组直返时
         // cr.list 是 undefined——私聊列表曾因此恒空。数组兜底。
         const rows = Array.isArray(cr) ? cr : (cr.list || cr.data || [])
-        dialogs.value = rows.map((r: any) => ({
+        dialogs.value = uniqueByNormalizedId(rows, (r: any) => r.tg_user_id).map((r: any) => ({
           id: String(r.tg_user_id),
           title: r.username ? '@' + r.username : (r.first_name || String(r.tg_user_id)),
           type: 'user',
