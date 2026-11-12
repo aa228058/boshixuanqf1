@@ -934,6 +934,7 @@ func (h *TaskHandler) ToggleLinkScraping(c echo.Context) error {
 	var req struct {
 		AccountID string `json:"account_id"`
 		Enabled   bool   `json:"enabled"`
+		Mode      string `json:"mode"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid body")
@@ -942,8 +943,12 @@ func (h *TaskHandler) ToggleLinkScraping(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid account_id")
 	}
+	if req.Mode == "bio" {
+		h.svc.SetBioLinkScraping(accountID, req.Enabled)
+		return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.BioLinkScrapingEnabled(accountID), "mode": "bio"})
+	}
 	h.svc.SetLinkScraping(c.Request().Context(), tenantID, accountID, req.Enabled)
-	return c.JSON(http.StatusOK, map[string]any{"enabled": req.Enabled})
+	return c.JSON(http.StatusOK, map[string]any{"enabled": req.Enabled, "mode": "links"})
 }
 
 // LinkScrapingStatus handles GET /scrape-links/status?account_id=xxx
@@ -955,7 +960,10 @@ func (h *TaskHandler) LinkScrapingStatus(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid account_id")
 	}
-	return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.LinkScrapingEnabled(accountID)})
+	if c.QueryParam("mode") == "bio" {
+		return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.BioLinkScrapingEnabled(accountID), "mode": "bio"})
+	}
+	return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.LinkScrapingEnabled(accountID), "mode": "links"})
 }
 
 // ExportScrapedLinks handles GET /scrape-links/export?account_id=xxx&since=RFC3339
