@@ -5,10 +5,15 @@
         <h2 class="text-lg font-bold text-text-primary">验证记录</h2>
         <p class="text-xs text-text-secondary mt-1">入群验证的自动处理记录：通过的、失败的、以及为什么停止（付费验证/外部链接等）。</p>
       </div>
-      <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load">刷新</t-button>
+      <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load" :loading="loading" :disabled="loading">刷新</t-button>
     </div>
 
-    <div v-if="!list.length && !loading" class="glass rounded-[var(--t-r-md)] p-12 text-center text-text-muted text-sm lift">
+    <div v-if="error && !list.length && !loading" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-[var(--t-err)] lift">
+      {{ error }}
+      <div class="mt-3"><t-button size="small" class="ui-t-button ui-t-button--secondary" @click="load">重新加载</t-button></div>
+    </div>
+
+    <div v-else-if="!list.length && !loading" class="glass rounded-[var(--t-r-md)] p-12 text-center text-text-muted text-sm lift">
       还没有验证记录——在设置里打开「入群验证」开关，账号加群遇到验证时会自动处理并记录在这里。
     </div>
 
@@ -40,11 +45,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { getVerificationLogs, type VerificationLog } from '@/api/verifier'
 
 const list = ref<VerificationLog[]>([])
 const loading = ref(false)
+const error = ref('')
+let requestId = 0
+let pageActive = true
 
 function statusLabel(s: string) {
   return s === 'pass' ? '验证通过' : s === 'fail' ? '验证失败' : s === 'stopped' ? '已停止' : '处理中'
@@ -67,13 +75,23 @@ function fmt(t: string) {
 }
 
 async function load() {
+  const currentRequest = ++requestId
   loading.value = true
+  error.value = ''
   try {
     const res = await getVerificationLogs()
+    if (!pageActive || currentRequest !== requestId) return
     list.value = res.list || []
+  } catch (e: unknown) {
+    if (!pageActive || currentRequest !== requestId) return
+    error.value = e instanceof Error ? e.message : '加载验证记录失败，请重试'
   } finally {
-    loading.value = false
+    if (pageActive && currentRequest === requestId) loading.value = false
   }
 }
 onMounted(load)
+onUnmounted(() => {
+  pageActive = false
+  requestId++
+})
 </script>
