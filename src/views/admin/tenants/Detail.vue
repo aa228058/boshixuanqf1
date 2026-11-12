@@ -5,6 +5,14 @@
     <p class="text-text-muted">租户 ID 无效或链接已损坏</p>
     <t-button @click="router.replace('/admin/tenants')" class="ui-t-button--secondary ui-t-button">返回租户列表</t-button>
   </main>
+  <main v-else-if="loadingTenant" class="max-w-4xl mx-auto py-16 text-center text-text-secondary" role="status" aria-live="polite">
+    正在读取租户详情…
+  </main>
+  <main v-else-if="loadError" class="max-w-4xl mx-auto py-16 text-center space-y-4">
+    <p class="text-text-secondary">{{ loadError }}</p>
+    <t-button theme="primary" @click="fetchTenant" class="ui-t-button ui-t-button--primary">重新加载</t-button>
+    <t-button @click="router.replace('/admin/tenants')" class="ui-t-button ui-t-button--secondary">返回租户列表</t-button>
+  </main>
   <main class="max-w-4xl mx-auto space-y-6" v-else-if="tenant">
     <Breadcrumb :items="[{ path: '/admin/tenants', label: '租户管理' }, { path: '', label: '租户详情' }]" />
     <div class="flex items-center gap-3">
@@ -108,6 +116,8 @@ if (!isValidUUID(tenantId)) {
 const invalidId = ref(!isValidUUID(tenantId))
 
 const tenant = ref<Tenant | null>(null)
+const loadingTenant = ref(true)
+const loadError = ref('')
 const plans = ref<Plan[]>([])
 const showEdit = ref(false)
 const editForm = ref({ plan_id: '', expires_at: '' })
@@ -123,11 +133,16 @@ function toDateTimeLocal(v: string): string {
 }
 
 async function fetchTenant() {
+  loadingTenant.value = true
+  loadError.value = ''
   try {
     tenant.value = await adminApiMod.getTenant(tenantId)
     editForm.value = { plan_id: tenant.value?.plan_id || '', expires_at: toDateTimeLocal(tenant.value?.expires_at || '') }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    loadError.value = e instanceof Error ? e.message : '获取租户失败，请稍后重试'
+    toast({ type: 'error', title: '获取租户失败', message: loadError.value })
+  } finally {
+    loadingTenant.value = false
   }
 }
 
@@ -183,6 +198,7 @@ function planLabel(p: string) {
 }
 
 onMounted(async () => {
+  if (invalidId.value) return
   await fetchTenant()
   try {
     const res = await adminApiMod.listPlans()
