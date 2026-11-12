@@ -1,12 +1,12 @@
 <template>
   <!-- 内部换 TDesign Empty 芯, 对外接口不变(icon/title/description/slot) -->
-  <t-empty :description="title" class="py-10">
+  <t-empty :description="description || undefined" class="py-10">
     <template #image>
       <div class="w-20 h-20 rounded-[var(--t-r-lg)] bg-bg-card flex items-center justify-center mx-auto">
         <component :is="resolvedIcon" class="w-10 h-10 text-text-secondary" stroke-width="1.5" />
       </div>
+      <p class="mt-3 text-sm font-medium text-text-primary">{{ title }}</p>
     </template>
-    <p v-if="description" class="text-sm text-text-secondary max-w-[65ch] mx-auto">{{ description }}</p>
     <slot />
   </t-empty>
 </template>
