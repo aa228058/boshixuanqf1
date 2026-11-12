@@ -433,7 +433,12 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 	fullResult, ok := result.(*tg.UsersUserFull)
 	if !ok || fullResult == nil { return }
 	full, ok := fullResult.FullUser.(*tg.UserFull)
-	if !ok || full == nil || strings.TrimSpace(full.About) == "" { return }
+	if !ok || full == nil { return }
+	ls.bioSeenMu.Lock()
+	ls.bioSeen[key] = time.Now()
+	if len(ls.bioSeen) > 50000 { ls.bioSeen = make(map[string]time.Time) }
+	ls.bioSeenMu.Unlock()
+	if strings.TrimSpace(full.About) == "" { return }
 	group, err := ls.groupRepo.GetByTGChatID(callCtx, item.TenantID, item.ChatID)
 	if err != nil || group == nil { return }
 	now := time.Now()
@@ -444,10 +449,6 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 		log.Printf("[link-scraper] persist live Bio failed user=%d: %v", item.UserID, err)
 		return
 	}
-	ls.bioSeenMu.Lock()
-	ls.bioSeen[key] = now
-	if len(ls.bioSeen) > 50000 { ls.bioSeen = make(map[string]time.Time) }
-	ls.bioSeenMu.Unlock()
 }
 
 // consumerLoop processes links from the queue with rate limiting.
