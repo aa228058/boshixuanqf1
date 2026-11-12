@@ -40,8 +40,8 @@ export const taskApi = {
   },
   deleteTaskLogs: (taskId: string) => api.delete(`/tasks/${taskId}/logs`),
   // R116: cleanupLogs 封装已删(零页面调用; 对应后端 /logs/cleanup 同步移除)
-  listScrapedLinks: (params: { account_id: string; since?: string; page?: number; page_size?: number }) =>
-    api.get<{ items: ScrapedLink[]; total: number }>(`/scrape-links${toQueryString(params as Record<string, unknown>)}`),
+  listScrapedLinks: (params: { account_id: string; since?: string; page?: number; page_size?: number }, options?: RequestOptions) =>
+    api.get<{ items: ScrapedLink[]; total: number }>(`/scrape-links${toQueryString(params as Record<string, unknown>)}`, options),
   getById: (id: string, options?: RequestOptions) => api.get<Task>(`/tasks/${id}`, options),
   create: (data: Record<string, unknown>) => api.post<Task>('/tasks', data),
   // 重试: scope=failed 仅重发失败目标(克隆新任务, 续传防重保证不重复), 否则整任务重跑
