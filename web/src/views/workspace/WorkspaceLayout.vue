@@ -2,7 +2,7 @@
   <div class="h-full min-h-0">
     <!-- Route params are part of the page identity: task detail must remount when switching task IDs
        so its task-scoped SSE stream, pagination requests and timers are disposed together. -->
-    <router-view :key="$route.params.accountId + ':' + ($route.params.id || $route.name)" />
+    <router-view :key="String($route.params.accountId ?? '') + ':' + String($route.params.id ?? $route.name ?? '')" />
   </div>
 </template>
 
