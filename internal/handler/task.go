@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -1020,7 +1021,9 @@ func (h *TaskHandler) ExportScrapedLinks(c echo.Context) error {
 // csvField 同时处理 CSV 结构转义与电子表格公式注入。
 func csvField(s string) string {
 	// Excel/LibreOffice 可能忽略公式前的空白和控制字符；检查首个有效字符。
-	trimmed := strings.TrimLeft(s, " \t\r\n\v\f\x00")
+	trimmed := strings.TrimLeftFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
+	})
 	if len(trimmed) < len(s) && len(trimmed) > 0 && strings.ContainsRune("=+-@", rune(trimmed[0])) {
 		s = "\t" + s
 	} else if len(trimmed) == len(s) && len(s) > 0 && strings.ContainsRune("=+-@", rune(s[0])) {
