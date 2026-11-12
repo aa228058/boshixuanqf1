@@ -190,6 +190,23 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		return
 	}
 
+	// The optional decoration is tenant-controlled and fixed for this task run:
+	// every recipient receives the same decorative suffix. It is not per-recipient
+	// variation and is deliberately unrelated to anti-spam or duplicate-detection behavior.
+	decoration := ""
+	var decorationEnabled bool
+	if err := e.db.Pool.QueryRow(ctx, `
+		SELECT auto_message_decoration_enabled
+		FROM tenants
+		WHERE tenant_id = $1 AND deleted_at IS NULL
+	`, task.TenantID).Scan(&decorationEnabled); err != nil {
+		taskLog.Printf("[broadcast] read tenant message decoration preference failed tenant=%s: %v", task.TenantID, err)
+		decorationEnabled = false
+	}
+	if decorationEnabled {
+		decoration = broadcastMessageDecorations[securerand.IntN(len(broadcastMessageDecorations))]
+	}
+
 	// R119-fix: Markdown 转义移到发送前(spintax 和文案变量解析之后)统一兜底,
 	// 这里先转义会把 { } | 变成 \{ \} 导致 spintax 失效({你好|Hi} 原样发出)。
 
@@ -669,6 +686,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						rawMsg = dictBag.fill(message)
 					}
 					personalizedMsg := spintaxSpin(rawMsg)
+					personalizedMsg = decorateBroadcastMessage(personalizedMsg, decoration)
 					// 系统默认发送前提示：对当前目标触发 Telegram 原生“正在输入”状态，
 					// 等待 2 秒后发送；该行为不向租户暴露配置项，所有群发模式统一执行。
 					if tp, ok := peer.(tg.InputPeerClass); ok {
@@ -800,7 +818,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					Action:     "send_message",
 					Status:     status,
 					// 2026-10-21: 目标级耗时——用户要的完整日志 时间-群名-状态-耗时
-					Message:     fmt.Sprintf("耗时 %.1fs", time.Since(targetStart).Seconds()),
+					Message:     fmt.Sprintf("%s\n耗时 %.1fs", personalizedMsg, time.Since(targetStart).Seconds()),
 					ErrorCode:   errCode,
 					TGMessageID: sentMsgID,
 					ExecutedAt:  time.Now(),
@@ -1194,4 +1212,17 @@ func spintaxSpin(s string) string {
 		}
 		return strings.TrimSpace(parts[securerand.IntN(len(parts))])
 	})
+}
+
+// broadcastMessageDecorations are ordinary visible presentation accents.
+// One accent is selected per task execution and shared by all its recipients.
+var broadcastMessageDecorations = []string{"✨", "🌟", "💫", "🎉", "⭐", "🔔", "✦", "❇️"}
+
+// decorateBroadcastMessage appends a visible decorative accent to the send-time copy.
+// The source template is never mutated; an empty accent leaves the message unchanged.
+func decorateBroadcastMessage(message, decoration string) string {
+	if decoration == "" || strings.TrimSpace(message) == "" {
+		return message
+	}
+	return strings.TrimRight(message, " \t\r\n") + "\n\n" + decoration
 }
