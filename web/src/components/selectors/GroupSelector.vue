@@ -201,11 +201,13 @@ watch(() => props.groups, (groups) => {
 async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '') {
   if (!accountId) {
     localGroups.value = []
+    if (requestId === selectorRequestId) loading.value = false
     return
   }
   const suppliedGroups = props.groups || []
   if (suppliedGroups.length) {
     localGroups.value = [...suppliedGroups]
+    if (requestId === selectorRequestId) loading.value = false
     return
   }
   loading.value = true
