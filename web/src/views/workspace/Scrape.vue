@@ -215,6 +215,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import Modal from '@/components/ui/Modal.vue'
 import type { Group } from '@/types'
 import { ask } from '@/utils/confirm'
+import { escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell } from '@/utils/export'
 
 const route = useRoute()
 const router = useRouter()
@@ -375,7 +376,7 @@ function exportCSV(taskId: string) {
   // P0-15 审计修复: 原路径先过 sanitizeCell(HTML 转义, " 已变 &quot;) 再做 CSV
   // 引号翻倍——HTML 实体进了 CSV 文件, 引号双转义失效。CSV 路径只做公式注入
   // 防护 + CSV 标准引号翻倍, 不做 HTML 转义。
-  const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(csvCell).join(','))].join('\n')
+  const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(escapeSpreadsheetCSVCell).join(','))].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -385,21 +386,6 @@ function exportCSV(taskId: string) {
   window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 }
 
-// 导出单元格消毒：数据来自 TG 用户名/昵称等外部输入，恶意用户可设 =cmd|...!A1
-// 这类用户名，受害者导出后在 Excel 打开即执行（公式注入）；HTML 导出还需防
-// </td><script> 类标签注入。处理：公式前缀(= + - @)加 tab 强制按文本 + HTML 转义。
-// P0-15: CSV 单元格专用——公式前缀加 tab + CSV 引号翻倍(标准), 不做 HTML 转义
-function csvCell(v: any): string {
-  let s = String(v ?? '')
-  if (/^[=+\-@]/.test(s)) s = '\t' + s
-  return `"${s.replace(/"/g, '""')}"`
-}
-
-function sanitizeCell(v: any): string {
-  let s = String(v ?? '')
-  if (/^[=+\-@]/.test(s)) s = '\t' + s
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
-}
 
 function exportExcel(taskId: string) {
   const list = members.value[taskId] || []
@@ -408,7 +394,7 @@ function exportExcel(taskId: string) {
     <head><meta charset="UTF-8"><style>td,th{border:1px solid var(--t-line);padding:var(--t-space-1-5)}</style></head>
     <body><table>
       <tr><th>User ID</th><th>Username</th><th>First Name</th><th>Last Name</th><th>Last Seen</th><th>Has Photo</th><th>Is Bot</th></tr>
-      ${list.map((m: any) => `<tr><td>${sanitizeCell(m.user_id)}</td><td>${sanitizeCell(m.username)}</td><td>${sanitizeCell(m.first_name)}</td><td>${sanitizeCell(m.last_name)}</td><td>${sanitizeCell(m.last_seen)}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
+      ${list.map((m: any) => `<tr><td>${escapeSpreadsheetHTMLCell(m.user_id)}</td><td>${escapeSpreadsheetHTMLCell(m.username)}</td><td>${escapeSpreadsheetHTMLCell(m.first_name)}</td><td>${escapeSpreadsheetHTMLCell(m.last_name)}</td><td>${escapeSpreadsheetHTMLCell(m.last_seen)}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
     </table></body></html>`
   const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
   const link = document.createElement('a')
