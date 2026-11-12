@@ -80,7 +80,7 @@ describe('downloadCSV', () => {
     // Blob.text() 按规范会剥离 UTF-8 BOM；直接检查字节，避免误报。
     expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
     expect(new TextDecoder().decode(bytes.slice(3))).toBe(
-      'name,value,memo\n\'=1+1,"a,b","say ""hi""\nnext"\n\'+SUM(A1:A2),\'-2,\'@cmd',
+      '"name","value","memo"\n"\t=1+1","a,b","say ""hi""\nnext"\n"\t+SUM(A1:A2)","\t-2","\t@cmd"',
     )
   })
 
