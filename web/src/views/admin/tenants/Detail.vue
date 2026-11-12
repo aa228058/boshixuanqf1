@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
@@ -109,6 +109,8 @@ const invalidId = ref(!isValidUUID(tenantId))
 
 const tenant = ref<Tenant | null>(null)
 const plans = ref<Plan[]>([])
+let tenantDetailActive = true
+let tenantDetailRequestId = 0
 const showEdit = ref(false)
 const editForm = ref({ plan_id: '', expires_at: '' })
 
@@ -123,11 +125,14 @@ function toDateTimeLocal(v: string): string {
 }
 
 async function fetchTenant() {
+  const requestId = ++tenantDetailRequestId
   try {
-    tenant.value = await adminApiMod.getTenant(tenantId)
+    const result = await adminApiMod.getTenant(tenantId)
+    if (!tenantDetailActive || requestId !== tenantDetailRequestId) return
+    tenant.value = result
     editForm.value = { plan_id: tenant.value?.plan_id || '', expires_at: toDateTimeLocal(tenant.value?.expires_at || '') }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantDetailActive && requestId === tenantDetailRequestId) toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -183,12 +188,16 @@ function planLabel(p: string) {
 }
 
 onMounted(async () => {
+  tenantDetailActive = true
   await fetchTenant()
+  if (!tenantDetailActive) return
   try {
     const res = await adminApiMod.listPlans()
+    if (!tenantDetailActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantDetailActive) toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 })
+onUnmounted(() => { tenantDetailActive = false; tenantDetailRequestId++ })
 </script>
