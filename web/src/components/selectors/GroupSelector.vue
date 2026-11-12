@@ -157,6 +157,7 @@ import { syncLock, markSyncing } from '@/utils/syncLock'
 import { useGroupStore } from '@/stores/group'
 import Modal from '@/components/ui/Modal.vue'
 import { toggleSelectionByKey } from './selection'
+import { uniqueByNormalizedId } from './selectorRuntime'
 import type { Group } from '@/types'
 
 const props = defineProps<{
@@ -263,12 +264,7 @@ async function loadDmUsers() {
     const raw: any = await groupApi.listMembersGlobal(accountId)
     if (requestId !== dmRequestId || !visible.value || props.accountId !== accountId) return
     const arr: any[] = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
-    const seen = new Set<number>()
-    dmUsers.value = arr.filter((m: any) => {
-      if (seen.has(m.tg_user_id)) return false
-      seen.add(m.tg_user_id)
-      return true
-    }).map((m: any) => ({
+    dmUsers.value = uniqueByNormalizedId(arr, (m: any) => m.tg_user_id).map((m: any) => ({
       group_id: 'dm_' + m.tg_user_id,
       title: [m.first_name, m.last_name].filter(Boolean).join(' ') || m.username || String(m.tg_user_id),
       tg_chat_id: String(m.tg_user_id),
