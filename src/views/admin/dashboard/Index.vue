@@ -63,7 +63,7 @@
           </div>
           <div class="flex items-center gap-3 text-xs text-text-secondary">
             <span>{{ planLabel(t.plan_id) }}</span>
-            <span>{{ new Date(t.created_at).toLocaleDateString('zh-CN') }}</span>
+            <span>{{ t.created_at ? new Date(t.created_at).toLocaleDateString('zh-CN') : '-' }}</span>
           </div>
         </div>
         <EmptyState v-if="!recentTenants.length" icon="Users" title="暂无租户" description="还没有租户注册" />
