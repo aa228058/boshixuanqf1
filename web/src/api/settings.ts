@@ -21,7 +21,7 @@ export const settingsApi = {
   deleteTemplate: (id: string) => api.delete<void>(`/templates/${id}`),
 
   // Saved text collections (manual reuse)
-  getTextDicts: () => api.get<ListResponse<TextDict>>('/text-dicts'),
+  getTextDicts: (options?: RequestOptions) => api.get<ListResponse<TextDict>>('/text-dicts', options),
   createTextDict: (data: { name: string; enabled: boolean; entries: Array<{ word: string; enabled: boolean }> }) => api.post<TextDict>('/text-dicts', data),
   updateTextDict: (id: string, data: { name: string; enabled: boolean; entries: Array<{ word: string; enabled: boolean }> }) => api.put<void>(`/text-dicts/${id}`, data),
   deleteTextDict: (id: string) => api.delete<void>(`/text-dicts/${id}`),
