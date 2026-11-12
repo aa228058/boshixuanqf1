@@ -7,7 +7,7 @@
     <!-- 用户卡 -->
     <div class="flex items-center gap-3 p-4 rounded-[20px] mb-5" style="background: var(--t-surface-1); border: 1px solid var(--t-line);">
       <div class="w-11 h-11 rounded-[var(--t-r-lg)] grid place-items-center text-white text-base font-extrabold shrink-0"
-           style="background: linear-gradient(135deg, var(--t-brand-active), var(--t-brand)); box-shadow: 0 8px 20px rgba(107,91,255,0.4);">{{ (authStore.tenant?.name || '运')[0] }}</div>
+           style="background: linear-gradient(135deg, var(--t-brand-active), var(--t-brand)); box-shadow: 0 8px 20px color-mix(in srgb, var(--t-brand) 40%, transparent);">{{ (authStore.tenant?.name || '运')[0] }}</div>
       <div class="flex-1 min-w-0">
         <div class="text-small font-bold truncate">{{ authStore.tenant?.name || '我的' }}</div>
         <div class="text-[11.5px] mt-0.5" style="color: var(--t-text-3);">{{ authStore.tenant?.plan_id || '' }} · 到期 {{ (authStore.tenant?.expires_at || '').slice(0, 10) }}</div>
@@ -47,20 +47,22 @@ const router = useRouter()
 const authStore = useAuthStore()
 const accountStore = useAccountStore()
 
-const accId = computed(() => accountStore.currentAccount?.account_id || 'none')
+const accId = computed(() => accountStore.currentAccount?.account_id || '')
+const workspacePath = (suffix: string) => accId.value ? `/workspace/${accId.value}/${suffix}` : '/accounts'
+const workspaceDescription = (description: string) => accId.value ? description : '请先添加或选择账号'
 
 const groups = computed(() => {
   const base = [
     { label: '运营', items: [
-      { path: `/workspace/${accId.value}/join`, label: '进群邀请', desc: '批量加入目标群组', icon: UserPlus },
+      { path: workspacePath('join'), label: '进群邀请', desc: workspaceDescription('批量加入目标群组'), icon: UserPlus },
       { path: '/groups/discover', label: '群组发现', desc: '浏览与加入公开群组', icon: Compass },
-      { path: `/workspace/${accId.value}/scrape`, label: '成员采集', desc: '整理目标成员数据', icon: Download },
+      { path: workspacePath('scrape'), label: '成员采集', desc: workspaceDescription('整理目标成员数据'), icon: Download },
     ]},
     { label: '工具', items: [
-      { path: `/workspace/${accId.value}/scrape-links`, label: '链接采集', desc: '从文本提取群链接', icon: Link2 },
-      { path: `/workspace/${accId.value}/monitor`, label: '消息监控', desc: '关键词命中实时提醒', icon: Eye },
+      { path: workspacePath('scrape-links'), label: '链接采集', desc: workspaceDescription('从文本提取群链接'), icon: Link2 },
+      { path: workspacePath('monitor'), label: '消息监控', desc: workspaceDescription('关键词命中实时提醒'), icon: Eye },
       { path: '/raffle', label: '抽奖助手', desc: '自动参与群抽奖', icon: Gift },
-      { path: `/workspace/${accId.value}/tasks`, label: '任务列表', desc: '全部任务与进度', icon: ListChecks },
+      { path: workspacePath('tasks'), label: '任务列表', desc: workspaceDescription('全部任务与进度'), icon: ListChecks },
     ]},
     { label: '系统', items: [
       { path: '/verifier/logs', label: '验证记录', desc: '入群验证处理历史', icon: ShieldCheck },
