@@ -27,7 +27,7 @@
         :pagination="{ current: page, pageSize: 20, total: total, onChange: onPageChange }"
       >
         <template #select="{ row }">
-          <input type="checkbox" :value="row.code_id" v-model="selectedIds" class="accent-[var(--t-brand)]" @click.stop />
+          <input type="checkbox" :value="row.code_id" v-model="selectedIds" class="accent-[var(--t-brand)]" :aria-label="'选择卡密 ' + row.code" @click.stop />
         </template>
         <template #used_by="{ row }">
           <span v-if="row.used_by_tenant_name" class="text-sm">{{ row.used_by_tenant_name }}</span>
@@ -65,7 +65,7 @@
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
-            <input type="checkbox" :value="c.code_id" v-model="selectedIds" class="accent-[var(--t-brand)] shrink-0" />
+            <input type="checkbox" :value="c.code_id" v-model="selectedIds" class="accent-[var(--t-brand)] shrink-0" :aria-label="'选择卡密 ' + c.code" />
             <span class="font-mono text-sm truncate">{{ c.code }}</span>
           </div>
           <span class="text-xs px-2 py-0.5 rounded-full shrink-0" :class="codeStatusClass(c.status)">
@@ -78,7 +78,7 @@
           <span v-else-if="c.used_by">使用者: {{ c.used_by.slice(0, 8) }}...</span>
         </div>
         <div class="flex items-center justify-between text-xs text-text-secondary">
-          <span>{{ new Date(c.created_at).toLocaleDateString('zh-CN') }}</span>
+          <span>{{ c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : '-' }}</span>
           <div>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(c.code)">复制</t-button>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</t-button>
