@@ -63,6 +63,13 @@
             class="ui-input !w-28 !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="扫描消息数上限" />
         </div>
       </div>
+      <label class="flex items-start gap-2 rounded-lg border border-border p-3 text-sm cursor-pointer">
+        <input type="checkbox" v-model="bioLinks" class="accent-[var(--t-brand)] mt-0.5" />
+        <span>
+          <span class="font-medium">解析用户简介中的 Telegram 群链接</span>
+          <span class="block text-xs text-text-muted mt-1">逐个读取用户 Bio，写入成员资料；群库聚合器后续归并。请求会限速，部分用户可能因隐私或 Telegram 限流无法读取。</span>
+        </span>
+      </label>
       <!-- 采集过滤: 死号/无头像不入库(仅普通模式) -->
       <div v-if="scrapeMode === 'members'" class="space-y-2 pt-1">
         <label class="flex items-center gap-2 text-sm cursor-pointer">
@@ -236,6 +243,8 @@ const maxMessages = ref(1000)
 const filterRecent = ref(false)
 const filterRecentDays = ref(7)
 const filterPhoto = ref(false)
+// Bio 链接解析为可选的逐用户资料读取，默认关闭以控制 Telegram RPC 消耗。
+const bioLinks = ref(false)
 const showGroupSelector = ref(false)
 const showCreate = ref(false)
 // 响应式绑定 groupStore（与 Broadcast.vue 同款修复，2026-09-22）：
@@ -447,6 +456,7 @@ async function submit() {
   const recentEnabled = filterRecent.value
   const recentDays = filterRecentDays.value
   const photoEnabled = filterPhoto.value
+  const bioLinksSnapshot = bioLinks.value
   submitting.value = true
   try {
     await taskApi.create({
@@ -459,6 +469,7 @@ async function submit() {
       },
       payload: {
         mode,
+        ...(bioLinksSnapshot ? { bio_links: true } : {}),
         ...(mode === 'history' ? { max_messages: maxMessagesSnapshot } : {}),
         ...(mode === 'members' ? {
           filter: {
