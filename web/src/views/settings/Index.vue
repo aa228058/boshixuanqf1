@@ -187,8 +187,8 @@
           v-model="activationCode"
           placeholder="输入卡密，如 TGS-PRO-XXXX-XXXX"
           class="ui-input !w-full sm:!flex-1 !px-4 !py-2.5 !text-sm font-mono uppercase"
-          @keyup.enter="activate" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
-        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="activate">
+          @keyup.enter="activate" :disabled="activating" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" :disabled="activating" :loading="activating" @click="activate">
           激活
         </t-button>
       </div>
@@ -598,6 +598,7 @@ async function exportMyData() {
 }
 const selectedPlan = ref('')
 const activationCode = ref('')
+const activating = ref(false)
 const copied = ref(false)
 
 const planName = computed(() => {
@@ -613,7 +614,8 @@ const planPrice = computed(() => {
 })
 
 async function activate() {
-  if (!activationCode.value) return
+  if (activating.value || !activationCode.value.trim()) return
+  activating.value = true
   try {
     const res = await settingsApi.activateCode(activationCode.value.trim())
     activationCode.value = ''
@@ -629,8 +631,9 @@ async function activate() {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '请检查卡密是否正确'
     toast({ type: 'error', title: '激活失败', message: msg })
-  }
-}
+  } finally {
+    activating.value = false
+  }}
 
 function copyContact() {
   if (!supportConfig.value?.contact_value) return
@@ -701,7 +704,7 @@ async function deleteTextDict(id: string) {
   try {
     await settingsApi.deleteTextDict(id)
     await fetchTextDicts()
-    toast({ type: 'success', message: '分组已删除' })
+    toast({ type: 'success', message: '字典已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' })
   } finally {
