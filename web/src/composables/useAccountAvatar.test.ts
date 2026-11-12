@@ -54,7 +54,9 @@ describe('useAccountAvatar refresh lifecycle', () => {
 
   it('invalidate 会取消旧刷新清理任务并使迟到缓存失效', async () => {
     const { avatarOf, invalidate } = useAccountAvatar()
-    getMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { status: 404 }))
+    getMock
+      .mockRejectedValueOnce(Object.assign(new Error('missing'), { status: 404 }))
+      .mockResolvedValueOnce(new Blob(['replacement']))
 
     expect(avatarOf('avatar-refresh-invalidate-test')).toBeNull()
     await flushPromises()
