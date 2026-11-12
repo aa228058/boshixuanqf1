@@ -172,3 +172,33 @@ func (r *TenantRepository) GetByUsername(ctx context.Context, username string) (
 	t.ExpiresAt = expiresAt
 	return &t, nil
 }
+
+// GetMessageDecorationEnabled returns the tenant-wide outgoing-message decoration preference.
+func (r *TenantRepository) GetMessageDecorationEnabled(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	var enabled bool
+	err := r.db.QueryRow(ctx, `
+		SELECT auto_message_decoration_enabled
+		FROM tenants
+		WHERE tenant_id = $1 AND deleted_at IS NULL
+	`, tenantID).Scan(&enabled)
+	if err != nil {
+		return false, fmt.Errorf("get message decoration preference: %w", err)
+	}
+	return enabled, nil
+}
+
+// UpdateMessageDecorationEnabled saves the tenant-wide outgoing-message decoration preference.
+func (r *TenantRepository) UpdateMessageDecorationEnabled(ctx context.Context, tenantID uuid.UUID, enabled bool) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE tenants
+		SET auto_message_decoration_enabled = $2
+		WHERE tenant_id = $1 AND deleted_at IS NULL
+	`, tenantID, enabled)
+	if err != nil {
+		return fmt.Errorf("update message decoration preference: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("tenant not found")
+	}
+	return nil
+}

@@ -190,6 +190,23 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		return
 	}
 
+	// The optional decoration is tenant-controlled and fixed for this task run:
+	// every recipient receives the same decorative suffix. It is not per-recipient
+	// variation and is deliberately unrelated to anti-spam or duplicate-detection behavior.
+	decoration := ""
+	var decorationEnabled bool
+	if err := e.db.Pool.QueryRow(ctx, `
+		SELECT auto_message_decoration_enabled
+		FROM tenants
+		WHERE tenant_id = $1 AND deleted_at IS NULL
+	`, task.TenantID).Scan(&decorationEnabled); err != nil {
+		taskLog.Printf("[broadcast] read tenant message decoration preference failed tenant=%s: %v", task.TenantID, err)
+		decorationEnabled = false
+	}
+	if decorationEnabled {
+		decoration = broadcastMessageDecorations[securerand.IntN(len(broadcastMessageDecorations))]
+	}
+
 	// R119-fix: Markdown 转义移到发送前(spintax 和文案变量解析之后)统一兜底,
 	// 这里先转义会把 { } | 变成 \{ \} 导致 spintax 失效({你好|Hi} 原样发出)。
 
@@ -652,6 +669,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 						chatID = p.ChannelID
 					}
 				}
+				loggedMessage := ""
 				if !shouldSendBroadcastTarget(status, chatID) {
 					// A prior account cooldown or peer-resolution failure is terminal
 					// for this target. Do not attempt a send with an unresolved chatID.
@@ -663,12 +681,13 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					}
 				} else {
 					// Replace template variables with target info before sending
-					// 先 spintax 随机语法(每个目标独立), 再变量替换
+					// 先替换租户文案变量，再解析 Spintax；装饰只作用于发送副本。
 					rawMsg := message
 					if dictBag != nil {
 						rawMsg = dictBag.fill(message)
 					}
 					personalizedMsg := spintaxSpin(rawMsg)
+					personalizedMsg = decorateBroadcastMessage(personalizedMsg, decoration)
 					// 系统默认发送前提示：对当前目标触发 Telegram 原生“正在输入”状态，
 					// 等待 2 秒后发送；该行为不向租户暴露配置项，所有群发模式统一执行。
 					if tp, ok := peer.(tg.InputPeerClass); ok {
@@ -687,6 +706,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					// R119-fix: 发送前最后一步 —— Markdown 转义兜底(此时 spintax 和文案变量已解析,
 					// 转义后的 \{ \} 不再参与语法匹配, 用户写的 {你好|Hi} 能正常随机取值)
 					personalizedMsg = escapeTelegramMarkdown(personalizedMsg)
+					loggedMessage = personalizedMsg
 
 					// 统一发送入口: 富媒体走 SendMedia, 纯文本走 SendMessage, 均支持 URL 按钮
 					// trySend 同时提取 TG 返回的 message_id 用于发送结果可核对
@@ -800,7 +820,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 					Action:     "send_message",
 					Status:     status,
 					// 2026-10-21: 目标级耗时——用户要的完整日志 时间-群名-状态-耗时
-					Message:     fmt.Sprintf("耗时 %.1fs", time.Since(targetStart).Seconds()),
+					Message:     fmt.Sprintf("%s\n耗时 %.1fs", loggedMessage, time.Since(targetStart).Seconds()),
 					ErrorCode:   errCode,
 					TGMessageID: sentMsgID,
 					ExecutedAt:  time.Now(),
@@ -1194,4 +1214,17 @@ func spintaxSpin(s string) string {
 		}
 		return strings.TrimSpace(parts[securerand.IntN(len(parts))])
 	})
+}
+
+// broadcastMessageDecorations are ordinary visible presentation accents.
+// One accent is selected per task execution and shared by all its recipients.
+var broadcastMessageDecorations = []string{"✨", "🌟", "💫", "🎉", "⭐", "🔔", "✦", "❇️"}
+
+// decorateBroadcastMessage appends a visible decorative accent to the send-time copy.
+// The source template is never mutated; an empty accent leaves the message unchanged.
+func decorateBroadcastMessage(message, decoration string) string {
+	if decoration == "" || strings.TrimSpace(message) == "" {
+		return message
+	}
+	return strings.TrimRight(message, " \t\r\n") + "\n\n" + decoration
 }

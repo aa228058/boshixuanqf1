@@ -37,6 +37,24 @@
       </t-button>
     </div>
 
+    <!-- Tenant-wide broadcast presentation preference; independent of notification-plan features. -->
+    <div v-show="activeTab === 'send'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift space-y-4">
+      <div>
+        <h3 class="text-sm font-medium text-text-secondary">群发消息装饰</h3>
+        <p class="text-xs text-text-muted mt-1 leading-relaxed">开启后，系统会在发送副本末尾自动添加一个可见的随机表情或装饰符号。同一轮任务的所有收件人使用相同装饰，不会逐条改变文案；原始模板和变量内容保持不变。</p>
+      </div>
+      <label class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-bg-card p-3">
+        <span class="min-w-0">
+          <span class="block text-sm text-text-primary">自动添加表情与装饰符号</span>
+          <span class="block text-xs text-text-muted mt-0.5">{{ messageDecorationEnabled ? '已开启：发送时自动添加' : '已关闭：按原文发送' }}</span>
+        </span>
+        <input v-model="messageDecorationEnabled" type="checkbox" class="accent-[var(--t-brand)] w-4 h-4 shrink-0" aria-label="自动添加表情与装饰符号" />
+      </label>
+      <div class="flex justify-end">
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" :disabled="messageDecorationSaving" :loading="messageDecorationSaving" @click="saveMessageDecoration">保存设置</t-button>
+      </div>
+    </div>
+
     <!-- R119: 通知中心 -->
     <div v-show="activeTab === 'notify'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift">
       <!-- 套餐权限锁: 邮件通知是套餐特性(plan_features.notify) -->
@@ -347,6 +365,7 @@ const route = useRoute()
 const router = useRouter()
 const tabs = [
   { key: 'plan', label: '套餐' },
+  { key: 'send', label: '发送' },
   { key: 'verify', label: '验证' },
   { key: 'notify', label: '通知' },
   { key: 'data', label: '数据' },
@@ -360,6 +379,8 @@ const notifySettings = ref<Record<string, boolean>>({})
 const notifyEvents = ref<Record<string, string>>({}) // 事件键 → 中文标签(后端下发)
 const smtpConfigured = ref(false)
 const notifyLoading = ref(false)
+const messageDecorationEnabled = ref(false)
+const messageDecorationSaving = ref(false)
 // R120: 发件邮箱(租户自己的 SMTP) —— 服务商选择 + 配置表单 + 教程
 const smtpProviders = [
   { key: 'qq', label: 'QQ 邮箱', host: 'smtp.qq.com', port: 465,
@@ -381,6 +402,21 @@ function pickProvider(key: string) {
   const p = smtpProviders.find(x => x.key === key)!
   smtpForm.value.host = p.host
   smtpForm.value.port = p.port
+}
+async function loadMessageDecoration() {
+  try {
+    const result = await settingsApi.getMessageDecoration()
+    messageDecorationEnabled.value = !!result.enabled
+  } catch { /* toast 已由拦截器统一处理 */ }
+}
+async function saveMessageDecoration() {
+  messageDecorationSaving.value = true
+  try {
+    const result = await settingsApi.updateMessageDecoration(messageDecorationEnabled.value)
+    messageDecorationEnabled.value = !!result.enabled
+    toast({ type: 'success', title: '发送装饰设置已保存' })
+  } catch { /* 拦截器已提示 */ }
+  finally { messageDecorationSaving.value = false }
 }
 async function loadNotify() {
   notifyLoading.value = true
@@ -435,6 +471,7 @@ function switchTab(key: string) {
   activeTab.value = key
   router.replace({ query: { ...route.query, tab: key } })
   if (key === 'notify') loadNotify() // R119: 切到通知 Tab 加载订阅状态
+  if (key === 'send') loadMessageDecoration()
 }
 // URL 变化(浏览器前进后退)同步回 Tab
 watch(() => route.query.tab, (t) => {
@@ -716,6 +753,7 @@ onMounted(async () => {
   loadAI()
   // R142 修复: 通知设置(邮箱/SMTP/事件订阅)此前只在保存后回填, 刷新页面从不加载 —— 补挂载加载
   loadNotify()
+  loadMessageDecoration()
   try {
     const p = await settingsApi.getPlans()
     // R86 热修: 接口可能返回 {list:[...]} 等包装对象, p||[] 会把对象塞进数组变量

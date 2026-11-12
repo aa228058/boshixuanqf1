@@ -6,6 +6,8 @@ export interface TextDict { dict_id: string; tenant_id: string; name: string; en
 
 export const settingsApi = {
   getProfile: () => api.get<Tenant>('/tenant/profile'),
+  getMessageDecoration: () => api.get<{ enabled: boolean }>('/tenant/message-decoration'),
+  updateMessageDecoration: (enabled: boolean) => api.put<{ enabled: boolean }>('/tenant/message-decoration', { enabled }),
   activateCode: (code: string) => api.post<Tenant>('/tenant/activate', { code }),
   getPlans: () => api.get<Plan[]>('/plans'),
   getSupport: () => api.get<SupportConfig>('/support'),

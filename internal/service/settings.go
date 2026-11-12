@@ -50,6 +50,16 @@ func NewSettingsService(
 	}
 }
 
+// GetMessageDecorationEnabled returns the tenant-wide outgoing-message decoration preference.
+func (s *SettingsService) GetMessageDecorationEnabled(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	return s.tenantRepo.GetMessageDecorationEnabled(ctx, tenantID)
+}
+
+// UpdateMessageDecorationEnabled saves the tenant-wide outgoing-message decoration preference.
+func (s *SettingsService) UpdateMessageDecorationEnabled(ctx context.Context, tenantID uuid.UUID, enabled bool) error {
+	return s.tenantRepo.UpdateMessageDecorationEnabled(ctx, tenantID, enabled)
+}
+
 // GetProfile returns tenant profile with plan info.
 // UpdateNotify R119+R120: 保存租户通知设置(邮箱+订阅+SMTP 发件配置)
 func (s *SettingsService) UpdateNotify(ctx context.Context, tenantID uuid.UUID, email string, settings, smtp json.RawMessage) error {
