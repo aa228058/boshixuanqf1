@@ -14,9 +14,10 @@
       <div class="glass rounded-[var(--t-r-lg)] p-8 gradient-border">
         <div class="space-y-4">
           <div>
-            <div class="text-sm text-text-secondary mb-1.5">用户名</div>
+            <label for="admin-login-username" class="block text-sm text-text-secondary mb-1.5">用户名</label>
             <t-input
               v-model="username"
+              id="admin-login-username"
               size="large"
               placeholder="请输入管理员用户名"
               clearable
@@ -26,9 +27,10 @@
             <div v-if="errors.username" role="alert" class="text-xs text-danger mt-1">{{ errors.username }}</div>
           </div>
           <div>
-            <div class="text-sm text-text-secondary mb-1.5">密码</div>
+            <label for="admin-login-password" class="block text-sm text-text-secondary mb-1.5">密码</label>
             <t-input
               v-model="password"
+              id="admin-login-password"
               size="large"
               :type="showPassword ? 'text' : 'password'"
               placeholder="请输入密码"
