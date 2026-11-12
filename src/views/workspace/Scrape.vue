@@ -31,22 +31,22 @@
       </div>
       <div>
         <label class="block text-sm font-medium mb-2">选择要采集的群组</label>
-        <div @click="showGroupSelector = true"
-             class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
+        <button type="button" @click="showGroupSelector = true"
+             class="flex items-center gap-2 p-3 rounded-lg border border-border w-full text-left hover:border-[color:var(--t-brand)]/30 transition-colors">
           <MessageSquare class="w-5 h-5 text-text-muted" />
           <span v-if="!selectedGroup" class="text-text-muted">点击选择群组</span>
           <span v-else class="text-sm">{{ selectedGroup.title }} ({{ selectedGroup.member_count }} 成员)</span>
-        </div>
+        </button>
       </div>
       <!-- 采集模式: 隐私群(成员列表不可见)改用历史消息活跃用户 -->
       <div class="pt-1">
         <div class="flex gap-2 mb-1.5">
-          <button type="button" @click="scrapeMode = 'members'"
+          <button type="button" @click="scrapeMode = 'members'" :aria-pressed="scrapeMode === 'members'"
             class="flex-1 px-3 py-2 rounded-lg border text-sm transition-colors"
             :class="scrapeMode === 'members' ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[var(--t-brand)]/5' : 'border-border text-text-secondary'">
             普通成员列表
           </button>
-          <button type="button" @click="scrapeMode = 'history'"
+          <button type="button" @click="scrapeMode = 'history'" :aria-pressed="scrapeMode === 'history'"
             class="flex-1 px-3 py-2 rounded-lg border text-sm transition-colors"
             :class="scrapeMode === 'history' ? 'border-[color:var(--t-brand)] text-[var(--t-brand)] bg-[var(--t-brand)]/5' : 'border-border text-text-secondary'">
             历史消息活跃用户
@@ -106,7 +106,7 @@
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
            class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
-        <div class="flex items-center justify-between gap-3 cursor-pointer" @click="toggleExpand(task.task_id)">
+        <button type="button" class="flex items-center justify-between gap-3 w-full text-left" @click="toggleExpand(task.task_id)" :aria-expanded="!!expanded[task.task_id]" :aria-controls="'scrape-members-' + task.task_id">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-10 h-10 rounded-[var(--t-r-md)] bg-[color:var(--t-warn-dim)] flex items-center justify-center shrink-0">
               <Users class="w-5 h-5 text-[var(--t-warn)]" />
@@ -147,7 +147,7 @@
         </div>
 
         <!-- 展开: 成员结果列表 -->
-        <div v-if="expanded[task.task_id]" class="mt-3 pt-3 border-t border-border">
+        <div v-if="expanded[task.task_id]" :id="'scrape-members-' + task.task_id" role="region" aria-label="采集成员结果" class="mt-3 pt-3 border-t border-border">
           <div v-if="memberLoading[task.task_id]" class="py-4 text-center text-sm text-text-muted">加载成员中...</div>
           <div v-else-if="memberErrors[task.task_id]" class="py-4 flex flex-wrap items-center justify-center gap-2 text-sm" role="alert">
             <span class="text-[var(--t-err)]">{{ memberErrors[task.task_id] }}</span>
