@@ -786,20 +786,11 @@ const nowTs = ref(Date.now())
 const nowTick = setInterval(() => {
   if (!document.hidden) nowTs.value = Date.now()
 }, 1000)
-// 状态自动刷新(2026-10-21 轮询根治):
-//   ① 间隔 15s→30s, 页面切后台(document.hidden)时暂停——手机切出去不再猛刷
-//   ② 回前台立即补一次
-//   ③ store 层已加 diff 守卫: 数据没变时数组引用不换, 列表不重渲染、动画不重播
-const statusPoll = setInterval(() => {
-  if (document.hidden) return
-  accountStore.fetchAccounts(true)
-}, 30000)
-const onVisBack = () => { if (!document.hidden) accountStore.fetchAccounts(true) }
-document.addEventListener('visibilitychange', onVisBack)
+// 状态自动刷新统一由页面末尾的 useAutoRefresh 管理：
+// 账号、统计与任务摘要共用一个 30 秒节奏，切后台暂停、回前台立即刷新。
+// 避免旧 statusPoll 与 useAutoRefresh 同时请求账号列表。
 onUnmounted(() => {
   clearInterval(nowTick)
-  clearInterval(statusPoll)
-  document.removeEventListener('visibilitychange', onVisBack)
 })
 function cooldownText(acc: Account): string {
   const until = acc.blocked_until
@@ -1052,10 +1043,10 @@ function exitSelecting() {
 // R153: 登录验证码展示(10 分钟内有效)
 function loginCodeFresh(acc: any): boolean {
   return !!acc?.last_login_code && !!acc?.login_code_at &&
-    (Date.now() - new Date(acc.login_code_at).getTime()) < 10 * 60 * 1000
+    (nowTs.value - new Date(acc.login_code_at).getTime()) < 10 * 60 * 1000
 }
 function codeAge(acc: any): string {
-  const m = Math.floor((Date.now() - new Date(acc.login_code_at).getTime()) / 60000)
+  const m = Math.floor((nowTs.value - new Date(acc.login_code_at).getTime()) / 60000)
   return m < 1 ? '刚刚' : `${m}分前`
 }
 async function copyLoginCode(acc: any) {
