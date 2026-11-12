@@ -37,6 +37,7 @@ export interface RequestOptions {
   headers?: Record<string, string>
   body?: Record<string, unknown> | unknown
   timeout?: number
+  signal?: AbortSignal
   responseType?: 'blob' | 'arrayBuffer'
   // 查询参数(2026-10-20): doFetch 拼 query string, 此前被静默忽略
   params?: Record<string, string | number | boolean | undefined>
@@ -207,11 +208,18 @@ export async function doFetchWithRetry(
 
   let lastError: Error | null = null
   for (let attempt = 0; attempt < retries; attempt++) {
+    if (options.signal?.aborted) {
+      const error = new Error('请求已取消')
+      error.name = 'AbortError'
+      throw error
+    }
     // 幂等方法白名单：只有可安全重复的读取请求允许自动重试。
     // 写请求即使网络中断/超时，也可能已在服务端完成，不能盲目重放。
     const method = (options.method || 'GET').toUpperCase()
     const idempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
     const controller = new AbortController()
+    const abortFromCaller = () => controller.abort()
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true })
     let fetchPromise: Promise<Response>
     try {
       const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
@@ -227,6 +235,7 @@ export async function doFetchWithRetry(
         signal: controller.signal,
       })
     } catch {
+      options.signal?.removeEventListener('abort', abortFromCaller)
       throw new Error('网络连接失败，请检查网络')
     }
 
@@ -236,7 +245,7 @@ export async function doFetchWithRetry(
         timeoutId = setTimeout(() => {
           controller.abort()
           reject(new Error('请求超时，请稍后重试'))
-        }, options.timeout || 120000)
+        }, Number.isFinite(options.timeout) && (options.timeout as number) > 0 ? options.timeout as number : 120000)
       })
       const response = await Promise.race([fetchPromise, timeoutPromise])
       // 只对幂等方法的 5xx 重试
@@ -246,14 +255,17 @@ export async function doFetchWithRetry(
       }
       return response
     } catch (e: unknown) {
-      lastError = e instanceof Error ? e : new Error(String(e))
-      if (!idempotent || attempt >= retries - 1) {
+      lastError = options.signal?.aborted
+        ? Object.assign(new Error('请求已取消'), { name: 'AbortError' })
+        : e instanceof Error ? e : new Error(String(e))
+      if (options.signal?.aborted || !idempotent || attempt >= retries - 1) {
         throw lastError
       }
       await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
     } finally {
       // fetch 胜出后清理计时器；超时则主动 abort，避免底层请求继续占用资源。
       clearTimeout(timeoutId)
+      options.signal?.removeEventListener('abort', abortFromCaller)
     }
   }
   throw lastError || new Error('请求失败，请稍后重试')
