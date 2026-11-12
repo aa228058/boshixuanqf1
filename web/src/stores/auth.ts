@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import type { RequestOptions } from '@/utils/request'
 import { authApi } from '@/api/auth'
 import type { Tenant } from '@/types'
 
@@ -85,14 +86,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function refreshTenant() {
+  async function refreshTenant(options?: RequestOptions) {
     if (!token.value) return
     try {
-      const meRes = await authApi.me()
+      const meRes = await authApi.me(options)
       // /auth/me 返回 tenant_name，而管理端租户模型使用 name；在 Store 入口统一字段。
       tenant.value = { ...meRes, name: meRes.tenant_name || meRes.name || '' }
     } catch (e) {
-      console.error('刷新租户信息失败:', e)
+      if (!(e instanceof Error && e.name === 'AbortError')) console.error('刷新租户信息失败:', e)
     }
   }
 
