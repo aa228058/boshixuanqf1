@@ -649,7 +649,16 @@ function elapsed(iso: string): string {
   return `${Math.floor(m / 60)} 小时 ${m % 60} 分`
 }
 
-watch(() => route.params.accountId, () => { page.value = 1; fetchTasks() }, { immediate: true })
+watch(() => route.params.accountId, () => {
+  // 切换执行账号路由时立即清除旧列表并使旧请求失效，避免切换期间短暂展示上一账号数据。
+  taskListRequestId++
+  tasks.value = []
+  total.value = 0
+  loading.value = false
+  loadError.value = ''
+  if (page.value !== 1) page.value = 1
+  else void fetchTasks()
+}, { immediate: true })
 
 // 15 秒轮询兜底 + SSE 亚秒级: 进度事件即时更新对应行, 状态事件即时刷新
 // R118: 等待倒计时 —— task_wait 帧(每秒)驱动"当前动作"显示
