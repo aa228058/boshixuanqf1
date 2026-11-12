@@ -83,7 +83,10 @@ import { useChartTheme } from '@/composables/useChartTheme'
 
 // Phase 6: 图表主题(见 useChartTheme)——切主题文字/轴/分割线自动跟随
 const chartTheme = useChartTheme()
-onMounted(() => chartTheme.start())
+let dashboardPageActive = false
+let dashboardRequestId = 0
+onMounted(() => { dashboardPageActive = true; chartTheme.start() })
+onBeforeUnmount(() => { dashboardPageActive = false; dashboardRequestId++ })
 onBeforeUnmount(() => chartTheme.stop())
 import { adminApiMod } from '@/api/admin'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
@@ -152,8 +155,10 @@ function planLabel(p: string) {
 }
 
 onMounted(async () => {
+  const requestId = ++dashboardRequestId
   try {
     const s = await adminApiMod.getStats()
+    if (!dashboardPageActive || requestId !== dashboardRequestId) return
     stats.value[0].value = String(s.total_tenants || 0)
     stats.value[1].value = String(s.active_tenants || 0)
     stats.value[2].value = String(s.total_accounts || 0)
@@ -162,8 +167,10 @@ onMounted(async () => {
     stats.value[5].value = `¥${s.today_revenue || 0}`
 
     const res = await adminApiMod.listTenants({ limit: 5 })
+    if (!dashboardPageActive || requestId !== dashboardRequestId) return
     recentTenants.value = res.list || []
   } catch (e: unknown) {
+    if (!dashboardPageActive || requestId !== dashboardRequestId) return
     // P2-60: 原空 catch 静默——管理仪表盘首屏失败只显示全 0 数字, 管理员无感知
     console.error('[admin-dashboard] 加载失败:', e)
     toast({ type: 'error', title: '仪表盘加载失败', message: (e as Error)?.message || '请刷新重试' })
