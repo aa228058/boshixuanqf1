@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 // 数字滚动组件: 数值变化时从旧值平滑滚到新值, 800ms 缓动
 const props = withDefaults(defineProps<{
@@ -16,14 +16,23 @@ let raf = 0
 
 function animateTo(target: number) {
   const start = parseFloat(String(display.value).replace(/[^\d.-]/g, '')) || 0
-  if (start === target) { display.value = String(target); return }
   cancelAnimationFrame(raf)
+  if (start === target) { display.value = String(target); return }
+  const duration = Number.isFinite(props.duration) ? Math.max(0, props.duration) : 800
+  if (duration === 0) { display.value = String(target); return }
+  const precisionOf = (value: number) => {
+    const fraction = String(value).toLowerCase().split('e')[0].split('.')[1] || ''
+    return Math.min(6, fraction.length)
+  }
+  const precision = Math.max(precisionOf(start), precisionOf(target))
   const t0 = performance.now()
   const tick = (now: number) => {
-    const p = Math.min(1, (now - t0) / props.duration)
+    const p = Math.min(1, (now - t0) / duration)
     const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
-    display.value = String(Math.round(start + (target - start) * eased))
+    const current = start + (target - start) * eased
+    display.value = String(Number(current.toFixed(precision)))
     if (p < 1) raf = requestAnimationFrame(tick)
+    else display.value = String(target)
   }
   raf = requestAnimationFrame(tick)
 }
@@ -42,4 +51,5 @@ function parseCountValue(v: unknown): number {
 
 onMounted(() => animateTo(parseCountValue(props.value)))
 watch(() => props.value, (v) => animateTo(parseCountValue(v)))
+onUnmounted(() => cancelAnimationFrame(raf))
 </script>
