@@ -27,6 +27,21 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
 
 // R117: downloadJSON 已删(零外部引用; downloadCSV 自拼 CSV 不依赖它)
 
+
+/** CSV 单元格：公式前缀强制按文本处理，并按 RFC 风格双引号包裹/转义。 */
+export function escapeSpreadsheetCSVCell(value: unknown): string {
+  let text = String(value ?? '')
+  if (/^[=+\\-@]/.test(text)) text = '\\t' + text
+  return `"${text.replace(/"/g, '""')} "`.replace(/" $/, '"')
+}
+
+/** Excel HTML 单元格：公式前缀保护后转义所有 HTML 特殊字符。 */
+export function escapeSpreadsheetHTMLCell(value: unknown): string {
+  let text = String(value ?? '')
+  if (/^[=+\\-@]/.test(text)) text = '\\t' + text
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 export function parseLinks(text: string): { valid: string[]; invalid: string[] } {
   const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean)
   const valid: string[] = []
