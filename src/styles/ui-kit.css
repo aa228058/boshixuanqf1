@@ -452,3 +452,16 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 @media (max-width: 768px) {
   .ui-native-button--sm { min-height: 44px; }
 }
+
+
+/* Respect the operating system's reduced-motion preference across shared UI. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
