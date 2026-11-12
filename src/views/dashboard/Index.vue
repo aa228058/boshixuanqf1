@@ -281,7 +281,7 @@ const accountChartOption = computed(() => ({
     itemWidth: 8,
     itemHeight: 8,
     itemGap: 16,
-    textStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || 'text-text-muted', fontSize: 11 },
+    textStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || 'var(--t-text-3)', fontSize: 11 },
   },
   series: [{
     type: 'pie',
