@@ -173,7 +173,6 @@ func (r *TenantRepository) GetByUsername(ctx context.Context, username string) (
 	return &t, nil
 }
 
-
 // GetMessageDecorationEnabled returns the tenant-wide outgoing-message decoration preference.
 func (r *TenantRepository) GetMessageDecorationEnabled(ctx context.Context, tenantID uuid.UUID) (bool, error) {
 	var enabled bool
