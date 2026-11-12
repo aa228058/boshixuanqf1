@@ -7,14 +7,15 @@
           勾选控制每档套餐能用的功能；右侧数值改规模与限额（0 = 不限）。保存后立即生效。
         </p>
       </div>
-      <t-button size="small" theme="primary" :disabled="saving" class="whitespace-nowrap shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveAll">
+      <t-button size="small" theme="primary" :disabled="saving || loading || !!loadError || plans.length === 0" class="whitespace-nowrap shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveAll">
         <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin mr-1 shrink-0" />
         保存全部
       </t-button>
     </div>
 
     <!-- 加载失败提示(不再静默空白) -->
-    <div v-if="loadError" class="glass rounded-[var(--t-r-md)] p-4 bg-[var(--t-warn)]/10 text-[var(--t-warn)] text-sm lift">
+    <div v-if="loading" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-4 text-sm text-text-secondary lift">正在读取套餐配置…</div>
+    <div v-else-if="loadError" role="alert" class="glass rounded-[var(--t-r-md)] p-4 bg-[var(--t-warn)]/10 text-[var(--t-warn)] text-sm lift">
       {{ loadError }}
     </div>
 
@@ -98,6 +99,7 @@ interface PlanRow {
 }
 
 const plans = ref<PlanRow[]>([])
+const loading = ref(false)
 const saving = ref(false)
 
 // 套餐功能矩阵(2026-10-20 适配): 已随 UI 重构清理——
@@ -133,7 +135,9 @@ function toggleFeature(p: PlanRow, key: string) {
 const loadError = ref('')
 
 async function load() {
+  loading.value = true
   loadError.value = ''
+  plans.value = []
   try {
     const res = await adminApiMod.listPlans()
     plans.value = (res.list || []).map((p: any) => ({
@@ -150,12 +154,15 @@ async function load() {
   } catch (e: any) {
     loadError.value = e?.message || '请求失败(401/500?)'
     toast({ type: 'error', message: '套餐加载失败: ' + loadError.value })
+  } finally {
+    loading.value = false
   }
 }
 
 // P2-47 审计修复: 原 4 档套餐 for+await 串行保存(每档一次 RTT, 全量保存 4 倍耗时)。
 // 改并行: 各档独立 then/catch, 失败仍逐档提示, 成功计数不变。
 async function saveAll() {
+  if (saving.value || loading.value || loadError.value || plans.value.length === 0) return
   saving.value = true
   let ok = 0
   const jobs = plans.value.map((p) =>
@@ -176,7 +183,7 @@ async function saveAll() {
   )
   await Promise.all(jobs)
   saving.value = false
-  if (ok === plans.value.length) {
+  if (plans.value.length > 0 && ok === plans.value.length) {
     toast({ type: 'success', message: '全部套餐已保存，即时生效' })
   } else {
     toast({ type: 'info', message: `已保存 ${ok}/${plans.value.length} 档` })
