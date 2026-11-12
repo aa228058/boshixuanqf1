@@ -5,6 +5,12 @@
       <p class="text-xs text-text-muted mb-5">账号能力检测（8 项矩阵）的全局探测目标，保存后所有租户共用。任一留空，租户端检测按钮将提示"管理员未配置"。</p>
 
       <div class="glass rounded-[var(--t-r-md)] p-5 space-y-5">
+        <div v-if="loadError" role="alert" class="rounded-lg border border-rose/30 bg-rose/5 px-3 py-2 text-sm text-rose">
+          配置读取失败，当前内容不能安全保存。请检查网络后重试读取。
+        </div>
+        <div v-else-if="loading" role="status" aria-live="polite" class="text-sm text-text-secondary">
+          正在读取探测配置…
+        </div>
         <div>
           <label class="text-sm font-medium text-text-secondary">主动私聊测试号 <span class="text-[var(--t-err)]">*</span></label>
           <p class="text-[11px] text-text-muted mt-1 mb-2">必须是<b class="text-text-secondary">真实用户小号</b>（不能用 bot——被限制私聊的号仍能和 bot 聊天，会误判）。探测时给此号发一条消息并立即撤回。</p>
@@ -25,9 +31,12 @@
         </div>
         <div class="flex items-center justify-between pt-1">
           <span class="text-[11px] text-text-muted">最后更新：{{ form.updated_at?.slice(0, 16).replace('T', ' ') || '—' }}</span>
-          <t-button class="ui-t-button ui-t-button--primary px-5 py-2.5 text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5" @click="save" :disabled="saving">
-            <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />{{ saving ? '保存中…' : '保存配置' }}
-          </t-button>
+          <div class="flex items-center gap-2">
+            <t-button class="ui-t-button ui-t-button--secondary" variant="outline" @click="load" :disabled="loading || saving">重新读取</t-button>
+            <t-button class="ui-t-button ui-t-button--primary px-5 py-2.5 text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5" @click="save" :disabled="!configLoaded || loading || saving">
+              <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />{{ saving ? '保存中…' : '保存配置' }}
+            </t-button>
+          </div>
         </div>
       </div>
 
@@ -47,15 +56,28 @@ import { toast } from '@/utils/toast'
 
 const form = ref<any>({ test_username: '', private_invite: '', public_link: '' })
 const saving = ref(false)
+const loading = ref(false)
+const configLoaded = ref(false)
+const loadError = ref(false)
 
 async function load() {
+  loading.value = true
+  configLoaded.value = false
+  loadError.value = false
   try {
     const d: any = await adminApiMod.getProbe()
     form.value = { test_username: d.test_username || '', private_invite: d.private_invite || '', public_link: d.public_link || '', updated_at: d.updated_at }
-  } catch { /* 拦截器已提示 */ }
+    configLoaded.value = true
+  } catch (e: unknown) {
+    loadError.value = true
+    toast({ type: 'error', title: '读取探测配置失败', message: e instanceof Error ? e.message : '请检查网络后重试' })
+  } finally {
+    loading.value = false
+  }
 }
 
 async function save() {
+  if (!configLoaded.value || loading.value || saving.value) return
   saving.value = true
   try {
     await adminApiMod.updateProbe({
@@ -64,8 +86,10 @@ async function save() {
       public_link: form.value.public_link.trim(),
     })
     toast({ type: 'success', title: '探测配置已保存' })
-    load()
-  } catch { /* 拦截器已提示 */ }
+    await load()
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '保存探测配置失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  }
   finally { saving.value = false }
 }
 
