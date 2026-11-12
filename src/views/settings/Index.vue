@@ -145,21 +145,21 @@
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div>
-          <label class="block text-xs text-text-secondary mb-1">服务商</label>
-          <select v-model="aiForm.provider" class="ui-input !text-sm">
+          <label for="settings-ai-provider" class="block text-xs text-text-secondary mb-1">服务商</label>
+          <select id="settings-ai-provider" v-model="aiForm.provider" class="ui-input !text-sm">
             <option value="glm">智谱（免费档）</option>
             <option value="qwen">阿里百炼（免费额）</option>
             <option value="custom">自定义（OpenAI兼容）</option>
           </select>
         </div>
         <div class="sm:col-span-2">
-          <label class="block text-xs text-text-secondary mb-1">API Key{{ ai.has_key ? '（已保存，留空则不修改）' : '' }}</label>
-          <input v-model="aiForm.api_key" type="password" placeholder="智谱免费key: open.bigmodel.cn 注册即得"
+          <label for="settings-ai-api-key" class="block text-xs text-text-secondary mb-1">API Key{{ ai.has_key ? '（已保存，留空则不修改）' : '' }}</label>
+          <input id="settings-ai-api-key" v-model="aiForm.api_key" type="password" placeholder="智谱免费key: open.bigmodel.cn 注册即得"
             class="ui-input !text-sm font-mono" />
         </div>
         <div class="sm:col-span-3">
-          <label class="block text-xs text-text-secondary mb-1">模型名（留空用默认）</label>
-          <input v-model="aiForm.model" :placeholder="aiForm.provider === 'qwen' ? 'qwen-vl-max' : 'glm-4v-flash'"
+          <label for="settings-ai-model" class="block text-xs text-text-secondary mb-1">模型名（留空用默认）</label>
+          <input id="settings-ai-model" v-model="aiForm.model" :placeholder="aiForm.provider === 'qwen' ? 'qwen-vl-max' : 'glm-4v-flash'"
             class="ui-input !text-sm font-mono" />
         </div>
       </div>
