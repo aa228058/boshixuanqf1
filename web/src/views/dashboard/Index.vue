@@ -28,7 +28,7 @@
             <span aria-hidden="true">＋</span> 创建加群任务
           </router-link>
           <router-link :to="broadcastPath"
-            class="ui-native-button ui-native-button--primary min-h-10 rounded-xl px-4 shadow-sm">
+            class="ui-native-button ui-native-button--primary min-h-11 rounded-xl px-4 shadow-sm">
 
             <span aria-hidden="true">↗</span> 创建群发任务
           </router-link>
