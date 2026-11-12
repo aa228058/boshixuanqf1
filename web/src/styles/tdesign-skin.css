@@ -4,13 +4,13 @@
    ══════════════════════════════════════════════════════════════ */
 
 /* 按钮: 玻璃底 + 紫品牌 */
-.t-button:not(.ui-t-button) {
+.t-button:not(.ui-t-button):not(.t-button--variant-text) {
   background: var(--t-button-secondary-bg) !important;
   border: 1px solid var(--t-button-secondary-border) !important;
   color: var(--t-button-secondary-text) !important;
   /* Geometry and interaction timing are owned by ui-kit.css. */
 }
-.t-button:not(.ui-t-button):hover:not(.t-is-disabled) {
+.t-button:not(.ui-t-button):not(.t-button--variant-text):hover:not(.t-is-disabled) {
   background: var(--t-button-secondary-hover) !important;
   border-color: var(--t-button-secondary-border) !important;
   color: var(--t-button-secondary-text) !important;
@@ -48,6 +48,16 @@
   background: var(--t-ok) !important;
   border-color: var(--t-ok) !important;
   color: #fff !important;
+}
+.t-button.t-button--variant-text:not(.ui-t-button) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--t-brand) !important;
+}
+.t-button.t-button--variant-text:not(.ui-t-button):hover:not(.t-is-disabled) {
+  background: var(--t-brand-dim) !important;
+  border-color: transparent !important;
+  color: var(--t-brand-hover) !important;
 }
 .t-button.t-is-disabled:not(.ui-t-button) { opacity: 0.45 !important; }
 
