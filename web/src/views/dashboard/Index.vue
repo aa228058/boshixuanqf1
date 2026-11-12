@@ -345,5 +345,6 @@ async function loadDashboardData() {
 }
 
 onMounted(() => { loadDashboardData() })
-onUnmounted(() => {})
+// 页面离开时使未完成的账号/仪表盘请求失效，避免卸载后继续写入旧视图状态。
+onUnmounted(() => { dashboardRequestId++ })
 </script>
