@@ -55,7 +55,7 @@ const textClass = computed(() => {
 const trendClass = computed(() => {
   if (!props.trend) return ''
   // 只有明确的正增长才标绿；+0 / -0 / 非数值文案保持中性色。
-  const match = props.trend.match(/[+-]?\\d+(?:\\.\\d+)?/)
+  const match = props.trend.match(/[+-]?\d+(?:\.\d+)?/)
   return match && Number(match[0]) > 0 ? 'text-emerald' : 'text-text-muted'
 })
 </script>
