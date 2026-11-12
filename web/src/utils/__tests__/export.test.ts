@@ -69,8 +69,11 @@ describe('downloadCSV', () => {
     expect(anchor.href).toBe('blob:test-export')
     expect(click).toHaveBeenCalledOnce()
     expect(captured).toHaveLength(1)
-    expect(await captured[0].text()).toBe(
-      '\uFEFFname,value,memo\n\'=1+1,"a,b","say ""hi""\nnext"\n\'+SUM(A1:A2),\'-2,\'@cmd',
+    const bytes = new Uint8Array(await captured[0].arrayBuffer())
+    // Blob.text() 按规范会剥离 UTF-8 BOM；直接检查字节，避免误报。
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+    expect(new TextDecoder().decode(bytes.slice(3))).toBe(
+      'name,value,memo\n\'=1+1,"a,b","say ""hi""\nnext"\n\'+SUM(A1:A2),\'-2,\'@cmd',
     )
   })
 
