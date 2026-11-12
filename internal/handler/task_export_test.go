@@ -14,6 +14,8 @@ func TestCSVFieldNeutralizesSpreadsheetFormulas(t *testing.T) {
 		{name: "at", input: "@SUM(A1)", want: "\t@SUM(A1)"},
 		{name: "leading spaces", input: "  =1+1", want: "\t  =1+1"},
 		{name: "leading control", input: "\r\n=1+1", want: "\t\r\n=1+1"},
+		{name: "unicode space", input: "\u00a0=1+1", want: "\t\u00a0=1+1"},
+		{name: "unicode format control", input: "\u200b=1+1", want: "\t\u200b=1+1"},
 		{name: "safe url", input: "https://example.com/a,b", want: "\"https://example.com/a,b\""},
 		{name: "quoted field", input: "a,\"b\"", want: "\"a,\"\"b\"\"\""},
 	}
