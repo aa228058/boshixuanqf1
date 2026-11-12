@@ -232,15 +232,15 @@
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
     <Modal v-model="importModalVisible" title="导入群链接">
       <div class="space-y-3 pb-2">
-        <label class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
-        <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs"
+        <label for="group-import-file" class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
+        <input id="group-import-file" type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs"
           @change="onImportFile" />
         <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
-        <textarea v-model="importText" rows="8" class="ui-input text-sm"
+        <textarea id="group-import-text" v-model="importText" rows="8" class="ui-input text-sm"
           placeholder="t.me/群用户名&#10;@群用户名&#10;https://t.me/+邀请hash"></textarea>
-        <label class="block text-xs font-medium text-text-secondary">解析账号（可选）</label>
-        <select v-model="importAccountId" class="ui-input w-full text-sm" aria-label="选择 Telegram 解析账号">
+        <label for="group-import-account" class="block text-xs font-medium text-text-secondary">解析账号（可选）</label>
+        <select id="group-import-account" v-model="importAccountId" class="ui-input w-full text-sm" aria-label="选择 Telegram 解析账号">
           <option value="">自动网页解析（不使用账号）</option>
           <option v-for="acc in joinableAccounts" :key="acc.account_id" :value="acc.account_id">{{ acc.remark || acc.first_name || acc.phone }} · {{ acc.phone }}</option>
         </select>
@@ -288,14 +288,14 @@
             <input type="checkbox" v-model="joinBatchEnabled" class="accent-[var(--t-ok)]" />
             分批加入（每个账号只加分配到的群，默认每个账号全量加一遍）
           </label>
-          <div v-if="joinBatchEnabled" class="col-span-2 flex items-center gap-2 text-xs text-text-secondary">
+          <label v-if="joinBatchEnabled" for="join-per-account" class="col-span-2 flex items-center gap-2 text-xs text-text-secondary">
             每个账号分配
-            <input type="number" v-model.number="joinPerAccount" min="1" max="100" class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" />
+            <input id="join-per-account" type="number" v-model.number="joinPerAccount" min="1" max="100" class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" />
             个群（共 {{ selected.size }} 个群 / {{ joinAccounts.length || 0 }} 个账号）
-          </div>
-          <label class="col-span-2 text-xs text-text-secondary">
-            加群间隔（分钟，区间内随机；撞 TG 限流会按官方要求自动冷却等待）
           </label>
+          <span class="col-span-2 text-xs text-text-secondary">
+            加群间隔（分钟，区间内随机；撞 TG 限流会按官方要求自动冷却等待）
+          </span>
           <input type="number" v-model.number="joinIntervalMin" min="0" step="1" placeholder="最小间隔" aria-label="加群最小间隔（分钟）" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-sm" />
           <input type="number" v-model.number="joinIntervalMax" min="0" step="1" placeholder="最大间隔" aria-label="加群最大间隔（分钟）" class="ui-input !min-h-[36px] !px-2 !py-1.5 !text-sm" />
         </div>
