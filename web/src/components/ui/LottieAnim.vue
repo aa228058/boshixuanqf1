@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import lottie from 'lottie-web'
 
 // 构建时静态分析 src/assets/lottie/ 下全部 JSON(Vite 正确解析 @ 别名与哈希)
@@ -20,10 +20,18 @@ const props = withDefaults(defineProps<{
 
 const el = ref<HTMLDivElement>()
 let anim: any = null
+let disposed = false
+let loadId = 0
+let controller: AbortController | null = null
 
-onMounted(async () => {
+async function loadAnimation() {
+  const id = ++loadId
+  controller?.abort()
+  controller = null
+  anim?.destroy()
+  anim = null
   const box = el.value
-  if (!box) return
+  if (!box || disposed) return
   try {
     let data: any = null
     if (props.src.startsWith('@/')) {
@@ -33,10 +41,13 @@ onMounted(async () => {
       if (loader) data = (await loader()).default
     } else {
       // public / 远程: fetch 拿对象再传给 lottie, 绕开其内置 XHR
-      const res = await fetch(props.src)
+      controller = new AbortController()
+      const res = await fetch(props.src, { signal: controller.signal })
       if (res.ok) data = await res.json()
     }
+    if (disposed || id !== loadId) return
     if (!data) { box.style.display = 'none'; return }
+    box.style.display = ''
     anim = lottie.loadAnimation({
       container: box,
       renderer: 'svg',
@@ -45,12 +56,22 @@ onMounted(async () => {
       animationData: data,
     })
   } catch (e) {
+    if (disposed || id !== loadId || (e instanceof DOMException && e.name === 'AbortError')) return
     console.warn('[LottieAnim] 加载失败:', e)
     box.style.display = 'none'
+  } finally {
+    if (id === loadId) controller = null
   }
-})
+}
+
+onMounted(() => { void loadAnimation() })
+watch(() => props.src, () => { void loadAnimation() })
 
 onUnmounted(() => {
+  disposed = true
+  loadId++
+  controller?.abort()
+  controller = null
   anim?.destroy()
   anim = null
 })
