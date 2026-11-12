@@ -92,6 +92,7 @@
         </template>
         <!-- 私聊 tab: 采集过的成员 -->
         <template v-else>
+          <div v-if="dmLoading" class="py-8 text-center text-sm text-text-muted" role="status" aria-live="polite">正在加载私聊联系人...</div>
           <div
             v-for="u in dmDisplay"
             :key="u.group_id"
@@ -198,14 +199,14 @@ watch(() => props.groups, (groups) => {
   localGroups.value = [...(groups || [])]
 }, { deep: true, immediate: true })
 
-async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '') {
+async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '', preferAccountStore = false) {
   if (!accountId) {
     localGroups.value = []
     if (requestId === selectorRequestId) loading.value = false
     return
   }
   const suppliedGroups = props.groups || []
-  if (suppliedGroups.length) {
+  if (!preferAccountStore && suppliedGroups.length) {
     localGroups.value = [...suppliedGroups]
     if (requestId === selectorRequestId) loading.value = false
     return
@@ -236,8 +237,10 @@ watch(() => props.accountId, (accountId, previousAccountId) => {
   localGroups.value = []
   dmUsers.value = []
   dmLoaded.value = false
+  dmLoading.value = false
+  dmError.value = ''
   syncStatus.value = 'idle'
-  if (visible.value) loadAccountGroups(selectorRequestId, accountId || '')
+  if (visible.value) loadAccountGroups(selectorRequestId, accountId || '', true)
 })
 
 const filtered = computed(() => {
@@ -257,11 +260,15 @@ watch(search, () => { visibleGroupCount.value = 200 })
 // ===== 私聊 tab: contacts 表缓存(同步群组时已写入), 按 tg_user_id 去重, 伪装 Group 结构供父组件取 tg_chat_id =====
 const dmUsers = ref<Group[]>([])
 const dmLoaded = ref(false)
+const dmLoading = ref(false)
+const dmError = ref('')
 
 async function loadDmUsers() {
   if (dmLoaded.value || !props.accountId) return
   const accountId = props.accountId
   const requestId = ++dmRequestId
+  dmLoading.value = true
+  dmError.value = ''
   try {
     const raw: any = await groupApi.listMembersGlobal(accountId)
     if (requestId !== dmRequestId || !visible.value || props.accountId !== accountId) return
@@ -281,10 +288,13 @@ async function loadDmUsers() {
     if (requestId === dmRequestId && visible.value && props.accountId === accountId) {
       console.error('[GroupSelector] loadDmUsers:', e)
       dmUsers.value = []
+      dmError.value = '私聊联系人加载失败，请重试'
       // Keep the request retryable when the user revisits the DM tab. A failed
       // fetch is not a successfully loaded empty contact list.
       dmLoaded.value = false
     }
+  } finally {
+    if (requestId === dmRequestId) dmLoading.value = false
   }
 }
 
@@ -410,6 +420,8 @@ async function onRefresh() {
 watch(() => props.modelValue, (v) => {
   selectorRequestId++
   dmRequestId++
+  dmLoading.value = false
+  if (!v) dmError.value = ''
   if (v) {
     selected.value = []
     search.value = ''
