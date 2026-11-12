@@ -207,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountStore } from '@/stores/account'
@@ -264,9 +264,16 @@ const linksAccId = ref('')
 watch(accountStore.currentAccount, (acc: any) => { if (acc?.account_id && !linksAccId.value) linksAccId.value = acc.account_id }, { immediate: true })
 let taskListRequestId = 0
 let allLinksRequestId = 0
+let taskListController: AbortController | null = null
+let allLinksController: AbortController | null = null
 const taskLinkRequestIds = new Map<string, number>()
+const taskLinkControllers = new Map<string, AbortController>()
 watch(linksAccId, () => {
-  // 切换账号时立即清空上一账号数据，并使旧请求失效，避免短暂展示/覆盖错账号结果。
+  // 切换账号时立即取消旧账号网络请求并清空旧数据。
+  taskListController?.abort()
+  allLinksController?.abort()
+  for (const controller of taskLinkControllers.values()) controller.abort()
+  taskLinkControllers.clear()
   taskListRequestId++
   allLinksRequestId++
   taskLinkRequestIds.clear()
@@ -282,23 +289,28 @@ watch(linksAccId, () => {
 async function fetchTasks() {
   const accId = linksAccId.value
   const requestId = ++taskListRequestId
+  taskListController?.abort()
+  taskListController = null
   if (!accId) {
     tasks.value = []
     tasksLoading.value = false
     return
   }
   tasksLoading.value = true
+  const controller = new AbortController()
+  taskListController = controller
   try {
-    const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any)
+    const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any, { signal: controller.signal })
     if (requestId !== taskListRequestId || accId !== linksAccId.value) return
     const raw = res as any
     tasks.value = raw.list || raw.items || []
   } catch (e: unknown) {
-    if (requestId === taskListRequestId && accId === linksAccId.value) {
+    if (!controller.signal.aborted && requestId === taskListRequestId && accId === linksAccId.value) {
       toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     }
   } finally {
     if (requestId === taskListRequestId) tasksLoading.value = false
+    if (taskListController === controller) taskListController = null
   }
 }
 
@@ -316,23 +328,28 @@ async function onPullRefresh() {
 async function loadAllLinks() {
   const accId = linksAccId.value
   const requestId = ++allLinksRequestId
+  allLinksController?.abort()
+  allLinksController = null
   if (!accId) {
     allLinks.value = []
     allLinksLoading.value = false
     return
   }
   allLinksLoading.value = true
+  const controller = new AbortController()
+  allLinksController = controller
   try {
-    const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 })
+    const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 }, { signal: controller.signal })
     if (requestId !== allLinksRequestId || accId !== linksAccId.value) return
     const raw = res as any
     allLinks.value = raw.list || raw.items || []
   } catch (e: any) {
-    if (requestId === allLinksRequestId && accId === linksAccId.value) {
+    if (!controller.signal.aborted && requestId === allLinksRequestId && accId === linksAccId.value) {
       toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
     }
   } finally {
     if (requestId === allLinksRequestId) allLinksLoading.value = false
+    if (allLinksController === controller) allLinksController = null
   }
 }
 
@@ -344,6 +361,10 @@ async function toggleAllLinks() {
 async function toggleTask(task: ScrapeTask) {
   if (expandedTaskId.value === task.task_id) {
     expandedTaskId.value = null
+    taskLinkControllers.get(task.task_id)?.abort()
+    taskLinkControllers.delete(task.task_id)
+    taskLinkRequestIds.set(task.task_id, (taskLinkRequestIds.get(task.task_id) || 0) + 1)
+    linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
     return
   }
   expandedTaskId.value = task.task_id
@@ -351,6 +372,9 @@ async function toggleTask(task: ScrapeTask) {
   const accId = linksAccId.value
   const requestId = (taskLinkRequestIds.get(task.task_id) || 0) + 1
   taskLinkRequestIds.set(task.task_id, requestId)
+  taskLinkControllers.get(task.task_id)?.abort()
+  const controller = new AbortController()
+  taskLinkControllers.set(task.task_id, controller)
   linksLoading.value = { ...linksLoading.value, [task.task_id]: true }
   try {
     // since=任务创建时间, 圈出该任务的采集窗口
@@ -359,18 +383,19 @@ async function toggleTask(task: ScrapeTask) {
       since: task.created_at,
       page: 1,
       page_size: 100,
-    })
+    }, { signal: controller.signal })
     if (accId !== linksAccId.value || taskLinkRequestIds.get(task.task_id) !== requestId) return
     const raw = res as any
     taskLinks.value = { ...taskLinks.value, [task.task_id]: raw.list || raw.items || [] }
   } catch (e: unknown) {
-    if (accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+    if (!controller.signal.aborted && accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
       toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     }
   } finally {
     if (accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
       linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
     }
+    if (taskLinkControllers.get(task.task_id) === controller) taskLinkControllers.delete(task.task_id)
   }
 }
 
@@ -461,6 +486,16 @@ function statusLabel(s: string) {
   return m[s] || s
 }
 
+
+onUnmounted(() => {
+  taskListController?.abort()
+  allLinksController?.abort()
+  for (const controller of taskLinkControllers.values()) controller.abort()
+  taskLinkControllers.clear()
+  taskListRequestId++
+  allLinksRequestId++
+  for (const [taskId, requestId] of taskLinkRequestIds) taskLinkRequestIds.set(taskId, requestId + 1)
+})
 
 onMounted(() => {
   if (!authStore.tenant?.plan_features?.scrape_links) {
