@@ -40,17 +40,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
 
 const form = ref<any>({ test_username: '', private_invite: '', public_link: '' })
 const saving = ref(false)
+let probePageActive = false
+let probeRequestId = 0
 
 async function load() {
+  const requestId = ++probeRequestId
   try {
     const d: any = await adminApiMod.getProbe()
+    if (!probePageActive || requestId !== probeRequestId) return
     form.value = { test_username: d.test_username || '', private_invite: d.private_invite || '', public_link: d.public_link || '', updated_at: d.updated_at }
   } catch { /* 拦截器已提示 */ }
 }
@@ -69,5 +73,6 @@ async function save() {
   finally { saving.value = false }
 }
 
-onMounted(load)
+onMounted(() => { probePageActive = true; void load() })
+onUnmounted(() => { probePageActive = false; probeRequestId++ })
 </script>
