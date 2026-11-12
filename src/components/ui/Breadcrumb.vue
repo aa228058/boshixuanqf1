@@ -1,7 +1,7 @@
 <template>
   <!-- 内部换 TDesign Breadcrumb 芯, 对外接口不变 -->
   <t-breadcrumb class="mb-4">
-    <t-breadcrumb-item v-if="!items || items.length === 0" :to="homePath">首页</t-breadcrumb-item>
+    <t-breadcrumb-item v-if="!items || items.length === 0 || items[0].path !== homePath" :to="homePath">首页</t-breadcrumb-item>
     <template v-if="!items || items.length === 0">
       <t-breadcrumb-item>{{ currentTitle }}</t-breadcrumb-item>
     </template>
