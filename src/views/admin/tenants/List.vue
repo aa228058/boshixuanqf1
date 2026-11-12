@@ -13,8 +13,13 @@
       <input v-model="search" placeholder="搜索租户..." class="ui-input !min-w-[120px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm flex-1" aria-label="搜索租户" />
     </div>
 
+    <div v-if="loading && !hasLoaded" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-text-secondary">正在读取租户…</div>
+    <div v-else-if="loadError && !hasLoaded" role="alert" class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3">
+      <p class="text-sm text-[var(--t-err)]">{{ loadError }}</p>
+      <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="fetchTenants">重新加载</t-button>
+    </div>
     <!-- 桌面端表格 -->
-    <div class="hidden sm:block glass rounded-[var(--t-r-md)] overflow-hidden">
+    <div v-show="hasLoaded" class="hidden sm:block glass rounded-[var(--t-r-md)] overflow-hidden">
       <t-table
         row-key="tenant_id"
         :columns="tdColumns"
@@ -55,7 +60,7 @@
       </t-table>
     </div>
     <!-- 移动端卡片 -->
-    <div class="sm:hidden space-y-3">
+    <div v-show="hasLoaded" class="sm:hidden space-y-3">
       <div
         v-for="t in filteredTenants"
         :key="t.tenant_id"
@@ -155,6 +160,9 @@ const statusFilter = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const loading = ref(true)
+const hasLoaded = ref(false)
+const loadError = ref('')
 const showCreate = ref(false)
 const createForm = ref({ name: '', username: '', password: '', plan_id: 'free' })
 
@@ -179,6 +187,8 @@ const filteredTenants = computed(() => tenants.value)
 useAutoRefresh(fetchTenants, 15000)
 
 async function fetchTenants() {
+  if (!hasLoaded.value) loading.value = true
+  loadError.value = ''
   try {
     const res = await adminApiMod.listTenants({
       page: page.value,
@@ -188,8 +198,13 @@ async function fetchTenants() {
     })
     tenants.value = res.list || []
     total.value = res.total || 0
+    hasLoaded.value = true
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    const message = e instanceof Error ? e.message : '获取租户失败，请重试'
+    if (!hasLoaded.value) loadError.value = message
+    toast({ type: 'error', title: '获取租户失败', message })
+  } finally {
+    loading.value = false
   }
 }
 
