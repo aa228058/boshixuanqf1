@@ -500,3 +500,30 @@
 - 归类：表单可访问性缺陷；模板。
 - 回归步骤：点击文件、解析账号、粘贴群链接、每账号分配标签分别定位对应控件；读屏能区分最小/最大间隔；导入与批量加群行为保持不变。
 - 验收状态：源码已提交；尚未运行 typecheck/build，也未做浏览器/读屏回归。
+
+
+## AM. 管理端配置保护、登录标签、租户详情导航与 Toast 生命周期复核
+
+### 已确认并整改
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/admin/plans/Index.vue` | 套餐列表读取失败/返回空列表时，`plans` 为空但“保存全部”仍可点击；`ok === plans.length` 在 0===0 时会显示“全部套餐已保存”，造成未保存却成功的假反馈 | `a2c9c04675564ddd8f9b1f64e366ac4c24232306` | 触及逻辑/展示 | 模拟 listPlans 失败、空数组、正常返回；失败/空列表时保存按钮禁用且不出现成功提示；正常加载后保存全部档位 |
+| `src/views/admin/Login.vue` | 管理员登录用户名/密码使用普通 div 作为可见标题，没有关联输入控件 | `4ad798de18d8ae5d5faecafd3b5474da70ccaee0` | 模板 | 点击用户名/密码标签聚焦对应输入框；NVDA/VoiceOver 应读出字段名称；Enter 登录行为不变 |
+| `src/views/admin/tenants/Detail.vue` | 详情页返回按钮直接调用 history.back，直接打开深链接时缺少稳定的站内回退目的地；修改套餐弹窗两个字段的 label 未关联控件 | `82f3941ced214230a618a78373674b72d4273a68` | 模板/导航逻辑 | 新标签页直接打开租户详情，点击返回应进入租户列表；点击套餐/到期时间标签应聚焦相应控件 |
+
+### Toast 自定义时长缺陷（已修复源码，待运行验证）
+
+- 文件：`src/App.vue`、`src/styles/ui-kit.css`、`src/utils/toast.ts`
+- 发现：Toast 工具允许调用方传入 `duration`，Sonner 也接收该时长；但 App.vue 的 WAAPI 和 ui-kit.css 的 `toast-auto-hide` 都硬编码在 2200ms 触发淡出。自定义 5 秒提示仍会在 2.2 秒提前消失，短时长提示也可能出现动画与 Sonner 移除时点不一致。
+- 修改：移除固定 2200ms 的 JS 退场计时器和 CSS 强制 auto-hide；WAAPI 只负责进场，Toast 退场统一等待 Sonner 按实际 duration 将 `data-mounted` 设为 false，再由现有 `island-suck-out` 动画播放。
+- 提交：`1f4efa57aeca3c880c8648b7c38dc4a5ccc0ab0f`、`40c5162da25799ab866f2c221225d283ff2f6cd2`
+- 回归步骤：分别触发默认 2500ms、显式 5000ms、显式 800ms 的 success/error/info toast；录屏核对实际显示时长由 Sonner 控制、退场动画完整；快速连续触发时确认无残影、无提前消失。
+- 验收状态：源码已修；未运行浏览器回归、typecheck 或 build。不可标记为运行时通过。
+
+### 本批核验补充
+
+- `src/styles/modal-system.css` 确实消费 `--modal-kb`，因此 Modal runtime 的 visualViewport 偏移变量不是死代码；#176 仍需 iOS/Android 真机验证。
+- `src/views/settings/Index.vue` 套餐卡片的 `role=button` 已有 Enter/Space handler 和 `aria-pressed`，该处不是未处理的伪按钮。
+- 管理端套餐矩阵使用横向滚动容器与 `min-w-[720px]`，不应仅凭表格最小宽度将其判为页面横向溢出。
+- 本节只记录本轮已复核的文件和问题；180 项全量逐条状态仍在继续核验，未完成项不得推定为通过。
