@@ -356,16 +356,16 @@ async function onRefresh() {
         syncStatus.value = 'timeout'
         return
       }
-    try {
-      const raw: any = await groupApi.list(accountId)
-      if (!isCurrent()) return
-      const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      localGroups.value = list
-      groupStore.setGroups(accountId, list)
-      emit('refresh')
-    } catch (e) {
-      if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
-    } finally {
+      try {
+        const raw: any = await groupApi.list(accountId)
+        if (!isCurrent()) return
+        const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
+        localGroups.value = list
+        groupStore.setGroups(accountId, list)
+        emit('refresh')
+      } catch (e) {
+        if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
+      }
     } finally {
       if (isCurrent()) loading.value = false
     }
