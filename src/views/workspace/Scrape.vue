@@ -102,7 +102,7 @@
         <span class="text-sm text-[var(--t-err)]">{{ taskError }}</span>
         <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="taskLoading" @click="fetchTasks">重新加载</t-button>
       </div>
-      <EmptyState v-else-if="!tasks.length && !taskError" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
+      <EmptyState v-if="!taskLoading && !tasks.length && !taskError" icon="Download" title="暂无采集任务" description="点击上方「开始采集」选择群组，可筛选活号/有头像用户" />
       <pull-down-refresh v-if="tasks.length" v-model="pullRefreshing" @refresh="onPullRefresh">
       <div v-for="(task, ti) in tasks" :key="task.task_id"
            class="glass rounded-[var(--t-r-md)] p-4 border border-border card-lift card-enter hover:border-[color:var(--t-brand)]/30" :style="{ '--i': ti }">
