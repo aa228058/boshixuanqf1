@@ -72,7 +72,7 @@
           <span>{{ t.max_accounts }} 账号上限</span>
         </div>
         <div class="flex items-center justify-between text-xs text-text-secondary">
-          <span>{{ new Date(t.created_at).toLocaleDateString('zh-CN') }}</span>
+          <span>{{ t.created_at ? new Date(t.created_at).toLocaleDateString('zh-CN') : '-' }}</span>
           <div class="flex items-center gap-1">
             <t-tooltip content="详情" position="top">
               <button type="button" @click="viewDetail(t)" class="ui-icon-btn" aria-label="详情">
@@ -106,16 +106,16 @@
     <Modal v-model="showCreate" title="创建租户">
       <div class="space-y-4">
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">租户名称</label>
-          <input v-model="createForm.name" placeholder="请输入租户名称" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="请输入租户名称" />
+          <label for="tenant-create-name" class="block text-sm text-text-secondary mb-1.5">租户名称</label>
+          <input id="tenant-create-name" v-model="createForm.name" placeholder="请输入租户名称" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="请输入租户名称" />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">登录用户名</label>
-          <input v-model="createForm.username" placeholder="租户登录用的用户名" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="租户登录用的用户名" />
+          <label for="tenant-create-username" class="block text-sm text-text-secondary mb-1.5">登录用户名</label>
+          <input id="tenant-create-username" v-model="createForm.username" placeholder="租户登录用的用户名" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="租户登录用的用户名" />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">登录密码</label>
-          <input v-model="createForm.password" type="password" placeholder="租户登录用的密码" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="租户登录用的密码" />
+          <label for="tenant-create-password" class="block text-sm text-text-secondary mb-1.5">登录密码</label>
+          <input id="tenant-create-password" v-model="createForm.password" type="password" placeholder="租户登录用的密码" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="租户登录用的密码" />
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">套餐</label>
