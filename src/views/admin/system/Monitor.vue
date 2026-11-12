@@ -8,9 +8,9 @@
           <span class="text-sm text-text-secondary">CPU 使用率</span>
           <Cpu class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
-        <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.cpu || 0).toFixed(1) }}%</p>
+        <p class="text-3xl tracking-tight font-bold font-mono">{{ normalizedPercent(metrics.cpu).toFixed(1) }}%</p>
         <div class="w-full h-2 bg-bg-card rounded-full mt-3 overflow-hidden">
-          <div class="h-full bg-gradient-to-r rounded-full glow-progress transition-[width,background-color] duration-500" :class="usageColor(metrics.cpu)" :style="{ width: `${Math.min(metrics.cpu, 100)}%` }" />
+          <div class="h-full bg-gradient-to-r rounded-full glow-progress transition-[width,background-color] duration-500" :class="usageColor(metrics.cpu)" :style="{ width: `${normalizedPercent(metrics.cpu)}%` }" />
         </div>
       </div>
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
@@ -18,10 +18,10 @@
           <span class="text-sm text-text-secondary">内存使用</span>
           <MemoryStick class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
-        <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.memory || 0).toFixed(1) }}%</p>
+        <p class="text-3xl tracking-tight font-bold font-mono">{{ normalizedPercent(metrics.memory).toFixed(1) }}%</p>
         <p class="text-xs text-text-secondary mt-1">{{ (metrics.memoryUsed || 0).toFixed(1) }} / {{ (metrics.memoryTotal || 0).toFixed(1) }} GB</p>
         <div class="w-full h-2 bg-bg-card rounded-full mt-2 overflow-hidden">
-          <div class="h-full rounded-full transition-[width,background-color] duration-500" :class="usageBarColor(metrics.memory)" :style="{ width: `${Math.min(metrics.memory, 100)}%` }" />
+          <div class="h-full rounded-full transition-[width,background-color] duration-500" :class="usageBarColor(metrics.memory)" :style="{ width: `${normalizedPercent(metrics.memory)}%` }" />
         </div>
       </div>
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
@@ -29,10 +29,10 @@
           <span class="text-sm text-text-secondary">磁盘使用</span>
           <HardDrive class="w-5 h-5 text-[var(--t-warn)]" />
         </div>
-        <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.disk || 0).toFixed(1) }}%</p>
+        <p class="text-3xl tracking-tight font-bold font-mono">{{ normalizedPercent(metrics.disk).toFixed(1) }}%</p>
         <!-- P1-36: diskTotal 为 0(未加载或后端未给)时显示占位, 不造假容量 -->
         <p class="text-xs text-text-secondary mt-1">{{ metrics.diskTotal > 0 ? (metrics.diskUsed || 0).toFixed(1) + ' / ' + metrics.diskTotal.toFixed(1) + ' GB' : '—' }}</p>
-        <t-progress :percentage="Math.round((metrics.disk || 0) * 10) / 10"  class="mt-2" />
+        <t-progress :percentage="Math.round(normalizedPercent(metrics.disk) * 10) / 10"  class="mt-2" />
       </div>
     </div>
 
@@ -107,6 +107,12 @@ const metrics = ref({
 
 const systemLogs = ref<Array<{ time: string; level: string; message: string }>>([])
 let refreshTimer: ReturnType<typeof setInterval>
+let metricsRequestInFlight = false
+
+// API 指标偶发越界/非有限值时，展示与进度条统一夹紧到 0–100%。
+function normalizedPercent(value: number): number {
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0
+}
 
 // 平滑采样：内存历史值（5次采样）
 const memoryHistory = ref<number[]>([])
@@ -163,6 +169,9 @@ function usageBarColor(percent: number): string {
 }
 
 async function fetchMetrics() {
+  // 5 秒轮询遇到慢请求时跳过本轮，避免并发请求和旧响应覆盖新数据。
+  if (metricsRequestInFlight) return
+  metricsRequestInFlight = true
   try {
     const data = await adminApiMod.getSystemMetrics()
     metrics.value = { ...metrics.value, ...data }
@@ -177,6 +186,8 @@ async function fetchMetrics() {
     pushLog('DEBUG', `指标已更新 CPU ${metrics.value.cpu}% 内存 ${metrics.value.memory}%`)
   } catch (e: unknown) {
     pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
+  } finally {
+    metricsRequestInFlight = false
   }
 }
 
