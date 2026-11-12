@@ -79,7 +79,8 @@ const authStore = useAuthStore()
 
 const pos = ref({ right: 20, bottom: 20 })
 const isDragging = ref(false)
-const dragStart = ref({ x: 0, y: 0, right: 0, bottom: 0 })\nlet lastDragAt = 0
+const dragStart = ref({ x: 0, y: 0, right: 0, bottom: 0 })
+let lastDragAt = 0
 
 const wrapper = ref<HTMLElement | null>(null)
 const dragBtn = ref<HTMLElement | null>(null)
@@ -109,6 +110,7 @@ function onDrag(e: MouseEvent | TouchEvent) {
 
   if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
     isDragging.value = true
+    lastDragAt = Date.now()
   }
 
   if (isDragging.value) {
@@ -127,7 +129,7 @@ function stopDrag() {
 }
 
 function toggle() {
-  if (isDragging.value) return
+  if (isDragging.value || Date.now() - lastDragAt < 400) return
   expanded.value = !expanded.value
 }
 
