@@ -245,6 +245,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					TGUserID:  userID,
 					Username:  username,
 					Bio:       memberBio,
+					AccessHash: func() int64 { if user != nil { return user.AccessHash }; return 0 }(),
 					LastSeen:  lastSeen,
 					HasPhoto:  hasPhoto,
 					ScrapedAt: time.Now(),
