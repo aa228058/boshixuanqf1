@@ -92,7 +92,7 @@
           </select>
         </div>
         <div v-if="form.target_type === 'specific_plan'">
-          <label for="ann-plans" class="block text-sm text-text-secondary mb-1.5">选择套餐</label>
+          <span class="block text-sm text-text-secondary mb-1.5">选择套餐</span>
           <div class="flex flex-wrap gap-2">
             <label v-for="p in plans" :key="p.plan_id" class="flex items-center gap-1 text-sm">
               <input type="checkbox" :value="p.plan_id" v-model="form.target_plans" class="rounded border-border bg-bg-card text-[var(--t-brand)]" :aria-label="'选择套餐：' + p.name" />
