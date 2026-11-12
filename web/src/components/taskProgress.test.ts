@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeTaskProgress } from './taskProgress'
+import { mergeRecentTaskLogs, normalizeTaskProgress } from './taskProgress'
 
 describe('normalizeTaskProgress', () => {
   it('normalizes object and JSON-string payloads', () => {
@@ -29,5 +29,29 @@ describe('normalizeTaskProgress', () => {
     expect(normalizeTaskProgress({ total: 4.9, done: 2.8, failed: 0.2, extra: 1 })).toEqual({
       total: 4, done: 2, failed: 0,
     })
+  })
+})
+
+
+describe('mergeRecentTaskLogs', () => {
+  it('keeps newer SSE events ahead of a stale API snapshot and deduplicates IDs', () => {
+    const api = [{ log_id: 1, message: 'old' }, { log_id: 2, message: 'snapshot' }]
+    const live = [{ log_id: 3, message: 'new SSE' }, { log_id: 2, message: 'duplicate newer copy' }]
+    expect(mergeRecentTaskLogs(api, live)).toEqual([
+      { log_id: 3, message: 'new SSE' },
+      { log_id: 2, message: 'duplicate newer copy' },
+      { log_id: 1, message: 'old' },
+    ])
+  })
+
+  it('limits the newest-first result and supports zero capacity', () => {
+    const api = [{ log_id: 1 }, { log_id: 2 }, { log_id: 3 }]
+    expect(mergeRecentTaskLogs(api, [], 2).map(log => log.log_id)).toEqual([3, 2])
+    expect(mergeRecentTaskLogs(api, [], 0)).toEqual([])
+  })
+
+  it('retains entries without IDs instead of accidentally collapsing them', () => {
+    const api = [{ message: 'older' }, { message: 'newer' }]
+    expect(mergeRecentTaskLogs(api, []).map(log => log.message)).toEqual(['newer', 'older'])
   })
 })
