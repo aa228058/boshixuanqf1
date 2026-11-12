@@ -10,12 +10,13 @@ const props = withDefaults(defineProps<{
   success?: number         // 成功占比 0-100(画绿色弧, 剩余为青)
 }>(), { size: 44, stroke: 4, success: 0 })
 
+const normalizedPercent = computed(() => Math.round(Math.max(0, Math.min(100, Number.isFinite(props.percent) ? props.percent : 0)) * 10) / 10)
 const r = computed(() => (props.size - props.stroke) / 2)
 const circ = computed(() => 2 * Math.PI * r.value)
 // 总进度弧长
-const dashTotal = computed(() => circ.value * (1 - Math.min(100, props.percent) / 100))
+const dashTotal = computed(() => circ.value * (1 - normalizedPercent.value / 100))
 // 成功段弧长(在总进度里切出绿色段)
-const successLen = computed(() => circ.value * (Math.min(props.success, props.percent) / 100))
+const successLen = computed(() => circ.value * (Math.min(props.success, normalizedPercent.value) / 100))
 </script>
 
 <template>
@@ -32,6 +33,6 @@ const successLen = computed(() => circ.value * (Math.min(props.success, props.pe
               stroke-linecap="round" :stroke="'var(--color-emerald, #4cb892)'" class="transition-all duration-500"
               :stroke-dasharray="`${successLen} ${circ}`" stroke-dashoffset="0" />
     </svg>
-    <span class="absolute text-[10px] font-bold tabular-nums text-text-primary">{{ Math.round(percent) }}%</span>
+    <span class="absolute text-[10px] font-bold tabular-nums text-text-primary">{{ normalizedPercent }}%</span>
   </div>
 </template>
