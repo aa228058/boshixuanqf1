@@ -210,11 +210,8 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   justify-content: center !important;
   gap: 8px !important;
 
-  /* 灵魂: 10号 原生系统风滑出动画(越过终点的回弹);
-     R139 第二条动画 = CSS 生命周期兜底: 2.2s 后无论 sonner 删不删元素,
-     岛强制 opacity→0 并点透(该环境实测 duration=2500 可能从未生效, 老毛病) */
-  animation: island-drop-system 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both,
-             toast-auto-hide 0.25s linear 2.2s forwards !important;
+  /* 进场由 WAAPI 负责；显示时长由 Sonner duration 管理，退场见 data-mounted=false。 */
+  animation: island-drop-system 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both !important;
 }
 
 /* 进场: 从上方较远处滑出, 带有明显的回弹 */
@@ -232,11 +229,6 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 @keyframes island-suck-out {
   0%   { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-20px) scale(0.85); }
-}
-
-/* R139: 生命周期兜底 —— 2.2s 后强制淡出+点透(视觉移除, 不赌 sonner 的 duration) */
-@keyframes toast-auto-hide {
-  to { opacity: 0; pointer-events: none; }
 }
 
 /* 3. 强制文字纯白 */
