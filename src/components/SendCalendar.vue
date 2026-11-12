@@ -33,7 +33,7 @@
       <div class="flex gap-0.5">
         <!-- P0-17: Tailwind JIT 只扫静态类名, 动态拼接 bg-cyan/${n} 不生成 CSS 导致格子无底色。
              显式列出 5 档静态类(与 cellClass 档位一致) -->
-        <div v-for="(cls, i) in ['bg-cyan/10', 'bg-cyan/25', 'bg-cyan/50', 'bg-cyan/75', 'bg-cyan']" :key="i"
+        <div v-for="(cls, i) in ['bg-cyan/20', 'bg-cyan/40', 'bg-cyan/60', 'bg-cyan/80']" :key="i"
              class="w-3.5 h-3.5 rounded-sm" :class="cls" />
       </div>
       <span>多</span>
