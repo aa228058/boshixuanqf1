@@ -11,8 +11,8 @@
   -->
   <div ref="wrapEl" class="pdr-wrap">
     <div class="pdr-indicator" :style="{ height: offset + 'px' }">
-      <div v-show="offset > 4 || refreshing" class="pdr-indicator-inner">
-        <svg v-if="refreshing" class="pdr-spin" viewBox="0 0 24 24" fill="none">
+      <div v-show="offset > 4 || refreshing" class="pdr-indicator-inner" role="status" aria-live="polite" aria-atomic="true">
+        <svg v-if="refreshing" class="pdr-spin" aria-hidden="true" viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".25" stroke-width="3" />
           <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
         </svg>
@@ -56,6 +56,11 @@ let tracking = false
 let scrollParent: HTMLElement | null = null
 let activeMouseMove: ((event: MouseEvent) => void) | null = null
 let activeMouseUp: (() => void) | null = null
+const onWindowBlur = () => {
+  cleanupMouseListeners()
+  tracking = false
+  pullY.value = 0
+}
 
 // 找到最近的滚动容器(下拉手势只有在它顶部时才生效, 否则让位给正常滚动)
 function findScrollParent(el: HTMLElement | null): HTMLElement | null {
@@ -146,11 +151,13 @@ function onMouseStart(e: MouseEvent) {
   activeMouseUp = up
   window.addEventListener('mousemove', move)
   window.addEventListener('mouseup', up)
+  window.addEventListener('blur', onWindowBlur)
 }
 
 function cleanupMouseListeners() {
   if (activeMouseMove) window.removeEventListener('mousemove', activeMouseMove)
   if (activeMouseUp) window.removeEventListener('mouseup', activeMouseUp)
+  window.removeEventListener('blur', onWindowBlur)
   activeMouseMove = null
   activeMouseUp = null
 }
@@ -190,5 +197,9 @@ onUnmounted(() => {
 }
 @keyframes pdr-rot {
   to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdr-indicator { transition: none; }
+  .pdr-spin { animation: none; }
 }
 </style>
