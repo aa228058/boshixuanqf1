@@ -255,5 +255,22 @@ onUnmounted(() => {
   if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
   completionRefreshTimer = null
 })
-watch(() => [props.accountId, props.taskType], load)
+watch(() => [props.accountId, props.taskType], () => {
+  // Do not keep the previous account/type's task visible while the new query is in flight.
+  // Invalidate any pending response before clearing the old task and its associated logs.
+  loadRequestId++
+  task.value = null
+  lastDone.value = null
+  liveLogs.value = []
+  waitRemain.value = 0
+  if (waitTimer) {
+    clearInterval(waitTimer)
+    waitTimer = null
+  }
+  if (completionRefreshTimer) {
+    clearTimeout(completionRefreshTimer)
+    completionRefreshTimer = null
+  }
+  void load()
+})
 </script>
