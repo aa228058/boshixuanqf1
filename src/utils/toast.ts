@@ -43,7 +43,7 @@ export function useToast() {
     const title = t.title || t.message || '提示'
     fn(title, {
       description: t.title ? t.message : undefined,
-      duration: t.duration || 4000,
+      duration: t.duration ?? 2500,
       action: t.action,
     })
   }
