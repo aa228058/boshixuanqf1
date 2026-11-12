@@ -134,6 +134,8 @@ function onCancel() {
 // 桌面端鼠标兜底——方便非触屏设备测试同样的交互
 function onMouseStart(e: MouseEvent) {
   if (e.button !== 0) return
+  // A second press must not leave the previous gesture's window listeners attached.
+  cleanupMouseListeners()
   if (!canPull()) return
   tracking = false
   pullY.value = 0
