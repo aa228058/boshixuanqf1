@@ -29,6 +29,10 @@
   --t-brand-active:#3d43c4;
   --t-brand-dim:   rgba(91, 98, 246, 0.10);
   --t-brand-ink:   #ffffff;
+  --t-button-secondary-bg: #e9edf6;
+  --t-button-secondary-hover: #dfe5f1;
+  --t-button-secondary-border: #cbd3e2;
+  --t-button-secondary-text: var(--t-text-1);
   --t-ok:          #15966b;
   --t-warn:        #d58a22;
   --t-err:         #d95757;
@@ -61,6 +65,10 @@ html.theme-eye {
   --t-brand-active:#8f4229;
   --t-brand-dim:   rgba(196, 93, 60, 0.10);
   --t-brand-ink:   #ffffff;
+  --t-button-secondary-bg: #e8dfd4;
+  --t-button-secondary-hover: #ded2c4;
+  --t-button-secondary-border: #cfc2b1;
+  --t-button-secondary-text: var(--t-text-1);
   --t-ok:          #1d9b72;
   --t-warn:        #d58a22;
   --t-err:         #d95757;
@@ -89,6 +97,10 @@ html.theme-dark {
   --t-brand-active:#6b5bff;
   --t-brand-dim:   rgba(107, 91, 255, 0.16);
   --t-brand-ink:   #ffffff;
+  --t-button-secondary-bg: #252d49;
+  --t-button-secondary-hover: #303c59;
+  --t-button-secondary-border: #647494;
+  --t-button-secondary-text: #eef1fb;
   --t-ok:          #34d399;
   --t-warn:        #fbbf24;
   --t-err:         #f87171;
@@ -118,6 +130,10 @@ html.theme-stripe {
   --t-brand-active:#8f4229;
   --t-brand-dim:   rgba(196, 93, 60, 0.10);
   --t-brand-ink:   #ffffff;
+  --t-button-secondary-bg: #e8dfd4;
+  --t-button-secondary-hover: #ded2c4;
+  --t-button-secondary-border: #cfc2b1;
+  --t-button-secondary-text: var(--t-text-1);
   --t-ok:          #1d9b72;
   --t-warn:        #d58a22;
   --t-err:         #d95757;
