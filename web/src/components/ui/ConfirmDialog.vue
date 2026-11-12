@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import ConfirmPrompt from './ConfirmPrompt.vue'
 import ConfirmActions from './ConfirmActions.vue'
 import Modal from './Modal.vue'
@@ -42,7 +42,7 @@ const localVisible = ref(false)
 // 同时支持 v-model 和命令式 open() 两种用法：
 // get 必须合并 props.modelValue，否则外部 v-model 置 true 时弹窗不显示
 // （accounts/List.vue 的删除账号确认框即此用法，此前点删除无任何反应）。
-const visible = computed({
+watch(() => props.modelValue, value => {\n  if (!value) localVisible.value = false\n})\n\nconst visible = computed({
   get: () => props.modelValue || localVisible.value,
   set: v => { localVisible.value = v; emit("update:modelValue", v) }
 })
