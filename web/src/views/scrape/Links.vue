@@ -443,10 +443,15 @@ async function copyLink(url: string) {
 }
 
 // 导出纯文本(每行一个链接), 与"自动加群-导入链接"的格式一致
-async function exportTaskLinks(task: ScrapeTask, format = 'txt') {
+async function exportTaskLinks(task: ScrapeTask, format: 'txt' | 'csv' = 'txt') {
+  const accountId = task.account_ids?.[0]
+  if (!accountId) {
+    toast({ type: 'error', title: '导出失败', message: '该任务没有关联的账号，无法导出' })
+    return
+  }
   try {
     const base = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const params = new URLSearchParams({ account_id: task.account_ids[0], since: task.created_at, format })
+    const params = new URLSearchParams({ account_id: accountId, since: task.created_at, format })
     const resp = await fetch(`${base}/scrape-links/export?${params}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
     })
