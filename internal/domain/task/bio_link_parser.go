@@ -43,6 +43,8 @@ func extractBioTelegramLinks(bio string) []bioLinkCandidate {
 			continue
 		}
 		path := strings.Trim(strings.TrimSpace(match[1]), ".,!?;:，。；、")
+		path = strings.SplitN(path, "?", 2)[0]
+		path = strings.SplitN(path, "#", 2)[0]
 		path = strings.Trim(path, "/")
 		if path == "" || strings.Contains(path, "/") {
 			// Includes c/<channel>/<message>, joinchat is handled below.
