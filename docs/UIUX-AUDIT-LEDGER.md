@@ -35,7 +35,7 @@
 | #99 | `src/views/workspace/Scrape.vue` | 导出 Excel 的独立 HTML 使用 CSS 变量 `var(--t-line)` / `var(--t-space-1-5)` | 🟡 | 真缺陷 | 已确认 | 纯展示 | 下载 XLS 并检查边框与内边距 | 已提交 `ee3c1c9`：替换为 Excel 可识别的固定边框色与 px padding |
 | #100 | `src/views/workspace/Scrape.vue` | CSV/XLS 导出创建 Object URL 后未 revoke | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 连续导出后检查 URL 生命周期 | 已提交 `ee3c1c9`：两个下载均在触发后 1 秒 revoke URL；待浏览器下载回归 |
 | #109 | `src/views/raffle/Index.vue` | 清空记录使用原生 `confirm()` | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 桌面/移动端确认交互回归 | 已提交 `17db125`：改用全局 `ask()` 确认弹窗；取消不触发删除 |
-| #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标位于 `main` 外，定位上下文可能错误 | 🟡 | 真缺陷候选 | 已确认（结构） | 纯展示 | 管理端 dashboard 实机检查角标位置 | 顶层 span 在 main 前，需确认外层定位上下文 |
+| #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标位于 `main` 外，绝对定位缺少正确定位上下文 | 🟡 | 真缺陷 | 已确认 | 纯展示 | 管理端 dashboard 实机检查角标位置 | 已提交 `3170fa6`：角标移入 relative main 容器 |
 | #131 | `src/views/admin/dashboard/Index.vue` | 使用 `bg-warning` / `text-warning`，可能没有对应 Tailwind token | 🟡 | 待核 | 待 grep | 纯展示 | Tailwind 配置/构建 CSS 检查 | 需核对完整 token 定义与生成结果 |
 | #132 | `src/views/admin/dashboard/Index.vue` | created_at 的 format 元数据未被 TDesign columns 消费 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 管理端 dashboard 日期列检查 | 已提交 `c1441e8`：改用 `#created_at` 插槽明确格式化日期，移除无效 format 字段 |
 | #138 | `src/views/admin/tenants/List.vue` | 注册时间列未格式化，原始日期值直接交给 TDesign | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 租户列表日期列检查 | 已提交 `e98aecc`：增加 `#created_at` 插槽，按 zh-CN 日期显示 |
@@ -61,7 +61,7 @@
 | #51 | `src/views/dashboard/Index.vue` | 深色主题 ECharts 图例/轴标签是否回退黑色 | 待跑 | 触及逻辑 | 三主题切换检查 |
 | #65 | `src/views/dashboard/Index.vue`（待定位） | 1920px 桌面 stat-strip 是否仍需横向滚动 | 待跑 | 纯展示 | 1920px 实测 |
 | #61 | `src/views/accounts/List.vue` | 选择 5+ 账号时底部浮条是否遮挡最后几行 | 待跑 | 纯展示 | 移动端长列表滚动实测 |
-| #84 | 目标选择器（待定位） | 选择 20 个目标时 chips 是否被 96px 高度截断 | 待跑 | 纯展示 | 20 个目标实测 |
+| #84 | `src/views/workspace/Broadcast.vue` | 已选目标 chips 预览区 max-height 仅 96px，20 个目标时可视区域较窄 | 🟡 | 细节 | 已确认（源码） | 纯展示 | 20 个目标实测 | 已提交 `0f8a8c0`：预览区 max-height 提升至 160px；待检查移动端表单高度与滚动体验 |
 
 ## C. 死代码/技术债候选（独立清理批次）
 
@@ -245,3 +245,11 @@
 - 提交：`b14ff6d`
 - 将移动端账号卡片的操作按钮和“更多”按钮最小高度从 36px 提升至 44px。
 - 验收：待 320/375/430px 视口检查按钮可点击区域、卡片高度和是否出现横向溢出。
+
+
+## P. 管理端角标与群发目标预览
+
+| 问题 | 文件 | 修改 | 提交 | 触及层 | 验收 |
+|---|---|---|---|---|---|
+| #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标移入 `main.relative`，定位锚点明确 | `3170fa6` | 纯展示 | 待管理端 dashboard 实机定位检查 |
+| #84 | `src/views/workspace/Broadcast.vue` | 已选目标 chips 预览最大高度从 96px 提升至 160px | `0f8a8c0` | 纯展示 | 待 20 个目标、窄屏和页面滚动回归 |
