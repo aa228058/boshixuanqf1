@@ -85,6 +85,7 @@ import { useChartTheme } from '@/composables/useChartTheme'
 const chartTheme = useChartTheme()
 let dashboardPageActive = false
 let dashboardRequestId = 0
+let dashboardController: AbortController | null = null
 onMounted(() => { dashboardPageActive = true; chartTheme.start() })
 onBeforeUnmount(() => { dashboardPageActive = false; dashboardRequestId++ })
 onBeforeUnmount(() => chartTheme.stop())
@@ -155,9 +156,11 @@ function planLabel(p: string) {
 }
 
 onMounted(async () => {
+  const controller = new AbortController()
+  dashboardController = controller
   const requestId = ++dashboardRequestId
   try {
-    const s = await adminApiMod.getStats()
+    const s = await adminApiMod.getStats({ signal: controller.signal })
     if (!dashboardPageActive || requestId !== dashboardRequestId) return
     stats.value[0].value = String(s.total_tenants || 0)
     stats.value[1].value = String(s.active_tenants || 0)
@@ -166,14 +169,18 @@ onMounted(async () => {
     stats.value[4].value = String(s.unused_codes || 0)
     stats.value[5].value = `¥${s.today_revenue || 0}`
 
-    const res = await adminApiMod.listTenants({ limit: 5 })
+    const res = await adminApiMod.listTenants({ limit: 5 }, { signal: controller.signal })
     if (!dashboardPageActive || requestId !== dashboardRequestId) return
     recentTenants.value = res.list || []
   } catch (e: unknown) {
-    if (!dashboardPageActive || requestId !== dashboardRequestId) return
+    if (controller.signal.aborted || !dashboardPageActive || requestId !== dashboardRequestId) return
     // P2-60: 原空 catch 静默——管理仪表盘首屏失败只显示全 0 数字, 管理员无感知
     console.error('[admin-dashboard] 加载失败:', e)
     toast({ type: 'error', title: '仪表盘加载失败', message: (e as Error)?.message || '请刷新重试' })
+  } finally {
+    if (dashboardController === controller) dashboardController = null
   }
 })
+
+onUnmounted(() => { dashboardPageActive = false; dashboardRequestId++; dashboardController?.abort(); dashboardController = null })
 </script>
