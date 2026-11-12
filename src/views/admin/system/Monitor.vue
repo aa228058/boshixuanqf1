@@ -81,7 +81,7 @@
       </div>
       <p v-if="metricsError" class="text-xs text-[var(--t-err)] mb-2" role="alert">{{ metricsError }} · 上次成功更新：{{ metricsUpdatedAt || '暂无' }}</p>
       <p v-else-if="metricsUpdatedAt" class="text-xs text-text-muted mb-2">最近更新：{{ metricsUpdatedAt }}</p>
-      <div class="max-h-[300px] overflow-y-auto space-y-1 font-mono text-xs bg-bg-card rounded-lg p-4" aria-label="系统监控更新日志" aria-live="polite">
+      <div class="max-h-[300px] overflow-y-auto space-y-1 font-mono text-xs bg-bg-card rounded-lg p-4" aria-label="系统监控更新日志">
         <div v-for="(log, i) in systemLogs" :key="`${log.time}-${i}`" class="flex items-start gap-2 py-0.5">
           <span class="text-text-muted shrink-0">{{ log.time }}</span>
           <span class="shrink-0" :class="logLevelClass(log.level)">[{{ log.level }}]</span>
