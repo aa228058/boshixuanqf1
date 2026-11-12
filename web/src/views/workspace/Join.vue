@@ -210,10 +210,13 @@ const taskActionsPending = ref(new Set<string>())
 
 let taskListRequestId = 0
 let joinPageActive = true
+let taskListController: AbortController | null = null
 
 async function fetchTasks() {
   const accountId = currentAccount.value?.account_id || ''
   const requestId = ++taskListRequestId
+  taskListController?.abort()
+  taskListController = null
   if (!accountId) {
     tasks.value = []
     tasksError.value = ''
@@ -221,21 +224,26 @@ async function fetchTasks() {
     return
   }
   tasksLoading.value = true
+  const controller = new AbortController()
+  taskListController = controller
   try {
-    const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any, { signal: controller.signal })
     if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
-    if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
+    if (controller.signal.aborted || !joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasksError.value = e?.message || '加载失败, 点击重试'
   } finally {
     if (joinPageActive && requestId === taskListRequestId) tasksLoading.value = false
+    if (taskListController === controller) taskListController = null
   }
 }
 onUnmounted(() => {
   joinPageActive = false
   taskListRequestId++
+  taskListController?.abort()
+  taskListController = null
 })
 useAutoRefresh(fetchTasks, 15000)
 
