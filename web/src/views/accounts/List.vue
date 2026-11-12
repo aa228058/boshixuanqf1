@@ -865,30 +865,46 @@ const probeResult = ref<{ items: any[]; verdict: string; checked_at: string } | 
 const probeRunning = ref(false)
 const probeCooldownText = ref('') // 冷却中提示(后端 429 返回)
 
+let probeRequestId = 0
+watch(showProbe, (visible) => {
+  if (!visible) probeRequestId++
+})
 async function openProbe(acc: any) {
+  const requestId = ++probeRequestId
+  const accountId = acc?.account_id
   probeAccount.value = acc
   probeResult.value = null
   probeCooldownText.value = ''
   showProbe.value = true
-  // 先展示上次结果(不触发检测)
+  if (!accountId) return
+  // 先展示上次结果(不触发检测)；切换账号或关闭弹窗后丢弃过期响应。
   try {
-    const cached = await accountApi.getProbe(acc?.account_id)
-    probeResult.value = cached || null
+    const cached = await accountApi.getProbe(accountId)
+    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
+      probeResult.value = cached || null
+    }
   } catch { /* 无历史结果, 忽略 */ }
 }
 
 async function runProbe() {
-  if (!probeAccount.value || probeRunning.value) return
+  const accountId = probeAccount.value?.account_id
+  if (!accountId || probeRunning.value) return
+  const requestId = probeRequestId
   probeRunning.value = true
   probeCooldownText.value = ''
   try {
-    probeResult.value = await accountApi.runProbe(probeAccount.value.account_id)
+    const result = await accountApi.runProbe(accountId)
+    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
+      probeResult.value = result
+    }
   } catch (e: any) {
     // 冷却中: 429 带文案; 其他错误拦截器已 toast
     const msg = e?.response?.data?.message || e?.message || ''
-    if (msg.includes('冷却')) probeCooldownText.value = msg
+    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId && msg.includes('冷却')) {
+      probeCooldownText.value = msg
+    }
   } finally {
-    probeRunning.value = false
+    if (requestId === probeRequestId) probeRunning.value = false
   }
 }
 function toggleMenu(id: string) {
