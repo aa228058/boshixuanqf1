@@ -234,22 +234,33 @@ function toggleSelect(id: string) {
 }
 // P1-31 审计修复: 原 for+await 串行删除(每个约 5s, 10 个 = 50s 无进度), 失败仅
 // console.error 用户无从感知。改并行 + 汇总反馈。
+const deletingBatch = ref(false)
 async function batchDelete() {
-  if (!selected.value.size) return
+  if (!selected.value.size || deletingBatch.value) return
   const confirmed = await ask(`确定删除选中的 ${selected.value.size} 个协议号？`, {
     title: '批量删除协议号',
     danger: true,
     confirmText: '确认删除',
     cancelText: '取消',
   })
-  if (!confirmed) return
+  if (!confirmed || deletingBatch.value) return
   const ids = Array.from(selected.value)
-  const results = await Promise.allSettled(ids.map((id) => accountStore.deleteAccount(id)))
-  const failed = results.filter((r) => r.status === 'rejected').length
-  selected.value = new Set()
-  await refresh()
-  if (failed > 0) {
-    toast({ type: 'warning', title: `删除完成, ${failed} 个失败`, message: '失败的号可能正在执行任务, 请稍后重试' })
+  deletingBatch.value = true
+  try {
+    const results = await Promise.allSettled(ids.map((id) => accountStore.deleteAccount(id)))
+    const failedIds = ids.filter((_, index) => results[index].status === 'rejected')
+    // 仅移除成功项；失败账号保留勾选，便于用户重试而不是丢失操作上下文。
+    const remaining = new Set(selected.value)
+    ids.filter(id => !failedIds.includes(id)).forEach(id => remaining.delete(id))
+    selected.value = remaining
+    await refresh()
+    if (failedIds.length > 0) {
+      toast({ type: 'warning', title: `删除完成, ${failedIds.length} 个失败`, message: '失败账号仍保持选中，可稍后重试' })
+    } else {
+      toast({ type: 'success', title: `已删除 ${ids.length} 个协议号` })
+    }
+  } finally {
+    deletingBatch.value = false
   }
 }
 
