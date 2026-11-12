@@ -349,11 +349,18 @@ async function clearFinished() {
   }
 }
 
+let importJobsRequestId = 0
 async function fetchImportJobs() {
+  const requestId = ++importJobsRequestId
+  const taskNumber = activeNumberSearch.value
   try {
-    const res: any = await listGroupLibraryImportJobs(activeNumberSearch.value || undefined)
+    const res: any = await listGroupLibraryImportJobs(taskNumber || undefined)
+    // 5 秒轮询、自动刷新和编号搜索可能并发；只接受当前编号筛选对应的最新响应。
+    if (requestId !== importJobsRequestId || taskNumber !== activeNumberSearch.value) return
     importJobs.value = res.list || []
-  } catch { /* keep the last known task list during transient network errors */ }
+  } catch {
+    // keep the last known task list during transient network errors
+  }
 }
 
 function importStatusLabel(status: string) {
@@ -650,7 +657,10 @@ const accNameById = (id: string) => {
 useAutoRefresh(() => { void fetchTasks(); void fetchImportJobs() }, 15000)
 void fetchImportJobs()
 const importJobsTimer = window.setInterval(fetchImportJobs, 5000)
-onUnmounted(() => window.clearInterval(importJobsTimer))
+onUnmounted(() => {
+  window.clearInterval(importJobsTimer)
+  importJobsRequestId++
+})
 useTaskEvents((evt: any) => {
   if (evt.type === 'task_wait') {
     waitInfo.value = { ...waitInfo.value, [String(evt.task_id)]: { account_id: String(evt.account_id || ''), remaining: Number(evt.remaining || 0), next_index: Number(evt.next_index || 0), total: Number(evt.total || 0), _t: Date.now() } }
