@@ -52,7 +52,14 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
       el.style.overscrollBehavior = 'none'
     } else if (pulling) {
       pulling = false
-      el.style.transform = ''
+      el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
+      el.style.transform = originalTransform
+      el.style.overscrollBehavior = originalOverscrollBehavior
+      clearResetTimer()
+      resetTimer = setTimeout(() => {
+        if (elRef.value === el) el.style.transition = originalTransition
+        resetTimer = null
+      }, 400)
     }
   }
 
