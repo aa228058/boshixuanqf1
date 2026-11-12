@@ -93,6 +93,7 @@ const contactTypes = [
 const qrFile = ref<File | null>(null)
 let supportPageActive = false
 let supportRequestId = 0
+let supportController: AbortController | null = null
 let qrReadRequestId = 0
 const form = ref<SupportConfig>({
   id: 0,
@@ -104,19 +105,25 @@ const form = ref<SupportConfig>({
 })
 
 async function fetchConfig() {
+  supportController?.abort()
+  const controller = new AbortController()
+  supportController = controller
   const requestId = ++supportRequestId
   try {
     // P0-04: 原兜底默认值用了第三套互不相同的字段名(contact_wechat/telegram/url),
     // 与后端真实返回(contact_type/contact_value/display_name/qr_code_url)完全对不上——
     // 配置永远存不进正确的字段。以 007 迁移 + repository 的真实字段为准统一。
     const EMPTY = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
-    const config = await adminApiMod.getSupport()
+    const config = await adminApiMod.getSupport({ signal: controller.signal })
     if (!supportPageActive || requestId !== supportRequestId) return
     form.value = { ...EMPTY, ...(config || {}) }
   } catch (e: unknown) {
     if (!supportPageActive || requestId !== supportRequestId) return
+    if (controller.signal.aborted) return
     // 首次部署无客服配置时接口可能报错/返回空, 兜底默认空值避免页面异常
     form.value = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
+  } finally {
+    if (supportController === controller) supportController = null
   }
 }
 
@@ -161,5 +168,5 @@ function handleQrUpload(file: File) {
 }
 
 onMounted(() => { supportPageActive = true; void fetchConfig() })
-onUnmounted(() => { supportPageActive = false; supportRequestId++; qrReadRequestId++ })
+onUnmounted(() => { supportPageActive = false; supportRequestId++; qrReadRequestId++; supportController?.abort(); supportController = null })
 </script>
