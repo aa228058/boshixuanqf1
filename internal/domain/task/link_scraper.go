@@ -422,11 +422,13 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 		return
 	}
 	ls.bioSeenMu.Unlock()
-	callCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	result, err := item.Client.Raw().UsersGetFullUser(callCtx, &tg.UsersGetFullUserRequest{
-		ID: &tg.InputUser{UserID: item.UserID, AccessHash: item.AccessHash},
-	})
+	request := &tg.UsersGetFullUserRequest{ID: &tg.InputUser{UserID: item.UserID, AccessHash: item.AccessHash}}
+	result, err := item.Client.Raw().UsersGetFullUser(callCtx, request)
+	if err != nil && waitTelegramFloodWait(callCtx, err) {
+		result, err = item.Client.Raw().UsersGetFullUser(callCtx, request)
+	}
 	if err != nil { log.Printf("[link-scraper] getFullUser failed user=%d: %v", item.UserID, err); return }
 	fullResult, ok := result.(*tg.UsersUserFull)
 	if !ok || fullResult == nil { return }
