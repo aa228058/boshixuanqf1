@@ -63,7 +63,7 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
-import { normalizeTaskProgress } from './taskProgress'
+import { mergeRecentTaskLogs, normalizeTaskProgress } from './taskProgress'
 
 const props = defineProps<{ accountId: string; taskType: string }>()
 const task = ref<any>(null)
@@ -198,7 +198,7 @@ async function load() {
       const lr: any = await taskApi.getLogs(active.task_id, 1, 50, undefined, undefined, { signal: logsAbort.signal })
       if (!isCurrent() || task.value?.task_id !== active.task_id) return
       const logs = lr?.list || lr?.data || (Array.isArray(lr) ? lr : [])
-      if (logs.length) liveLogs.value = logs.slice(-6).reverse()
+      if (logs.length) liveLogs.value = mergeRecentTaskLogs(logs, liveLogs.value)
     } else {
       task.value = null
       liveLogs.value = []
