@@ -224,13 +224,18 @@ function onPageChange(p: { current: number }) {
   void fetchCodes()
 }
 
+let codesRequestId = 0
 async function fetchCodes() {
+  const requestId = ++codesRequestId
+  const params = { page: page.value, page_size: 20, ...(statusFilter.value ? { status: statusFilter.value } : {}) }
   try {
-    // 状态筛选走后端（此前前端只过滤当前页 20 条，"未使用"可能显示为空）
-    const res = await adminApiMod.listCodes({ page: page.value, page_size: 20, ...(statusFilter.value ? { status: statusFilter.value } : {}) })
+    // 页码与筛选变化可能产生重叠请求；仅允许最新请求写入列表。
+    const res = await adminApiMod.listCodes(params)
+    if (requestId !== codesRequestId) return
     codes.value = res.list || []
     total.value = res.total || 0
   } catch (e: unknown) {
+    if (requestId !== codesRequestId) return
     toast({ type: 'error', title: '获取卡密失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
