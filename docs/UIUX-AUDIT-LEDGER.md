@@ -830,3 +830,25 @@
 - [ ] 多账号快速切换时请求竞态与结果隔离回归
 
 **本节仅源码修复，未运行构建和浏览器测试。**
+
+
+## BB. 工作区选择器、任务展开与页面 Tab 语义
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/workspace/Scrape.vue` | 新建采集任务中的群组选择区域是可点击 div，键盘用户无法聚焦或触发；改为原生 button | `6859d10ad2b39e59a800dd02d29bce48c13b59c3` | 模板/可访问性 | Tab 聚焦群组选择；Enter/Space 打开群组选择弹窗 |
+| `src/views/workspace/Scrape.vue` | 采集任务展开区原为可点击 div，且内部包含 CSV/Excel 操作按钮；不能简单把整个容器替换成 button，否则会产生嵌套按钮。现拆成独立任务展开按钮与独立导出操作 | `226a2ee7e3bba15d35ef6ac6e8e8f12179474298` | 模板/交互 | Tab 顺序分别经过展开、CSV、Excel；Enter/Space 仅展开；导出按钮不触发折叠；aria-expanded 与内容同步 |
+| `src/views/workspace/Scrape.vue` | 普通成员列表/历史消息活跃用户模式切换缺少选中状态语义；增加 aria-pressed；成员面板增加 region 名称和 aria-controls 关联 | `6859d10ad2b39e59a800dd02d29bce48c13b59c3`、`226a2ee7e3bba15d35ef6ac6e8e8f12179474298` | 模板/可访问性 | 读屏识别模式当前状态、任务展开状态与对应结果区域 |
+| `src/views/workspace/Broadcast.vue` | 任务列表/发送日历视觉上是 Tab，但没有 tablist/tab/tabpanel 语义与选中状态 | `2e07f48460b79745f28892ab30666dcc66907b55` | 模板/可访问性 | 读屏识别两个 Tab 和当前选中项；切换后对应 tabpanel 可见，键盘焦点可操作 |
+| `src/views/workspace/Join.vue` | 链接加群/邀请成员入群模式切换按钮没有暴露当前选中状态 | `a2dcdaacb7f824340721623ea48daffdb7fc8313` | 模板/可访问性 | 读屏播报当前模式 pressed 状态；切换模式不影响已有表单值/任务创建 |
+
+### 本批验证状态
+
+- [x] 将可点击的群组选择区域改为原生按钮
+- [x] 拆分任务展开按钮与导出操作，避免嵌套交互控件
+- [x] 为工作区 Tab 与模式切换补齐语义状态
+- [ ] 采集任务卡片键盘操作和窄屏布局回归
+- [ ] 群发 Tab 键盘/读屏回归
+- [ ] 加群模式切换与创建任务回归
+
+**本节为源码级修复，未执行 Vue 编译、浏览器或读屏器验证。**
