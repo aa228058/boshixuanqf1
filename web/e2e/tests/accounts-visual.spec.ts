@@ -53,6 +53,14 @@ test.describe('账号页视觉审计', () => {
 
       if (path === '/auth/refresh') return ok({ token: 'e2e-visual-token' })
       if (path === '/auth/me') return ok(tenantProfile)
+      // 头像接口必须返回真实图片字节；普通 JSON Blob 会生成破损头像并触发全局资源错误横幅。
+      if (/^\/accounts\/[^/]+\/avatar$/.test(path) && request.method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'image/svg+xml',
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#dbeafe"/><text x="32" y="41" text-anchor="middle" font-size="28" fill="#1d4ed8">示</text></svg>',
+        })
+      }
       if (path === '/accounts' && request.method() === 'GET') {
         return ok({ list: demoAccounts, total: demoAccounts.length, page: 1, page_size: 50 })
       }
@@ -62,6 +70,14 @@ test.describe('账号页视觉审计', () => {
 
     await page.goto('/accounts')
     await expect(page.getByRole('heading', { name: '账号管理' })).toBeVisible({ timeout: 20_000 })
+    // 视觉测试必须验证页面无全局异常横幅，且头像请求返回可解码的图片，而不只验证占位元素存在。
+    await expect(page.locator('#err-banner')).toHaveCount(0)
+    const firstAvatar = page.locator('img.avatar-zoom').first()
+    await expect(firstAvatar).toBeVisible()
+    await expect.poll(() => firstAvatar.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true)
+    await expect(page.locator('#err-banner')).toHaveCount(0)
+    const chineseFontReady = await page.evaluate(() => document.fonts.check('16px "Noto Sans CJK SC"', '账号管理'))
+    expect(chineseFontReady, 'CI 必须加载中文字体，避免截图出现方框字').toBe(true)
 
     const firstActions = page.locator('.acc-actions').first()
     await expect(firstActions.getByRole('button', { name: '备用' })).toBeVisible()
