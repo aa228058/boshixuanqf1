@@ -441,6 +441,7 @@ const mainRef = ref<HTMLElement | null>(null)
 useElasticScroll(mainRef)
 let heartbeatInterval: number | null = null
 let usageES: EventSource | null = null
+let layoutActive = false
 
 // 安全获取错误消息
 function getErrorMessage(e: unknown, fallback = '请稍后重试'): string {
@@ -1046,6 +1047,7 @@ function onScroll() {
 // R113 已删 onGlobalClick(唯一职责是关闭已删除的账号切换器)
 
 onMounted(async () => {
+  layoutActive = true
   mainRef.value?.addEventListener('scroll', onScroll, { passive: true })
   onScroll()
   // 全局用量通知监听：每100条一次，只提示不限制
@@ -1059,12 +1061,14 @@ onMounted(async () => {
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
     try {
       const tres2 = await fetch(`${apiBase}/events/ticket`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      usageTicket = (await tres2.json()).ticket || ''
+      if (tres2.ok) usageTicket = (await tres2.json()).ticket || ''
     } catch { /* 静默 */ }
-    usageES = new EventSource(`${apiBase}/events?ticket=${encodeURIComponent(usageTicket)}`)
+    // 异步换票期间 Layout 可能已卸载；不允许迟到响应创建孤儿 EventSource。
+    if (!layoutActive) return
+    if (usageTicket) usageES = new EventSource(`${apiBase}/events?ticket=${encodeURIComponent(usageTicket)}`)
     // P0-06 审计修复: 后端发的是命名事件 event: events, onmessage 只收无事件名
     // 默认消息——usage_milestone/内存告警等系统提示从未送达。改 addEventListener。
-    usageES.addEventListener('events', (ev: MessageEvent) => {
+    usageES?.addEventListener('events', (ev: MessageEvent) => {
       try {
         const d = JSON.parse(ev.data)
         // 系统资源告警与自适应档位（此前后端发进无人订阅的 topic，从未到达；
@@ -1119,6 +1123,7 @@ onMounted(async () => {
     // 公告主动触达: 登录后检查是否有未提示过的公告, 有则自动弹出
     checkAnnouncements(),
   ])
+  if (!layoutActive) return
   // 定时状态轮询：每 60 秒检查租户状态，被停用或过期自动退出
   let hbCount = 0
   heartbeatInterval = window.setInterval(async () => {
@@ -1157,6 +1162,7 @@ async function checkAnnouncements() {
 }
 
 onUnmounted(() => {
+  layoutActive = false
   mainRef.value?.removeEventListener('scroll', onScroll)
   // R113: onGlobalClick 监听器随函数一并删除
   if (heartbeatInterval) clearInterval(heartbeatInterval)
