@@ -28,6 +28,37 @@ func NewSettingsHandler(svc *service.SettingsService, mailer *notify.Mailer, dic
 	return &SettingsHandler{svc: svc, mailer: mailer, dicts: dicts}
 }
 
+// GetMessageDecoration returns the tenant-wide message decoration preference.
+func (h *SettingsHandler) GetMessageDecoration(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	enabled, err := h.svc.GetMessageDecorationEnabled(c.Request().Context(), tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return Success(c, map[string]bool{"enabled": enabled})
+}
+
+// UpdateMessageDecoration saves the tenant-wide message decoration preference.
+func (h *SettingsHandler) UpdateMessageDecoration(c echo.Context) error {
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := c.Bind(&req); err != nil || req.Enabled == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "enabled must be a boolean")
+	}
+	if err := h.svc.UpdateMessageDecorationEnabled(c.Request().Context(), tenantID, *req.Enabled); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return Success(c, map[string]any{"enabled": *req.Enabled, "message": "发送装饰设置已保存"})
+}
+
 // GetNotify R119: 通知中心 —— 读取当前通知设置
 func (h *SettingsHandler) GetNotify(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
