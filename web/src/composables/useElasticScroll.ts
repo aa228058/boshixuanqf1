@@ -11,6 +11,7 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
   let originalTransition = ''
   let originalTransform = ''
   let originalOverscrollBehavior = ''
+  let attachedEl: HTMLElement | null = null
 
   const clearResetTimer = () => {
     if (resetTimer) clearTimeout(resetTimer)
@@ -88,13 +89,17 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
   onMounted(() => {
     const el = elRef.value
     if (!el) return
+    attachedEl = el
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
     el.addEventListener('touchend', onTouchEnd)
     el.addEventListener('touchcancel', onTouchEnd)
   })
   onUnmounted(() => {
-    const el = elRef.value
+    // Template refs may already be null during unmount; retain the element
+    // that received listeners so teardown always removes them from the owner.
+    const el = attachedEl
+    attachedEl = null
     if (!el) return
     el.removeEventListener('touchstart', onTouchStart)
     el.removeEventListener('touchmove', onTouchMove)
