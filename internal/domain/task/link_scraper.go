@@ -32,15 +32,15 @@ type rawLink struct {
 }
 
 type rawBio struct {
-	TenantID uuid.UUID
-	AccountID uuid.UUID
-	Client *telegram.Client
-	ChatID int64
-	UserID int64
+	TenantID   uuid.UUID
+	AccountID  uuid.UUID
+	Client     *telegram.Client
+	ChatID     int64
+	UserID     int64
 	AccessHash int64
-	Username string
-	FirstName string
-	LastName string
+	Username   string
+	FirstName  string
+	LastName   string
 }
 
 // scrapedLinkDedupKey scopes the in-memory cache to a tenant. The database
@@ -76,13 +76,13 @@ type LinkScraper struct {
 	linkRepo    domain.ScrapedLinkRepository
 	groupRepo   *repository.GroupRepository
 	accountRepo AccountLister
-	memberRepo domain.MemberRepository
+	memberRepo  domain.MemberRepository
 
 	bioEnabled sync.Map // accountID(string) -> bool
-	bioQueue chan *rawBio
-	bioQueued sync.Map // tenant:chat:user -> bool
-	bioSeenMu sync.Mutex
-	bioSeen map[string]time.Time
+	bioQueue   chan *rawBio
+	bioQueued  sync.Map // tenant:chat:user -> bool
+	bioSeenMu  sync.Mutex
+	bioSeen    map[string]time.Time
 
 	// Runtime state
 	handlersMu          sync.Mutex
@@ -125,7 +125,11 @@ func (ls *LinkScraper) SetMemberRepository(repo domain.MemberRepository) { ls.me
 
 // SetBioScraping toggles live Bio parsing independently from message-body link scraping.
 func (ls *LinkScraper) SetBioScraping(accountID uuid.UUID, enabled bool) {
-	if enabled { ls.bioEnabled.Store(accountID.String(), true) } else { ls.bioEnabled.Delete(accountID.String()) }
+	if enabled {
+		ls.bioEnabled.Store(accountID.String(), true)
+	} else {
+		ls.bioEnabled.Delete(accountID.String())
+	}
 }
 
 // IsBioScrapingEnabled reports whether live Bio parsing is enabled for an account.
@@ -324,7 +328,9 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 			}
 		}
 
-		if msg.Text == "" { return }
+		if msg.Text == "" {
+			return
+		}
 		matches := tmeLinkRe.FindAllStringSubmatch(msg.Text, -1)
 		for _, match := range matches {
 			if len(match) < 5 {
@@ -403,7 +409,6 @@ func (ls *LinkScraper) UnregisterAccount(accountID uuid.UUID) {
 	log.Printf("[link-scraper] 已注销账号 %s 的消息监听", accountID.String()[:8])
 }
 
-
 func (ls *LinkScraper) bioConsumerLoop(ctx context.Context) {
 	defer ls.wg.Done()
 	ticker := time.NewTicker(350 * time.Millisecond)
@@ -425,7 +430,9 @@ func (ls *LinkScraper) bioConsumerLoop(ctx context.Context) {
 }
 
 func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
-	if item == nil || ls.memberRepo == nil || ls.groupRepo == nil || item.Client == nil { return }
+	if item == nil || ls.memberRepo == nil || ls.groupRepo == nil || item.Client == nil {
+		return
+	}
 	queueKey := fmt.Sprintf("%s:%d:%d", item.TenantID, item.ChatID, item.UserID)
 	defer ls.bioQueued.Delete(queueKey)
 	key := queueKey
@@ -442,15 +449,26 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 	if err != nil && waitTelegramFloodWait(callCtx, err) {
 		result, err = item.Client.Raw().UsersGetFullUser(callCtx, request)
 	}
-	if err != nil { log.Printf("[link-scraper] getFullUser failed user=%d: %v", item.UserID, err); return }
+	if err != nil {
+		log.Printf("[link-scraper] getFullUser failed user=%d: %v", item.UserID, err)
+		return
+	}
 	fullResult, ok := result.(*tg.UsersUserFull)
-	if !ok || fullResult == nil { return }
+	if !ok || fullResult == nil {
+		return
+	}
 	full, ok := fullResult.FullUser.(*tg.UserFull)
-	if !ok || full == nil { return }
+	if !ok || full == nil {
+		return
+	}
 	group, err := ls.groupRepo.GetByTGChatID(callCtx, item.TenantID, item.ChatID)
-	if err != nil || group == nil { return }
+	if err != nil || group == nil {
+		return
+	}
 	groupType := strings.ToLower(strings.TrimSpace(group.Type))
-	if groupType != "group" && groupType != "supergroup" { return }
+	if groupType != "group" && groupType != "supergroup" {
+		return
+	}
 	if strings.TrimSpace(full.About) == "" {
 		ls.bioSeenMu.Lock()
 		ls.bioSeen[key] = time.Now()
@@ -467,7 +485,9 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 	}
 	ls.bioSeenMu.Lock()
 	ls.bioSeen[key] = now
-	if len(ls.bioSeen) > 50000 { ls.bioSeen = make(map[string]time.Time) }
+	if len(ls.bioSeen) > 50000 {
+		ls.bioSeen = make(map[string]time.Time)
+	}
 	ls.bioSeenMu.Unlock()
 }
 
