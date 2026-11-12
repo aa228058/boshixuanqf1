@@ -223,14 +223,6 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					continue
 				}
 				username, lastSeen, hasPhoto, memberBio := memberActivity(user)
-				if bioLinksEnabled && user != nil && user.AccessHash != 0 {
-					bio, bioErr := fetchTelegramUserBio(ctx, client, user)
-					if bioErr != nil {
-						taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
-					} else {
-						memberBio = bio
-					}
-				}
 				// 采集过滤: 死号/无头像不入库（与下方 Chat 分支保持一致，
 				// 此前 Channel 分支漏了过滤，死号浪费发送配额）
 				if filterRecentDays > 0 && (lastSeen == nil || time.Since(*lastSeen) > time.Duration(filterRecentDays)*24*time.Hour) {
@@ -238,6 +230,14 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 				}
 				if filterHasPhoto && !hasPhoto {
 					continue
+				}
+				if bioLinksEnabled && user != nil && user.AccessHash != 0 {
+					bio, bioErr := fetchTelegramUserBio(ctx, client, user)
+					if bioErr != nil {
+						taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
+					} else {
+						memberBio = bio
+					}
 				}
 				allMembers = append(allMembers, domain.Member{
 					TenantID:  task.TenantID,
@@ -339,20 +339,20 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 						continue
 					}
 					username, lastSeen, hasPhoto, memberBio := memberActivity(user)
-				if bioLinksEnabled && user != nil && user.AccessHash != 0 {
-					bio, bioErr := fetchTelegramUserBio(ctx, client, user)
-					if bioErr != nil {
-						taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
-					} else {
-						memberBio = bio
-					}
-				}
 					// 采集过滤: 死号/无头像不入库, 不浪费发送配额
 					if filterRecentDays > 0 && (lastSeen == nil || time.Since(*lastSeen) > time.Duration(filterRecentDays)*24*time.Hour) {
 						continue
 					}
 					if filterHasPhoto && !hasPhoto {
 						continue
+					}
+					if bioLinksEnabled && user != nil && user.AccessHash != 0 {
+						bio, bioErr := fetchTelegramUserBio(ctx, client, user)
+						if bioErr != nil {
+							taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
+						} else {
+							memberBio = bio
+						}
 					}
 					allMembers = append(allMembers, domain.Member{
 						TenantID:  task.TenantID,
