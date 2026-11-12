@@ -1,20 +1,6 @@
-// P2-15: 原实现不防公式注入——单元格以 = + - @ 开头时, Excel/WPS 打开会当公式
-// 执行(=cmd|'/c...' 类 CSV 注入)。导出是备份/交接场景, 中招面真实存在。
-// 处理: 危险前缀前加单引号(Excel 约定为纯文本), 再照常做引号转义。
-function escapeCSV(value: string | number): string {
-  let str = String(value)
-  if (/^[=+\-@]/.test(str)) {
-    str = `'${str}`
-  }
-  // 如果包含逗号、引号或换行符，需要用引号包裹
-  if (/[",\n\r]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
-
+// downloadCSV 与页面级表格导出共用同一套公式注入防护和 CSV 引号转义策略。
 export function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
-  const csv = [headers.map(escapeCSV).join(','), ...rows.map(r => r.map(escapeCSV).join(','))].join('\n')
+  const csv = [headers.map(escapeSpreadsheetCSVCell).join(','), ...rows.map(r => r.map(escapeSpreadsheetCSVCell).join(','))].join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
   downloadBlob(filename, blob)
 }
