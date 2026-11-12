@@ -244,20 +244,43 @@ const linksLoading = ref<Record<string, boolean>>({})
 // R108: 视图级账号切换 —— 监听配置按账号独立, 下拉选择管理哪个号(不依赖顶栏切换器)
 const linksAccId = ref('')
 watch(accountStore.currentAccount, (acc: any) => { if (acc?.account_id && !linksAccId.value) linksAccId.value = acc.account_id }, { immediate: true })
-watch(linksAccId, () => { fetchTasks(); loadAllLinks() })
+let taskListRequestId = 0
+let allLinksRequestId = 0
+const taskLinkRequestIds = new Map<string, number>()
+watch(linksAccId, () => {
+  // 切换账号时立即清空上一账号数据，并使旧请求失效，避免短暂展示/覆盖错账号结果。
+  taskListRequestId++
+  allLinksRequestId++
+  taskLinkRequestIds.clear()
+  tasks.value = []
+  allLinks.value = []
+  taskLinks.value = {}
+  linksLoading.value = {}
+  expandedTaskId.value = null
+  fetchTasks()
+  loadAllLinks()
+})
 
 async function fetchTasks() {
   const accId = linksAccId.value
-  if (!accId) return
+  const requestId = ++taskListRequestId
+  if (!accId) {
+    tasks.value = []
+    tasksLoading.value = false
+    return
+  }
   tasksLoading.value = true
   try {
     const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any)
+    if (requestId !== taskListRequestId || accId !== linksAccId.value) return
     const raw = res as any
     tasks.value = raw.list || raw.items || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (requestId === taskListRequestId && accId === linksAccId.value) {
+      toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    }
   } finally {
-    tasksLoading.value = false
+    if (requestId === taskListRequestId) tasksLoading.value = false
   }
 }
 
@@ -274,16 +297,24 @@ async function onPullRefresh() {
 
 async function loadAllLinks() {
   const accId = linksAccId.value
-  if (!accId) return
+  const requestId = ++allLinksRequestId
+  if (!accId) {
+    allLinks.value = []
+    allLinksLoading.value = false
+    return
+  }
   allLinksLoading.value = true
   try {
     const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 })
+    if (requestId !== allLinksRequestId || accId !== linksAccId.value) return
     const raw = res as any
     allLinks.value = raw.list || raw.items || []
   } catch (e: any) {
-    toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
+    if (requestId === allLinksRequestId && accId === linksAccId.value) {
+      toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
+    }
   } finally {
-    allLinksLoading.value = false
+    if (requestId === allLinksRequestId) allLinksLoading.value = false
   }
 }
 
@@ -298,7 +329,10 @@ async function toggleTask(task: ScrapeTask) {
     return
   }
   expandedTaskId.value = task.task_id
-  if (taskLinks.value[task.task_id]) return
+  if (taskLinks.value[task.task_id] || linksLoading.value[task.task_id]) return
+  const accId = linksAccId.value
+  const requestId = (taskLinkRequestIds.get(task.task_id) || 0) + 1
+  taskLinkRequestIds.set(task.task_id, requestId)
   linksLoading.value = { ...linksLoading.value, [task.task_id]: true }
   try {
     // since=任务创建时间, 圈出该任务的采集窗口
@@ -308,12 +342,17 @@ async function toggleTask(task: ScrapeTask) {
       page: 1,
       page_size: 100,
     })
+    if (accId !== linksAccId.value || taskLinkRequestIds.get(task.task_id) !== requestId) return
     const raw = res as any
     taskLinks.value = { ...taskLinks.value, [task.task_id]: raw.list || raw.items || [] }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+      toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    }
   } finally {
-    linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
+    if (accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+      linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
+    }
   }
 }
 
