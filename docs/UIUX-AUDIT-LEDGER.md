@@ -60,7 +60,7 @@
 | #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条最终是否可见 | 待跑 | 纯展示 | 构建后页面实测 |
 | #51 | `src/views/dashboard/Index.vue` | 深色主题 ECharts 图例/轴标签是否回退黑色 | 待跑 | 触及逻辑 | 三主题切换检查 |
 | #65 | `src/views/dashboard/Index.vue`（待定位） | 1920px 桌面 stat-strip 是否仍需横向滚动 | 待跑 | 纯展示 | 1920px 实测 |
-| #61 | `src/views/accounts/List.vue` | 选择 5+ 账号时底部浮条是否遮挡最后几行 | 待跑 | 纯展示 | 移动端长列表滚动实测 |
+| #61 | `src/views/accounts/List.vue` | 选择多账号时底部批量操作浮条可能遮挡列表末尾 | 🟠 | 真缺陷候选 | 已确认（布局空间不足） | 纯展示 | 移动端选 5+ 账号滚到列表末尾 | 已提交 `47504ae`：选中账号时列表主容器增加移动端底部滚动留白；待实机验证 |
 | #84 | `src/views/workspace/Broadcast.vue` | 已选目标 chips 预览区 max-height 仅 96px，20 个目标时可视区域较窄 | 🟡 | 细节 | 已确认（源码） | 纯展示 | 20 个目标实测 | 已提交 `0f8a8c0`：预览区 max-height 提升至 160px；待检查移动端表单高度与滚动体验 |
 
 ## C. 死代码/技术债候选（独立清理批次）
@@ -253,3 +253,11 @@
 |---|---|---|---|---|---|
 | #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标移入 `main.relative`，定位锚点明确 | `3170fa6` | 纯展示 | 待管理端 dashboard 实机定位检查 |
 | #84 | `src/views/workspace/Broadcast.vue` | 已选目标 chips 预览最大高度从 96px 提升至 160px | `0f8a8c0` | 纯展示 | 待 20 个目标、窄屏和页面滚动回归 |
+
+
+## Q. 账号批量操作浮条遮挡修复
+
+- 文件：`src/views/accounts/List.vue`
+- 提交：`47504ae`
+- 多选时为账号列表主容器增加移动端底部留白（桌面端不增加），让列表末尾能够滚动到浮动批量操作栏上方。
+- 验收：移动端选中 5 个以上账号，滚动至列表最后一项，确认最后一行和操作栏不重叠。
