@@ -1,4 +1,4 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 import type { DashboardStats, RiskEvent, AuditLog, ListResponse } from '@/types'
 
 function toQueryString(params?: Record<string, unknown>): string {
@@ -14,11 +14,11 @@ function toQueryString(params?: Record<string, unknown>): string {
 }
 
 export const dashboardApi = {
-  getStats: (accountId?: string) => api.get<DashboardStats>(`/dashboard/stats${accountId ? `?account_id=${accountId}` : ''}`),
-  getRiskEvents: (params?: { start_time?: string; end_time?: string; limit?: number; offset?: number }) => {
-    return api.get<ListResponse<RiskEvent>>(`/dashboard/risk-events${toQueryString(params as Record<string, unknown>)}`)
+  getStats: (accountId?: string, options?: RequestOptions) => api.get<DashboardStats>(`/dashboard/stats${accountId ? `?account_id=${accountId}` : ''}`, options),
+  getRiskEvents: (params?: { start_time?: string; end_time?: string; limit?: number; offset?: number }, options?: RequestOptions) => {
+    return api.get<ListResponse<RiskEvent>>(`/dashboard/risk-events${toQueryString(params as Record<string, unknown>)}`, options)
   },
-  getAuditLogs: (params?: { start_time?: string; end_time?: string; limit?: number; offset?: number }) => {
-    return api.get<ListResponse<AuditLog>>(`/dashboard/activities${toQueryString(params as Record<string, unknown>)}`)
+  getAuditLogs: (params?: { start_time?: string; end_time?: string; limit?: number; offset?: number }, options?: RequestOptions) => {
+    return api.get<ListResponse<AuditLog>>(`/dashboard/activities${toQueryString(params as Record<string, unknown>)}`, options)
   },
 }
