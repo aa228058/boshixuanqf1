@@ -342,12 +342,12 @@
         <!-- 协议号导入面板 -->
         <template v-else>
           <div>
-            <label class="block text-sm text-text-secondary mb-1.5">Session 字符串（每行一个）</label>
-            <textarea v-model="importText" rows="5" class="ui-input !text-sm font-mono" placeholder="每行粘贴一个 session 字符串，可批量导入" aria-label="session 字符串"></textarea>
+            <label for="account-session-import" class="block text-sm text-text-secondary mb-1.5">Session 字符串（每行一个）</label>
+            <textarea id="account-session-import" v-model="importText" rows="5" class="ui-input !text-sm font-mono" placeholder="每行粘贴一个 session 字符串，可批量导入" aria-label="session 字符串"></textarea>
           </div>
           <div>
-            <label class="block text-sm text-text-secondary mb-1.5">或上传 session 文件（可多选）</label>
-            <input type="file" multiple accept=".session,.see,.tdata,.zip,.rar,.7z,.json" class="w-full text-sm text-text-secondary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-bg-hover file:text-text-primary" @change="onImportFiles" aria-label="session 文件" />
+            <label for="account-session-files" class="block text-sm text-text-secondary mb-1.5">或上传 session 文件（可多选）</label>
+            <input id="account-session-files" type="file" multiple accept=".session,.see,.tdata,.zip,.rar,.7z,.json" class="w-full text-sm text-text-secondary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-bg-hover file:text-text-primary" @change="onImportFiles" aria-label="session 文件" />
             <p v-if="importFileList.length" class="text-xs text-[var(--t-brand)] mt-1">已选 {{ importFileList.length }} 个文件</p>
           </div>
           <p class="text-xs text-text-secondary">导入成功后账号自动上线（协议号保活模式）；备注对本次全部导入生效。</p>
@@ -515,15 +515,15 @@
     <Modal v-model="showEditRemark" title="编辑账号">
       <div class="space-y-3">
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">备注</label>
+          <label for="edit-remark" class="block text-sm text-text-secondary mb-1.5">备注</label>
           <input
             id="edit-remark" v-model="editRemarkText"
             placeholder="输入备注..."
             class="ui-input !min-h-[44px] !text-sm" aria-label="输入备注..." />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">代理（SOCKS5，留空 = 直连）</label>
-          <input v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
+          <label for="edit-proxy" class="block text-sm text-text-secondary mb-1.5">代理（SOCKS5，留空 = 直连）</label>
+          <input id="edit-proxy" v-model="editProxyText" placeholder="socks5://账号:密码@IP:端口"
             class="ui-input !min-h-[44px] !text-sm font-mono" aria-label="代理地址" />
           <div class="flex items-center gap-2 mt-2">
             <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="proxyTesting" @click="doTestProxy">
@@ -546,8 +546,8 @@
     <Modal v-model="showTransfer" :title="`转移群 — ${transferSource?.remark || transferSource?.phone || ''}`" width="440px">
       <div class="space-y-3">
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">目标账号（把这些群转移到它）</label>
-          <select v-model="transferTargetId" class="ui-input !min-h-[44px] !text-sm">
+          <label for="transfer-target-account" class="block text-sm text-text-secondary mb-1.5">目标账号（把这些群转移到它）</label>
+          <select id="transfer-target-account" v-model="transferTargetId" class="ui-input !min-h-[44px] !text-sm">
             <option value="" disabled>选择目标账号…</option>
             <option v-for="a in transferCandidates" :key="a.account_id" :value="a.account_id">
               {{ a.remark || a.phone }}<template v-if="a.status === 'offline'">（离线）</template>
@@ -555,12 +555,12 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">加群随机间隔（分钟/群）</label>
+          <span class="block text-sm text-text-secondary mb-1.5">加群随机间隔（分钟/群）</span>
           <div class="flex items-center gap-2">
-            <input v-model.number="transferMin" type="number" min="1" max="60"
+            <input id="transfer-min-interval" v-model.number="transferMin" type="number" min="1" max="60"
               class="ui-input !w-20 !min-h-[36px] !px-3 !py-2 !text-sm" aria-label="最小间隔" />
             <span class="text-text-secondary text-sm">~</span>
-            <input v-model.number="transferMax" type="number" min="1" max="120"
+            <input id="transfer-max-interval" v-model.number="transferMax" type="number" min="1" max="120"
               class="ui-input !w-20 !min-h-[36px] !px-3 !py-2 !text-sm" aria-label="最大间隔" />
           </div>
           <p class="text-xs text-text-secondary mt-1.5 leading-relaxed">
@@ -659,8 +659,8 @@
           <p class="text-xs text-text-secondary leading-relaxed">从来源用户名读取名字、姓氏和个人简介，再应用到已选账号。用户名具有唯一性，头像不会在本次操作中覆盖。</p>
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">来源账号用户名</label>
-          <input v-model="cloneSource" placeholder="@username"
+          <label for="clone-source-username" class="block text-sm text-text-secondary mb-1.5">来源账号用户名</label>
+          <input id="clone-source-username" v-model="cloneSource" placeholder="@username"
                  class="ui-input !text-sm" aria-label="资料来源用户名"
                  autocomplete="off" autocapitalize="none" spellcheck="false"
                  @keyup.enter="runClone" />
