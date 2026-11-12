@@ -56,7 +56,7 @@ async function loadAnimation() {
       animationData: data,
     })
   } catch (e) {
-    if (disposed || id !== loadId || (e instanceof DOMException && e.name === 'AbortError')) return
+    if (disposed || id !== loadId || (e instanceof Error && e.name === 'AbortError')) return
     console.warn('[LottieAnim] 加载失败:', e)
     box.style.display = 'none'
   } finally {
