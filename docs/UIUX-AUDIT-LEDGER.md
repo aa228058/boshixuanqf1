@@ -37,13 +37,13 @@
 | #109 | `src/views/raffle/Index.vue` | 清空记录使用原生 `confirm()` | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 桌面/移动端确认交互回归 | 已提交 `17db125`：改用全局 `ask()` 确认弹窗；取消不触发删除 |
 | #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标位于 `main` 外，定位上下文可能错误 | 🟡 | 真缺陷候选 | 已确认（结构） | 纯展示 | 管理端 dashboard 实机检查角标位置 | 顶层 span 在 main 前，需确认外层定位上下文 |
 | #131 | `src/views/admin/dashboard/Index.vue` | 使用 `bg-warning` / `text-warning`，可能没有对应 Tailwind token | 🟡 | 待核 | 待 grep | 纯展示 | Tailwind 配置/构建 CSS 检查 | 需核对完整 token 定义与生成结果 |
-| #132 | `src/views/admin/dashboard/Index.vue` | columns 的 `format` 函数未传给 TDesign columns | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 管理端表格日期列手测 | 映射只保留 colKey/title |
-| #138 | `src/views/admin/tenants/List.vue` | 表格列格式化函数可能未被 TDesign 消费 | 🟠 | 真缺陷候选 | 待核 | 触及逻辑 | 检查实际列定义及渲染 | 与 #132 可能同根因，需避免重复计数 |
+| #132 | `src/views/admin/dashboard/Index.vue` | created_at 的 format 元数据未被 TDesign columns 消费 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 管理端 dashboard 日期列检查 | 已提交 `c1441e8`：改用 `#created_at` 插槽明确格式化日期，移除无效 format 字段 |
+| #138 | `src/views/admin/tenants/List.vue` | 注册时间列未格式化，原始日期值直接交给 TDesign | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 租户列表日期列检查 | 已提交 `e98aecc`：增加 `#created_at` 插槽，按 zh-CN 日期显示 |
 | #141 | `src/views/admin/codes/List.vue` | 使用 text-yellow/red/green 硬编码语义色 | 🟡 | 误报（当前文件） | 误报 | 纯展示 | 如有其他匹配文件再补证据 | 当前文件全文未检出所述 class |
 | #142 | `src/views/admin/codes/List.vue` | 批量操作浮条固定距底 92px | 🟡 | 细节 | 已确认 | 纯展示 | 管理端移动端实机检查遮挡 | 已提交 `9c48b53`：移动端改为距底 20px + safe-area；待检查是否遮挡底部系统手势区 |
 | #145 | `src/views/admin/support/Config.vue` | 二维码预览使用 `object-cover`，可能裁切二维码边缘 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 不同长宽比二维码实机扫码 | 已提交 `0f6ccca`：改为 object-contain，并提供白底与内边距；待扫码验证 |
 | #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条 `from-[var(--t-*)] to-[var(--t-*)]` 是否生成/显示异常 | 🟡 | 待验证 | 待跑 | 纯展示 | 构建产物 + 管理端监控页实机检查 | 当前源码是合法的 gradient-stop 写法；静态源码不能证明运行时可见 |
-| #159 | `src/views/admin/*`（4 个页面，待逐一列出） | 与 #132/#138 相同的表格 format 映射问题 | 🟠 | 横切 | 待核 | 触及逻辑 | 全部管理表格页面逐项核验 | 先定位四页及共同映射代码，避免重复登记 |
+| #159 | `src/views/admin/codes/List.vue`、`src/views/admin/audit/Logs.vue` 等 | 卡密表格的 plan_id/created_at format 元数据未消费；审计日志虽有 format 字段但已有同名插槽 | 🟠 | 横切 | 部分已确认、部分误报 | 触及逻辑 | 管理端表格日期/套餐显示检查 | 已提交 `d434078`：卡密表新增 plan_id/created_at 插槽并删除无效 format；`cb53076`：审计日志删除冗余 format 元数据（其插槽已负责格式化） |
 | #175 | `src/styles/tailwind.css` | `:not([class*="t-"])` 会排除含 `t-` 的普通类（如 `text-sm`），使其失去该 focus-visible 样式 | 🟠 | 横切 | 已确认 | 纯展示 | 检查按钮/链接键盘 focus-visible | 已提交 `75a27ec`：改用 class token 边界匹配，仅排除以 `t-` 开头的 TDesign 类 |
 | #121 | `src/views/NotFound.vue` | 无站内历史记录时仍调用 `router.back()` | 🟡 | 真缺陷 | 已确认 | 触及逻辑 | 直接打开 404 后点击返回 | 已提交 `bd1e02e`：优先检查 router history state；无站内上一页则回 dashboard |
 | #51 | `src/views/dashboard/Index.vue` | ECharts 读取不存在的 `--text-secondary`，fallback 也不是 CSS 颜色值 | 🟡 | 真缺陷 | 已确认 | 触及逻辑 | 三主题下检查图例/轴标签颜色 | 已提交 `8644b38`：改读 `--color-text-secondary`，fallback 使用 `var(--t-text-3)`；待图表回归 |
@@ -170,3 +170,16 @@
 | #175 | `src/styles/tailwind.css` | focus-visible 排除规则改为 class token 边界，避免误伤 `text-*` 等普通工具类 | `75a27ec` | 纯展示 | 待键盘导航检查按钮、链接与 TDesign 控件 |
 
 **以上修改均在审计工作分支；尚未通过本地 lint/typecheck/test/build，也没有浏览器实测结果。**
+
+
+## K. 管理端表格与语义色修复（第四批源码修改）
+
+| 问题 | 文件 | 修改 | 提交 | 触及层 | 验收 |
+|---|---|---|---|---|---|
+| #131 | `src/views/admin/dashboard/Index.vue` | 两处 `bg-warning/15 text-warning` 改为已有 amber token | `2a44778` | 纯展示 | 待管理端主题视觉回归 |
+| #132 | `src/views/admin/dashboard/Index.vue` | created_at 列改用 `#created_at` 插槽格式化日期，移除无效 format 元数据 | `c1441e8` | 触及逻辑 | 待桌面表格日期检查 |
+| #138 | `src/views/admin/tenants/List.vue` | 增加 created_at 插槽，按 zh-CN 日期展示 | `e98aecc` | 触及逻辑 | 待桌面表格日期检查 |
+| #159 | `src/views/admin/codes/List.vue` | 增加 plan_id、created_at 插槽；删除 TDesign 不会消费的 format 元数据 | `d434078` | 触及逻辑 | 待套餐名与创建日期检查 |
+| #159 | `src/views/admin/audit/Logs.vue` | 删除未被使用的 format 属性；同名插槽原本已正确渲染，属于技术债清理而非用户可见 bug | `cb53076` | 纯展示/清理 | 确认审计日志三列仍由插槽格式化 |
+
+以上管理端修改未执行构建和浏览器回归。
