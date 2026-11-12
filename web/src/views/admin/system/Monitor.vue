@@ -107,6 +107,7 @@ const metrics = ref({
 
 const systemLogs = ref<Array<{ time: string; level: string; message: string }>>([])
 let refreshTimer: ReturnType<typeof setInterval>
+let alertCooldownTimer: ReturnType<typeof setTimeout> | null = null
 
 // 平滑采样：内存历史值（5次采样）
 const memoryHistory = ref<number[]>([])
@@ -146,7 +147,8 @@ function checkAlert(key: string, value: number, threshold: number) {
 
 function triggerCooldown() {
   alertCooldown.value = true
-  setTimeout(() => { alertCooldown.value = false }, ALERT_COOLDOWN_MS)
+  if (alertCooldownTimer) clearTimeout(alertCooldownTimer)
+  alertCooldownTimer = setTimeout(() => { alertCooldown.value = false; alertCooldownTimer = null }, ALERT_COOLDOWN_MS)
 }
 
 // 动态颜色：根据使用率返回对应颜色类
@@ -196,6 +198,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearInterval(refreshTimer)
+  if (alertCooldownTimer) clearTimeout(alertCooldownTimer)
   document.removeEventListener('visibilitychange', tickHandler)
 })
 </script>
