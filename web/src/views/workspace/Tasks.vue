@@ -493,13 +493,20 @@ watch([page, range, statusFilter, typeFilter], () => {
   })
 })
 
+const taskActionIds = ref(new Set<string>())
 async function cancelTask(id: string) {
+  if (!id || taskActionIds.value.has(id)) return
+  taskActionIds.value = new Set(taskActionIds.value).add(id)
   try {
     await taskApi.cancel(id)
-    fetchTasks()
+    void fetchTasks()
     toast({ type: 'success', title: '任务已取消' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '取消失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    const next = new Set(taskActionIds.value)
+    next.delete(id)
+    taskActionIds.value = next
   }
 }
 
@@ -534,12 +541,18 @@ async function showAccStats(row: any) {
 }
 
 async function retryTask(id: string, scope?: 'failed') {
+  if (!id || taskActionIds.value.has(id)) return
+  taskActionIds.value = new Set(taskActionIds.value).add(id)
   try {
     await taskApi.retry(id, scope)
-    fetchTasks()
+    void fetchTasks()
     toast({ type: 'success', title: scope === 'failed' ? '已创建续发任务(仅失败目标)' : '任务已重试' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '重试失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    const next = new Set(taskActionIds.value)
+    next.delete(id)
+    taskActionIds.value = next
   }
 }
 
