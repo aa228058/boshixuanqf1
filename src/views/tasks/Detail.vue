@@ -184,7 +184,7 @@
               Telegram 消息 ID：{{ log.tg_message_id }}
             </div>
             <div v-if="log.error_code" class="mt-1 text-xs rounded px-2 py-1 inline-block"
-                 :class="log.error_code === 'checkpoint_persist_failed' ? 'text-[var(--t-warning)] bg-[var(--t-warning)]/10' : 'text-[var(--t-err)] bg-[var(--t-err)]/5'">
+                 :class="log.error_code === 'checkpoint_persist_failed' ? 'text-[var(--t-warn)] bg-[var(--t-warn)]/10' : 'text-[var(--t-err)] bg-[var(--t-err)]/5'">
               {{ log.error_code === 'checkpoint_persist_failed' ? '发送结果待核实：请先到 Telegram 检查目标消息，禁止自动续发' : statusLabel(log.error_code) }}
             </div>
           </div>
