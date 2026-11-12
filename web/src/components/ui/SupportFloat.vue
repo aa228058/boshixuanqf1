@@ -50,7 +50,7 @@
       @mousedown="startDrag"
       @touchstart="startDrag"
       @click="toggle"
-      class="relative w-9 h-9 rounded-full flex items-center justify-center cursor-move select-none touch-none group"
+      class="relative w-11 h-11 rounded-full flex items-center justify-center cursor-move select-none touch-none group"
     >
       <!-- 脉冲光环 -->
       <span class="absolute inset-0 rounded-full bg-cyan/20 animate-ping-slow" />
@@ -99,6 +99,7 @@ function startDrag(e: MouseEvent | TouchEvent) {
   document.addEventListener('mouseup', stopDrag)
   document.addEventListener('touchmove', onDrag, { passive: false })
   document.addEventListener('touchend', stopDrag)
+  document.addEventListener('touchcancel', stopDrag)
 }
 
 function onDrag(e: MouseEvent | TouchEvent) {
@@ -123,6 +124,7 @@ function stopDrag() {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  document.removeEventListener('touchcancel', stopDrag)
   setTimeout(() => { isDragging.value = false }, 50)
 }
 
@@ -210,6 +212,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  document.removeEventListener('touchcancel', stopDrag)
 })
 </script>
 
