@@ -88,17 +88,17 @@ describe('downloadCSV', () => {
 
 describe('spreadsheet cell sanitizers', () => {
   it.each(['=', '+', '-', '@'])('CSV 将 %s 前缀作为文本并正确引用', (prefix) => {
-    expect(escapeSpreadsheetCSVCell(prefix + 'SUM(A1:A2)')).toBe('"\\t' + prefix + 'SUM(A1:A2)"')
+    expect(escapeSpreadsheetCSVCell(prefix + 'SUM(A1:A2)')).toBe('"\t' + prefix + 'SUM(A1:A2)"')
   })
 
   it('CSV 保留 Unicode、空值、逗号、双引号和换行', () => {
     expect(escapeSpreadsheetCSVCell(null)).toBe('""')
-    expect(escapeSpreadsheetCSVCell('中文, "名字"\\r\\n第二行')).toBe('"中文, ""名字""\\r\\n第二行"')
+    expect(escapeSpreadsheetCSVCell('中文, "名字"\r\n第二行')).toBe('"中文, ""名字""\r\n第二行"')
   })
 
   it('Excel HTML 单元格防公式注入并转义 HTML 特殊字符', () => {
-    expect(escapeSpreadsheetHTMLCell('=1+1')).toBe('\\t=1+1')
-    expect(escapeSpreadsheetHTMLCell(`<img src=x onerror="x">&'\\n`)).toBe('&lt;img src=x onerror=&quot;x&quot;&gt;&amp;&#39;\\n')
+    expect(escapeSpreadsheetHTMLCell('=1+1')).toBe('\t=1+1')
+    expect(escapeSpreadsheetHTMLCell(`<img src=x onerror="x">&'\n`)).toBe('&lt;img src=x onerror=&quot;x&quot;&gt;&amp;&#39;\n')
     expect(escapeSpreadsheetHTMLCell(undefined)).toBe('')
   })
 })
