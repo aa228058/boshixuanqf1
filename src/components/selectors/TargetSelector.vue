@@ -317,7 +317,7 @@ const manualTargets = computed(() => {
     // Strict validation: @username (5-32 chars), -100ID (pure digits, >=10), t.me/name (5-32 chars)
     if (
       /^@[a-zA-Z0-9_]{5,32}$/.test(line) ||
-      /^-100\d{10}$/.test(line) ||
+      /^-100\d{10,}$/.test(line) ||
       /^https?:\/\/t\.me\/[a-zA-Z0-9_]{5,32}$/.test(line)
     ) {
       valid.push(line)
@@ -331,7 +331,7 @@ const manualInvalid = computed(() => {
   return lines.filter(l => {
     return !(
       /^@[a-zA-Z0-9_]{5,32}$/.test(l) ||
-      /^-100\d{10}$/.test(l) ||
+      /^-100\d{10,}$/.test(l) ||
       /^https?:\/\/t\.me\/[a-zA-Z0-9_]{5,32}$/.test(l)
     )
   })
