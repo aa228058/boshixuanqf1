@@ -134,7 +134,7 @@
             </template>
           </div>
           <!-- 群名 chips: 全部列出, 小字, 可滚动 -->
-          <div v-if="selectedTargets.length && showTargetNames" class="flex flex-wrap gap-1 mt-2 max-h-24 overflow-y-auto">
+          <div v-if="selectedTargets.length && showTargetNames" class="flex flex-wrap gap-1 mt-2 max-h-40 overflow-y-auto">
             <span v-for="tid in selectedTargets" :key="tid" class="px-1.5 py-0.5 rounded text-[11px] bg-bg-secondary text-text-secondary border border-border/60">{{ targetTitle(tid) }}</span>
           </div>
         </div>
