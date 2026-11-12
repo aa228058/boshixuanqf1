@@ -28,6 +28,7 @@
         </div>
         <button type="button"
           role="switch"
+          aria-label="自动参与抽奖"
           :aria-checked="raffleEnabled"
           :disabled="toggling"
           class="relative w-10 h-6 rounded-full transition-colors duration-200 shrink-0"
@@ -51,6 +52,7 @@
           </div>
           <button type="button"
             role="switch"
+            aria-label="中奖自动回复"
             :aria-checked="replyEnabled"
             :disabled="replySaving"
             class="relative w-10 h-6 rounded-full transition-colors duration-200 shrink-0"
@@ -97,6 +99,7 @@
           </div>
           <button type="button"
             role="switch"
+            aria-label="私聊激活与中奖通知"
             :aria-checked="pingEnabled"
             :disabled="pingSaving"
             class="relative w-10 h-6 rounded-full transition-colors duration-200 shrink-0"
