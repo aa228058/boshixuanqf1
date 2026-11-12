@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { downloadCSV, escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell, parseLinks } from '../export'
+import { downloadBlob, downloadCSV, escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell, parseLinks } from '../export'
 
 describe('parseLinks', () => {
   it('提取并去除首尾空白的 Telegram 群链接', () => {
@@ -103,5 +103,55 @@ describe('spreadsheet cell sanitizers', () => {
     expect(escapeSpreadsheetHTMLCell('=1+1')).toBe('\t=1+1')
     expect(escapeSpreadsheetHTMLCell(`<img src=x onerror="x">&'\n`)).toBe('&lt;img src=x onerror=&quot;x&quot;&gt;&amp;&#39;\n')
     expect(escapeSpreadsheetHTMLCell(undefined)).toBe('')
+  })
+})
+
+
+describe('downloadBlob', () => {
+  it('挂载临时下载锚点，点击后移除锚点并延迟释放 Object URL', () => {
+    const click = vi.fn()
+    const remove = vi.fn()
+    const appendChild = vi.fn()
+    const revokeObjectURL = vi.fn()
+    const setTimeout = vi.fn((handler: () => void, delay: number) => 0)
+    const anchor = { href: '', download: '', click, remove }
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:shared-download'), revokeObjectURL })
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => anchor),
+      body: { appendChild },
+    })
+    vi.stubGlobal('window', { setTimeout })
+
+    downloadBlob('report.json', new Blob(['{}'], { type: 'application/json' }))
+
+    expect(anchor.href).toBe('blob:shared-download')
+    expect(anchor.download).toBe('report.json')
+    expect(appendChild).toHaveBeenCalledWith(anchor)
+    expect(click).toHaveBeenCalledOnce()
+    expect(remove).toHaveBeenCalledOnce()
+    expect(setTimeout).toHaveBeenCalledOnce()
+    expect(setTimeout.mock.calls[0][1]).toBe(1000)
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    ;(setTimeout.mock.calls[0][0] as () => void)()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:shared-download')
+    vi.unstubAllGlobals()
+  })
+
+  it('点击失败时立即释放 Object URL 并仍然移除临时锚点', () => {
+    const remove = vi.fn()
+    const revokeObjectURL = vi.fn()
+    const click = vi.fn(() => { throw new Error('download click failed') })
+    const anchor = { href: '', download: '', click, remove }
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:failed-download'), revokeObjectURL })
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => anchor),
+      body: { appendChild: vi.fn() },
+    })
+    vi.stubGlobal('window', { setTimeout: vi.fn() })
+
+    expect(() => downloadBlob('report.json', new Blob(['{}']))).toThrow('download click failed')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:failed-download')
+    expect(remove).toHaveBeenCalledOnce()
+    vi.unstubAllGlobals()
   })
 })
