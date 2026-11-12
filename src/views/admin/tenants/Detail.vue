@@ -8,7 +8,7 @@
   <main class="max-w-4xl mx-auto space-y-6" v-else-if="tenant">
     <Breadcrumb :items="[{ path: '/admin/tenants', label: '租户管理' }, { path: '', label: '租户详情' }]" />
     <div class="flex items-center gap-3">
-      <button type="button" @click="$router.back()" class="ui-icon-btn" aria-label="返回" title="返回">
+      <button type="button" @click="router.replace('/admin/tenants')" class="ui-icon-btn" aria-label="返回" title="返回">
         <ArrowLeft class="w-5 h-5" />
       </button>
       <h2 class="text-lg font-semibold text-gradient">租户详情</h2>
@@ -64,12 +64,12 @@
     <Modal v-model="showEdit" title="修改套餐">
       <div class="space-y-4">
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">套餐</label>
-          <t-select v-model="editForm.plan_id" :options="planOptions" />
+          <label for="tenant-detail-plan" class="block text-sm text-text-secondary mb-1.5">套餐</label>
+          <t-select id="tenant-detail-plan" v-model="editForm.plan_id" :options="planOptions" />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">到期时间</label>
-          <input v-model="editForm.expires_at" type="datetime-local" class="ui-input !text-sm" aria-label="套餐到期时间" />
+          <label for="tenant-detail-expires" class="block text-sm text-text-secondary mb-1.5">到期时间</label>
+          <input id="tenant-detail-expires" v-model="editForm.expires_at" type="datetime-local" class="ui-input !text-sm" />
         </div>
       </div>
       <template #footer>
