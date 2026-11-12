@@ -268,6 +268,7 @@ const taskChartOption = computed(() => ({
 
 const accountChartOption = computed(() => ({
   backgroundColor: 'transparent',
+  color: chartTheme.palette.value,
   tooltip: {
     backgroundColor: chartTheme.surface.value,
     borderColor: chartTheme.border.value,
