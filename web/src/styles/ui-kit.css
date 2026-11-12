@@ -422,6 +422,28 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   background: color-mix(in srgb, var(--t-err) 14%, var(--t-card));
   border-color: color-mix(in srgb, var(--t-err) 42%, transparent);
 }
+
+/* 主操作按钮：前景、背景、悬停和按下状态全部使用当前主题语义令牌。 */
+.ui-native-button--primary {
+  color: var(--t-brand-ink);
+  background: var(--t-brand);
+  border-color: var(--t-brand);
+  box-shadow: var(--t-shadow-sm);
+}
+.ui-native-button--primary:hover {
+  color: var(--t-brand-ink);
+  background: var(--t-brand-hover);
+  border-color: var(--t-brand-hover);
+}
+.ui-native-button--primary:active:not(:disabled) {
+  color: var(--t-brand-ink);
+  background: var(--t-brand-active);
+  border-color: var(--t-brand-active);
+}
+.ui-native-button--primary:focus-visible {
+  outline: 2px solid var(--t-brand);
+  outline-offset: 2px;
+}
 .ui-native-button:active:not(:disabled) { transform: translateY(1px); }
 .ui-native-button:disabled { opacity: .5; cursor: not-allowed; }
 .ui-native-button:focus-visible { outline: 2px solid var(--t-brand); outline-offset: 2px; }
