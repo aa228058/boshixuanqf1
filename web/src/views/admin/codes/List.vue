@@ -9,8 +9,8 @@
         { label: '未使用', value: 'unused' },
         { label: '已使用', value: 'used' }
       ]" class="w-24 shrink-0" />
-      <t-button theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="exportCodes">
-        导出
+      <t-button theme="primary" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" :loading="exportingCodes" :disabled="exportingCodes" @click="exportCodes">
+        {{ exportingCodes ? '导出中…' : '导出' }}
       </t-button>
       <t-button v-if="selectedIds.length" size="sm" variant="outline" class="shrink-0 ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copySelected">
         复制选中({{ selectedIds.length }})
@@ -272,17 +272,22 @@ async function revokeCode(c: ActivationCode) {
 }
 
 // 导出全部未使用卡密：走后端 /admin/codes/export（此前只导出当前页过滤结果）
+const exportingCodes = ref(false)
 async function exportCodes() {
+  if (exportingCodes.value) return
+  exportingCodes.value = true
   try {
     const text = await adminApiMod.exportCodes()
     if (!text) {
       toast({ type: 'info', title: '没有可导出的卡密' })
       return
     }
-    const blob = new Blob([text], { type: 'text/plain' })
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
     downloadBlob(`codes_export_${new Date().toISOString().slice(0, 10)}.txt`, blob)
-  } catch (e: any) {
-    toast({ type: 'error', title: '导出失败', message: e?.message || '请稍后重试' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
+  } finally {
+    exportingCodes.value = false
   }
 }
 
