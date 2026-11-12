@@ -1,10 +1,10 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 // R115: PaginationParams 死类型导入已删(全项目零引用)
 import type { Account, ListResponse } from '@/types'
 
 export const accountApi = {
   // silent: 后台轮询传 true, 不触发顶部全局进度条(2026-10-22 审计修复)
-  list: (silent = false) => api.get<ListResponse<Account>>('/accounts', { silent }),
+  list: (silent = false, options?: RequestOptions) => api.get<ListResponse<Account>>('/accounts', { silent, ...options }),
   getById: (id: string) => api.get<Account>(`/accounts/${id}`),
   create: (phone: string, remark?: string) => api.post<Account>('/accounts', { phone, remark }),
   delete: (id: string) => api.delete<void>(`/accounts/${id}`),
