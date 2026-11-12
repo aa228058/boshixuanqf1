@@ -107,7 +107,9 @@ describe('useTaskEvents SSE lifecycle', () => {
     await flushPromises()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/events/ticket', expect.objectContaining({ method: 'POST' }))
     expect(MockEventSource.instances).toHaveLength(1)
+    expect(MockEventSource.instances[0].url).toContain('/api/v1/events?ticket=')
 
     unmount()
     await vi.advanceTimersByTimeAsync(30000)
