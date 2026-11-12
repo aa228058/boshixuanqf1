@@ -1109,7 +1109,8 @@ async function batchSetPool(status: 'active' | 'standby') {
     } else {
       toast({ type: 'warning', message: `${label}: 成功 ${r.success}, 失败 ${r.failed}(额度不足或状态异常)` })
     }
-    selectedIds.value = new Set()
+    // 部分失败时保留所选集合，方便用户查看失败提示后重试；全部成功才清空。
+    if (r.failed === 0) selectedIds.value = new Set()
     accountStore.fetchAccounts(true)
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '批量操作失败' })
