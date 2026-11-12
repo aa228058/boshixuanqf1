@@ -54,6 +54,23 @@
     </div>
 
 
+    <div v-if="activeTab === 'create'" class="glass rounded-[var(--t-r-md)] p-5 space-y-3">
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="font-medium">用户简介链接实时解析</div>
+          <p class="text-xs text-text-muted mt-1 leading-relaxed">群内用户发言时读取发言者 Bio，提取简介中的 Telegram 链接并写入成员资料，供群库聚合器归并。与消息正文链接监听独立。</p>
+        </div>
+        <button type="button" @click="toggleBioListening" :disabled="bioSaving || !linksAccId"
+          :aria-busy="bioSaving" role="switch" :aria-checked="bioListening"
+          class="relative w-12 h-7 rounded-full transition-colors shrink-0"
+          :class="bioListening ? 'bg-cyan' : 'bg-bg-hover'" aria-label="用户简介链接实时解析开关">
+          <span class="absolute top-1 w-5 h-5 rounded-full bg-white transition-all" :class="bioListening ? 'left-6' : 'left-1'" />
+        </button>
+      </div>
+      <p v-if="bioListening" class="text-xs font-bold" style="color: var(--t-ok);">● 简介实时解析已开启</p>
+      <p v-else class="text-xs text-text-muted">关闭状态不会读取发言用户的个人简介。</p>
+    </div>
+
     <!-- ===== 采集结果 ===== -->
     <div v-else class="space-y-3">
       <div v-if="tasksLoading" class="flex justify-center py-8">
@@ -455,16 +472,58 @@ onMounted(() => {
 // ===== 链接监听总开关 =====
 const listening = ref(false)
 const listeningSaving = ref(false)
+const bioListening = ref(false)
+const bioSaving = ref(false)
 
-onMounted(async () => {
-  const acc = accountStore.accounts.find((a: any) => a.account_id === linksAccId.value)
-  if (!acc) return
+async function loadBioListeningStatus(accountId: string) {
+  if (!accountId) { bioListening.value = false; return }
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(acc.account_id)}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}&mode=bio`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
     })
-    if (res.ok) listening.value = (await res.json()).enabled
+    if (res.ok && linksAccId.value === accountId) bioListening.value = (await res.json()).enabled
   } catch {}
+}
+
+async function toggleBioListening() {
+  if (bioSaving.value) return
+  const accountId = linksAccId.value
+  if (!accountId) return
+  const next = !bioListening.value
+  bioSaving.value = true
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+      body: JSON.stringify({ account_id: accountId, enabled: next, mode: 'bio' }),
+    })
+    if (!res.ok) throw new Error()
+    if (linksAccId.value === accountId) {
+      bioListening.value = next
+      toast({ type: 'success', title: next ? '简介实时解析已开启' : '简介实时解析已关闭' })
+    }
+  } catch {
+    if (linksAccId.value === accountId) toast({ type: 'error', title: '简介解析开关操作失败', message: '请稍后重试' })
+  } finally { bioSaving.value = false }
+}
+
+async function loadMessageListeningStatus(accountId: string) {
+  if (!accountId) { listening.value = false; return }
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}`, {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+    })
+    if (res.ok && linksAccId.value === accountId) listening.value = (await res.json()).enabled
+  } catch {}
+}
+
+onMounted(() => {
+  loadMessageListeningStatus(linksAccId.value)
+  loadBioListeningStatus(linksAccId.value)
+})
+watch(linksAccId, accountId => {
+  loadMessageListeningStatus(accountId)
+  loadBioListeningStatus(accountId)
 })
 
 // ===== R111: 协议协同脚本已全部删除(loadCampaigns/submitProtocol/controlCampaign/exportLinks) =====
