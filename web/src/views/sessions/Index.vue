@@ -356,16 +356,17 @@ function openEdit(acc: any) {
 }
 
 async function doSave() {
-  if (!editForm.value) return
+  if (!editForm.value || saving.value) return
+  const form = { ...editForm.value }
   saving.value = true
   try {
-    await updateProfile(editForm.value.account_id, {
-      first_name: editForm.value.first_name,
-      last_name: editForm.value.last_name,
-      about: editForm.value.about,
-      username: editForm.value.username.replace(/^@/, ''),
-      twofa: editForm.value.twofa,
-      remark: editForm.value.remark,
+    await updateProfile(form.account_id, {
+      first_name: form.first_name,
+      last_name: form.last_name,
+      about: form.about,
+      username: form.username.replace(/^@/, ''),
+      twofa: form.twofa,
+      remark: form.remark,
     })
     toast({ type: 'success', title: '资料已更新' })
     showEdit.value = false
