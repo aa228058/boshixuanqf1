@@ -166,12 +166,15 @@ function usageBarColor(percent: number): string {
 
 let metricsRequestPending = false
 let metricsMounted = false
+let metricsController: AbortController | null = null
 async function fetchMetrics() {
   // 轮询间隔短于慢请求耗时会产生重叠请求；保持单飞，避免旧快照覆盖新指标。
   if (!metricsMounted || metricsRequestPending) return
   metricsRequestPending = true
+  const controller = new AbortController()
+  metricsController = controller
   try {
-    const data = await adminApiMod.getSystemMetrics()
+    const data = await adminApiMod.getSystemMetrics({ signal: controller.signal })
     if (!metricsMounted) return
     metrics.value = { ...metrics.value, ...data }
     metrics.value.totalAccounts = (data as any).total_accounts ?? 0
@@ -186,6 +189,7 @@ async function fetchMetrics() {
   } catch (e: unknown) {
     if (metricsMounted) pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
   } finally {
+    if (metricsController === controller) metricsController = null
     metricsRequestPending = false
   }
 }
@@ -209,6 +213,8 @@ onUnmounted(() => {
   clearInterval(refreshTimer)
   // 防止组件离开后未完成的请求继续向已卸载页面写入状态。
   metricsMounted = false
+  metricsController?.abort()
+  metricsController = null
   if (alertCooldownTimer) clearTimeout(alertCooldownTimer)
   document.removeEventListener('visibilitychange', tickHandler)
 })
