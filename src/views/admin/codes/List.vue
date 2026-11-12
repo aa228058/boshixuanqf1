@@ -37,6 +37,12 @@
         <template #code="{ row }">
           <span class="font-mono text-sm">{{ row.code }}</span>
         </template>
+        <template #plan_id="{ row }">
+          <span class="text-xs">{{ planLabel(row.plan_id as string) }}</span>
+        </template>
+        <template #created_at="{ row }">
+          <span class="text-xs">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '-' }}</span>
+        </template>
         <template #status="{ row }">
           <span class="text-xs px-2 py-0.5 rounded-full" :class="codeStatusClass(row.status as string)">
             {{ row.status === 'unused' ? '未使用' : row.status === 'used' ? '已使用' : row.status === 'expired' ? '已过期' : '已作废' }}
@@ -191,10 +197,10 @@ const planOptions = computed(() => plans.value.map(p => ({ label: p.name, value:
 const columns = [
   { key: 'select', title: '', class: 'w-10' },
   { key: 'code', title: '卡密' },
-  { key: 'plan_id', title: '套餐', format: (v: any) => planLabel(v) },
+  { key: 'plan_id', title: '套餐' },
   { key: 'status', title: '状态' },
   { key: 'used_by', title: '使用租户' },
-  { key: 'created_at', title: '创建时间', format: (v: any) => new Date(v).toLocaleDateString('zh-CN') },
+  { key: 'created_at', title: '创建时间' },
   { key: 'actions', title: '操作', class: 'w-36' },
 ]
 
