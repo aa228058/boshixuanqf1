@@ -59,7 +59,7 @@
 | #180 | 全局响应式布局 | 640–768px 是否出现侧栏、抽屉、TabBar 冲突 | 待跑 | 纯展示 | 640/700/768px 视口实测 |
 | #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条最终是否可见 | 待跑 | 纯展示 | 构建后页面实测 |
 | #51 | `src/views/dashboard/Index.vue` | 深色主题 ECharts 图例/轴标签是否回退黑色 | 待跑 | 触及逻辑 | 三主题切换检查 |
-| #65 | `src/views/dashboard/Index.vue`（待定位） | 1920px 桌面 stat-strip 是否仍需横向滚动 | 待跑 | 纯展示 | 1920px 实测 |
+| #65 | `src/views/dashboard/Index.vue` | 当前 KPI 区是 `grid-cols-2 lg:grid-cols-4`，卡片 `min-w-0`，源码未见 stat-strip 横向滚动容器；暂不支持原问题描述 | 源码已复核，待视口确认 | 待验证/疑似误报 | 纯展示 | 1920px 实测是否有页面级横向溢出 |
 | #61 | `src/views/accounts/List.vue` | 选择多账号时底部批量操作浮条可能遮挡列表末尾 | 🟠 | 真缺陷候选 | 已确认（布局空间不足） | 纯展示 | 移动端选 5+ 账号滚到列表末尾 | 已提交 `47504ae`：选中账号时列表主容器增加移动端底部滚动留白；待实机验证 |
 | #84 | `src/views/workspace/Broadcast.vue` | 已选目标 chips 预览区 max-height 仅 96px，20 个目标时可视区域较窄 | 🟡 | 细节 | 已确认（源码） | 纯展示 | 20 个目标实测 | 已提交 `0f8a8c0`：预览区 max-height 提升至 160px；待检查移动端表单高度与滚动体验 |
 
