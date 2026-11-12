@@ -43,7 +43,7 @@ function parseCountValue(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
   // 先去掉千分位，再提取完整数值，保留正负号、小数和科学计数法。
   const normalized = String(v ?? '').replace(/,(?=\d{3}(?:\D|$))/g, '')
-  const match = normalized.match(/[+-]?(?:\d+\\.?\d*|\\.\d+)(?:e[+-]?\d+)?/i)
+  const match = normalized.match(/[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i)
   if (!match) return 0
   const n = Number(match[0])
   return Number.isFinite(n) ? n : 0
