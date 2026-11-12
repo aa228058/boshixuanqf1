@@ -2060,7 +2060,7 @@ onMounted(() => {
     align-items: center;
     width: 100%;
     min-width: 0;
-    min-height: 36px;
+    min-height: 44px;
     padding: 0 8px !important;
     border-radius: 10px !important;
     font-size: 12px !important;
@@ -2068,7 +2068,7 @@ onMounted(() => {
   }
   .acc-action-btn :deep(svg) { width: 14px; height: 14px; }
   .acc-actions .relative { display: flex; }
-  .more-btn { min-width: 64px; min-height: 36px; justify-content: center; }
+  .more-btn { min-width: 64px; min-height: 44px; justify-content: center; }
   .acc-group.selecting .acc-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .acc-title { flex-wrap: wrap; }
   .send-report { margin-left: 0; }
