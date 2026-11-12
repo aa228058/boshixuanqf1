@@ -426,7 +426,8 @@ async function onRefresh() {
   }
 
   // 同一账号的其他页面正在同步时，只等待后读取，不重复发起同步，也不释放别人的锁。
-  if (!syncLock.acquire(accountId)) {
+  const syncToken = syncLock.acquire(accountId)
+  if (syncToken === null) {
     loading.value = true
     syncStatus.value = 'syncing'
     try {
@@ -474,7 +475,7 @@ async function onRefresh() {
     }
   } finally {
     // 只有本次成功 acquire 的调用可以释放锁；即使账号切换/弹窗关闭也必须释放。
-    syncLock.release(accountId)
+    if (syncToken !== null) syncLock.release(accountId, syncToken)
     if (isCurrent()) loading.value = false
   }
 }
