@@ -368,6 +368,13 @@ async function toggleTask(task: ScrapeTask) {
     return
   }
   expandedTaskId.value = task.task_id
+  for (const [taskId, pending] of taskLinkControllers) {
+    if (taskId === task.task_id) continue
+    pending.abort()
+    taskLinkControllers.delete(taskId)
+    taskLinkRequestIds.set(taskId, (taskLinkRequestIds.get(taskId) || 0) + 1)
+    linksLoading.value = { ...linksLoading.value, [taskId]: false }
+  }
   if (taskLinks.value[task.task_id] || linksLoading.value[task.task_id]) return
   const accId = linksAccId.value
   const requestId = (taskLinkRequestIds.get(task.task_id) || 0) + 1
