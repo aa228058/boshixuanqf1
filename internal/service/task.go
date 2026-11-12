@@ -144,7 +144,9 @@ func (s *TaskService) LinkScrapingEnabled(accountID uuid.UUID) bool {
 
 // SetBioLinkScraping toggles real-time user Bio parsing independently of message-link listening.
 func (s *TaskService) SetBioLinkScraping(accountID uuid.UUID, enabled bool) {
-	if controller, ok := s.linkScraper.(BioLinkScraperController); ok { controller.SetBioScraping(accountID, enabled) }
+	if controller, ok := s.linkScraper.(BioLinkScraperController); ok {
+		controller.SetBioScraping(accountID, enabled)
+	}
 }
 
 // BioLinkScrapingEnabled reports the real-time Bio parsing switch state.
