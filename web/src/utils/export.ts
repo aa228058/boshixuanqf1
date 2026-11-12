@@ -21,7 +21,13 @@ export function downloadBlob(filename: string, blob: Blob): void {
   } finally {
     anchor?.remove()
   }
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  try {
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (error) {
+    // 定时器不可用时不能让刚创建的 Object URL 永久泄漏。
+    URL.revokeObjectURL(url)
+    throw error
+  }
 }
 
 // R117: downloadJSON 已删(零外部引用; downloadCSV 自拼 CSV 不依赖它)
