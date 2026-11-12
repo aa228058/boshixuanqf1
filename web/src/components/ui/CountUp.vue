@@ -21,6 +21,12 @@ function animateTo(target: number) {
   cancelAnimationFrame(raf)
   if (start === target) { currentValue = target; display.value = formatCountValue(props.value, target); return }
   const duration = Number.isFinite(props.duration) ? Math.max(0, props.duration) : 800
+  // Reduced-motion users should receive the final value immediately; avoid scheduling animation frames.
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    currentValue = target
+    display.value = formatCountValue(props.value, target)
+    return
+  }
   if (duration === 0) { currentValue = target; display.value = formatCountValue(props.value, target); return }
   const precisionOf = (value: number) => {
     const fraction = String(value).toLowerCase().split('e')[0].split('.')[1] || ''
