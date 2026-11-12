@@ -241,7 +241,7 @@
     padding-right: 2.2rem;
   }
   /* 聚焦 glow 不再作用于 TDesign 组件内部(它们自带 focus 描边, 叠加会出双框) */
-  :focus-visible:not(.t-input__inner):not(.t-textarea__inner):not([class*="t-"]) {
+  :focus-visible:not(.t-input__inner):not(.t-textarea__inner):not([class^="t-"]):not([class*=" t-"]) {
     outline: none;
     box-shadow: 0 0 0 2px var(--t-brand-dim);
   }
