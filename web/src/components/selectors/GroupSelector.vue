@@ -349,13 +349,13 @@ async function onRefresh() {
   if (accountId && syncToken === null) {
     loading.value = true
     syncStatus.value = 'syncing'
-    const syncFinished = await waitForGlobalSync(accountId, isCurrent)
-    if (!isCurrent()) return
-    if (!syncFinished || syncLock.isSyncing(accountId)) {
-      syncStatus.value = 'timeout'
-      loading.value = false
-      return
-    }
+    try {
+      const syncFinished = await waitForGlobalSync(accountId, isCurrent)
+      if (!isCurrent()) return
+      if (!syncFinished || syncLock.isSyncing(accountId)) {
+        syncStatus.value = 'timeout'
+        return
+      }
     try {
       const raw: any = await groupApi.list(accountId)
       if (!isCurrent()) return
@@ -365,6 +365,7 @@ async function onRefresh() {
       emit('refresh')
     } catch (e) {
       if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
+    } finally {
     } finally {
       if (isCurrent()) loading.value = false
     }
