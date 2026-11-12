@@ -650,3 +650,18 @@
 - [ ] 租户列表自动刷新不闪屏回归
 
 **以上均为源码级修复；接口异常模拟和浏览器验证尚未执行。**
+
+
+## AT. 最后一轮 label/for 与 TDesign 控件 ID 交叉核对
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/accounts/List.vue` | 添加账号弹窗“分组”标签指向 `add-group`，但 TDesign Select 没有对应 id | `fb774ef75ddda65959889d4039b30bc2debe9b72` | 模板 | 点击“分组”标签聚焦/打开分组选择器；创建账号时分组值不变 |
+| `src/views/admin/codes/List.vue` | 生成卡密弹窗“套餐”“生效方式”标签的 for 分别指向不存在的 id | `6dd7c4f59101696e5576da1db90d12d806625917` | 模板 | 点击标签聚焦对应 TDesign Select；生成参数保持一致 |
+| `src/views/admin/announcements/List.vue` | “选择套餐”是 checkbox 列表的分组标题，却写成指向不存在控件的 label；每个 checkbox 自身已有 aria-label | `6d6e22e6f770dbc9a0c6cff79d0646921256bd16` | 模板语义 | 读屏将标题作为分组说明，逐项 checkbox 仍播报套餐名 |
+
+### 静态交叉核对
+
+- [x] 当前分支 56 个 Vue SFC 的显式 `label for` 与同文件 `id` 做了静态交叉检查；本节修复后未发现剩余悬空 for 引用。
+- [x] 已发现的非表单分组标题改为普通说明文本，避免伪造 label 关联。
+- [ ] TDesign Input/Select 的 id 是否最终透传到内部原生控件，仍须浏览器/读屏验证。
