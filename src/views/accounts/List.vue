@@ -335,7 +335,7 @@
         </div>
         <div>
           <label for="add-group" class="block text-sm text-text-secondary mb-1.5">分组（可选）</label>
-          <t-select v-model="newGroupId" :options="groupOptions" placeholder="不分组" />
+          <t-select id="add-group" v-model="newGroupId" :options="groupOptions" placeholder="不分组" />
         </div>
         </template>
 
