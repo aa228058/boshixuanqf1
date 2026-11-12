@@ -25,7 +25,7 @@ const successLen = computed(() => circ.value * (Math.min(props.success, normaliz
       <circle :cx="size/2" :cy="size/2" :r="r" fill="none" :stroke-width="stroke"
               class="stroke-bg-primary" />
       <!-- 底进度(青/主色) -->
-      <circle :cx="size/2" :cy="size/2" :r="r" fill="none" stroke-width="stroke"
+      <circle :cx="size/2" :cy="size/2" :r="r" fill="none" :stroke-width="stroke"
               stroke-linecap="round" stroke="currentColor" class="text-cyan transition-all duration-500"
               :stroke-dasharray="circ" :stroke-dashoffset="dashTotal" />
       <!-- 成功段(绿, 从起点覆盖) -->
