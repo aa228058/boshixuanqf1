@@ -26,7 +26,7 @@
 | #20 | `src/components/ui/Breadcrumb.vue` | 模板固定渲染“首页”，管理端传入仪表盘后重复层级 | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 租户端、管理端面包屑逐页检查 | 根因在组件 API/模板层 |
 | #26 | `src/components/ui/ConfirmActions.vue` | 移动端使用 `column-reverse`，按钮视觉顺序与 DOM/焦点顺序不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 移动端键盘焦点与视觉顺序手测 | 需确定产品期望按钮顺序 |
 | #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动父级时 `canPull()` 返回 true | 🟡 | 待验证 | 已确认（行为） | 触及逻辑 | 页面级滚动容器/无滚动容器两种场景实测 | 源码注释明确这是整页场景的有意 fallback；是否误触需实测 |
-| #34 | `src/components/ui/SupportFloat.vue` | 拖拽后 click 未拦截 | 🟡 | 误报/待复核 | 误报（当前代码有防护） | 触及逻辑 | 拖拽后松手、轻点分别手测 | `toggle()` 已检查 `isDragging`；需仅验证时序 |
+| #34 | `src/components/ui/SupportFloat.vue` | 拖拽后 click 未拦截 | 🟡 | 误报/待复核 | 误报（当前代码有防护） | 触及逻辑 | 拖拽后松手、轻点分别手测 | `toggle()` 已检查 `isDragging`；仍需手测事件时序 |
 | #36 | `src/components/ui/EmptyState.vue` | `title` 传入 TDesign `description`，真描述另行渲染 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 组件用例/页面手测 | 组件 prop 语义需修正 |
 | #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 文本与弧统一精度策略 |
 | #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 36px 源码已定位；按 44px 目标评估布局空间 |
@@ -42,9 +42,9 @@
 | #141 | `src/views/admin/codes/List.vue` | 使用 text-yellow/red/green 硬编码语义色 | 🟡 | 误报（当前文件） | 误报 | 纯展示 | 如有其他匹配文件再补证据 | 当前文件全文未检出所述 class |
 | #142 | `src/views/admin/codes/List.vue` | 批量操作浮条固定距底 92px | 🟡 | 细节 | 已确认 | 纯展示 | 管理端移动端实机检查遮挡 | 该页无租户 TabBar；92px 可能造成不必要空隙 |
 | #145 | `src/views/admin/support/Config.vue` | 二维码预览使用 `object-cover`，可能裁切二维码边缘 | 🟠 | 真缺陷候选 | 已确认（样式） | 纯展示 | 不同长宽比二维码实机扫码 | 图片预览当前 64px 盒子 + object-cover |
-| #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条 `from-[var()]` 颜色是否生成/显示异常 | 🟡 | 待验证 | 待跑 | 纯展示 | 构建产物 + 管理端监控页实机检查 | 当前源码使用 Tailwind gradient stop，不能仅凭字符串断定缺少 color |
+| #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条 `from-[var(--t-*)] to-[var(--t-*)]` 是否生成/显示异常 | 🟡 | 待验证 | 待跑 | 纯展示 | 构建产物 + 管理端监控页实机检查 | 当前源码是合法的 gradient-stop 写法；静态源码不能证明运行时可见 |
 | #159 | `src/views/admin/*`（4 个页面，待逐一列出） | 与 #132/#138 相同的表格 format 映射问题 | 🟠 | 横切 | 待核 | 触及逻辑 | 全部管理表格页面逐项核验 | 先定位四页及共同映射代码，避免重复登记 |
-| #175 | `src/styles/tailwind.css` | `:not([class*="t-"])` 选择器可能误排除包含 `t-` 的普通类 | 🟠 | 横切 | 已确认（选择器存在） | 纯展示 | 检查匹配元素及 focus-visible 回归 | 需确认实际命中范围后调整选择器 |
+| #175 | `src/styles/tailwind.css` | `:not([class*="t-"])` 会排除含 `t-` 的普通类（如 `text-sm`），使其失去该 focus-visible 样式 | 🟠 | 横切 | 已确认 | 纯展示 | 检查按钮/链接键盘 focus-visible | `text-*` 类名包含子串 `t-`，命中该排除条件 |
 | #121 | `src/views/NotFound.vue` | 无历史记录时仍调用 `router.back()` | 🟡 | 真缺陷 | 已确认 | 触及逻辑 | 直接打开 404 后点击返回 | 应提供安全 fallback |
 | #51 | `src/views/dashboard/Index.vue` | ECharts 读取 `--text-secondary`，当前 tokens 暴露的是 `--color-text-secondary` | 🟡 | 真缺陷候选 | 已确认（变量名差异） | 触及逻辑 | 三主题下检查图例/轴标签颜色 | 读取不到时 fallback 字符串可能不是有效 CSS 色值 |
 
@@ -68,7 +68,7 @@
 | ID | 路径 | 候选项 | 当前结论 | 状态 | 验收方式 |
 |---|---|---|---|---|---|
 | #12 | `src/components/selectors/GroupSelector.vue` | 私聊（dm）分支是否不可达 | 当前源码存在 dm Tab、加载、过滤和选择逻辑，不能认定死代码 | 待 grep / 误报候选 | 全仓引用与 props.mode 使用检索 |
-| #39 | `src/components/ui/LottieAnim.vue`、`src/assets/lottie/*` | 组件零引用、资产约 367KB | 目录存在不等于零引用，尚未完成全仓引用检索 | 待 grep | 全仓 grep + 构建依赖图 |
+| #39 | `src/components/ui/LottieAnim.vue`、`src/assets/lottie/empty-tasks.json` | 组件零引用、资产 367,199 bytes | 已确认（58 个 Vue SFC 均无组件引用；GitHub 源码搜索无引用结果；组件自身 glob 导入该资产） | 待清理批次 | 删除前再核对非 Vue 动态引用；清理后构建验证 |
 | #122 | updates 页面 | 版本文案 v68.9 过期 | 内容治理，不作为 UI bug | 待核 | 页面内容核验 |
 | #178 | 全局文案/i18n | 术语不统一 | 规范建设，不作为单点 UI bug | 待核 | 术语表/全局 grep |
 
@@ -78,12 +78,14 @@
 
 ## E. 当前源码复核中的重要更正
 
-1. `src/components/ui/SupportFloat.vue` 的 `toggle()` 已在 `isDragging` 为 true 时 return；#34“拖拽后 click 未拦截”不能直接认定成立，仍需检查 click 与 50ms 延迟复位的时序。
-2. `src/components/selectors/GroupSelector.vue` 当前确实包含 dm Tab、加载、过滤、全选及选择流程；#12“私聊分支不可达”与当前源码不符，必须查调用参数后再定性。
+1. `src/components/ui/SupportFloat.vue` 的 `toggle()` 已在 `isDragging` 为 true 时 return；#34“拖拽后 click 未拦截”不能直接认定成立，仍需检查 click 与延迟复位的时序。
+2. `src/components/selectors/GroupSelector.vue` 当前确实包含 dm Tab、加载、过滤、全选及选择流程；#12“私聊分支不可达”与当前源码不符，不应按死代码删除。
 3. `src/components/ui/PullDownRefresh.vue` 无滚动父时返回 true 的代码注释明确写为整页场景 fallback；需要验证误触，不宜直接当 bug。
 4. `src/views/admin/codes/List.vue` 当前全文未检出 #141 所述 `text-yellow/red/green` 类。
 5. `src/views/workspace/Scrape.vue` 两处 Object URL 均未看到 revoke；#100 可直接进入整改候选。
-6. `src/views/accounts/List.vue` 的 30 秒 `statusPoll` 与 30 秒 `useAutoRefresh` 同时存在；先确认 store 去重/缓存行为，再决定如何合并，避免误删刷新保障。
+6. 已逐一检查当前分支全部 58 个 Vue SFC，未发现 `LottieAnim` 组件调用；`empty-tasks.json` 为 367,199 bytes，仅被 `LottieAnim.vue` 的 glob 收集。#39 可进入独立清理批次，但删除前仍需确认非 Vue 动态引用与构建依赖。
+7. `src/views/accounts/List.vue` 的 `statusPoll` 与 `useAutoRefresh` 同时每 30 秒刷新账号；`useAutoRefresh` 已包含回前台刷新，因此重复轮询已在试点中移除。
+8. #58 的 `nowTs` 响应式时钟本来就存在，但 `loginCodeFresh()` 与 `codeAge()` 没有读取它；试点已改为读取 `nowTs.value`，使验证码到期和年龄文案随时钟更新。
 
 ## F. 下一步执行计划
 
@@ -94,3 +96,27 @@
 5. 每批执行 lint、typecheck、build、可用单测；涉及路由/状态/轮询/导出生命周期的改动增加手动或 E2E 验收。
 
 **本台账是第一版审计记录，不表示已完成 180 项核验，也不表示已开始修改业务页面。**
+
+
+## G. Accounts 页面试点（第一轮整改已提交）
+
+- 文件：`src/views/accounts/List.vue`
+- 提交：`dea68325054a92b44a6e9fcc956fddba5ae87748`
+- 本批只修改账号列表页面，不改变账号 API、任务调度或业务状态。
+
+| 对应问题 | 修改 | 触及层 | 回归步骤 |
+|---|---|---|---|
+| #58 | `loginCodeFresh()` 与 `codeAge()` 改为读取已有响应式 `nowTs.value`，不再各自调用非响应式 `Date.now()` | 触及逻辑 | 登录验证码在 10 分钟内显示；等待跨分钟后年龄文案更新；超过 10 分钟后验证码隐藏 |
+| #68 | 删除页面独立的 `statusPoll` 与重复 `visibilitychange` 监听；保留 `useAutoRefresh` 统一每 30 秒刷新账号、统计和任务摘要，并在回前台刷新 | 触及逻辑 | Network 面板确认每个 30 秒周期只有一条账号列表刷新；切后台不轮询；回前台只补一次刷新 |
+| #57 | 暂未改动 36px 按钮高度，待完成移动端布局实测后决定是否调整，避免未经验证导致账号卡片挤压 | 暂不整改 | 320/375/430px 视口检查触控尺寸与卡片布局 |
+
+### 本批验证状态
+
+- [x] 源码修改已提交到独立工作分支
+- [x] 确认 `useAutoRefresh` 自带页面可见性暂停与回前台刷新
+- [ ] 前端 lint / typecheck / build
+- [ ] 账号验证码时间变化手动回归
+- [ ] 网络面板轮询次数回归
+- [ ] 桌面 / 移动端三主题回归
+
+**注意：GitHub 源码提交不等于构建或浏览器回归已通过。当前环境尚未执行这些验证。**
