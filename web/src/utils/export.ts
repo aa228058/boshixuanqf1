@@ -21,7 +21,8 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  // Defer revocation until the browser has consumed the download URL.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 // R117: downloadJSON 已删(零外部引用; downloadCSV 自拼 CSV 不依赖它)
