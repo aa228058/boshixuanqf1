@@ -49,7 +49,7 @@
     <div class="flex items-center gap-2 text-xs text-text-muted">
       <CheckCircle2 v-if="lastDone.status === 'completed'" class="w-3.5 h-3.5 text-emerald" />
       <XCircle v-else class="w-3.5 h-3.5 text-rose" />
-      <span>上次{{ typeLabel }}已{{ lastDone.status === 'completed' ? '完成' : '结束' }} · {{ lastDoneProg.done }} / {{ lastDoneProg.total }}</span>
+      <span>上次{{ typeLabel }}已{{ lastDone.status === 'completed' ? '完成' : '结束' }} · {{ Math.min(lastDoneProg.total, (lastDoneProg.done || 0) + (lastDoneProg.failed || 0)) }} / {{ lastDoneProg.total }}</span>
     </div>
     <button type="button" @click="$router.push(`/workspace/${accountId}/tasks/${lastDone.task_id}`)"
             class="text-xs text-text-muted hover:text-cyan transition-colors shrink-0">
