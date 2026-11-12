@@ -65,7 +65,8 @@ async function loadAnimation() {
 }
 
 onMounted(() => { void loadAnimation() })
-watch(() => props.src, () => { void loadAnimation() })
+// Recreate the player when playback options change; otherwise prop updates are silently ignored.
+watch(() => [props.src, props.loop, props.autoplay], () => { void loadAnimation() })
 
 onUnmounted(() => {
   disposed = true
