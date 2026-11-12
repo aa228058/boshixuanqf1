@@ -15,12 +15,16 @@
 
     <!-- 加载失败提示(不再静默空白) -->
     <div v-if="loading" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-4 text-sm text-text-secondary lift">正在读取套餐配置…</div>
-    <div v-else-if="loadError" role="alert" class="glass rounded-[var(--t-r-md)] p-4 bg-[var(--t-warn)]/10 text-[var(--t-warn)] text-sm lift">
-      {{ loadError }}
+    <div v-else-if="loadError" role="alert" class="glass rounded-[var(--t-r-md)] p-4 bg-[var(--t-warn)]/10 text-[var(--t-warn)] text-sm lift flex flex-wrap items-center justify-between gap-3">
+      <span>{{ loadError }}</span>
+      <t-button size="small" variant="outline" :disabled="loading" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load">重新加载</t-button>
+    </div>
+    <div v-else-if="!plans.length" role="status" class="glass rounded-[var(--t-r-md)] p-4 text-sm text-text-secondary lift">
+      暂无套餐配置，请检查套餐初始化数据。
     </div>
 
     <!-- 数值区: 每档一卡 -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+    <div v-if="!loading && !loadError && plans.length" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
       <div v-for="p in plans" :key="p.plan_id" class="glass rounded-[var(--t-r-md)] p-4 space-y-2.5 lift">
         <div class="flex items-center justify-between">
           <span class="font-semibold text-sm">{{ p.name }}</span>
@@ -52,7 +56,7 @@
     </div>
 
     <!-- 功能矩阵 -->
-    <div class="glass rounded-[var(--t-r-md)] overflow-x-auto lift">
+    <div v-if="!loading && !loadError && plans.length" class="glass rounded-[var(--t-r-md)] overflow-x-auto lift">
       <table class="w-full min-w-[720px] text-sm">
         <thead>
           <tr class="border-b border-border text-left">
@@ -75,7 +79,7 @@
       </table>
     </div>
 
-    <p class="text-xs text-text-muted">
+    <p v-if="!loading && !loadError && plans.length" class="text-xs text-text-muted">
       提示：「免费体验版」建议保持全功能（转化钩子）；基础版勾少一点形成阶梯；改动实时写入，租户下次请求即按新权限生效。
     </p>
   </div>
@@ -148,9 +152,6 @@ async function load() {
         ? p.features
         : Object.keys(p.features || {}),
     }))
-    if (!plans.value.length) {
-      loadError.value = '套餐列表为空 —— 请检查迁移 051 是否已执行(plans 表结构是否含 daily_search_limit 列)'
-    }
   } catch (e: any) {
     loadError.value = e?.message || '请求失败(401/500?)'
     toast({ type: 'error', message: '套餐加载失败: ' + loadError.value })
