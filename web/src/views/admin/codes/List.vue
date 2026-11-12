@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Plus, Key } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
@@ -318,6 +318,8 @@ async function delCode(c: ActivationCode) {
     toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
+
+onUnmounted(() => { codesRequestId++ })
 
 const viewingCode = ref<ActivationCode | null>(null)
 const showView = ref(false)
