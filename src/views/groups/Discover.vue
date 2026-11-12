@@ -237,6 +237,7 @@
           @change="onImportFile" />
         <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
+        <label for="group-import-text" class="block text-xs font-medium text-text-secondary">粘贴群链接</label>
         <textarea id="group-import-text" v-model="importText" rows="8" class="ui-input text-sm"
           placeholder="t.me/群用户名&#10;@群用户名&#10;https://t.me/+邀请hash"></textarea>
         <label for="group-import-account" class="block text-xs font-medium text-text-secondary">解析账号（可选）</label>
