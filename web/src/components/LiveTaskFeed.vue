@@ -69,6 +69,8 @@ const task = ref<any>(null)
 const lastDone = ref<any>(null)
 let timer: ReturnType<typeof setInterval> | null = null
 let completionRefreshTimer: ReturnType<typeof setTimeout> | null = null
+// Polls and prop changes can overlap; only the newest account/task-type response may update UI.
+let loadRequestId = 0
 
 const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
 
@@ -162,9 +164,21 @@ function elapsed(iso: string): string {
 }
 
 async function load() {
-  if (!props.accountId || !props.taskType) return
+  const accountId = props.accountId
+  const taskType = props.taskType
+  if (!accountId || !taskType) {
+    loadRequestId++
+    task.value = null
+    lastDone.value = null
+    liveLogs.value = []
+    return
+  }
+  const requestId = ++loadRequestId
+  const isCurrent = () => requestId === loadRequestId
+    && props.accountId === accountId && props.taskType === taskType
   try {
-    const res: any = await taskApi.list({ account_id: props.accountId, type: props.taskType, page: 1, page_size: 5 })
+    const res: any = await taskApi.list({ account_id: accountId, type: taskType, page: 1, page_size: 5 })
+    if (!isCurrent()) return
     const arr = res.list || res.items || []
     const active = arr.find((t: any) => ['queued', 'running', 'pending'].includes(t.status))
     if (active) {
@@ -174,6 +188,7 @@ async function load() {
       lastDone.value = null
       // 运行中才拉取最新一条日志作为当前动作
       const lr: any = await taskApi.getLogs(active.task_id)
+      if (!isCurrent() || task.value?.task_id !== active.task_id) return
       const logs = lr?.list || lr?.data || (Array.isArray(lr) ? lr : [])
       if (logs.length) liveLogs.value = logs.slice(-6).reverse()
     } else {
@@ -236,6 +251,7 @@ watch(liveLogs, (logs: any[]) => {
 })
 
 onUnmounted(() => {
+  loadRequestId++
   if (timer) clearInterval(timer)
   if (waitTimer) clearInterval(waitTimer)
   if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
