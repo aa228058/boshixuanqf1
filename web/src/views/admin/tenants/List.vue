@@ -30,6 +30,9 @@
         <template #plan_id="{ row }">
           <span class="text-xs">{{ planLabel(row.plan_id as string) }}</span>
         </template>
+        <template #created_at="{ row }">
+          <span class="text-xs">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '—' }}</span>
+        </template>
         <template #actions="{ row }">
           <div class="flex items-center gap-1">
             <t-tooltip content="详情" position="top">
