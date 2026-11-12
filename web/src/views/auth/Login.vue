@@ -111,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/api/auth'
@@ -121,6 +121,13 @@ import { toast } from '@/utils/toast'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+let loginFailedTimer: ReturnType<typeof setTimeout> | null = null
+let renewLoginTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => {
+  if (loginFailedTimer) clearTimeout(loginFailedTimer)
+  if (renewLoginTimer) clearTimeout(renewLoginTimer)
+})
 
 // R130: 版本号移至品牌区徽章(BUILD_TAG), appVersion 不再使用
 
@@ -153,7 +160,8 @@ async function handleLogin() {
   } catch (err: unknown) {
     error.value = (err instanceof Error ? err.message : String(err)) || '登录失败，请稍后重试'
     loginFailed.value = true
-    setTimeout(() => { loginFailed.value = false }, 2000)
+    if (loginFailedTimer) clearTimeout(loginFailedTimer)
+    loginFailedTimer = setTimeout(() => { loginFailed.value = false; loginFailedTimer = null }, 2000)
   } finally {
     loading.value = false
   }
@@ -176,7 +184,8 @@ async function doRenew() {
     await authApi.renew(form.username, form.password, code)
     renewOk.value = true
     renewMsg.value = '续费成功，正在登录…'
-    setTimeout(() => handleLogin(), 800)
+    if (renewLoginTimer) clearTimeout(renewLoginTimer)
+    renewLoginTimer = setTimeout(() => { renewLoginTimer = null; void handleLogin() }, 800)
   } catch (err: unknown) {
     renewOk.value = false
     renewMsg.value = (err instanceof Error ? err.message : String(err)) || '续费失败，请检查卡密'
