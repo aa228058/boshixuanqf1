@@ -122,8 +122,8 @@
       <div>
         <!-- R98 表单分组① -->
       <div class="flex items-center gap-2 mb-3 -mt-1"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">1</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送目标</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
-      <label class="block text-sm font-medium mb-2">发送目标</label>
-        <div @click="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
+      <span class="block text-sm font-medium mb-2">发送目标</span>
+        <div role="button" tabindex="0" aria-label="选择发送目标" @click="showTargetSelector = true" @keydown.enter.prevent="showTargetSelector = true" @keydown.space.prevent="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
           <div class="flex items-center gap-2">
             <MessageSquare class="w-5 h-5 text-text-muted shrink-0" />
             <span v-if="!selectedTargets.length" class="text-text-muted">点击选择发送目标</span>
@@ -140,8 +140,8 @@
         </div>
         <TargetSelector v-model="showTargetSelector" :groups="groups" :accountId="currentAccount?.account_id" @select="selectedTargets = $event" @refresh="onSelectorRefresh" />
         <!-- 执行账号多选；实际发送范围按每个账号已加入的群组映射计算 -->
-        <label class="block text-sm font-medium mb-2 mt-4">执行账号（可多选）</label>
-        <div class="flex flex-wrap gap-1.5">
+        <span class="block text-sm font-medium mb-2 mt-4">执行账号（可多选）</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="选择执行账号">
           <button v-for="acc in onlineAccounts" :key="acc.account_id" type="button" @click="toggleExec(acc.account_id)"
                   class="px-2.5 py-1.5 rounded-lg text-xs border transition-colors whitespace-nowrap"
                   :class="execAccounts.includes(acc.account_id) ? 'border-[color:var(--t-brand)]/50 bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] font-medium' : 'border-border text-text-secondary hover:border-border-hover'">
@@ -149,7 +149,7 @@
           </button>
         </div>
         <div class="mt-3">
-          <label class="block text-xs font-semibold text-text-secondary mb-2">账号分配策略</label>
+          <span class="block text-xs font-semibold text-text-secondary mb-2">账号分配策略</span>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" @click="sendStrategy = 'assign'"
               class="rounded-lg border px-3 py-2 text-left text-xs transition-colors"
@@ -231,7 +231,7 @@
           { label: '视频', value: 'video' },
         ]" />
         <div v-if="mediaType" class="space-y-2">
-          <input v-model="mediaUrl" placeholder="媒体 URL (https://...)，或上传本地文件"
+          <input v-model="mediaUrl" aria-label="媒体 URL" placeholder="媒体 URL (https://...)，或上传本地文件"
                  class="ui-input !text-sm" />
           <div class="flex items-center gap-2">
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
@@ -248,7 +248,7 @@
       <div class="flex items-center gap-2 mb-3 mt-5"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">3</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送设置</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <!-- 发送间隔设置 -->
       <div>
-        <label class="block text-sm font-medium mb-2">发送间隔（秒）</label>
+        <span class="block text-sm font-medium mb-2">发送间隔（秒）</span>
         <!-- TDesign 骨架: 数字输入组件(品牌紫双主题) -->
         <div class="grid grid-cols-2 gap-2 sm:gap-3">
           <label class="min-w-0 block">
@@ -273,8 +273,8 @@
 
       <!-- 发送模式(2026-10-20 双 tab): 只发一次 / 循环群发(套餐 feature 控制) -->
       <div>
-        <label class="block text-sm font-medium mb-2">发送模式</label>
-        <div class="flex rounded-lg bg-ink-01 p-1 gap-1 w-fit">
+        <span class="block text-sm font-medium mb-2">发送模式</span>
+        <div class="flex rounded-lg bg-ink-01 p-1 gap-1 w-fit" role="group" aria-label="发送模式">
           <button type="button" class="ui-segmented__item"
                   :class="!isLoop ? 'bg-bg-card text-text-primary font-medium shadow-sm' : 'text-text-secondary'"
                   @click="isLoop = false">只发一次</button>
@@ -286,8 +286,8 @@
           </button>
         </div>
         <div v-if="isLoop" class="mt-3 rounded-lg border border-border/70 p-3 space-y-2">
-          <label class="block text-xs font-semibold text-text-secondary">循环方式</label>
-          <div class="grid grid-cols-3 gap-1.5">
+          <span class="block text-xs font-semibold text-text-secondary">循环方式</span>
+          <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="循环方式">
             <button type="button" @click="loopScheduleMode = 'interval'" class="rounded-lg border px-2 py-2 text-xs"
               :class="loopScheduleMode === 'interval' ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">间隔循环</button>
             <button type="button" @click="loopScheduleMode = 'daily'" class="rounded-lg border px-2 py-2 text-xs"
@@ -297,21 +297,21 @@
           </div>
           <div v-if="loopScheduleMode === 'interval'" class="flex items-center gap-2">
             <span class="text-xs text-text-muted shrink-0">上一轮完成后，间隔</span>
-            <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-24" />
+            <t-input v-model="loopIntervalMin" type="number" :min="1" :max="10080" class="w-24" aria-label="循环间隔分钟数" />
             <span class="text-xs text-text-muted shrink-0">分钟开始下一轮</span>
           </div>
           <div v-else class="space-y-2">
             <div>
-              <label class="block text-xs font-semibold text-text-secondary mb-1">时区（IANA）</label>
-              <t-input v-model="scheduleTimezone" placeholder="例如 Asia/Shanghai 或 America/Los_Angeles" class="w-full" />
+              <label for="broadcast-schedule-timezone" class="block text-xs font-semibold text-text-secondary mb-1">时区（IANA）</label>
+              <t-input id="broadcast-schedule-timezone" v-model="scheduleTimezone" placeholder="例如 Asia/Shanghai 或 America/Los_Angeles" class="w-full" />
             </div>
             <div>
-              <label class="block text-xs font-semibold text-text-secondary mb-1">固定执行时间</label>
-              <input v-model="scheduleLocalTime" type="time" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+              <label for="broadcast-schedule-time" class="block text-xs font-semibold text-text-secondary mb-1">固定执行时间</label>
+              <input id="broadcast-schedule-time" v-model="scheduleLocalTime" type="time" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
             </div>
             <div v-if="loopScheduleMode === 'weekly'">
-              <label class="block text-xs font-semibold text-text-secondary mb-1">执行星期</label>
-              <div class="grid grid-cols-7 gap-1">
+              <span class="block text-xs font-semibold text-text-secondary mb-1">执行星期</span>
+              <div class="grid grid-cols-7 gap-1" role="group" aria-label="执行星期">
                 <button v-for="day in weekDayOptions" :key="day.value" type="button" @click="toggleScheduleWeekday(day.value)"
                   class="rounded-md border py-2 text-[11px]"
                   :class="scheduleWeekdays.includes(day.value) ? 'border-[color:var(--t-brand)] bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]' : 'border-border text-text-secondary'">{{ day.label }}</button>
@@ -320,19 +320,19 @@
             <p class="text-[10px] text-text-muted">按所选时区的当地时间执行；夏令时不存在的时刻会跳过当天，重复时刻只执行第一次，避免同一天重复发送。</p>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-text-secondary mb-1">首次执行时间（可选）</label>
-            <input v-model="firstRunLocal" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+            <label for="broadcast-first-run" class="block text-xs font-semibold text-text-secondary mb-1">首次执行时间（可选）</label>
+            <input id="broadcast-first-run" v-model="firstRunLocal" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
             <p class="text-[10px] text-text-muted mt-1">留空时，日历模式自动计算下一次符合条件的时间；间隔模式立即开始。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
-              <label class="block text-xs font-semibold text-text-secondary mb-1">最大执行轮数</label>
-              <t-input v-model="loopMaxRounds" type="number" :min="0" :max="10000" placeholder="0 表示不限" class="w-full" />
+              <label for="broadcast-loop-max-rounds" class="block text-xs font-semibold text-text-secondary mb-1">最大执行轮数</label>
+              <t-input id="broadcast-loop-max-rounds" v-model="loopMaxRounds" type="number" :min="0" :max="10000" placeholder="0 表示不限" class="w-full" />
               <p class="text-[10px] text-text-muted mt-1">完成指定轮数后自动停止</p>
             </div>
             <div>
-              <label class="block text-xs font-semibold text-text-secondary mb-1">自动结束时间（可选）</label>
-              <input v-model="loopEndAt" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+              <label for="broadcast-loop-end-at" class="block text-xs font-semibold text-text-secondary mb-1">自动结束时间（可选）</label>
+              <input id="broadcast-loop-end-at" v-model="loopEndAt" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
               <p class="text-[10px] text-text-muted mt-1">到期后不再安排下一轮</p>
             </div>
           </div>
