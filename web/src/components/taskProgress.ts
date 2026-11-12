@@ -41,6 +41,7 @@ export function mergeRecentTaskLogs<T extends { log_id?: string | number | null 
   liveLogs: T[],
   limit = 6,
 ): T[] {
+  if (limit <= 0) return []
   const seen = new Set<string | number>()
   const merged: T[] = []
   for (const log of [...liveLogs, ...apiLogs.slice().reverse()]) {
