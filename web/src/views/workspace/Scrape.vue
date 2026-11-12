@@ -215,7 +215,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import Modal from '@/components/ui/Modal.vue'
 import type { Group } from '@/types'
 import { ask } from '@/utils/confirm'
-import { escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell } from '@/utils/export'
+import { downloadBlob, escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell } from '@/utils/export'
 
 const route = useRoute()
 const router = useRouter()
@@ -378,12 +378,7 @@ function exportCSV(taskId: string) {
   // 防护 + CSV 标准引号翻倍, 不做 HTML 转义。
   const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(escapeSpreadsheetCSVCell).join(','))].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.csv`
-  link.click()
-  // Keep the object URL alive until the browser has started the download.
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+  downloadBlob(`members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.csv`, blob)
 }
 
 
@@ -397,12 +392,7 @@ function exportExcel(taskId: string) {
       ${list.map((m: any) => `<tr><td>${escapeSpreadsheetHTMLCell(m.user_id)}</td><td>${escapeSpreadsheetHTMLCell(m.username)}</td><td>${escapeSpreadsheetHTMLCell(m.first_name)}</td><td>${escapeSpreadsheetHTMLCell(m.last_name)}</td><td>${escapeSpreadsheetHTMLCell(m.last_seen)}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
     </table></body></html>`
   const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.xls`
-  link.click()
-  // Keep the object URL alive until the browser has started the download.
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+  downloadBlob(`members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.xls`, blob)
 }
 
 // 群组走缓存 store: 有缓存零请求, 只有 GroupSelector 里点"同步"才调接口
