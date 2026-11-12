@@ -17,8 +17,13 @@
       </t-button>
     </div>
 
+    <div v-if="loading" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-text-secondary">正在读取卡密…</div>
+    <div v-else-if="loadError" role="alert" class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3">
+      <p class="text-sm text-[var(--t-err)]">{{ loadError }}</p>
+      <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="fetchCodes">重新加载</t-button>
+    </div>
     <!-- 桌面端表格 -->
-    <div class="hidden sm:block glass rounded-[var(--t-r-md)] overflow-hidden">
+    <div v-show="!loading && !loadError" class="hidden sm:block glass rounded-[var(--t-r-md)] overflow-hidden">
       <t-table
         row-key="code_id"
         :columns="tdColumns"
@@ -57,7 +62,7 @@
       </t-table>
     </div>
     <!-- 移动端卡片 -->
-    <div class="sm:hidden space-y-3">
+    <div v-show="!loading && !loadError" class="sm:hidden space-y-3">
       <div
         v-for="c in codes"
         :key="c.code_id"
@@ -169,6 +174,8 @@ import { codeStatusClass, planLabel } from '@/utils/format'
 import { ask } from '@/utils/confirm'
 
 const codes = ref<ActivationCode[]>([])
+const loading = ref(false)
+const loadError = ref('')
 
 // 模板 17/48 行的"复制"按钮此前调用不存在的 copySelected/copyCode（点击无反应）。
 function copyCode(code: string) {
@@ -218,13 +225,18 @@ function onPageChange(p: { current: number }) {
 }
 
 async function fetchCodes() {
+  loading.value = true
+  loadError.value = ''
   try {
     // 状态筛选走后端（此前前端只过滤当前页 20 条，"未使用"可能显示为空）
     const res = await adminApiMod.listCodes({ page: page.value, page_size: 20, ...(statusFilter.value ? { status: statusFilter.value } : {}) })
     codes.value = res.list || []
     total.value = res.total || 0
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取卡密失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    loadError.value = e instanceof Error ? e.message : '获取卡密失败，请重试'
+    toast({ type: 'error', title: '获取卡密失败', message: loadError.value })
+  } finally {
+    loading.value = false
   }
 }
 
