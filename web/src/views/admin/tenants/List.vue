@@ -130,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useRouter } from 'vue-router'
 import { Eye, KeyRound, Trash2 } from 'lucide-vue-next'
@@ -175,17 +175,23 @@ const filteredTenants = computed(() => tenants.value)
 // DB/带宽压力直接降三分之二。
 useAutoRefresh(fetchTenants, 15000)
 
+let tenantListRequestId = 0
 async function fetchTenants() {
+  const requestId = ++tenantListRequestId
+  // 自动刷新、搜索防抖和翻页可能重叠；参数快照与请求序号保证列表只接收最新结果。
+  const params = {
+    page: page.value,
+    page_size: pageSize.value,
+    status: statusFilter.value || undefined,
+    search: search.value.trim() || undefined,
+  }
   try {
-    const res = await adminApiMod.listTenants({
-      page: page.value,
-      page_size: pageSize.value,
-      status: statusFilter.value || undefined,
-      search: search.value.trim() || undefined,
-    })
+    const res = await adminApiMod.listTenants(params)
+    if (requestId !== tenantListRequestId) return
     tenants.value = res.list || []
     total.value = res.total || 0
   } catch (e: unknown) {
+    if (requestId !== tenantListRequestId) return
     toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
@@ -245,6 +251,8 @@ async function doDelete() {
   }
 }
 
+
+onUnmounted(() => { tenantListRequestId++ })
 
 onMounted(async () => {
   await fetchTenants()
