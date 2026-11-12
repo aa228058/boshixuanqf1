@@ -131,9 +131,9 @@
               <span
                 class="text-xs px-2 py-0.5 rounded-full shrink-0"
                 :class="{
-                  'bg-green/10 text-green': task.status === 'completed',
-                  'bg-yellow/10 text-yellow': task.status === 'running',
-                  'bg-red/10 text-red': task.status === 'failed',
+                  'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]': task.status === 'completed',
+                  'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]': task.status === 'running',
+                  'bg-[color:var(--t-err-dim)] text-[var(--t-err)]': task.status === 'failed',
                   'bg-bg-hover text-text-muted': !['completed', 'running', 'failed'].includes(task.status),
                 }"
               >{{ statusLabel(task.status) }}</span>
