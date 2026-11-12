@@ -221,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { useAuthStore } from '@/stores/auth'
@@ -290,19 +290,29 @@ const contactPickAccount = ref('')
 const contactList = ref<Array<{ tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>([])
 const contactPick = ref<number | ''>('')
 const contactLoading = ref(false)
+let contactRequestId = 0
+let monitorPageActive = true
+const ruleActionsPending = ref(new Set<string>())
+const ruleSaving = ref(false)
+let groupsRequestId = 0
+let rulesRequestId = 0
 async function loadContacts() {
   if (!contactPickAccount.value) return
+  const accountId = contactPickAccount.value
+  const requestId = ++contactRequestId
   contactLoading.value = true
   contactList.value = []
   contactPick.value = ''
   try {
-    const res: any = await accountApi.getContacts(contactPickAccount.value)
+    const res: any = await accountApi.getContacts(accountId)
+    if (!monitorPageActive || requestId !== contactRequestId || accountId !== contactPickAccount.value) return
     contactList.value = (res?.list || res || []).filter((c: any) => String(c.phone || '').trim())
     if (!contactList.value.length) toast({ type: 'info', title: '暂无可发送名片的联系人', message: 'Telegram 未向该账号返回带手机号的联系人；名片发送必须有手机号，可换账号获取或手动填写。' })
   } catch (err: any) {
+    if (!monitorPageActive || requestId !== contactRequestId || accountId !== contactPickAccount.value) return
     toast({ type: 'error', title: '获取联系人失败', message: err?.message || '请稍后重试' })
   } finally {
-    contactLoading.value = false
+    if (monitorPageActive && requestId === contactRequestId) contactLoading.value = false
   }
 }
 function applyContact() {
@@ -315,32 +325,46 @@ function applyContact() {
 }
 
 async function fetchRules() {
+  const requestId = ++rulesRequestId
   try {
     const res = await monitorApi.listRules()
+    if (!monitorPageActive || requestId !== rulesRequestId) return
     rules.value = res.list || []
   } catch (e: any) {
+    if (!monitorPageActive || requestId !== rulesRequestId) return
     toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
   }
 }
 
 
 async function toggleRule(id: string, val: boolean) {
+  if (ruleActionsPending.value.has(id)) return
+  ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.toggleRule(id, { is_active: val })
     fetchRules()
   } catch {
     toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
     fetchRules() // 回滚本地乐观变更
+  } finally {
+    const next = new Set(ruleActionsPending.value)
+    next.delete(id)
+    ruleActionsPending.value = next
   }
 }
 
 async function deleteRule(id: string) {
-  if (!await ask('确定删除此规则吗？')) return
+  if (ruleActionsPending.value.has(id) || !await ask('确定删除此规则吗？')) return
+  ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.deleteRule(id)
     fetchRules()
   } catch {
     toast({ type: 'error', title: '删除失败', message: '请稍后重试' })
+  } finally {
+    const next = new Set(ruleActionsPending.value)
+    next.delete(id)
+    ruleActionsPending.value = next
   }
 }
 
@@ -381,6 +405,7 @@ function openAddRule() {
 }
 
 async function saveRule() {
+  if (ruleSaving.value) return
   if (!monitorAllMessages.value && !selectedSourceGroups.value.length) {
     toast({ type: 'warning', title: '请选择监控来源', message: '请至少选择一个源群组，或开启“监控全部消息”' })
     return
@@ -409,6 +434,7 @@ async function saveRule() {
     // R109: 规则归属下拉所选账号(原绑 currentAccount=全局切换器, 已删除)
     account_id: monAccId.value || '',
   }
+  ruleSaving.value = true
   try {
     if (editingRule.value) {
       await monitorApi.updateRule(editingRule.value.rule_id, data)
@@ -427,6 +453,8 @@ async function saveRule() {
     fetchRules()
   } catch (e: any) {
     toast({ type: 'error', title: '保存失败', message: e?.message || '请稍后重试' })
+  } finally {
+    ruleSaving.value = false
   }
 }
 
@@ -450,11 +478,18 @@ function dmSummary(rule: any): string {
 }
 
 onMounted(() => {
+  monitorPageActive = true
   if (!authStore.tenant?.plan_features?.monitor) {
     toast({ type: 'warning', title: '套餐限制', message: '当前套餐不支持消息监控，请联系客服升级' })
     router.push('/dashboard')
     return
   }
   fetchRules()
+})
+onUnmounted(() => {
+  monitorPageActive = false
+  contactRequestId++
+  groupsRequestId++
+  rulesRequestId++
 })
 </script>
