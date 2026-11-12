@@ -28,7 +28,8 @@
 
     <!-- 当前动作: 单行实时步骤, 不再刷日志列表 -->
     <div class="flex items-center gap-2 text-xs text-text-secondary min-h-5">
-      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Clock3 v-if="waitRemain > 0" class="w-3.5 h-3.5 shrink-0 text-amber" />
+      <Loader2 v-else class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
       <span class="truncate">{{ currentAction }}</span>
       <span v-if="waitRemain > 0" class="ml-2 px-2 py-0.5 rounded-full bg-amber/15 text-amber text-xs shrink-0">
         下次发送 {{ waitRemain }}s
@@ -59,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-vue-next'
+import { CheckCircle2, XCircle, Loader2, Clock3 } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
