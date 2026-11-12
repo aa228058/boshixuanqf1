@@ -43,11 +43,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/utils/request'
 
 const dayData = ref<Record<string, number>>({})
 const offset = ref(0)
+let disposed = false
 
 // 近6个月的月份列表(最新在前)
 const months = computed(() => {
@@ -105,8 +106,10 @@ async function load() {
   try {
     // P0-24 审计修复: 原 request 是导出的函数(request() 发起请求), request.get
     // 是 undefined——日历永远空。api 对象才有 get/post 方法。
-    dayData.value = await api.get<Record<string, number>>('/dashboard/send-calendar', { params: { months: 6 } })
+    const data = await api.get<Record<string, number>>('/dashboard/send-calendar', { params: { months: 6 } })
+    if (!disposed) dayData.value = data
   } catch { /* 统计失败显示空日历 */ }
 }
 onMounted(load)
+onUnmounted(() => { disposed = true })
 </script>
