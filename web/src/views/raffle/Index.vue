@@ -239,6 +239,7 @@ import { ref, computed, onMounted } from 'vue'
 import { accountApi } from '@/api/account'
 import { api as request } from '@/utils/request'  // request 是函数无 .post 方法, api 对象才有——修 f.post is not a function
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 
 const raffleEnabled = ref(false)
 const toggling = ref(false)
@@ -344,7 +345,12 @@ async function loadAccounts() {
 const clearing = ref(false)
 async function clearAllResults() {
   if (clearing.value) return
-  if (!confirm('确定清空全部参与记录？此操作不可恢复。')) return
+  const confirmed = await ask('确定清空全部参与记录？此操作不可恢复。', {
+    title: '清空参与记录',
+    confirmText: '确认清空',
+    danger: true,
+  })
+  if (!confirmed) return
   clearing.value = true
   try {
     const res: any = await request.delete('/raffle/results')
