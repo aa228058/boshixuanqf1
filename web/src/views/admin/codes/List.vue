@@ -226,18 +226,25 @@ function onPageChange(p: { current: number }) {
 
 let codesRequestId = 0
 let codesPageActive = true
+let codesController: AbortController | null = null
+let codesPlansController: AbortController | null = null
 async function fetchCodes() {
+  codesController?.abort()
+  const controller = new AbortController()
+  codesController = controller
   const requestId = ++codesRequestId
   const params = { page: page.value, page_size: 20, ...(statusFilter.value ? { status: statusFilter.value } : {}) }
   try {
     // 页码与筛选变化可能产生重叠请求；仅允许最新请求写入列表。
-    const res = await adminApiMod.listCodes(params)
+    const res = await adminApiMod.listCodes(params, { signal: controller.signal })
     if (requestId !== codesRequestId) return
     codes.value = res.list || []
     total.value = res.total || 0
   } catch (e: unknown) {
-    if (requestId !== codesRequestId) return
+    if (controller.signal.aborted || requestId !== codesRequestId) return
     toast({ type: 'error', title: '获取卡密失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    if (codesController === controller) codesController = null
   }
 }
 
@@ -320,7 +327,7 @@ async function delCode(c: ActivationCode) {
   }
 }
 
-onUnmounted(() => { codesPageActive = false; codesRequestId++ })
+onUnmounted(() => { codesPageActive = false; codesRequestId++; codesController?.abort(); codesPlansController?.abort() })
 
 const viewingCode = ref<ActivationCode | null>(null)
 const showView = ref(false)
@@ -334,7 +341,8 @@ onMounted(async () => {
   await fetchCodes()
   if (!codesPageActive) return
   try {
-    const res = await adminApiMod.listPlans()
+    codesPlansController = new AbortController()
+    const res = await adminApiMod.listPlans({ signal: codesPlansController.signal })
     if (!codesPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
