@@ -14,11 +14,12 @@
         </div>
         <p class="text-sm text-text-secondary whitespace-pre-wrap max-w-[65ch] mx-auto text-center">{{ a.content }}</p>
       </div>
+      <Loading v-if="loading" text="正在加载公告…" />
       <EmptyState
-        v-if="loadError"
+        v-else-if="loadError"
         icon="AlertTriangle"
         title="公告加载失败"
-        description="暂时无法获取公告，请关闭后重新打开。"
+        description="暂时无法获取公告，请稍后重试或重新打开公告面板。"
       />
       <EmptyState
         v-else-if="!loading && !announcements.length"
@@ -34,6 +35,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import Modal from './Modal.vue'
 import EmptyState from './EmptyState.vue'
+import Loading from './Loading.vue'
 import { settingsApi } from '@/api/settings'
 import { formatDate } from '@/utils/format'
 import type { Announcement } from '@/types'
