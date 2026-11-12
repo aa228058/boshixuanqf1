@@ -7,13 +7,35 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
   let startY = 0
   let startScrollTop = 0
   let pulling = false
+  let resetTimer: ReturnType<typeof setTimeout> | null = null
+  let originalTransition = ''
+  let originalTransform = ''
+  let originalOverscrollBehavior = ''
+
+  const clearResetTimer = () => {
+    if (resetTimer) clearTimeout(resetTimer)
+    resetTimer = null
+  }
+
+  const restoreStyles = (el: HTMLElement) => {
+    el.style.transition = originalTransition
+    el.style.transform = originalTransform
+    el.style.overscrollBehavior = originalOverscrollBehavior
+    pulling = false
+  }
 
   const onTouchStart = (e: TouchEvent) => {
     const el = elRef.value
     if (!el) return
-    startY = e.touches[0].clientY
+    const touch = e.touches[0]
+    if (!touch) return
+    clearResetTimer()
+    startY = touch.clientY
     startScrollTop = el.scrollTop
     pulling = false
+    originalTransition = el.style.transition
+    originalTransform = el.style.transform
+    originalOverscrollBehavior = el.style.overscrollBehavior
   }
 
   const onTouchMove = (e: TouchEvent) => {
@@ -39,8 +61,13 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
     if (!el || !pulling) return
     pulling = false
     el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
-    el.style.transform = ''
-    setTimeout(() => { if (el) el.style.transition = '' }, 400)
+    el.style.transform = originalTransform
+    el.style.overscrollBehavior = originalOverscrollBehavior
+    clearResetTimer()
+    resetTimer = setTimeout(() => {
+      if (elRef.value === el) el.style.transition = originalTransition
+      resetTimer = null
+    }, 400)
   }
 
   onMounted(() => {
@@ -49,6 +76,7 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
     el.addEventListener('touchend', onTouchEnd)
+    el.addEventListener('touchcancel', onTouchEnd)
   })
   onUnmounted(() => {
     const el = elRef.value
@@ -56,5 +84,8 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
     el.removeEventListener('touchstart', onTouchStart)
     el.removeEventListener('touchmove', onTouchMove)
     el.removeEventListener('touchend', onTouchEnd)
+    el.removeEventListener('touchcancel', onTouchEnd)
+    clearResetTimer()
+    restoreStyles(el)
   })
 }
