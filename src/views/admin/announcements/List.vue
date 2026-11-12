@@ -5,7 +5,12 @@
       </t-button>
     </div>
 
-    <div v-if="!announcements.length" class="py-12">
+    <div v-if="loadingAnnouncements" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-text-secondary">正在读取公告…</div>
+    <div v-else-if="announcementLoadError" role="alert" class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3">
+      <p class="text-sm text-[var(--t-err)]">{{ announcementLoadError }}</p>
+      <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="fetchAnnouncements">重新加载</t-button>
+    </div>
+    <div v-else-if="!announcements.length" class="py-12">
       <EmptyState icon="Megaphone" title="暂无公告" description="点击上方按钮，向所有租户发布一条公告~" />
     </div>
     <div v-else class="space-y-3">
@@ -118,6 +123,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import type { Announcement, Plan } from '@/types'
 
 const announcements = ref<Announcement[]>([])
+const loadingAnnouncements = ref(false)
+const announcementLoadError = ref('')
 const plans = ref<Plan[]>([])
 const showCreate = ref(false)
 const editing = ref(false)
@@ -130,11 +137,16 @@ const form = ref<Partial<Announcement>>({
 })
 
 async function fetchAnnouncements() {
+  loadingAnnouncements.value = true
+  announcementLoadError.value = ''
   try {
     const res = await adminApiMod.listAnnouncements()
     announcements.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取公告失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    announcementLoadError.value = e instanceof Error ? e.message : '获取公告失败，请稍后重试'
+    toast({ type: 'error', title: '获取公告失败', message: announcementLoadError.value })
+  } finally {
+    loadingAnnouncements.value = false
   }
 }
 
