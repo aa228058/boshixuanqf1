@@ -143,7 +143,7 @@ function onMouseStart(e: MouseEvent) {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  color: var(--text-muted, #94a3b8);
+  color: var(--t-text-3);
 }
 .pdr-indicator-inner {
   display: flex;
