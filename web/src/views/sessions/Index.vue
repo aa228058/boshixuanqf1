@@ -203,11 +203,26 @@ const total = computed(() => accounts.value.length)
 const onlineCount = computed(() => accounts.value.filter((a: any) => a.status === 'online').length)
 const restrictedCount = computed(() => accounts.value.filter((a: any) => a.status === 'restricted' || a.status === 'banned').length)
 
+let refreshController: AbortController | null = null
+let refreshRequestId = 0
+let pageActive = true
+
 async function refresh() {
+  if (!pageActive) return
+  refreshController?.abort()
+  const controller = new AbortController()
+  refreshController = controller
+  const requestId = ++refreshRequestId
+  const isCurrent = () => pageActive && requestId === refreshRequestId && !controller.signal.aborted
   loading.value = true
-  try { await accountStore.fetchAccounts() }
-  catch { toast({ type: 'error', title: '加载失败' }) }
-  finally { loading.value = false }
+  try {
+    await accountStore.fetchAccounts(false, { signal: controller.signal })
+  } catch (error: any) {
+    if (isCurrent()) toast({ type: 'error', title: '加载失败' })
+  } finally {
+    if (isCurrent()) loading.value = false
+    if (refreshController === controller) refreshController = null
+  }
 }
 
 const shortId = (id: string) => (id || '').slice(0, 8)
@@ -412,6 +427,10 @@ onMounted(() => {
   statusPoll = setInterval(refresh, 15000)
 })
 onUnmounted(() => {
+  pageActive = false
+  refreshRequestId++
+  refreshController?.abort()
+  refreshController = null
   if (statusPoll) clearInterval(statusPoll)
   if (importRefreshTimer) clearTimeout(importRefreshTimer)
   if (importCloseTimer) clearTimeout(importCloseTimer)
