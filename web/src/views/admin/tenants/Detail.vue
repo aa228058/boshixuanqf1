@@ -111,6 +111,8 @@ const tenant = ref<Tenant | null>(null)
 const plans = ref<Plan[]>([])
 let tenantDetailActive = true
 let tenantDetailRequestId = 0
+let tenantDetailController: AbortController | null = null
+let tenantPlansController: AbortController | null = null
 const showEdit = ref(false)
 const editForm = ref({ plan_id: '', expires_at: '' })
 
@@ -125,14 +127,19 @@ function toDateTimeLocal(v: string): string {
 }
 
 async function fetchTenant() {
+  tenantDetailController?.abort()
+  const controller = new AbortController()
+  tenantDetailController = controller
   const requestId = ++tenantDetailRequestId
   try {
-    const result = await adminApiMod.getTenant(tenantId)
+    const result = await adminApiMod.getTenant(tenantId, { signal: controller.signal })
     if (!tenantDetailActive || requestId !== tenantDetailRequestId) return
     tenant.value = result
     editForm.value = { plan_id: tenant.value?.plan_id || '', expires_at: toDateTimeLocal(tenant.value?.expires_at || '') }
   } catch (e: unknown) {
-    if (tenantDetailActive && requestId === tenantDetailRequestId) toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!controller.signal.aborted && tenantDetailActive && requestId === tenantDetailRequestId) toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    if (tenantDetailController === controller) tenantDetailController = null
   }
 }
 
@@ -192,12 +199,13 @@ onMounted(async () => {
   await fetchTenant()
   if (!tenantDetailActive) return
   try {
-    const res = await adminApiMod.listPlans()
+    tenantPlansController = new AbortController()
+    const res = await adminApiMod.listPlans({ signal: tenantPlansController.signal })
     if (!tenantDetailActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
     if (tenantDetailActive) toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 })
-onUnmounted(() => { tenantDetailActive = false; tenantDetailRequestId++ })
+onUnmounted(() => { tenantDetailActive = false; tenantDetailRequestId++; tenantDetailController?.abort(); tenantPlansController?.abort() })
 </script>
