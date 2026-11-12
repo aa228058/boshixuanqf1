@@ -188,11 +188,13 @@ async function doDelete() {
 onMounted(async () => {
   announcementsPageActive = true
   await fetchAnnouncements()
+  if (!announcementsPageActive) return
   try {
     const res = await adminApiMod.listPlans()
+    if (!announcementsPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (announcementsPageActive) toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 })
 onUnmounted(() => {
