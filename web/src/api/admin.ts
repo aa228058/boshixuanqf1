@@ -1,4 +1,4 @@
-import { adminApi, doFetchWithRetry, ADMIN_BASE_URL } from '@/utils/request'
+import { adminApi, doFetchWithRetry, ADMIN_BASE_URL, type RequestOptions } from '@/utils/request'
 import { useAdminStore } from '@/stores/admin'
 import type { Tenant, Plan, ActivationCode, SupportConfig, ProbeConfig, Announcement, AdminStats, SystemMetrics, ListResponse } from '@/types'
 
@@ -20,7 +20,7 @@ export const adminApiMod = {
 
   // 仪表盘
   getStats: () => adminApi.get<AdminStats>('/admin/stats'),
-  getSystemMetrics: () => adminApi.get<SystemMetrics>('/admin/system'),
+  getSystemMetrics: (options?: RequestOptions) => adminApi.get<SystemMetrics>('/admin/system', options),
 
   // 租户管理
   listTenants: (params?: Record<string, unknown>) => adminApi.get<ListResponse<Tenant>>(`/admin/tenants${toQueryString(params)}`),
