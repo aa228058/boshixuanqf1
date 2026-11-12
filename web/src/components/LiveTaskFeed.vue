@@ -63,6 +63,7 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
+import { normalizeTaskProgress } from './taskProgress'
 
 const props = defineProps<{ accountId: string; taskType: string }>()
 const task = ref<any>(null)
@@ -75,12 +76,8 @@ let loadRequestId = 0
 const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
 
 // 后端 progress 可能是 JSON 字符串或对象, 统一解析
-function parseProgress(p: any): { total: number; done: number; failed: number } {
-  if (!p) return { total: 0, done: 0, failed: 0 }
-  if (typeof p === 'string') {
-    try { return { total: 0, done: 0, failed: 0, ...JSON.parse(p) } } catch { return { total: 0, done: 0, failed: 0 } }
-  }
-  return p
+function parseProgress(p: unknown): { total: number; done: number; failed: number } {
+  return normalizeTaskProgress(p)
 }
 const prog = computed(() => parseProgress(task.value?.progress))
 const lastDoneProg = computed(() => parseProgress(lastDone.value?.progress))
@@ -88,7 +85,7 @@ const lastDoneProg = computed(() => parseProgress(lastDone.value?.progress))
 const percent = computed(() => {
   const total = prog.value.total
   if (!total) return 0
-  return Math.min(100, Math.round((prog.value.done / total) * 100))
+  return Math.min(100, Math.max(0, Math.round((prog.value.done / total) * 100)))
 })
 
 const typeNames: Record<string, string> = {
@@ -215,8 +212,9 @@ useTaskEvents((evt: any) => {
   }
   // 实时进度: 后端每处理一个目标推送一次
   if (evt.progress) {
-    task.value = { ...task.value, progress: evt.progress }
-    if (evt.progress.done + (evt.progress.failed || 0) >= (evt.progress.total || 0) && evt.progress.total > 0) {
+    const progress = normalizeTaskProgress(evt.progress)
+    task.value = { ...task.value, progress }
+    if (progress.done + progress.failed >= progress.total && progress.total > 0) {
       if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
       completionRefreshTimer = setTimeout(() => {
         completionRefreshTimer = null
