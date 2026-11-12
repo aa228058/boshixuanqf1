@@ -233,7 +233,7 @@
           </div>
           <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
             <span class="text-xs text-text-muted">{{ d.entries.filter(x => x.word.trim()).length }} 条消息 · {{ d.entries.filter(x => x.word.trim() && x.enabled).length }} 条启用</span>
-            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除文本字典" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
+            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除字典" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
           </div>
         </div>
       </div>
