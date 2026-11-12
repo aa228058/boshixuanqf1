@@ -167,16 +167,16 @@ html.theme-stripe .glow-btn:active {
 
 html.theme-stripe .ghost-btn,
 html.theme-stripe .apple-button-secondary {
-  background: var(--t-brand-ink) !important;
-  border: 1px solid color-mix(in srgb, var(--t-text-1) 14%, transparent) !important;
-  color: var(--t-text-1) !important;
+  background: var(--t-button-secondary-bg) !important;
+  border: 1px solid var(--t-button-secondary-border) !important;
+  color: var(--t-button-secondary-text) !important;
   border-radius: 99px !important;
-  box-shadow: rgba(0, 55, 112, 0.08) 0 1px 3px !important;
+  box-shadow: var(--t-shadow-xs) !important;
 }
 html.theme-stripe .ghost-btn:hover,
 html.theme-stripe .apple-button-secondary:hover {
-  background: var(--t-bg) !important;
-  border-color: var(--t-text-3) !important;
+  background: var(--t-button-secondary-hover) !important;
+  border-color: var(--t-button-secondary-border) !important;
 }
 
 
