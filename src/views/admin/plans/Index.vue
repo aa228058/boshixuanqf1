@@ -103,7 +103,7 @@ interface PlanRow {
 }
 
 const plans = ref<PlanRow[]>([])
-const loading = ref(false)
+const loading = ref(true)
 const saving = ref(false)
 
 // 套餐功能矩阵(2026-10-20 适配): 已随 UI 重构清理——
