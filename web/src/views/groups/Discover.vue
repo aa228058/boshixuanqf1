@@ -441,7 +441,10 @@ function scheduleImportPoll(jobId: string) {
   importPollTimers.set(jobId, timer)
 }
 let groupListRequestId = 0
+let groupListController: AbortController | null = null
 onUnmounted(() => {
+  groupListController?.abort()
+  groupListController = null
   // 使卸载前尚未返回的群库请求失效，避免旧页面继续写入状态。
   groupListRequestId++
   if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
@@ -701,11 +704,14 @@ function fmtTime(t: string) {
 
 async function load() {
   const requestId = ++groupListRequestId
+  groupListController?.abort()
+  const controller = new AbortController()
+  groupListController = controller
   // 在发请求时固定筛选与页码；只允许最后一次请求更新当前列表和 loading。
   const params = { ...filters, page: page.value, page_size: pageSize }
   loading.value = true
   try {
-    const res = await getGroupLibrary(params)
+    const res = await getGroupLibrary(params, { signal: controller.signal })
     if (requestId !== groupListRequestId) return
     list.value = res.list || []
     total.value = res.total || 0
@@ -716,10 +722,11 @@ async function load() {
       if (g && g.status === 'invalid') selected.delete(id)
     }
   } catch (err: any) {
-    if (requestId !== groupListRequestId) return
+    if (controller.signal.aborted || requestId !== groupListRequestId) return
     toast({ type: 'error', title: '加载失败', message: err?.message || '加载群库失败' })
   } finally {
     if (requestId === groupListRequestId) loading.value = false
+    if (groupListController === controller) groupListController = null
   }
 }
 function search() {
