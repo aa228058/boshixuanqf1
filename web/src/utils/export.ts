@@ -16,13 +16,7 @@ function escapeCSV(value: string | number): string {
 export function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
   const csv = [headers.map(escapeCSV).join(','), ...rows.map(r => r.map(escapeCSV).join(','))].join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  // Defer revocation until the browser has consumed the download URL.
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  downloadBlob(filename, blob)
 }
 
 /** 统一下载 Blob：将临时锚点挂载到 DOM，触发后清理锚点，并延迟释放 Object URL。 */
