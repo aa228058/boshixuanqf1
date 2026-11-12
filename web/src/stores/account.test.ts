@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 const { listMock } = vi.hoisted(() => ({ listMock: vi.fn() }))
@@ -20,10 +20,18 @@ function deferred<T>() {
 }
 
 describe('account store request lifecycle', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     listMock.mockReset()
-    localStorage.clear()
+    const values = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      clear: () => values.clear(),
+    })
   })
 
   it('只允许最后发起的账号列表请求覆盖状态', async () => {
@@ -45,9 +53,11 @@ describe('account store request lifecycle', () => {
 
   it('本地存储不可用时仍可加载账号列表', async () => {
     listMock.mockResolvedValue({ list: [{ account_id: 'safe', status: 'online' }] })
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage disabled') })
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage disabled') })
-    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('storage disabled') })
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new Error('storage disabled') },
+      setItem: () => { throw new Error('storage disabled') },
+      removeItem: () => { throw new Error('storage disabled') },
+    })
     const store = useAccountStore()
 
     await expect(store.fetchAccounts(true)).resolves.toBeUndefined()
