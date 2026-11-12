@@ -133,12 +133,16 @@ function toggleFeature(p: PlanRow, key: string) {
 const loadError = ref('')
 let plansPageActive = false
 let plansRequestId = 0
+let plansController: AbortController | null = null
 
 async function load() {
+  plansController?.abort()
+  const controller = new AbortController()
+  plansController = controller
   const requestId = ++plansRequestId
   loadError.value = ''
   try {
-    const res = await adminApiMod.listPlans()
+    const res = await adminApiMod.listPlans({ signal: controller.signal })
     if (!plansPageActive || requestId !== plansRequestId) return
     plans.value = (res.list || []).map((p: any) => ({
       ...p,
@@ -152,9 +156,11 @@ async function load() {
       loadError.value = '套餐列表为空 —— 请检查迁移 051 是否已执行(plans 表结构是否含 daily_search_limit 列)'
     }
   } catch (e: any) {
-    if (!plansPageActive || requestId !== plansRequestId) return
+    if (controller.signal.aborted || !plansPageActive || requestId !== plansRequestId) return
     loadError.value = e?.message || '请求失败(401/500?)'
     toast({ type: 'error', message: '套餐加载失败: ' + loadError.value })
+  } finally {
+    if (plansController === controller) plansController = null
   }
 }
 
@@ -189,5 +195,5 @@ async function saveAll() {
 }
 
 onMounted(() => { plansPageActive = true; void load() })
-onUnmounted(() => { plansPageActive = false; plansRequestId++ })
+onUnmounted(() => { plansPageActive = false; plansRequestId++; plansController?.abort(); plansController = null })
 </script>
