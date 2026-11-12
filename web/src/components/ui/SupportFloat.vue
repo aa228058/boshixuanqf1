@@ -103,8 +103,22 @@ function startDrag(e: MouseEvent | TouchEvent) {
 }
 
 function onDrag(e: MouseEvent | TouchEvent) {
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+  let clientX: number
+  let clientY: number
+  if ('touches' in e) {
+    // Some browsers dispatch a final touchmove with no active touches while
+    // a system gesture is being cancelled. Never index an empty TouchList.
+    const touch = e.touches[0] || e.changedTouches[0]
+    if (!touch) {
+      stopDrag()
+      return
+    }
+    clientX = touch.clientX
+    clientY = touch.clientY
+  } else {
+    clientX = e.clientX
+    clientY = e.clientY
+  }
   const dx = dragStart.value.x - clientX
   const dy = dragStart.value.y - clientY
 
