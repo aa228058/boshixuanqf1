@@ -223,15 +223,15 @@
             <!-- R130 "更多"文字按钮(用户: 比 ⋯ 图标更易发现), 胶囊底常显 -->
             <t-button theme="default" variant="outline" size="sm" @click.stop="toggleMenu(acc?.account_id)"
                     class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 more-btn"
-                    aria-label="更多操作">更多</t-button>
+                    aria-label="更多操作" :aria-expanded="openMenuId === acc?.account_id" :aria-controls="openMenuId === acc?.account_id ? 'account-menu-' + acc.account_id : undefined">更多</t-button>
             <!-- 移动端遮罩(点空白关闭面板); 桌面端无遮罩 -->
             <div v-if="openMenuId === acc?.account_id" class="fixed inset-0 z-[2490] sm:hidden"
                  style="background: rgba(0, 0, 0, 0.4);" @click.stop="openMenuId = ''"></div>
             <!-- 更多菜单(R141): 移动端 = 底部 ActionSheet(圆角上提, 遮罩关闭); 桌面端 = 向上弹出菜单 -->
-            <div v-if="openMenuId === acc?.account_id"
+            <div v-if="openMenuId === acc?.account_id" :id="'account-menu-' + acc.account_id" role="region" aria-label="账号更多操作"
                  class="acc-menu fixed z-[2500] py-1.5 rounded-xl sm:absolute sm:right-0 sm:bottom-full sm:mb-1"
                  style="background: var(--t-modal-bg); border: 1px solid var(--t-line-light);"
-                 @click.stop>
+                 @click.stop @keydown.esc.stop.prevent="openMenuId = ''">
               <div class="acc-menu-head">
                 <div class="min-w-0">
                   <div class="text-sm font-semibold text-text-primary">账号操作</div>
