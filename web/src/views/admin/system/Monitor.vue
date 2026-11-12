@@ -164,7 +164,11 @@ function usageBarColor(percent: number): string {
   return 'bg-[var(--t-brand)]'
 }
 
+let metricsRequestPending = false
 async function fetchMetrics() {
+  // 轮询间隔短于慢请求耗时会产生重叠请求；保持单飞，避免旧快照覆盖新指标。
+  if (metricsRequestPending) return
+  metricsRequestPending = true
   try {
     const data = await adminApiMod.getSystemMetrics()
     metrics.value = { ...metrics.value, ...data }
@@ -179,6 +183,8 @@ async function fetchMetrics() {
     pushLog('DEBUG', `指标已更新 CPU ${metrics.value.cpu}% 内存 ${metrics.value.memory}%`)
   } catch (e: unknown) {
     pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
+  } finally {
+    metricsRequestPending = false
   }
 }
 
@@ -198,6 +204,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearInterval(refreshTimer)
+  // 防止组件离开后未完成的请求继续向已卸载页面写入状态。
+  metricsRequestPending = true
   if (alertCooldownTimer) clearTimeout(alertCooldownTimer)
   document.removeEventListener('visibilitychange', tickHandler)
 })
