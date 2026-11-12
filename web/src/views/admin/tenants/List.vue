@@ -179,6 +179,7 @@ const filteredTenants = computed(() => tenants.value)
 useAutoRefresh(fetchTenants, 15000)
 
 let tenantListRequestId = 0
+let tenantListPageActive = true
 async function fetchTenants() {
   const requestId = ++tenantListRequestId
   // 自动刷新、搜索防抖和翻页可能重叠；参数快照与请求序号保证列表只接收最新结果。
@@ -255,15 +256,18 @@ async function doDelete() {
 }
 
 
-onUnmounted(() => { tenantListRequestId++ })
+onUnmounted(() => { tenantListPageActive = false; tenantListRequestId++ })
 
 onMounted(async () => {
+  tenantListPageActive = true
   await fetchTenants()
+  if (!tenantListPageActive) return
   try {
     const res = await adminApiMod.listPlans()
+    if (!tenantListPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐列表失败', message: e instanceof Error ? e.message : '请稍后重试' })
+    if (tenantListPageActive) toast({ type: 'error', title: '获取套餐列表失败', message: e instanceof Error ? e.message : '请稍后重试' })
   }
 })
 </script>
