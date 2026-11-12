@@ -16,11 +16,12 @@ const circ = computed(() => 2 * Math.PI * r.value)
 // 总进度弧长
 const dashTotal = computed(() => circ.value * (1 - normalizedPercent.value / 100))
 // 成功段弧长(在总进度里切出绿色段)
-const successLen = computed(() => circ.value * (Math.min(props.success, normalizedPercent.value) / 100))
+const normalizedSuccess = computed(() => Math.max(0, Math.min(normalizedPercent.value, Number.isFinite(props.success) ? props.success : 0)))
+const successLen = computed(() => circ.value * (normalizedSuccess.value / 100))
 </script>
 
 <template>
-  <div class="relative inline-grid place-items-center shrink-0" :style="{ width: size + 'px', height: size + 'px' }">
+  <div class="relative inline-grid place-items-center shrink-0" role="img" :aria-label="`任务进度 ${normalizedPercent}%`" :style="{ width: size + 'px', height: size + 'px' }">
     <svg :width="size" :height="size" class="-rotate-90">
       <circle :cx="size/2" :cy="size/2" :r="r" fill="none" :stroke-width="stroke"
               class="stroke-bg-primary" />
