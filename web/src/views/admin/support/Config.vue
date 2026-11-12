@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { MessageCircle } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import type { SupportConfig } from '@/types'
@@ -91,6 +91,9 @@ const contactTypes = [
 ]
 
 const qrFile = ref<File | null>(null)
+let supportPageActive = false
+let supportRequestId = 0
+let qrReadRequestId = 0
 const form = ref<SupportConfig>({
   id: 0,
   contact_type: 'wechat',
@@ -101,14 +104,17 @@ const form = ref<SupportConfig>({
 })
 
 async function fetchConfig() {
+  const requestId = ++supportRequestId
   try {
     // P0-04: 原兜底默认值用了第三套互不相同的字段名(contact_wechat/telegram/url),
     // 与后端真实返回(contact_type/contact_value/display_name/qr_code_url)完全对不上——
     // 配置永远存不进正确的字段。以 007 迁移 + repository 的真实字段为准统一。
     const EMPTY = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
     const config = await adminApiMod.getSupport()
+    if (!supportPageActive || requestId !== supportRequestId) return
     form.value = { ...EMPTY, ...(config || {}) }
   } catch (e: unknown) {
+    if (!supportPageActive || requestId !== supportRequestId) return
     // 首次部署无客服配置时接口可能报错/返回空, 兜底默认空值避免页面异常
     form.value = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
   }
@@ -147,9 +153,13 @@ function handleQrUpload(file: File) {
   // 且 qr_code_file 字段（File 对象）JSON 序列化后为空对象，后端拿不到文件。
   // TODO: 走 mediaApi.upload 上传拿 URL，或后端支持 base64 落库并限制大小。
   const reader = new FileReader()
-  reader.onload = () => { form.value.qr_code_url = reader.result as string }
+  const requestId = ++qrReadRequestId
+  reader.onload = () => {
+    if (supportPageActive && requestId === qrReadRequestId) form.value.qr_code_url = reader.result as string
+  }
   reader.readAsDataURL(file)
 }
 
-onMounted(fetchConfig)
+onMounted(() => { supportPageActive = true; void fetchConfig() })
+onUnmounted(() => { supportPageActive = false; supportRequestId++; qrReadRequestId++ })
 </script>
