@@ -51,8 +51,8 @@
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
+            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" :disabled="taskActionsPending.has(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" :disabled="taskActionsPending.has(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
             <t-button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">查看详情</t-button>
           </div>
         </div>
@@ -206,6 +206,7 @@ const onlineAccounts = computed(() => (accountStore.accounts || []).filter((a: a
 const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
 const tasksError = ref('')
+const taskActionsPending = ref(new Set<string>())
 
 let taskListRequestId = 0
 let joinPageActive = true
@@ -326,12 +327,26 @@ async function onPullRefresh() {
 }
 
 async function retryFailed(id: string) {
+  if (taskActionsPending.value.has(id)) return
+  taskActionsPending.value = new Set(taskActionsPending.value).add(id)
   try { await taskApi.retry(id, 'failed'); fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
+  finally {
+    const next = new Set(taskActionsPending.value)
+    next.delete(id)
+    taskActionsPending.value = next
+  }
 }
 async function stopTask(id: string) {
+  if (taskActionsPending.value.has(id)) return
+  taskActionsPending.value = new Set(taskActionsPending.value).add(id)
   try { await taskApi.cancel(id); fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
+  finally {
+    const next = new Set(taskActionsPending.value)
+    next.delete(id)
+    taskActionsPending.value = next
+  }
 }
 
 const linksInput = ref('')
