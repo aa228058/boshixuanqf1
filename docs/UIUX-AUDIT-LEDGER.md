@@ -29,7 +29,7 @@
 | #34 | `src/components/ui/SupportFloat.vue` | touch 拖拽结束后合成 click 可能在 50ms 复位后触发展开 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 拖拽后松手不展开；停顿后轻点可展开 | 已提交 `7029378` / `bfd6777`：记录最后拖动时间，400ms 内抑制合成 click |
 | #36 | `src/components/ui/EmptyState.vue` | `title` 传入 TDesign `description`，真描述另行渲染 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 组件用例/页面手测 | 已提交修复 `5827ff5`：title 放入 image slot 标题区，description 交给 TDesign description；待页面视觉回归 |
 | #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 已提交修复 `ec0f05b`：弧与文本共用 0.1% 精度的夹紧值；待边界测试 |
-| #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 36px 源码已定位；按 44px 目标评估布局空间 |
+| #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节/可访问性 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 已提交 `b14ff6d`：操作按钮和更多按钮均提升到 44px；待检查窄屏换行与卡片高度 |
 | #58 | `src/views/accounts/List.vue` | `loginCodeFresh()` / `codeAge()` 未读取响应式时间依赖 | 🟠 | 真缺陷候选 | 已确认（源码） | 触及逻辑 | 验证验证码年龄是否随时间刷新及 10 分钟到期隐藏 | 已提交修复 `dea6832`：两个函数统一读取 `nowTs.value`；待手动回归 |
 | #68 | `src/views/accounts/List.vue` | `statusPoll` 与 `useAutoRefresh` 都触发账号刷新，可能重复轮询 | 🟠 | 横切/性能 | 已确认（双触发存在） | 触及逻辑 | 网络面板统计 30 秒请求次数、切后台恢复 | 已提交修复 `f7b392b`：合并为单一 30 秒强制刷新入口，统一刷新账号/统计/任务摘要，并保留切后台暂停、回前台立即刷新；待网络面板回归 |
 | #99 | `src/views/workspace/Scrape.vue` | 导出 Excel 的独立 HTML 使用 CSS 变量 `var(--t-line)` / `var(--t-space-1-5)` | 🟡 | 真缺陷 | 已确认 | 纯展示 | 下载 XLS 并检查边框与内边距 | 已提交 `ee3c1c9`：替换为 Excel 可识别的固定边框色与 px padding |
@@ -237,3 +237,11 @@
 | #34 | `src/components/ui/SupportFloat.vue` | 记录最后拖动时间，拖拽结束后的 400ms 内抑制合成 click，避免拖动后意外展开 | `7029378`, `bfd6777` | 触及逻辑 | 待 iOS/Android 拖拽后松手回归 |
 
 以上逻辑项均需手动回归；当前尚未执行浏览器/真机验证。
+
+
+## O. 账号卡片移动端触控尺寸
+
+- 文件：`src/views/accounts/List.vue`
+- 提交：`b14ff6d`
+- 将移动端账号卡片的操作按钮和“更多”按钮最小高度从 36px 提升至 44px。
+- 验收：待 320/375/430px 视口检查按钮可点击区域、卡片高度和是否出现横向溢出。
