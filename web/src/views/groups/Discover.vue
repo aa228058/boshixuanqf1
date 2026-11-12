@@ -368,9 +368,18 @@ function toggleExpand(id: string) {
   expandedSg.value = s
 }
 const isExpanded = (id: string) => expandedSg.value.has(id)
-function copyLink(link: string) {
+async function copyLink(link: string) {
   if (!link) return
-  navigator.clipboard?.writeText(link).catch(() => {})
+  try {
+    if (!navigator.clipboard?.writeText) {
+      toast({ type: 'warning', title: '当前浏览器不支持复制', message: '请手动选择并复制群组链接' })
+      return
+    }
+    await navigator.clipboard.writeText(link)
+    toast({ type: 'success', title: '链接已复制' })
+  } catch {
+    toast({ type: 'error', title: '复制失败', message: '请检查浏览器剪贴板权限后重试' })
+  }
 }
 const total = ref(0)
 const page = ref(1)
@@ -420,7 +429,10 @@ function scheduleImportPoll(jobId: string) {
   }, 2000)
   importPollTimers.set(jobId, timer)
 }
+let groupListRequestId = 0
 onUnmounted(() => {
+  // 使卸载前尚未返回的群库请求失效，避免旧页面继续写入状态。
+  groupListRequestId++
   if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
   importPageUnmounted = true
   for (const timer of importPollTimers.values()) window.clearTimeout(timer)
@@ -663,9 +675,13 @@ function fmtTime(t: string) {
 }
 
 async function load() {
+  const requestId = ++groupListRequestId
+  // 在发请求时固定筛选与页码；只允许最后一次请求更新当前列表和 loading。
+  const params = { ...filters, page: page.value, page_size: pageSize }
   loading.value = true
   try {
-    const res = await getGroupLibrary({ ...filters, page: page.value, page_size: pageSize })
+    const res = await getGroupLibrary(params)
+    if (requestId !== groupListRequestId) return
     list.value = res.list || []
     total.value = res.total || 0
     // 跨页勾选保留: 翻页/加载不再清空已选(分批加群需要跨页凑量);
@@ -675,9 +691,10 @@ async function load() {
       if (g && g.status === 'invalid') selected.delete(id)
     }
   } catch (err: any) {
+    if (requestId !== groupListRequestId) return
     toast({ type: 'error', title: '加载失败', message: err?.message || '加载群库失败' })
   } finally {
-    loading.value = false
+    if (requestId === groupListRequestId) loading.value = false
   }
 }
 function search() {
