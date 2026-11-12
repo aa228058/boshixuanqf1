@@ -383,6 +383,14 @@ function prevPage() { if (page.value > 1) { page.value--; load() } }
 const loading = ref(false)
 const selected = reactive(new Set<string>())
 const filters = reactive({ keyword: '', gtype: '', status: '', source: '' })
+let keywordSearchTimer: number | undefined
+watch(() => filters.keyword, () => {
+  if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
+  keywordSearchTimer = window.setTimeout(() => {
+    keywordSearchTimer = undefined
+    search()
+  }, 350)
+})
 
 const joinModalVisible = ref(false)
 const joinAccounts = ref<string[]>([])
@@ -415,6 +423,7 @@ function scheduleImportPoll(jobId: string) {
   importPollTimers.set(jobId, timer)
 }
 onUnmounted(() => {
+  if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
   importPageUnmounted = true
   for (const timer of importPollTimers.values()) window.clearTimeout(timer)
   importPollTimers.clear()
