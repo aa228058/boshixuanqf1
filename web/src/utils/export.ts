@@ -25,6 +25,24 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+/** 统一下载 Blob：将临时锚点挂载到 DOM，触发后清理锚点，并延迟释放 Object URL。 */
+export function downloadBlob(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  try {
+    document.body.appendChild(anchor)
+    anchor.click()
+  } catch (error) {
+    URL.revokeObjectURL(url)
+    throw error
+  } finally {
+    anchor.remove()
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 // R117: downloadJSON 已删(零外部引用; downloadCSV 自拼 CSV 不依赖它)
 
 
