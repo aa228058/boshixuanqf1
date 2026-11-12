@@ -19,7 +19,7 @@ export const adminApiMod = {
   logout: () => adminApi.post<{ revoked: boolean }>('/admin/auth/logout'),
 
   // 仪表盘
-  getStats: () => adminApi.get<AdminStats>('/admin/stats'),
+  getStats: (options?: RequestOptions) => adminApi.get<AdminStats>('/admin/stats', options),
   getSystemMetrics: (options?: RequestOptions) => adminApi.get<SystemMetrics>('/admin/system', options),
 
   // 租户管理
@@ -65,5 +65,5 @@ export const adminApiMod = {
   updatePlan: (id: string, data: Partial<Plan>) => adminApi.put<Plan>(`/admin/plans/${id}`, data),
 
   // 审计日志
-  getAuditLogs: (params?: Record<string, unknown>) => adminApi.get<ListResponse<Record<string, unknown>>>(`/admin/audit-logs${toQueryString(params)}`),
+  getAuditLogs: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<Record<string, unknown>>>(`/admin/audit-logs${toQueryString(params)}`, options),
 }
