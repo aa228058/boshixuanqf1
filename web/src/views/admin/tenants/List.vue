@@ -179,8 +179,13 @@ const filteredTenants = computed(() => tenants.value)
 useAutoRefresh(fetchTenants, 15000)
 
 let tenantListRequestId = 0
+let tenantListController: AbortController | null = null
+let tenantPlansController: AbortController | null = null
 let tenantListPageActive = true
 async function fetchTenants() {
+  tenantListController?.abort()
+  const controller = new AbortController()
+  tenantListController = controller
   const requestId = ++tenantListRequestId
   // 自动刷新、搜索防抖和翻页可能重叠；参数快照与请求序号保证列表只接收最新结果。
   const params = {
@@ -190,13 +195,15 @@ async function fetchTenants() {
     search: search.value.trim() || undefined,
   }
   try {
-    const res = await adminApiMod.listTenants(params)
+    const res = await adminApiMod.listTenants(params, { signal: controller.signal })
     if (requestId !== tenantListRequestId) return
     tenants.value = res.list || []
     total.value = res.total || 0
   } catch (e: unknown) {
-    if (requestId !== tenantListRequestId) return
+    if (controller.signal.aborted || requestId !== tenantListRequestId) return
     toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    if (tenantListController === controller) tenantListController = null
   }
 }
 
@@ -256,14 +263,15 @@ async function doDelete() {
 }
 
 
-onUnmounted(() => { tenantListPageActive = false; tenantListRequestId++ })
+onUnmounted(() => { tenantListPageActive = false; tenantListRequestId++; tenantListController?.abort(); tenantPlansController?.abort() })
 
 onMounted(async () => {
   tenantListPageActive = true
   await fetchTenants()
   if (!tenantListPageActive) return
   try {
-    const res = await adminApiMod.listPlans()
+    tenantPlansController = new AbortController()
+    const res = await adminApiMod.listPlans({ signal: tenantPlansController.signal })
     if (!tenantListPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
