@@ -482,6 +482,7 @@ import { useCopy } from '@/composables/useCopy'
 import { MessageCircle, Trash2, Loader2 } from 'lucide-vue-next'
 import { settingsApi } from '@/api/settings'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 import { getAIConfig, saveAIConfig, testAIConfig, setVerifierEnabled } from '@/api/verifier'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -573,7 +574,8 @@ async function exportMyData() {
     a.href = url
     a.download = 'my-data-export.json'
     a.click()
-    URL.revokeObjectURL(url)
+    // Keep the object URL alive until the browser has consumed the download URL.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
     toast({ type: 'success', title: '导出成功', message: '已下载 my-data-export.json' })
   } catch (e) {
     toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
@@ -674,7 +676,20 @@ async function saveTextDict(d: import('@/api/settings').TextDict) {
   } finally { dictSaving.value = false }
 }
 async function deleteTextDict(id: string) {
-  if (!window.confirm('确定删除这个文本分组吗？')) return; try { await settingsApi.deleteTextDict(id); await fetchTextDicts(); toast({ type: 'success', message: '分组已删除' }) } catch (e: unknown) { toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' }) }
+  const confirmed = await ask('确定删除这个文本分组吗？', {
+    title: '删除文本分组',
+    detail: '删除后无法恢复，请确认分组内容已不再需要。',
+    danger: true,
+    confirmText: '删除',
+  })
+  if (!confirmed) return
+  try {
+    await settingsApi.deleteTextDict(id)
+    await fetchTextDicts()
+    toast({ type: 'success', message: '分组已删除' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' })
+  }
 }
 async function copyDictItems(id: string) {
   const value = (textDicts.value.find(d => d.dict_id === id)?.entries || []).map(entry => entry.word).filter(Boolean).join(String.fromCharCode(10)); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部消息' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
