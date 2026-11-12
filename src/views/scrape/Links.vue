@@ -61,7 +61,11 @@
 
       <template v-else>
       <!-- R87-M8: 空态与下方总开关卡的空提示二选一(原双重空态), 展开面板时不再显示大空态 -->
-      <EmptyState v-if="!tasks.length && !allLinksLoading && !allLinks.length && !allLinksOpen" icon="Link" title="暂无数据" description="暂无历史任务，也没有采集到链接" class="mb-3" />
+      <div v-if="tasksError" class="ui-card p-3 flex flex-wrap items-center justify-between gap-3" role="alert">
+        <span class="text-sm text-[var(--t-err)]">{{ tasksError }}</span>
+        <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="tasksLoading" @click="fetchTasks">重新加载任务</t-button>
+      </div>
+      <EmptyState v-if="!tasksError && !allLinksError && !tasks.length && !allLinksLoading && !allLinks.length && !allLinksOpen" icon="Link" title="暂无数据" description="暂无历史任务，也没有采集到链接" class="mb-3" />
 
       <!-- 总开关模式: 全部采集链接 -->
       <div class="glass rounded-[var(--t-r-md)] overflow-hidden mb-3">
@@ -80,6 +84,10 @@
         </div>
         <div v-if="allLinksOpen" class="border-t border-border">
           <div v-if="allLinksLoading" class="flex justify-center py-6 text-sm text-text-muted">加载中...</div>
+          <div v-else-if="allLinksError" class="p-6 flex flex-wrap items-center justify-center gap-2 text-sm" role="alert">
+            <span class="text-[var(--t-err)]">{{ allLinksError }}</span>
+            <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="allLinksLoading" @click="loadAllLinks">重新加载链接</t-button>
+          </div>
           <div v-else-if="!allLinks.length" class="p-6 text-center text-text-muted text-sm">暂无链接, 先在"链接监听"Tab 开启监听, 收到含链接的群消息后会自动入库</div>
           <div v-else>
             <!-- 单行横向布局: 链接截断 + 类型徽标 + 复制, 手机上不再一链接占一整块 -->
@@ -149,6 +157,10 @@
           <div v-if="expandedTaskId === task.task_id" class="border-t border-border">
             <div v-if="linksLoading[task.task_id]" class="flex justify-center py-6">
               <t-loading size="small" loading class="inline-flex" />
+            </div>
+            <div v-else-if="taskLinksErrors[task.task_id]" class="p-6 flex flex-wrap items-center justify-center gap-2 text-sm" role="alert">
+              <span class="text-[var(--t-err)]">{{ taskLinksErrors[task.task_id] }}</span>
+              <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="toggleTask(task)">重新加载</t-button>
             </div>
             <div v-else-if="!taskLinks[task.task_id]?.length" class="p-6 text-center text-text-muted text-sm">
               该任务窗口内暂无采集到链接(链接可能被去重过滤, 或服务未监听到消息)
@@ -234,17 +246,36 @@ interface ScrapeTask {
 const allLinks = ref<ScrapedLink[]>([])
 const allLinksOpen = ref(false)
 const allLinksLoading = ref(false)
+const allLinksError = ref('')
+let allLinksRequestId = 0
 
 const tasks = ref<ScrapeTask[]>([])
 const tasksLoading = ref(false)
+const tasksError = ref('')
+let tasksRequestId = 0
 const expandedTaskId = ref<string | null>(null)
 const taskLinks = ref<Record<string, ScrapedLink[]>>({})
+const taskLinksErrors = ref<Record<string, string>>({})
+const taskLinksRequestIds: Record<string, number> = {}
 const linksLoading = ref<Record<string, boolean>>({})
 
 // R108: 视图级账号切换 —— 监听配置按账号独立, 下拉选择管理哪个号(不依赖顶栏切换器)
 const linksAccId = ref('')
 watch(accountStore.currentAccount, (acc: any) => { if (acc?.account_id && !linksAccId.value) linksAccId.value = acc.account_id }, { immediate: true })
-watch(linksAccId, () => { fetchTasks(); loadAllLinks() })
+watch(linksAccId, () => {
+  tasksRequestId++
+  allLinksRequestId++
+  Object.keys(taskLinksRequestIds).forEach(id => { taskLinksRequestIds[id]++ })
+  tasks.value = []
+  allLinks.value = []
+  taskLinks.value = {}
+  taskLinksErrors.value = {}
+  expandedTaskId.value = null
+  tasksError.value = ''
+  allLinksError.value = ''
+  fetchTasks()
+  loadAllLinks()
+})
 
 async function fetchTasks() {
   const accId = linksAccId.value
