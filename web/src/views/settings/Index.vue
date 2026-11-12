@@ -752,7 +752,7 @@ function featureLabel(key: string): string {
 }
 
 async function deleteTemplate(id: string) {
-  if (templateDeletingIds.value.has(id)) return
+  if (templateDeletingIds.value.has(id) || templateSavingIds.value.has(id)) return
   templateDeletingIds.value = new Set(templateDeletingIds.value).add(id)
   try {
     await settingsApi.deleteTemplate(id)
