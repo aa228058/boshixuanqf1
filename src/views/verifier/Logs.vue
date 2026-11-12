@@ -5,10 +5,15 @@
         <h2 class="text-lg font-bold text-text-primary">验证记录</h2>
         <p class="text-xs text-text-secondary mt-1">入群验证的自动处理记录：通过的、失败的、以及为什么停止（付费验证/外部链接等）。</p>
       </div>
-      <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load">刷新</t-button>
+      <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="loading" @click="load">{{ loading ? "刷新中…" : "刷新" }}</t-button>
     </div>
 
-    <div v-if="!list.length && !loading" class="glass rounded-[var(--t-r-md)] p-12 text-center text-text-muted text-sm lift">
+    <div v-if="loading" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-text-secondary lift">正在读取验证记录…</div>
+    <div v-else-if="loadError" role="alert" class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3 lift">
+      <p class="text-sm text-[var(--t-err)]">{{ loadError }}</p>
+      <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load">重新加载</t-button>
+    </div>
+    <div v-else-if="!list.length" class="glass rounded-[var(--t-r-md)] p-12 text-center text-text-muted text-sm lift">
       还没有验证记录——在设置里打开「入群验证」开关，账号加群遇到验证时会自动处理并记录在这里。
     </div>
 
@@ -45,6 +50,7 @@ import { getVerificationLogs, type VerificationLog } from '@/api/verifier'
 
 const list = ref<VerificationLog[]>([])
 const loading = ref(false)
+const loadError = ref('')
 
 function statusLabel(s: string) {
   return s === 'pass' ? '验证通过' : s === 'fail' ? '验证失败' : s === 'stopped' ? '已停止' : '处理中'
@@ -68,9 +74,12 @@ function fmt(t: string) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await getVerificationLogs()
     list.value = res.list || []
+  } catch (e: unknown) {
+    loadError.value = e instanceof Error ? e.message : '读取验证记录失败，请重试'
   } finally {
     loading.value = false
   }
