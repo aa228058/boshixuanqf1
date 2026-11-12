@@ -28,7 +28,7 @@
 | #27 | `src/components/ui/PullDownRefresh.vue` | 无滚动父级时未检查 window/page scrollTop，页面滚动到中段也允许下拉刷新 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 页面滚动到顶部/中段分别下拉验证 | 已提交 `7200d8d` / `7a89b48`：无滚动父时检查 window/document scrollTop，只允许页面顶部触发 |
 | #34 | `src/components/ui/SupportFloat.vue` | touch 拖拽结束后合成 click 可能在 50ms 复位后触发展开 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 拖拽后松手不展开；停顿后轻点可展开 | 已提交 `7029378` / `bfd6777`：记录最后拖动时间，400ms 内抑制合成 click |
 | #36 | `src/components/ui/EmptyState.vue` | `title` 传入 TDesign `description`，真描述另行渲染 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 组件用例/页面手测 | 已提交修复 `5827ff5`：title 放入 image slot 标题区，description 交给 TDesign description；待页面视觉回归 |
-| #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 已提交修复 `ec0f05b`：弧与文本共用 0.1% 精度的夹紧值；待边界测试 |
+| #38 | `src/components/ui/ProgressRing.vue` | 百分比文字 round，圆弧保留小数，显示不一致 | 🟡 | 细节 | 已确认 | 纯展示 | 99.5、0.5、100 等边界值单测 | 已提交修复 `ec0f05b` / `553dba7`：弧与文本共用 0.1% 精度的夹紧值，背景轨道 stroke-width 改为绑定真实 stroke prop；待边界测试 |
 | #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节/可访问性 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 已提交 `b14ff6d`：操作按钮和更多按钮均提升到 44px；待检查窄屏换行与卡片高度 |
 | #58 | `src/views/accounts/List.vue` | `loginCodeFresh()` / `codeAge()` 未读取响应式时间依赖 | 🟠 | 真缺陷候选 | 已确认（源码） | 触及逻辑 | 验证验证码年龄是否随时间刷新及 10 分钟到期隐藏 | 已提交修复 `dea6832`：两个函数统一读取 `nowTs.value`；待手动回归 |
 | #68 | `src/views/accounts/List.vue` | `statusPoll` 与 `useAutoRefresh` 都触发账号刷新，可能重复轮询 | 🟠 | 横切/性能 | 已确认（双触发存在） | 触及逻辑 | 网络面板统计 30 秒请求次数、切后台恢复 | 已提交修复 `f7b392b`：合并为单一 30 秒强制刷新入口，统一刷新账号/统计/任务摘要，并保留切后台暂停、回前台立即刷新；待网络面板回归 |
@@ -261,3 +261,6 @@
 - 提交：`47504ae`
 - 多选时为账号列表主容器增加移动端底部留白（桌面端不增加），让列表末尾能够滚动到浮动批量操作栏上方。
 - 验收：移动端选中 5 个以上账号，滚动至列表最后一项，确认最后一行和操作栏不重叠。
+
+
+补充：#38 组件复核时发现背景轨道曾使用字面量 `stroke-width="stroke"`，而非 Vue 属性绑定。已在 `553dba7` 改为 `:stroke-width="stroke"`，确保轨道粗细与两段进度弧一致。
