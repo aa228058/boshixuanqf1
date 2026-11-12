@@ -51,9 +51,9 @@
         </div>
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-if="job.status === 'cancelling'" class="text-xs text-text-muted">正在停止…</span>
-        <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
-        <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
-        <t-button v-if="['review', 'completed', 'failed', 'cancelled'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="deleteImportJob(job.job_id)">删除记录</t-button>
+        <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text"  :disabled="importJobActions.has(job.job_id)" :loading="importJobActions.has(job.job_id)" @click="cancelImportJob(job.job_id)">取消任务</t-button>
+        <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary"  :disabled="importJobActions.has(job.job_id)" :loading="importJobActions.has(job.job_id)" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
+        <t-button v-if="['review', 'completed', 'failed', 'cancelled'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text"  :disabled="importJobActions.has(job.job_id)" :loading="importJobActions.has(job.job_id)" @click="deleteImportJob(job.job_id)">删除记录</t-button>
       </div>
     </section>
 
@@ -417,6 +417,17 @@ const importJob = ref<any>(null)
 const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
 const activeImportPolls = new Set<string>()
+const importJobActions = ref(new Set<string>())
+function beginImportJobAction(jobId: string): boolean {
+  if (importPageUnmounted || importJobActions.value.has(jobId)) return false
+  importJobActions.value = new Set(importJobActions.value).add(jobId)
+  return true
+}
+function endImportJobAction(jobId: string) {
+  const next = new Set(importJobActions.value)
+  next.delete(jobId)
+  importJobActions.value = next
+}
 const importPollTimers = new Map<string, number>()
 let importPageUnmounted = false
 function scheduleImportPoll(jobId: string) {
@@ -486,46 +497,60 @@ function resumeImportReview(job: any) {
 }
 
 async function retryFailedImportJob(jobId: string) {
+  if (!beginImportJobAction(jobId)) return
   try {
     const job = await retryFailedGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
     toast({ type: 'success', title: '失败链接已重新排队', message: '本次只重试 ' + job.total_count + ' 条失败链接' })
     void pollImportJob(job.job_id)
   } catch (err: any) {
-    toast({ type: 'error', title: '重试失败', message: err?.message || '无法创建失败链接重试任务' })
+    if (!importPageUnmounted) toast({ type: 'error', title: '重试失败', message: err?.message || '无法创建失败链接重试任务' })
+  } finally {
+    endImportJobAction(jobId)
   }
 }
 
 async function deleteImportJob(jobId: string) {
-  const confirmed = await ask('确定删除这条导入任务记录？', {
-    title: '删除导入记录',
-    detail: '只删除任务历史和失败明细，不影响已入库群组。',
-    danger: true,
-    confirmText: '删除',
-  })
-  if (!confirmed) return
-
+  if (!beginImportJobAction(jobId)) return
   try {
+    const confirmed = await ask('确定删除这条导入任务记录？', {
+      title: '删除导入记录',
+      detail: '只删除任务历史和失败明细，不影响已入库群组。',
+      danger: true,
+      confirmText: '删除',
+    })
+    if (!confirmed || importPageUnmounted) return
+
     await deleteGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     importJobs.value = importJobs.value.filter((item: any) => item.job_id !== jobId)
     if (importJob.value?.job_id === jobId) importJob.value = null
     toast({ type: 'success', title: '已删除导入记录', message: '仅删除任务历史，不影响已入库的群组' })
   } catch (err: any) {
-    toast({ type: 'error', title: '删除失败', message: err?.message || '任务仍在运行或暂时无法删除' })
-    void loadImportJobs()
+    if (!importPageUnmounted) {
+      toast({ type: 'error', title: '删除失败', message: err?.message || '任务仍在运行或暂时无法删除' })
+      void loadImportJobs()
+    }
+  } finally {
+    endImportJobAction(jobId)
   }
 }
 
 async function cancelImportJob(jobId: string) {
+  if (!beginImportJobAction(jobId)) return
   try {
     const job = await cancelGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     const index = importJobs.value.findIndex((item: any) => item.job_id === jobId)
     if (index >= 0) importJobs.value[index] = job
     if (importJob.value?.job_id === jobId) importJob.value = job
     if (job.status === 'cancelling') void pollImportJob(jobId)
     toast({ type: 'success', title: '已提交取消请求', message: job.status === 'cancelling' ? '正在停止当前解析，已完成的数据会保留' : '导入任务已取消' })
   } catch (err: any) {
-    toast({ type: 'error', title: '取消失败', message: err?.message || '无法取消该导入任务' })
+    if (!importPageUnmounted) toast({ type: 'error', title: '取消失败', message: err?.message || '无法取消该导入任务' })
+  } finally {
+    endImportJobAction(jobId)
   }
 }
 
