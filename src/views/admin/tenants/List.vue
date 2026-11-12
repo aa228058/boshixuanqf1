@@ -118,8 +118,8 @@
           <input id="tenant-create-password" v-model="createForm.password" type="password" placeholder="租户登录用的密码" class="ui-input !min-h-[40px] !px-2.5 !py-1.5 !text-sm" aria-label="租户登录用的密码" />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">套餐</label>
-          <t-select v-model="createForm.plan_id" :options="planOptions" />
+          <label for="tenant-create-plan" class="block text-sm text-text-secondary mb-1.5">套餐</label>
+          <t-select id="tenant-create-plan" v-model="createForm.plan_id" :options="planOptions" />
         </div>
       </div>
       <template #footer>
