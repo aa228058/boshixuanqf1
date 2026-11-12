@@ -358,6 +358,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import type { RequestOptions } from '@/utils/request'
 import { useRoute, useRouter } from 'vue-router'
 
 // ===== Phase 4 设置页 Tab(手册信息架构): 5 Tab + URL ?tab= 双向同步 =====
@@ -661,8 +662,8 @@ function fallbackCopy(text: string) {
   document.body.removeChild(ta)
 }
 
-async function fetchTextDicts() {
-  try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
+async function fetchTextDicts(options?: RequestOptions) {
+  try { const res = await settingsApi.getTextDicts(options); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
   catch (e: unknown) { toast({ type: 'error', title: '字典加载失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
@@ -715,9 +716,9 @@ async function deleteTextDict(id: string) {
 async function copyDictItems(id: string) {
   const value = (textDicts.value.find(d => d.dict_id === id)?.entries || []).map(entry => entry.word).filter(Boolean).join(String.fromCharCode(10)); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部消息' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
 }
-async function fetchTemplates() {
+async function fetchTemplates(options?: RequestOptions) {
   try {
-    const res = await settingsApi.getTemplates()
+    const res = await settingsApi.getTemplates(options)
     templates.value = res.list || []
   } catch (e: unknown) {
     // console.error("Settings error:", e)
@@ -796,31 +797,42 @@ async function saveTemplate(t: MessageTemplate) {
   }
 }
 
-async function fetchProfile() {
+async function fetchProfile(options?: RequestOptions) {
   try {
-    const res = await settingsApi.getProfile()
+    const res = await settingsApi.getProfile(options)
     tenant.value = res
   } catch (e: unknown) {
     // console.error("Settings error:", e)
   }
 }
 
+let settingsPageController: AbortController | null = null
+onUnmounted(() => {
+  settingsPageController?.abort()
+  settingsPageController = null
+})
 onMounted(async () => {
-  await fetchProfile()
-  await fetchTemplates()
-  if (authStore.tenant?.plan_features?.dict) await fetchTextDicts()
+  const controller = new AbortController()
+  settingsPageController = controller
+  const options = { signal: controller.signal }
+  await fetchProfile(options)
+  if (controller.signal.aborted) return
+  await fetchTemplates(options)
+  if (controller.signal.aborted) return
+  if (authStore.tenant?.plan_features?.dict) await fetchTextDicts(options)
+  if (controller.signal.aborted) return
   loadAI()
   // R142 修复: 通知设置(邮箱/SMTP/事件订阅)此前只在保存后回填, 刷新页面从不加载 —— 补挂载加载
-  loadNotify()
-  loadMessageDecoration()
+  loadNotify(options)
+  loadMessageDecoration(options)
   try {
-    const p = await settingsApi.getPlans()
+    const p = await settingsApi.getPlans(options)
     // R86 热修: 接口可能返回 {list:[...]} 等包装对象, p||[] 会把对象塞进数组变量
     // 导致 planPrice 里 plans.value.find 抛"find is not a function"
     plans.value = Array.isArray(p) ? p : (Array.isArray((p as any)?.data) ? (p as any).data : (Array.isArray((p as any)?.list) ? (p as any).list : []))
   } catch (e: unknown) { /* ignore */ }
   try {
-    const s = await settingsApi.getSupport()
+    const s = await settingsApi.getSupport(options)
     supportConfig.value = s || null
   } catch (e: unknown) {
     // console.error("Settings error:", e)
