@@ -80,7 +80,7 @@
           </t-button>
         </form>
 
-        <div v-if="error" class="mt-4 p-3.5 rounded-xl text-[13px] text-center"
+        <div v-if="error" role="alert" aria-live="assertive" class="mt-4 p-3.5 rounded-xl text-[13px] text-center"
              style="background: color-mix(in srgb, var(--t-err) 10%, transparent); color: var(--t-err); border: 1px solid color-mix(in srgb, var(--t-err) 25%, transparent);">
           {{ error }}
         </div>
