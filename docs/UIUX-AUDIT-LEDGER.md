@@ -67,8 +67,8 @@
 
 | ID | 路径 | 候选项 | 当前结论 | 状态 | 验收方式 |
 |---|---|---|---|---|---|
-| #12 | `src/components/selectors/GroupSelector.vue` | 私聊（dm）分支是否不可达 | 当前源码存在 dm Tab、加载、过滤和选择逻辑，不能认定死代码 | 待 grep / 误报候选 | 全仓引用与 props.mode 使用检索 |
-| #39 | `src/components/ui/LottieAnim.vue`、`src/assets/lottie/empty-tasks.json` | 组件零引用、资产 367,199 bytes | 已确认（58 个 Vue SFC 均无组件引用；GitHub 源码搜索无引用结果；组件自身 glob 导入该资产） | 待清理批次 | 删除前再核对非 Vue 动态引用；清理后构建验证 |
+| #12 | `src/components/selectors/GroupSelector.vue` | 私聊（dm）分支是否不可达 | 误报：当前组件存在可见 dm Tab、加载、过滤、全选与选择流程 | 已核验 | 保留功能，不清理 |
+| #39 | `src/components/ui/LottieAnim.vue`、`src/assets/lottie/empty-tasks.json` | 组件零引用、资产 367,199 bytes | 已确认并已清理 | 已清理 | 删除组件、资产及 lottie-web 依赖；待构建验证 |
 | #122 | updates 页面 | 版本文案 v68.9 过期 | 内容治理，不作为 UI bug | 待核 | 页面内容核验 |
 | #178 | 全局文案/i18n | 术语不统一 | 规范建设，不作为单点 UI bug | 待核 | 术语表/全局 grep |
 
@@ -205,3 +205,24 @@
 - [ ] 三主题视觉回归
 
 注意：新增单测尚未执行，不能标记为通过。
+
+
+## M. 死代码独立清理批次
+
+本批按“清理，不算修 bug”的原则单独提交：
+
+| 对象 | 依据 | 清理内容 | 状态 |
+|---|---|---|---|
+| `src/views/sessions/Index.vue` | `src/router/index.ts` 的 `/sessions` 路由明确 redirect 到 `/accounts`；页面不再被路由加载，源码搜索未找到其他引用 | 删除孤儿页面文件 | 已提交 |
+| `src/components/ui/LottieAnim.vue` | 当前分支全部 58 个 Vue SFC 未发现引用；源码搜索无引用结果 | 删除未使用组件 | 已提交 |
+| `src/assets/lottie/empty-tasks.json` | 367,199 bytes，仅由已删除的 LottieAnim glob 收集 | 删除未使用动画资源 | 已提交 |
+| `lottie-web` | 源码仅由已删除的 LottieAnim 使用，package-lock 中为独立直接依赖 | 从 package.json 和 package-lock.json 移除 | 已提交 |
+| GroupSelector dm 分支 | 组件当前确有 dm Tab、loadDmUsers、过滤、全选、选择逻辑 | 不删除，维持功能 | 误报排除 |
+
+清理提交：
+- `210a1d2` 删除 sessions 孤儿页面
+- `2785822` 删除 LottieAnim 组件
+- `6f52fe7` 删除 367KB 动画 JSON
+- `391b12f` / `e7dff0c` 移除 lottie-web 直接依赖并同步锁文件
+
+验收仍待 `npm ci`、`npm run typecheck`、`npm run test`、`npm run build`。本地环境无法连接 GitHub，尚未检出代码执行构建；不能把清理标记为构建通过。
