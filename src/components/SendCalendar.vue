@@ -7,10 +7,10 @@
       </div>
       <div class="flex items-center gap-1.5">
         <button type="button" class="px-2.5 py-1.5 rounded-lg text-xs hover:bg-ink-01 transition-colors"
-                :disabled="offset >= months.length - 1" @click="offset++">←</button>
-        <span class="text-sm font-medium text-text-primary min-w-[90px] text-center">{{ currentLabel }}</span>
+                :disabled="offset >= months.length - 1" @click="offset++" aria-label="查看上一个月">←</button>
+        <span class="text-sm font-medium text-text-primary min-w-[90px] text-center" aria-live="polite">{{ currentLabel }}</span>
         <button type="button" class="px-2.5 py-1.5 rounded-lg text-xs hover:bg-ink-01 transition-colors"
-                :disabled="offset <= 0" @click="offset--">→</button>
+                :disabled="offset <= 0" @click="offset--" aria-label="查看下一个月">→</button>
       </div>
     </div>
 
@@ -22,7 +22,7 @@
       <div v-for="cell in gridCells" :key="cell.key"
            class="h-8 sm:h-9 rounded-md flex flex-col items-center justify-center text-[10px] transition-transform hover:scale-110 cursor-default"
            :class="cellClass(cell)"
-           :title="cell.day ? `${cell.day} 成功发送 ${cell.count} 条` : ''">
+           :title="cell.day ? `${cell.date} 日成功发送 ${cell.count} 条` : ''">
         <span v-if="cell.day" class="font-medium">{{ cell.date }}</span>
         <span v-if="cell.day && cell.count > 0" class="opacity-80">{{ cell.count > 999 ? '999+' : cell.count }}</span>
       </div>
