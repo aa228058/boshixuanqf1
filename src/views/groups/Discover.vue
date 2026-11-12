@@ -89,6 +89,11 @@
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
       </div>
 
+      <div v-if="loadError" class="ui-card p-3 flex flex-wrap items-center justify-between gap-3" role="alert">
+        <span class="text-sm text-[var(--t-err)]">{{ loadError }}</span>
+        <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="loading" @click="load">重新加载</t-button>
+      </div>
+
       <!-- 群列表: 窄屏可横向滑动, 不再挤压变形 -->
       <div class="ui-card overflow-x-auto lift">
         <!-- R87-M10: 表格横向滚动(移动端不再挤压截断), 卡片化改造留待专项批 -->
@@ -112,6 +117,8 @@
                 </span>
                 <button v-if="(row as any).entry_count > 1" type="button"
                         class="ml-auto text-[10px] font-semibold text-[var(--t-brand)] whitespace-nowrap"
+                        :aria-expanded="isExpanded(row.sg_id)"
+                        :aria-label="(isExpanded(row.sg_id) ? '收起' : '展开') + '群组入口'"
                         @click.stop="toggleExpand(row.sg_id)">
                   {{ isExpanded(row.sg_id) ? '收起入口' : '同群 ' + (row as any).entry_count + ' 个入口' }}
                 </button>
@@ -131,12 +138,12 @@
                   <a v-if="e.tme_link" :href="e.tme_link" target="_blank" rel="noopener noreferrer" class="min-w-0 flex-1 truncate text-[var(--t-brand)]">{{ e.tme_link }}</a>
                   <span v-else class="min-w-0 flex-1 truncate text-text-muted">{{ '@' + (e.username || '') }}</span>
                   <span class="shrink-0 text-text-muted">{{ sourceLabel(e.source) }}</span>
-                  <button type="button" class="ui-icon-btn shrink-0" title="复制入口链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))" >⧉</button>
+                  <button type="button" class="ui-icon-btn shrink-0" title="复制入口链接" aria-label="复制此群入口链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))" >⧉</button>
                 </div>
               </div>
             </div>
           </div>
-          <div v-if="!aggregatedList.length && !loading" class="text-center text-xs text-text-muted py-8">暂无数据</div>
+          <div v-if="!aggregatedList.length && !loading && !loadError" class="text-center text-xs text-text-muted py-8">暂无数据</div>
         </div>
         <t-table class="hidden md:block" :data="aggregatedList" :columns="tableCols" row-key="sg_id" :loading="loading" size="small" hover table-layout="auto" :scroll="{ type: 'scroll', width: 720 }">
           <template #checked="{ row }">
@@ -147,12 +154,13 @@
               <div class="text-sm text-text-primary truncate">
                 {{ row.title || row.tme_link || '—' }}
                 <!-- 同群聚合徽标: 多入口时可点击展开全部链接 -->
-                <span v-if="(row as any).entry_count > 1"
-                      class="ml-1.5 px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] text-[10px] whitespace-nowrap align-middle cursor-pointer hover:bg-[color:var(--t-brand-dim)]"
-                      :title="isExpanded(row.sg_id) ? '收起' : '展开全部入口链接'"
+                <button v-if="(row as any).entry_count > 1" type="button"
+                      class="ml-1.5 px-1.5 py-0.5 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] text-[10px] whitespace-nowrap align-middle hover:bg-[color:var(--t-brand-dim)]"
+                      :aria-expanded="isExpanded(row.sg_id)"
+                      :aria-label="(isExpanded(row.sg_id) ? '收起' : '展开') + '全部入口链接，共 ' + (row as any).entry_count + ' 个'"
                       @click.stop="toggleExpand(row.sg_id)">
                   同群 {{ (row as any).entry_count }} 入口 {{ isExpanded(row.sg_id) ? '▲' : '▼' }}
-                </span>
+                </button>
               </div>
               <div class="text-xs text-text-muted truncate">{{ row.tme_link || ('@' + (row.username || '')) }}</div>
               <!-- 展开: 该群全部入口链接(同群多链接场景) -->
@@ -380,6 +388,7 @@ const pageSize = 20
 function nextPage() { page.value++; load() }
 function prevPage() { if (page.value > 1) { page.value--; load() } }
 const loading = ref(false)
+const loadError = ref('')
 const selected = reactive(new Set<string>())
 const filters = reactive({ keyword: '', gtype: '', status: '', source: '' })
 let keywordSearchTimer: number | undefined
@@ -665,6 +674,7 @@ function fmtTime(t: string) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await getGroupLibrary({ ...filters, page: page.value, page_size: pageSize })
     list.value = res.list || []
@@ -676,7 +686,8 @@ async function load() {
       if (g && g.status === 'invalid') selected.delete(id)
     }
   } catch (err: any) {
-    toast({ type: 'error', title: '加载失败', message: err?.message || '加载群库失败' })
+    loadError.value = err?.message || '加载群库失败，请检查网络后重试'
+    toast({ type: 'error', title: '加载失败', message: loadError.value })
   } finally {
     loading.value = false
   }
