@@ -353,3 +353,12 @@
 - 归类：死代码/技术债，不计作用户可见 bug。
 - 验收：typecheck/build；若其他页面仍使用 StatCard，确认 label/value/trend 正常。
 - 状态：源码已清理；待构建验证。
+
+## Z. 进度组件与发送日历读屏信息补齐
+
+| 文件 | 发现与修改 | 提交 | 归类/触及层 | 回归验收 |
+|---|---|---|---|---|
+| `src/components/SendCalendar.vue` | 日期格此前只有鼠标 `title`，触屏/读屏用户无法获知日期与发送量；为每个有效日期格增加图片语义及完整 `aria-label`（年月日、成功发送数量） | `7127c13e9a1dffda1c1fde484571bdc23ae7378` | 可访问性缺陷；模板 | 用 NVDA/VoiceOver 浏览日历，逐格应读出日期和发送数量；空白补位格不应被读出 |
+| `src/components/ui/ProgressRing.vue` | 成功弧原先仅做上限限制，负数成功值会生成负 dash 长度；现在成功值同时夹紧 0 到当前总进度，并为环形整体增加“任务进度 X%”读屏名称 | `2de0fa1dcd8cfa76820243f631e46fafcc2e873c` | 边界显示缺陷 + 可访问性；逻辑/模板 | success=-1/0/超过 percent、percent=-10/50/120、NaN 时检查弧长有效；读屏应播报当前百分比 |
+
+- 状态：源码已修，未执行 typecheck/build；读屏与不同进度边界需回归。
