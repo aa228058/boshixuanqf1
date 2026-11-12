@@ -327,9 +327,9 @@
 ## W. 活动任务进度包含失败目标
 
 - 文件：`src/components/LiveTaskFeed.vue`
-- 提交：`f8f709dd182b47460652a6718d759267dec445bb`
+- 提交：`f8f709dd182b47460652a6718d759267dec445bb`、`a26902f927751c85047b83e35d352aaadbb5b71b`、`1dc0bd692b7e0c0b18ad314cfdfc293957fe9814`
 - 发现：任务终态判断已使用 `done + failed` 判断所有目标是否处理完毕，但进度条百分比和计数只使用 `done`。有失败目标时，任务已处理完仍可能显示低于 100% 的进度。
-- 修改：新增 `processed = done + failed`（限制在 0 到 total），进度条与计数统一显示已处理目标数。
+- 修改：新增 `processed = done + failed`（限制在 0 到 total），活动进度条、计数和最近任务总结统一显示已处理目标数。
 - 归类：真 UI 状态表达缺陷；触及逻辑。
 - 回归步骤：total=10、done=8、failed=2 时显示 10/10 和 100%；done=6、failed=1 时显示 7/10 和 70%；无 failed 字段时按 0 处理；total=0 时不除零。
 - 验收状态：源码已修；待单测/任务实时页面回归。
