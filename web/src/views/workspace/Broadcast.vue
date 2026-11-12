@@ -858,7 +858,9 @@ function clearMedia() {
 // R110: 协议号协同死分支已删(view 为死常量, 该判断恒 false)。统一多号池校验。
 const canSubmit = computed(() => {
   if (!message.value.trim().length) return false
-  return selectedTargets.value.length > 0 && execAccounts.value.length > 0
+  if (selectedTargets.value.length === 0 || execAccounts.value.length === 0) return false
+  // 不允许创建只覆盖部分目标的任务，避免用户误以为所有选中群都会发送。
+  return coverage.value.unreachable.length === 0
 })
 
 const groupsLoading = ref(false)
@@ -904,6 +906,14 @@ async function submit() {
 
   if (!accountIds.length || !targetIds.length) {
     toast({ type: 'warning', title: '请至少选择一个执行账号和一个发送目标' })
+    return
+  }
+  if (coverage.value.unreachable.length > 0) {
+    toast({
+      type: 'warning',
+      title: '仍有目标群未覆盖',
+      message: `有 ${coverage.value.unreachable.length} 个目标群没有所选账号加入。请移除未覆盖目标，或先让执行账号加入这些群组。`,
+    })
     return
   }
   if (coverage.value.mappings.length === 0) {
