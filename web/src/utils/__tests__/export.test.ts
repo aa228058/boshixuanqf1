@@ -27,12 +27,11 @@ describe('parseLinks', () => {
 })
 
 describe('downloadCSV', () => {
-  const createObjectURL = vi.fn(() => 'blob:test-export')
+  const createObjectURL = vi.fn((_blob: Blob) => 'blob:test-export')
   const revokeObjectURL = vi.fn()
   const click = vi.fn()
-  const setTimeout = vi.fn()
+  const setTimeout = vi.fn((_handler: () => void, _delay: number) => 0)
   let anchor: { href: string; download: string; click: typeof click }
-  let blob: Blob
 
   beforeEach(() => {
     createObjectURL.mockClear()
@@ -48,13 +47,6 @@ describe('downloadCSV', () => {
       }),
     })
     vi.stubGlobal('window', { setTimeout })
-    // Capture the Blob passed to createObjectURL without depending on a browser DOM.
-    createObjectURL.mockImplementation((value?: never) => {
-      void value
-      return 'blob:test-export'
-    })
-    const originalCreateObjectURL = createObjectURL
-    originalCreateObjectURL.mockImplementation(() => 'blob:test-export')
   })
 
   afterEach(() => {
@@ -62,14 +54,10 @@ describe('downloadCSV', () => {
   })
 
   it('生成带 BOM 的 UTF-8 CSV，并防止公式注入及正确转义字段', async () => {
-    const originalCreate = URL.createObjectURL
     const captured: Blob[] = []
-    vi.stubGlobal('URL', {
-      createObjectURL: vi.fn((value: Blob) => {
-        captured.push(value)
-        return originalCreateObjectURL()
-      }),
-      revokeObjectURL,
+    createObjectURL.mockImplementation((value: Blob) => {
+      captured.push(value)
+      return 'blob:test-export'
     })
 
     downloadCSV('members.csv', ['name', 'value', 'memo'], [
