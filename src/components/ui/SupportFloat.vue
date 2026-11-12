@@ -79,7 +79,7 @@ const authStore = useAuthStore()
 
 const pos = ref({ right: 20, bottom: 20 })
 const isDragging = ref(false)
-const dragStart = ref({ x: 0, y: 0, right: 0, bottom: 0 })
+const dragStart = ref({ x: 0, y: 0, right: 0, bottom: 0 })\nlet lastDragAt = 0
 
 const wrapper = ref<HTMLElement | null>(null)
 const dragBtn = ref<HTMLElement | null>(null)
