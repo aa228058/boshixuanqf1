@@ -283,7 +283,9 @@ async function loadDmUsers() {
     if (requestId === dmRequestId && visible.value && props.accountId === accountId) {
       console.error('[GroupSelector] loadDmUsers:', e)
       dmUsers.value = []
-      dmLoaded.value = true
+      // Keep the request retryable when the user revisits the DM tab. A failed
+      // fetch is not a successfully loaded empty contact list.
+      dmLoaded.value = false
     }
   }
 }
