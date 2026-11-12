@@ -106,11 +106,11 @@
       <div class="space-y-4">
         <div>
           <label for="code-plan" class="block text-sm text-text-secondary mb-1.5">套餐</label>
-          <t-select v-model="generateForm.plan_id" :options="planOptions" />
+          <t-select id="code-plan" v-model="generateForm.plan_id" :options="planOptions" />
         </div>
         <div>
           <label for="code-timing" class="block text-sm text-text-secondary mb-1.5">生效方式</label>
-          <t-select v-model="generateForm.timing_type" :options="[
+          <t-select id="code-timing" v-model="generateForm.timing_type" :options="[
             { label: '立即生效（生成后开始计时）', value: 'immediate' },
             { label: '使用时生效（激活后开始计时）', value: 'on_use' }
           ]" />
