@@ -449,6 +449,8 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 	if !ok || full == nil { return }
 	group, err := ls.groupRepo.GetByTGChatID(callCtx, item.TenantID, item.ChatID)
 	if err != nil || group == nil { return }
+	groupType := strings.ToLower(strings.TrimSpace(group.Type))
+	if groupType != "group" && groupType != "supergroup" { return }
 	if strings.TrimSpace(full.About) == "" {
 		ls.bioSeenMu.Lock()
 		ls.bioSeen[key] = time.Now()
