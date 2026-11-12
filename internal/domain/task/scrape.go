@@ -820,9 +820,11 @@ func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg
 		return "", ctx.Err()
 	case <-timer.C:
 	}
-	result, err := client.Raw().UsersGetFullUser(ctx, &tg.UsersGetFullUserRequest{
-		ID: &tg.InputUser{UserID: user.ID, AccessHash: user.AccessHash},
-	})
+	request := &tg.UsersGetFullUserRequest{ID: &tg.InputUser{UserID: user.ID, AccessHash: user.AccessHash}}
+	result, err := client.Raw().UsersGetFullUser(ctx, request)
+	if err != nil && waitTelegramFloodWait(ctx, err) {
+		result, err = client.Raw().UsersGetFullUser(ctx, request)
+	}
 	if err != nil {
 		return "", err
 	}
