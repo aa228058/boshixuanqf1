@@ -183,5 +183,23 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
     expect(error).toMatchObject({ name: 'AbortError', message: '请求已取消' })
     expect(spy).not.toHaveBeenCalled()
   })
+  it('GET 进入退避等待时收到 AbortSignal 会立即结束且不再重试', async () => {
+    const spy = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', spy)
+    const controller = new AbortController()
+    const p = request('/cancel-during-backoff', { signal: controller.signal }).catch((e) => e)
+
+    // 让第一次 fetch 的 rejection 进入退避等待，再取消。
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    controller.abort()
+    const error = await p
+
+    expect(error).toMatchObject({ name: 'AbortError', message: '请求已取消' })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
 
 })
