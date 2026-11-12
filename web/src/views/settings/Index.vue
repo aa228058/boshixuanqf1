@@ -202,7 +202,7 @@
           <p class="text-xs text-text-muted mt-1">导出本租户全部自有数据（成员/群组/任务），不含任何账号凭证</p>
         </div>
         <!-- R122: tdesign outline 按钮在深色下是白底白字 —— 改用令牌类 -->
-        <t-button class="ui-t-button ui-t-button--secondary px-4 py-2 rounded-lg border border-border bg-bg-secondary text-text-primary text-sm hover:border-[color:var(--t-brand)] active:scale-[0.97] transition-all disabled:opacity-50" :disabled="exporting" @click="exportMyData">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="exporting" @click="exportMyData">
           {{ exporting ? '导出中…' : '导出 JSON' }}
         </t-button>
       </div>
