@@ -31,8 +31,8 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
 /** CSV 单元格：公式前缀强制按文本处理，并按 RFC 风格双引号包裹/转义。 */
 export function escapeSpreadsheetCSVCell(value: unknown): string {
   let text = String(value ?? '')
-  if (/^[=+\-@]/.test(text)) text = '\t' + text
-  return \`"\${text.replace(/"/g, '""')}"\`
+  if (/^[=+\\-@]/.test(text)) text = '\\t' + text
+  return '"' + text.replace(/"/g, '""') + '"'
 }
 
 /** Excel HTML 单元格：公式前缀保护后转义所有 HTML 特殊字符。 */
