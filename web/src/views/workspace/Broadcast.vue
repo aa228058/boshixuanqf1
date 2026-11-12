@@ -730,7 +730,14 @@ useTaskEvents((evt: any) => {
     if (t) t.progress = evt.progress
   }
 })
-watch(currentAccount, fetchTasks)
+watch(currentAccount, () => {
+  // 顶栏账号切换后立即清空旧账号任务，并让尚未完成的旧请求失效。
+  tasksRequestId++
+  tasks.value = []
+  tasksError.value = ''
+  tasksLoading.value = true
+  fetchTasks()
+})
 
 const statusLabelMap: Record<string, string> = {
   pending: '等待调度', queued: '排队中', running: '运行中',
