@@ -247,6 +247,8 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 const monAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !monAccId.value) monAccId.value = acc.account_id }, { immediate: true })
 watch(monAccId, () => {
+  groupsController?.abort()
+  rulesController?.abort()
   // 切换执行账号时先清除上一账号的群组，避免新请求返回前短暂展示旧账号数据。
   groupsRequestId++
   groups.value = []
@@ -263,15 +265,20 @@ const selectedTargetGroups = ref<Group[]>([])
 
 async function fetchGroups() {
   const accountId = monAccId.value
+  groupsController?.abort()
+  const controller = new AbortController()
+  groupsController = controller
   const requestId = ++groupsRequestId
   if (!accountId) { groups.value = []; return }
   try {
-    const res = await groupApi.list(accountId)
+    const res = await groupApi.list(accountId, undefined, { signal: controller.signal })
     if (!monitorPageActive || requestId !== groupsRequestId || accountId !== monAccId.value) return
     const raw = res as any
     groups.value = Array.isArray(raw.list) ? raw.list : []
   } catch (e) {
-    if (monitorPageActive && requestId === groupsRequestId) groups.value = []
+    if (!controller.signal.aborted && monitorPageActive && requestId === groupsRequestId) groups.value = []
+  } finally {
+    if (groupsController === controller) groupsController = null
   }
 }
 
@@ -308,15 +315,21 @@ const ruleActionsPending = ref(new Set<string>())
 const ruleSaving = ref(false)
 let groupsRequestId = 0
 let rulesRequestId = 0
+let groupsController: AbortController | null = null
+let rulesController: AbortController | null = null
+let contactsController: AbortController | null = null
 async function loadContacts() {
   if (!contactPickAccount.value) return
   const accountId = contactPickAccount.value
+  contactsController?.abort()
+  const controller = new AbortController()
+  contactsController = controller
   const requestId = ++contactRequestId
   contactLoading.value = true
   contactList.value = []
   contactPick.value = ''
   try {
-    const res: any = await accountApi.getContacts(accountId)
+    const res: any = await accountApi.getContacts(accountId, { signal: controller.signal })
     if (!monitorPageActive || requestId !== contactRequestId || accountId !== contactPickAccount.value) return
     contactList.value = (res?.list || res || []).filter((c: any) => String(c.phone || '').trim())
     if (!contactList.value.length) toast({ type: 'info', title: '暂无可发送名片的联系人', message: 'Telegram 未向该账号返回带手机号的联系人；名片发送必须有手机号，可换账号获取或手动填写。' })
@@ -324,6 +337,7 @@ async function loadContacts() {
     if (!monitorPageActive || requestId !== contactRequestId || accountId !== contactPickAccount.value) return
     toast({ type: 'error', title: '获取联系人失败', message: err?.message || '请稍后重试' })
   } finally {
+    if (contactsController === controller) contactsController = null
     if (monitorPageActive && requestId === contactRequestId) contactLoading.value = false
   }
 }
@@ -337,14 +351,19 @@ function applyContact() {
 }
 
 async function fetchRules() {
+  rulesController?.abort()
+  const controller = new AbortController()
+  rulesController = controller
   const requestId = ++rulesRequestId
   try {
-    const res = await monitorApi.listRules()
+    const res = await monitorApi.listRules({ signal: controller.signal })
     if (!monitorPageActive || requestId !== rulesRequestId) return
     rules.value = res.list || []
   } catch (e: any) {
-    if (!monitorPageActive || requestId !== rulesRequestId) return
+    if (controller.signal.aborted || !monitorPageActive || requestId !== rulesRequestId) return
     toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+  } finally {
+    if (rulesController === controller) rulesController = null
   }
 }
 
@@ -500,6 +519,9 @@ onMounted(() => {
 })
 onUnmounted(() => {
   monitorPageActive = false
+  contactsController?.abort()
+  groupsController?.abort()
+  rulesController?.abort()
   contactRequestId++
   groupsRequestId++
   rulesRequestId++
