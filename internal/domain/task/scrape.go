@@ -46,6 +46,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 	var payloadGroupID string
 	// 采集过滤条件: recent_days=N (仅最近N天上线), has_photo=true (仅带头像)
 	filterRecentDays, filterHasPhoto := parseScrapeFilter(task.Payload)
+	bioLinksEnabled := task.Payload["bio_links"] == true
 
 	if v, ok := task.Payload["group_id"]; ok {
 		payloadGroupID = fmt.Sprint(v)
@@ -222,6 +223,14 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					continue
 				}
 				username, lastSeen, hasPhoto, memberBio := memberActivity(user)
+				if bioLinksEnabled && user != nil && user.AccessHash != 0 {
+					bio, bioErr := fetchTelegramUserBio(ctx, client, user)
+					if bioErr != nil {
+						taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
+					} else {
+						memberBio = bio
+					}
+				}
 				// 采集过滤: 死号/无头像不入库（与下方 Chat 分支保持一致，
 				// 此前 Channel 分支漏了过滤，死号浪费发送配额）
 				if filterRecentDays > 0 && (lastSeen == nil || time.Since(*lastSeen) > time.Duration(filterRecentDays)*24*time.Hour) {
@@ -329,6 +338,14 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 						continue
 					}
 					username, lastSeen, hasPhoto, memberBio := memberActivity(user)
+				if bioLinksEnabled && user != nil && user.AccessHash != 0 {
+					bio, bioErr := fetchTelegramUserBio(ctx, client, user)
+					if bioErr != nil {
+						taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
+					} else {
+						memberBio = bio
+					}
+				}
 					// 采集过滤: 死号/无头像不入库, 不浪费发送配额
 					if filterRecentDays > 0 && (lastSeen == nil || time.Since(*lastSeen) > time.Duration(filterRecentDays)*24*time.Hour) {
 						continue
@@ -789,6 +806,37 @@ finish:
 
 // memberActivity 从用户资料提取 用户名/最近上线时间/是否有头像 (用于死号过滤)
 // memberActivity 提取用户名/最后上线/头像标记; bio 为成员简介(简介挖掘的数据源)。
+
+ // fetchTelegramUserBio reads the Telegram profile About field. Calls are
+ // deliberately serialized and rate-limited; callers must not fan this out.
+func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg.User) (string, error) {
+	if client == nil || user == nil || user.ID == 0 || user.AccessHash == 0 {
+		return "", fmt.Errorf("user reference is incomplete")
+	}
+	timer := time.NewTimer(350 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return "", ctx.Err()
+	case <-timer.C:
+	}
+	result, err := client.Raw().UsersGetFullUser(ctx, &tg.UsersGetFullUserRequest{
+		ID: &tg.InputUser{UserID: user.ID, AccessHash: user.AccessHash},
+	})
+	if err != nil {
+		return "", err
+	}
+	fullResult, ok := result.(*tg.UsersUserFull)
+	if !ok || fullResult == nil {
+		return "", fmt.Errorf("unexpected getFullUser response: %T", result)
+	}
+	full, ok := fullResult.FullUser.(*tg.UserFull)
+	if !ok || full == nil {
+		return "", fmt.Errorf("unexpected full user payload: %T", fullResult.FullUser)
+	}
+	return full.About, nil
+}
+
 func memberActivity(user *tg.User) (string, *time.Time, bool, string) {
 	if user == nil {
 		return "", nil, false, ""
