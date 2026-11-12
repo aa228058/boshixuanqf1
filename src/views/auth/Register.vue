@@ -14,8 +14,9 @@
       <div class="glass-strong rounded-[var(--t-r-lg)] p-8 border border-border">
         <form @submit.prevent="handleRegister" class="space-y-5">
           <div>
-            <label class="block text-sm font-medium text-text-primary mb-2">用户名</label>
+            <label for="register-username" class="block text-sm font-medium text-text-primary mb-2">用户名</label>
             <input
+              id="register-username"
               v-model="form.username"
               type="text"
               placeholder="请输入用户名"
@@ -24,8 +25,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-text-primary mb-2">昵称</label>
+            <label for="register-name" class="block text-sm font-medium text-text-primary mb-2">昵称</label>
             <input
+              id="register-name"
               v-model="form.name"
               type="text"
               placeholder="请输入昵称"
@@ -34,9 +36,10 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-text-primary mb-2">密码</label>
+            <label for="register-password" class="block text-sm font-medium text-text-primary mb-2">密码</label>
             <div class="relative">
               <input
+                id="register-password"
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="请输入密码"
@@ -56,9 +59,10 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-text-primary mb-2">确认密码</label>
+            <label for="register-confirm-password" class="block text-sm font-medium text-text-primary mb-2">确认密码</label>
             <div class="relative">
               <input
+                id="register-confirm-password"
                 v-model="form.confirmPassword"
                 :type="showConfirmPassword ? 'text' : 'password'"
                 placeholder="请再次输入密码"
@@ -78,10 +82,11 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-text-primary mb-2">
+            <label for="register-code" class="block text-sm font-medium text-text-primary mb-2">
               卡密 <span class="text-rose">*</span>
             </label>
             <input
+              id="register-code"
               v-model="form.code"
               type="text"
               placeholder="请输入卡密"
@@ -92,7 +97,7 @@
 
           <t-button
             type="submit"
-            :disabled="loading"
+             :disabled="loading || success"
             class="ui-t-button ui-t-button--primary w-full disabled:opacity-50"
             :class="[regFailed ? '!bg-rose !border-rose shake-x' : '']"
           >
@@ -100,11 +105,11 @@
           </t-button>
         </form>
 
-        <div v-if="error" class="mt-4 p-3.5 bg-rose/5 border border-rose/10 rounded-[var(--t-r-md)] text-rose text-sm text-center">
+        <div v-if="error" role="alert" aria-live="assertive" class="mt-4 p-3.5 bg-rose/5 border border-rose/10 rounded-[var(--t-r-md)] text-rose text-sm text-center">
           {{ error }}
         </div>
 
-        <div v-if="success" class="mt-4 p-3.5 bg-emerald/5 border border-emerald/10 rounded-[var(--t-r-md)] text-emerald text-sm text-center">
+        <div v-if="success" role="status" aria-live="polite" class="mt-4 p-3.5 bg-emerald/5 border border-emerald/10 rounded-[var(--t-r-md)] text-emerald text-sm text-center">
           注册成功，3 秒后自动跳转登录页
         </div>
 
@@ -154,6 +159,7 @@ const form = reactive({
 })
 
 async function handleRegister() {
+  if (loading.value || success.value) return
   if (form.password !== form.confirmPassword) {
     error.value = '两次输入的密码不一致'
     return
