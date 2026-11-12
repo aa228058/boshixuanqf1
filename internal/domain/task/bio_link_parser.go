@@ -1,8 +1,11 @@
 package task
 
 import (
+	"context"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -85,4 +88,30 @@ func extractBioTelegramLinks(bio string) []bioLinkCandidate {
 		})
 	}
 	return result
+}
+
+
+// waitTelegramFloodWait honors an explicit Telegram FLOOD_WAIT_N response.
+// The caller controls the overall context/deadline; no retry is attempted if
+// the requested wait exceeds that deadline.
+func waitTelegramFloodWait(ctx context.Context, err error) bool {
+	if err == nil { return false }
+	message := strings.ToUpper(err.Error())
+	const marker = "FLOOD_WAIT_"
+	index := strings.Index(message, marker)
+	if index < 0 { return false }
+	start := index + len(marker)
+	end := start
+	for end < len(message) && message[end] >= '0' && message[end] <= '9' { end++ }
+	if end == start { return false }
+	seconds, parseErr := strconv.Atoi(message[start:end])
+	if parseErr != nil || seconds <= 0 { return false }
+	timer := time.NewTimer(time.Duration(seconds) * time.Second)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
