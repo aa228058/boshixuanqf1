@@ -1126,9 +1126,13 @@ onMounted(async () => {
   if (!layoutActive) return
   // 定时状态轮询：每 60 秒检查租户状态，被停用或过期自动退出
   let hbCount = 0
+  let heartbeatPending = false
   heartbeatInterval = window.setInterval(async () => {
+    if (!layoutActive || heartbeatPending) return
+    heartbeatPending = true
     try {
       await authStore.refreshTenant()
+      if (!layoutActive) return
       // 精读修复: 必须 tenant 已加载且明确非 active 才踢 —— 原写法在 tenant
       // 未加载(undefined)瞬间误判为「已停用」把用户踢下线
       if (authStore.tenant && authStore.tenant.status !== 'active') {
@@ -1138,10 +1142,13 @@ onMounted(async () => {
       }
     } catch {
       // 网络错误忽略，下次轮询再试
+    } finally {
+      heartbeatPending = false
     }
+    if (!layoutActive) return
     // N-02: 公告在线触达。原实现仅登录时拉取一次，长会话收不到新公告；
     // 借心跳每 5 分钟轮询一次（公告低频，成本可忽略）
-    if (++hbCount % 5 === 0) checkAnnouncements()
+    if (++hbCount % 5 === 0) void checkAnnouncements()
   }, 60000)
 })
 
@@ -1149,6 +1156,7 @@ onMounted(async () => {
 async function checkAnnouncements() {
   try {
     const res = await settingsApi.getAnnouncements()
+    if (!layoutActive) return
     const list: Array<{ announcement_id: string }> = Array.isArray(res) ? res : []
     if (!list.length) return
     let seen: string[] = []
