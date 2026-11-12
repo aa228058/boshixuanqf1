@@ -160,6 +160,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Plus, Key } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
+import { downloadBlob } from '@/utils/export'
 import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
@@ -279,12 +280,7 @@ async function exportCodes() {
       return
     }
     const blob = new Blob([text], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `codes_export_${new Date().toISOString().slice(0, 10)}.txt`
-    a.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    downloadBlob(`codes_export_${new Date().toISOString().slice(0, 10)}.txt`, blob)
   } catch (e: any) {
     toast({ type: 'error', title: '导出失败', message: e?.message || '请稍后重试' })
   }
