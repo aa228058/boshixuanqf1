@@ -438,25 +438,35 @@ async function loadNotify() {
   finally { notifyLoading.value = false }
 }
 async function saveNotify() {
+  if (notifySaving.value) return
+  notifySaving.value = true
+  const email = notifyEmail.value
+  const settings = { ...notifySettings.value }
+  const smtp = { ...smtpForm.value }
+  const provider = smtpProvider.value
   try {
-    await settingsApi.updateNotify(notifyEmail.value, notifySettings.value, {
-      provider: smtpProvider.value,
-      host: smtpForm.value.host,
-      port: Number(smtpForm.value.port) || 465,
-      user: smtpForm.value.user,
+    await settingsApi.updateNotify(email, settings, {
+      provider,
+      host: smtp.host,
+      port: Number(smtp.port) || 465,
+      user: smtp.user,
       // 未改密码时不传 pass, 后端自动保留旧授权码
-      ...(smtpForm.value.pass ? { pass: smtpForm.value.pass } : {}),
-      from: smtpForm.value.from || smtpForm.value.user,
+      ...(smtp.pass ? { pass: smtp.pass } : {}),
+      from: smtp.from || smtp.user,
     })
     toast({ type: 'success', title: '通知设置已保存' })
-    loadNotify()
+    await loadNotify()
   } catch { /* 拦截器已提示 */ }
+  finally { notifySaving.value = false }
 }
 async function testNotifyMail() {
+  if (notifyTesting.value) return
+  notifyTesting.value = true
   try {
     const res: any = await settingsApi.testNotify()
     toast({ type: 'success', title: res?.message || '测试邮件已发送, 请查收(含垃圾邮件文件夹)' })
   } catch { /* 拦截器已提示 */ }
+  finally { notifyTesting.value = false }
 }
 function toggleNotifyEvent(key: string) {
   notifySettings.value = { ...notifySettings.value, [key]: !notifySettings.value[key] }
@@ -510,6 +520,8 @@ const ai = ref({ provider: 'glm', model: '', has_key: false, enabled: false })
 const aiForm = ref({ provider: 'glm', api_key: '', model: '' })
 const vfEnabled = ref(false)
 const aiSaving = ref(false)
+const notifySaving = ref(false)
+const notifyTesting = ref(false)
 const aiTesting = ref(false)
 const aiTestResult = ref<{ ok: boolean; answer?: string; error?: string } | null>(null)
 
@@ -522,6 +534,7 @@ async function loadAI() {
   } catch { /* 配置读取失败不阻断页面 */ }
 }
 async function saveAI() {
+  if (aiSaving.value) return
   aiSaving.value = true
   aiTestResult.value = null
   try {
