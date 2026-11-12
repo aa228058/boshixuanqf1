@@ -212,6 +212,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
+import { downloadBlob } from '@/utils/export'
 // R111 已删 ProtocolPicker/campaignApi/CAMPAIGN_STATUS 导入(协议协同死代码)
 import { api } from '@/utils/request'
 
@@ -452,13 +453,7 @@ async function exportTaskLinks(task: ScrapeTask, format = 'txt') {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `scrape-links-${task.task_id.slice(0, 8)}.${format}`
-    a.click()
-    // Defer revocation so browsers have time to consume the download URL.
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    downloadBlob(`scrape-links-${task.task_id.slice(0, 8)}.${format}`, blob)
   } catch (e: unknown) {
     toast({ type: 'error', title: '导出失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
@@ -477,13 +472,7 @@ async function exportAllLinks(format: 'txt' | 'csv') {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `scrape-links-all.${format}`
-    a.click()
-    // Defer revocation so browsers have time to consume the download URL.
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    downloadBlob(`scrape-links-all.${format}`, blob)
   } catch {
     toast({ type: 'error', title: '导出失败' })
   }
