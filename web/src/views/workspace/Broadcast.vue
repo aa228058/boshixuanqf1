@@ -103,9 +103,9 @@
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
             <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="retryFailed(t.task_id)">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="pauseTask(t.task_id)">暂停</t-button>
-            <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click.stop="resumeTask(t.task_id)">继续</t-button>
-            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" variant="outline" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="taskActionsPending.has(t.task_id)" @click.stop="pauseTask(t.task_id)">暂停</t-button>
+            <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="taskActionsPending.has(t.task_id)" @click.stop="resumeTask(t.task_id)">继续</t-button>
+            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" variant="outline" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" :disabled="taskActionsPending.has(t.task_id)" @click.stop="stopTask(t.task_id)">停止</t-button>
             <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)">查看详情</t-button>
           </div>
         </div>
@@ -774,24 +774,31 @@ async function retryFailed(id: string) {
   try { await taskApi.retry(id, 'failed'); fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
 }
-async function stopTask(id: string) {
-  try { await taskApi.cancel(id); fetchTasks() }
-  catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
-}
-async function pauseTask(id: string) {
+const taskActionsPending = ref(new Set<string>())
+async function runTaskAction(id: string, action: 'stop' | 'pause' | 'resume' | 'retry') {
+  if (taskActionsPending.value.has(id)) return
+  taskActionsPending.value = new Set(taskActionsPending.value).add(id)
+  const labels = { stop: ['停止失败', '任务已停止'], pause: ['暂停失败', '任务已暂停'], resume: ['继续失败', '任务已继续'], retry: ['重试失败', '任务已重新排队'] } as const
   try {
-    await taskApi.pause(id)
-    toast({ type: 'success', title: '任务已暂停' })
+    if (action === 'stop') await taskApi.cancel(id)
+    else if (action === 'pause') await taskApi.pause(id)
+    else if (action === 'resume') await taskApi.resume(id)
+    else await taskApi.retry(id, 'failed')
+    toast({ type: 'success', title: labels[action][1] })
     await fetchTasks()
-  } catch (e: any) { toast({ type: 'error', title: '暂停失败', message: e?.message }) }
+  } catch (e: any) {
+    toast({ type: 'error', title: labels[action][0], message: e?.message || '请稍后重试' })
+  } finally {
+    const next = new Set(taskActionsPending.value)
+    next.delete(id)
+    taskActionsPending.value = next
+  }
 }
-async function resumeTask(id: string) {
-  try {
-    await taskApi.resume(id)
-    toast({ type: 'success', title: '任务已继续' })
-    await fetchTasks()
-  } catch (e: any) { toast({ type: 'error', title: '继续失败', message: e?.message }) }
-}
+async function stopTask(id: string) { return runTaskAction(id, 'stop') }
+async function pauseTask(id: string) { return runTaskAction(id, 'pause') }
+async function resumeTask(id: string) { return runTaskAction(id, 'resume') }
+async function retryTask(id: string) { return runTaskAction(id, 'retry') }
+/* legacy action handlers replaced by runTaskAction */
 const showTargetSelector = ref(false)
 // 响应式绑定 groupStore：后台同步完成后写缓存即自动刷新选择器
 // （原实现是快照赋值：页面加载后同步完成的群组永远不会出现，除非整页刷新）
