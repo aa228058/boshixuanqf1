@@ -116,7 +116,11 @@ function actionClass(action: string) {
 }
 
 let logsRequestId = 0
+let logsController: AbortController | null = null
 async function fetchLogs() {
+  logsController?.abort()
+  const controller = new AbortController()
+  logsController = controller
   const requestId = ++logsRequestId
   const params: any = { page: page.value, page_size: 20 }
   try {
@@ -125,16 +129,18 @@ async function fetchLogs() {
     // parseAuditTime 的 RFC3339 分支对齐，筛选边界与管理员预期一致。
     if (startDate.value) params.start_time = new Date(startDate.value + 'T00:00:00').toISOString()
     if (endDate.value) params.end_time = new Date(endDate.value + 'T23:59:59').toISOString()
-    const res = await adminApiMod.getAuditLogs(params)
+    const res = await adminApiMod.getAuditLogs(params, { signal: controller.signal })
     if (requestId !== logsRequestId) return
     logs.value = (res.list || []) as any
     total.value = res.total || 0
   } catch (e: unknown) {
-    if (requestId !== logsRequestId) return
+    if (controller.signal.aborted || requestId !== logsRequestId) return
     toast({ type: 'error', title: '查询失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    if (logsController === controller) logsController = null
   }
 }
 
-onUnmounted(() => { logsRequestId++ })
+onUnmounted(() => { logsRequestId++; logsController?.abort(); logsController = null })
 onMounted(fetchLogs)
 </script>
