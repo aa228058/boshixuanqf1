@@ -69,7 +69,10 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
 function canPull(): boolean {
   if (refreshing.value) return false
   if (!scrollParent) scrollParent = findScrollParent(wrapEl.value)
-  if (!scrollParent) {\n    const pageScrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop\n    return pageScrollTop <= 0 // 整页滚动时也必须位于页面顶部\n  }
+  if (!scrollParent) {
+    const pageScrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop
+    return pageScrollTop <= 0 // 整页滚动时也必须位于页面顶部
+  }
   return scrollParent.scrollTop <= 0
 }
 
