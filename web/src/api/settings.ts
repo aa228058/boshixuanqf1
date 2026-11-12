@@ -5,7 +5,7 @@ export interface TextDictEntry { entry_id: string; dict_id: string; word: string
 export interface TextDict { dict_id: string; tenant_id: string; name: string; enabled: boolean; items: string[]; entries: TextDictEntry[]; created_at: string }
 
 export const settingsApi = {
-  getProfile: () => api.get<Tenant>('/tenant/profile'),
+  getProfile: (options?: RequestOptions) => api.get<Tenant>('/tenant/profile', options),
   getMessageDecoration: () => api.get<{ enabled: boolean }>('/tenant/message-decoration'),
   updateMessageDecoration: (enabled: boolean) => api.put<{ enabled: boolean }>('/tenant/message-decoration', { enabled }),
   activateCode: (code: string) => api.post<Tenant>('/tenant/activate', { code }),
