@@ -237,6 +237,7 @@ func (c *Container) initEngines() error {
 
 	// 初始化常驻链接采集服务
 	c.LinkScraper = task.NewLinkScraper(c.Cfg, accEngine, c.ScrapedLinkRepo, c.GroupRepo, c.AccountRepo)
+	c.LinkScraper.SetMemberRepository(c.MemberRepo)
 	taskEngine.SetLinkScraper(c.LinkScraper)
 	taskEngine.SetScrapedLinkRepo(c.ScrapedLinkRepo)
 
