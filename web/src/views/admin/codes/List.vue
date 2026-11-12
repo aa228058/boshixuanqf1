@@ -225,6 +225,7 @@ function onPageChange(p: { current: number }) {
 }
 
 let codesRequestId = 0
+let codesPageActive = true
 async function fetchCodes() {
   const requestId = ++codesRequestId
   const params = { page: page.value, page_size: 20, ...(statusFilter.value ? { status: statusFilter.value } : {}) }
@@ -319,7 +320,7 @@ async function delCode(c: ActivationCode) {
   }
 }
 
-onUnmounted(() => { codesRequestId++ })
+onUnmounted(() => { codesPageActive = false; codesRequestId++ })
 
 const viewingCode = ref<ActivationCode | null>(null)
 const showView = ref(false)
@@ -329,12 +330,15 @@ function viewCode(c: ActivationCode) {
 }
 
 onMounted(async () => {
+  codesPageActive = true
   await fetchCodes()
+  if (!codesPageActive) return
   try {
     const res = await adminApiMod.listPlans()
+    if (!codesPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (codesPageActive) toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 })
 </script>
