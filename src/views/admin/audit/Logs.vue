@@ -13,11 +13,17 @@
         type="date"
         class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0"
         aria-label="结束日期" />
-      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="page = 1; fetchLogs()">查询</t-button>
+      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="page = 1; fetchLogs()" :disabled="loading">查询</t-button>
+    </div>
+
+    <div v-if="loading" role="status" aria-live="polite" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-text-secondary">正在读取审计日志…</div>
+    <div v-else-if="loadError" role="alert" class="glass rounded-[var(--t-r-md)] p-8 text-center space-y-3">
+      <p class="text-sm text-[var(--t-err)]">{{ loadError }}</p>
+      <t-button size="small" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="fetchLogs">重新加载</t-button>
     </div>
 
     <!-- 桌面端表格 -->
-    <div class="hidden sm:block glass rounded-[var(--t-r-md)] overflow-hidden">
+    <div v-show="!loading && !loadError" class="hidden sm:block glass rounded-[var(--t-r-md)] overflow-hidden">
       <t-table
         row-key="log_id"
         :columns="columns.map(c => ({ colKey: c.key, title: c.title }))"
@@ -36,7 +42,7 @@
       </t-table>
     </div>
     <!-- 移动端卡片 -->
-    <div class="sm:hidden space-y-3">
+    <div v-show="!loading && !loadError" class="sm:hidden space-y-3">
       <div
         v-for="log in logs"
         :key="log.log_id"
@@ -80,6 +86,8 @@ import type { AuditLog } from '@/types'
 const logs = ref<AuditLog[]>([])
 const page = ref(1)
 const total = ref(0)
+const loading = ref(false)
+const loadError = ref('')
 const startDate = ref('')
 const endDate = ref('')
 
@@ -116,6 +124,8 @@ function actionClass(action: string) {
 }
 
 async function fetchLogs() {
+  loading.value = true
+  loadError.value = ''
   try {
     const params: any = { page: page.value, page_size: 20 }
     // 时区修正：此前直接拼 'T00:00:00Z'（UTC 零点 = 北京时间 08:00），
@@ -127,7 +137,10 @@ async function fetchLogs() {
     logs.value = (res.list || []) as any
     total.value = res.total || 0
   } catch (e: unknown) {
-    toast({ type: 'error', title: '查询失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    loadError.value = e instanceof Error ? e.message : '查询审计日志失败，请重试'
+    toast({ type: 'error', title: '查询失败', message: loadError.value })
+  } finally {
+    loading.value = false
   }
 }
 
