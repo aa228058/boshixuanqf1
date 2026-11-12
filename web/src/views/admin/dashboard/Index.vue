@@ -43,6 +43,9 @@
           <template #plan_id="{ row }">
             <span class="text-xs">{{ planLabel(row.plan_id as string) }}</span>
           </template>
+          <template #created_at="{ row }">
+            <span class="text-xs">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '—' }}</span>
+          </template>
         </t-table>
       </div>
       <!-- 移动端卡片 -->
