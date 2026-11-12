@@ -408,6 +408,8 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 
 	// Settings routes
 	api.GET("/tenant/profile", c.SettingsHandler.GetProfile)
+	api.GET("/tenant/message-decoration", c.SettingsHandler.GetMessageDecoration)
+	api.PUT("/tenant/message-decoration", c.SettingsHandler.UpdateMessageDecoration)
 	// R119: 通知中心(邮箱订阅)
 	api.GET("/tenant/notify", c.SettingsHandler.GetNotify)
 	api.PUT("/tenant/notify", c.SettingsHandler.UpdateNotify)
