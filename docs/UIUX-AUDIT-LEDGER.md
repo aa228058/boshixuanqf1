@@ -56,7 +56,7 @@
 |---|---|---|---|---|---|
 | #174 | Toast 组件/样式 | 淡出动画中途被移除是否闪断 | 待跑 | 触及逻辑 | 连续触发 toast 并慢放录屏 |
 | #176 | `src/components/ui/Modal.vue` | 移动端打开带自动 focus 的弹窗时键盘/transform 是否抖动 | 待跑 | 触及逻辑 | iOS/Android 真机录屏 |
-| #180 | 全局响应式布局 | 640–768px 是否出现侧栏、抽屉、TabBar 冲突 | 待跑 | 纯展示 | 640/700/768px 视口实测 |
+| #180 | `src/views/Layout.vue`、`src/views/admin/Layout.vue`、`src/components/MobileTabBar.vue` | 租户侧栏 `md:flex` 与 TabBar `md:hidden` 同以 768px 为切换点；管理端抽屉/按钮同以 `lg`（1024px）切换，源码断点成对一致，暂未发现冲突 | 源码已复核，待视口确认 | 待跑/疑似误报 | 纯展示 | 640/700/767/768/769/1023/1024px 视口实测，重点看 768px 边界 |
 | #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条最终是否可见 | 待跑 | 纯展示 | 构建后页面实测 |
 | #51 | `src/views/dashboard/Index.vue` | 深色主题 ECharts 图例/轴标签是否回退黑色 | 待跑 | 触及逻辑 | 三主题切换检查 |
 | #65 | `src/views/dashboard/Index.vue` | 当前 KPI 区是 `grid-cols-2 lg:grid-cols-4`，卡片 `min-w-0`，源码未见 stat-strip 横向滚动容器；暂不支持原问题描述 | 源码已复核，待视口确认 | 待验证/疑似误报 | 纯展示 | 1920px 实测是否有页面级横向溢出 |
