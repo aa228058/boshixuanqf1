@@ -61,7 +61,7 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border">
-        <t-button theme="primary" size="sm" :disabled="plansLoading || !!plansError || !plans.length" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
+        <t-button theme="primary" size="sm" :disabled="plansLoading" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
         <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
         <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
           {{ tenant.status === 'active' ? '停用租户' : '启用租户' }}
