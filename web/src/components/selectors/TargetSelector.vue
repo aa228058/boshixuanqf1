@@ -430,8 +430,13 @@ async function onRefresh() {
     loading.value = true
     syncStatus.value = 'syncing'
     try {
-      await waitForGlobalSync()
+      const syncFinished = await waitForGlobalSync(accountId)
       if (!isCurrent()) return
+      if (!syncFinished || syncLock.isSyncing(accountId)) {
+        syncStatus.value = 'timeout'
+        toast({ type: 'info', message: '该账号仍在同步，请稍后刷新群组列表' })
+        return
+      }
       const raw: any = await groupApi.list(accountId)
       if (!isCurrent()) return
       const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
@@ -452,27 +457,16 @@ async function onRefresh() {
   loading.value = true
   syncStatus.value = 'syncing'
   try {
+    // The backend resolves this request only after Telegram sync completes.
+    // Fetch exactly once: an empty group list is a successful, valid result.
     await groupApi.sync(accountId)
-    let delay = 1000
-    const startedAt = Date.now()
-    while (Date.now() - startedAt < 120000) {
-      if (!isCurrent()) break
-      const raw: any = await groupApi.list(accountId)
-      if (!isCurrent()) break
-      const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        groupStore.setGroups(accountId, list)
-        syncStatus.value = 'done'
-        emit('refresh')
-        break
-      }
-      await new Promise(resolve => setTimeout(resolve, delay))
-      delay = Math.min(delay * 2, 8000)
-    }
-    if (isCurrent() && syncStatus.value !== 'done') {
-      syncStatus.value = 'timeout'
-      toast({ type: 'info', message: '同步仍在后台进行，完成后群组会自动出现，也可稍后重开选择器' })
-    }
+    if (!isCurrent()) return
+    const raw: any = await groupApi.list(accountId)
+    if (!isCurrent()) return
+    const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
+    groupStore.setGroups(accountId, list)
+    syncStatus.value = 'done'
+    emit('refresh')
   } catch (e) {
     if (isCurrent()) {
       syncStatus.value = 'error'
@@ -480,22 +474,23 @@ async function onRefresh() {
     }
   } finally {
     // 只有本次成功 acquire 的调用可以释放锁；即使账号切换/弹窗关闭也必须释放。
-    syncLock.release()
+    syncLock.release(accountId)
     if (isCurrent()) loading.value = false
   }
 }
 
 // Wait for another component to finish syncing, then return
-async function waitForGlobalSync(): Promise<void> {
+async function waitForGlobalSync(accountId: string): Promise<boolean> {
   const checkInterval = 500
-  const maxWait = 30000
+  const maxWait = 120000
   const start = Date.now()
   while (Date.now() - start < maxWait) {
-    if (!syncLock.isSyncing()) {
-      return
+    if (!syncLock.isSyncing(accountId)) {
+      return true
     }
     await new Promise(r => setTimeout(r, checkInterval))
   }
+  return !syncLock.isSyncing(accountId)
 }
 
 function confirm() {
