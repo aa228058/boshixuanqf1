@@ -28,6 +28,14 @@ func TestExtractBioTelegramLinks(t *testing.T) {
 			bio:  "t.me/addstickers/foo t.me/share/url?url=x t.me/c/123/456",
 		},
 		{
+			name: "strip query and support telegram dog",
+			bio:  "https://t.me/example_group?start=profile https://telegram.dog/another_group#about",
+			want: []bioLinkCandidate{
+				{LinkType: "public", LinkHash: "example_group", FullURL: "https://t.me/example_group"},
+				{LinkType: "public", LinkHash: "another_group", FullURL: "https://t.me/another_group"},
+			},
+		},
+		{
 			name: "ignore malformed public usernames",
 			bio:  "t.me/abc t.me/a-very-long-name-that-is-definitely-over-thirty-two-characters",
 		},
