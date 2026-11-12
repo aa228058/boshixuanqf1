@@ -85,13 +85,13 @@
         </div>
       </div>
       <!-- R127 令牌化: seg 容器深浅主题自适应(原写死深底在浅色下违和) -->
-      <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 mb-4" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
-        <button type="button" class=" ui-segmented__item flex-1"
+      <div class="flex rounded-[var(--t-r-lg)] p-1 gap-1 mb-4" role="group" aria-label="加群任务模式" style="background: color-mix(in srgb, var(--t-text-1) 8%, transparent);">
+        <button type="button" class=" ui-segmented__item flex-1" :aria-pressed="joinMode === 'link'"
           :style="joinMode === 'link'
             ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.2);'
             : 'color: var(--t-text-3);'"
           @click="joinMode = 'link'">链接加群</button>
-        <button type="button" class=" ui-segmented__item flex-1"
+        <button type="button" class=" ui-segmented__item flex-1" :aria-pressed="joinMode === 'invite'"
           :style="joinMode === 'invite'
             ? 'background: var(--t-surface-2); color: var(--t-text-1); box-shadow: 0 2px 8px rgba(0,0,0,0.2);'
             : 'color: var(--t-text-3);'"
