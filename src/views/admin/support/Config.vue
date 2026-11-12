@@ -3,9 +3,15 @@
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '客服配置' }]" />
     <div class="glass rounded-[var(--t-r-md)] p-5">
       <h3 class="text-lg font-semibold mb-6">客服信息配置</h3>
+      <div v-if="loadError" role="alert" class="mb-4 rounded-lg border border-rose/30 bg-rose/5 px-3 py-2 text-sm text-rose">
+        配置读取失败，当前内容不能安全保存。请检查网络后重试读取。
+      </div>
+      <div v-else-if="loadingConfig" role="status" aria-live="polite" class="mb-4 text-sm text-text-secondary">
+        正在读取客服配置…
+      </div>
       <div class="space-y-4">
         <div>
-          <label for="support-type" class="block text-sm text-text-secondary mb-1.5">联系方式类型</label>
+          <span class="block text-sm text-text-secondary mb-1.5">联系方式类型</span>
           <div class="ui-segmented w-full" role="group" aria-label="联系方式类型">
             <button
               v-for="type in contactTypes"
@@ -50,8 +56,8 @@
         </div>
       </div>
       <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-border">
-        <t-button type="button" @click="fetchConfig" class="ui-t-button--secondary ui-t-button">重置</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveConfig">保存配置</t-button>
+        <t-button type="button" @click="fetchConfig" :disabled="loadingConfig || saving" class="ui-t-button--secondary ui-t-button">重新读取</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveConfig" :disabled="!configLoaded || loadingConfig || saving" :loading="saving">保存配置</t-button>
       </div>
     </div>
 
@@ -91,6 +97,10 @@ const contactTypes = [
 ]
 
 const qrFile = ref<File | null>(null)
+const loadingConfig = ref(false)
+const configLoaded = ref(false)
+const loadError = ref(false)
+const saving = ref(false)
 const form = ref<SupportConfig>({
   id: 0,
   contact_type: 'wechat',
@@ -101,20 +111,27 @@ const form = ref<SupportConfig>({
 })
 
 async function fetchConfig() {
+  loadingConfig.value = true
+  configLoaded.value = false
+  loadError.value = false
   try {
-    // P0-04: 原兜底默认值用了第三套互不相同的字段名(contact_wechat/telegram/url),
-    // 与后端真实返回(contact_type/contact_value/display_name/qr_code_url)完全对不上——
-    // 配置永远存不进正确的字段。以 007 迁移 + repository 的真实字段为准统一。
+    // 空配置与读取失败必须区分：只有接口成功返回(包括首次部署返回空值)
+    // 才允许保存，避免网络错误时把已有客服信息覆盖为空值。
     const EMPTY = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
     const config = await adminApiMod.getSupport()
     form.value = { ...EMPTY, ...(config || {}) }
+    configLoaded.value = true
   } catch (e: unknown) {
-    // 首次部署无客服配置时接口可能报错/返回空, 兜底默认空值避免页面异常
-    form.value = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
+    loadError.value = true
+    toast({ type: 'error', title: '读取客服配置失败', message: e instanceof Error ? e.message : '请检查网络后重试' })
+  } finally {
+    loadingConfig.value = false
   }
 }
 
 async function saveConfig() {
+  if (!configLoaded.value || loadingConfig.value || saving.value) return
+  saving.value = true
   try {
     // qr_code_file 是 File 对象（仅本地预览用），JSON 序列化为空对象{}；
     // 剥离后提交，二维码内容走 qr_code_url（base64 data URL 或外链）。
@@ -123,9 +140,10 @@ async function saveConfig() {
     toast({ type: 'success', title: '配置已保存' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    saving.value = false
   }
 }
-
 // 清除已上传的二维码图片
 function clearQr() {
   form.value.qr_code_url = ''
