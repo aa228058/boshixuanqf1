@@ -1,7 +1,7 @@
 <template>
-  <span class="absolute top-2 right-2 text-xs text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] px-2 py-0.5 rounded-full z-10">演示数据</span>
   <!-- R128 relative: 演示数据角标(第2行)绝对定位需要定位上下文 -->
   <main class="relative space-y-6">
+    <span class="absolute top-2 right-2 text-xs text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] px-2 py-0.5 rounded-full z-10">演示数据</span>
     <!-- 首页不显示面包屑 -->
     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard
