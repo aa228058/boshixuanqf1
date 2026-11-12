@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	bioTelegramLinkRE = regexp.MustCompile(`(?i)(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/([^\s<>()\[\]{}"'，。；、]+)`)
+	bioTelegramLinkRE = regexp.MustCompile(`(?i)(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/([^\s<>()\[\]{}"'，。；、]+)`)
 	bioIgnoredPaths = map[string]struct{}{
 		"addemoji": {}, "addstickers": {}, "addtheme": {}, "addlist": {},
 		"share": {}, "proxy": {}, "socks": {}, "login": {}, "confirmphone": {},
