@@ -58,7 +58,6 @@
     </section>
 
     <!-- 群组库 -->
-    <template>
       <!-- 筛选条 -->
       <div class="ui-card p-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 lift">
         <div class="relative w-full col-span-2 sm:col-span-1 sm:w-56">
@@ -229,7 +228,6 @@
           </div>
         </div>
       </div>
-    </template>
 
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
     <Modal v-model="importModalVisible" title="导入群链接">
