@@ -80,6 +80,7 @@ type LinkScraper struct {
 
 	bioEnabled sync.Map // accountID(string) -> bool
 	bioQueue chan *rawBio
+	bioQueued sync.Map // tenant:chat:user -> bool
 	bioSeenMu sync.Mutex
 	bioSeen map[string]time.Time
 
@@ -304,12 +305,16 @@ func (ls *LinkScraper) RegisterAccount(ctx context.Context, tenantID, accountID 
 		// Bio parsing is a separate opt-in path; keep it independent from
 		// message-body link extraction and enqueue only resolved human senders.
 		if ls.IsBioScrapingEnabled(accountID) && msg.Sender != nil && !msg.Sender.IsBot && msg.Sender.ID > 0 && msg.Sender.AccessHash != 0 {
-			select {
-			case ls.bioQueue <- &rawBio{TenantID: tenantID, AccountID: accountID, Client: c, ChatID: msg.ChatID,
-				UserID: msg.Sender.ID, AccessHash: msg.Sender.AccessHash, Username: msg.Sender.Username,
-				FirstName: msg.Sender.FirstName, LastName: msg.Sender.LastName}:
-			default:
-				log.Printf("[link-scraper] Bio queue full; dropped sender=%d account=%s", msg.Sender.ID, accountID.String()[:8])
+			queueKey := fmt.Sprintf("%s:%d:%d", tenantID, msg.ChatID, msg.Sender.ID)
+			if _, loaded := ls.bioQueued.LoadOrStore(queueKey, true); !loaded {
+				select {
+				case ls.bioQueue <- &rawBio{TenantID: tenantID, AccountID: accountID, Client: c, ChatID: msg.ChatID,
+					UserID: msg.Sender.ID, AccessHash: msg.Sender.AccessHash, Username: msg.Sender.Username,
+					FirstName: msg.Sender.FirstName, LastName: msg.Sender.LastName}:
+				default:
+					ls.bioQueued.Delete(queueKey)
+					log.Printf("[link-scraper] Bio queue full; dropped sender=%d account=%s", msg.Sender.ID, accountID.String()[:8])
+				}
 			}
 		}
 
@@ -415,7 +420,9 @@ func (ls *LinkScraper) bioConsumerLoop(ctx context.Context) {
 
 func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 	if item == nil || ls.memberRepo == nil || ls.groupRepo == nil || item.Client == nil { return }
-	key := item.TenantID.String()+":"+fmt.Sprint(item.UserID)
+	queueKey := fmt.Sprintf("%s:%d:%d", item.TenantID, item.ChatID, item.UserID)
+	defer ls.bioQueued.Delete(queueKey)
+	key := queueKey
 	ls.bioSeenMu.Lock()
 	if at, ok := ls.bioSeen[key]; ok && time.Since(at) < 24*time.Hour {
 		ls.bioSeenMu.Unlock()
@@ -434,13 +441,14 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 	if !ok || fullResult == nil { return }
 	full, ok := fullResult.FullUser.(*tg.UserFull)
 	if !ok || full == nil { return }
-	ls.bioSeenMu.Lock()
-	ls.bioSeen[key] = time.Now()
-	if len(ls.bioSeen) > 50000 { ls.bioSeen = make(map[string]time.Time) }
-	ls.bioSeenMu.Unlock()
-	if strings.TrimSpace(full.About) == "" { return }
 	group, err := ls.groupRepo.GetByTGChatID(callCtx, item.TenantID, item.ChatID)
 	if err != nil || group == nil { return }
+	if strings.TrimSpace(full.About) == "" {
+		ls.bioSeenMu.Lock()
+		ls.bioSeen[key] = time.Now()
+		ls.bioSeenMu.Unlock()
+		return
+	}
 	now := time.Now()
 	member := &domain.Member{MemberID: uuid.New(), TenantID: item.TenantID, GroupID: group.GroupID,
 		TGUserID: item.UserID, Username: item.Username, FirstName: item.FirstName, LastName: item.LastName,
@@ -449,6 +457,10 @@ func (ls *LinkScraper) processBio(ctx context.Context, item *rawBio) {
 		log.Printf("[link-scraper] persist live Bio failed user=%d: %v", item.UserID, err)
 		return
 	}
+	ls.bioSeenMu.Lock()
+	ls.bioSeen[key] = now
+	if len(ls.bioSeen) > 50000 { ls.bioSeen = make(map[string]time.Time) }
+	ls.bioSeenMu.Unlock()
 }
 
 // consumerLoop processes links from the queue with rate limiting.
