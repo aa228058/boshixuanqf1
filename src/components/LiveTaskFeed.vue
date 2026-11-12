@@ -18,7 +18,7 @@
     <!-- 大进度条 -->
     <div class="mb-2">
       <div class="flex items-center justify-between text-sm mb-1.5">
-        <span class="text-text-secondary">{{ prog.done }} / {{ prog.total }}</span>
+        <span class="text-text-secondary">{{ processed }} / {{ prog.total }}</span>
         <span class="font-semibold text-cyan">{{ percent }}%</span>
       </div>
       <div class="h-2.5 rounded-full bg-bg-hover overflow-hidden">
@@ -84,10 +84,18 @@ function parseProgress(p: any): { total: number; done: number; failed: number } 
 const prog = computed(() => parseProgress(task.value?.progress))
 const lastDoneProg = computed(() => parseProgress(lastDone.value?.progress))
 
+// 进度口径为已处理数：成功(done) + 失败(failed)，失败目标同样已经处理完毕。
+const processed = computed(() => {
+  const total = Math.max(0, prog.value.total || 0)
+  const done = Math.max(0, prog.value.done || 0)
+  const failed = Math.max(0, prog.value.failed || 0)
+  return Math.min(total, done + failed)
+})
+
 const percent = computed(() => {
   const total = prog.value.total
   if (!total) return 0
-  return Math.min(100, Math.round((prog.value.done / total) * 100))
+  return Math.min(100, Math.round((processed.value / total) * 100))
 })
 
 const typeNames: Record<string, string> = {
