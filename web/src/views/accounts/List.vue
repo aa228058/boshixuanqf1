@@ -432,7 +432,7 @@
     <Modal v-model="showGroupModal" title="账号分组管理">
       <div class="space-y-3">
         <div v-for="g in accountGroups" :key="g.group_id" class="flex items-center gap-2 p-3 rounded-lg bg-bg-card">
-          <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'text-text-muted'}`" />
+          <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'var(--t-text-3)'}`" />
           <span class="flex-1 text-sm">{{ g.name }}</span>
           <span class="text-xs text-text-secondary">{{ (g.account_ids || []).length }} 个账号</span>
           <button type="button" @click="editGroup(g)" class="ui-icon-btn" aria-label="编辑">
