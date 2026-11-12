@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
@@ -131,11 +131,15 @@ function toggleFeature(p: PlanRow, key: string) {
 }
 
 const loadError = ref('')
+let plansPageActive = false
+let plansRequestId = 0
 
 async function load() {
+  const requestId = ++plansRequestId
   loadError.value = ''
   try {
     const res = await adminApiMod.listPlans()
+    if (!plansPageActive || requestId !== plansRequestId) return
     plans.value = (res.list || []).map((p: any) => ({
       ...p,
       // 兼容双格式(2026-10-20): 后端存储已从数组改为 map {"raffle":true,...},
@@ -148,6 +152,7 @@ async function load() {
       loadError.value = '套餐列表为空 —— 请检查迁移 051 是否已执行(plans 表结构是否含 daily_search_limit 列)'
     }
   } catch (e: any) {
+    if (!plansPageActive || requestId !== plansRequestId) return
     loadError.value = e?.message || '请求失败(401/500?)'
     toast({ type: 'error', message: '套餐加载失败: ' + loadError.value })
   }
@@ -183,5 +188,6 @@ async function saveAll() {
   }
 }
 
-onMounted(load)
+onMounted(() => { plansPageActive = true; void load() })
+onUnmounted(() => { plansPageActive = false; plansRequestId++ })
 </script>
