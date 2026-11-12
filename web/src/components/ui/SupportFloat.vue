@@ -15,7 +15,7 @@
             </div>
             <h4 class="font-medium text-sm">{{ config?.display_name || '联系客服' }}</h4>
           </div>
-          <button type="button" @click="expanded = false" class="w-6 h-6 rounded-md hover:bg-milk-01 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
+          <button type="button" aria-label="关闭客服面板" @click="expanded = false" class="w-6 h-6 rounded-md hover:bg-milk-01 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -50,6 +50,8 @@
       @mousedown="startDrag"
       @touchstart="startDrag"
       @click="toggle"
+      :aria-expanded="expanded"
+      aria-label="联系客服"
       class="relative w-11 h-11 rounded-full flex items-center justify-center cursor-move select-none touch-none group"
     >
       <!-- 脉冲光环 -->
@@ -87,6 +89,10 @@ const wrapper = ref<HTMLElement | null>(null)
 const dragBtn = ref<HTMLElement | null>(null)
 
 function startDrag(e: MouseEvent | TouchEvent) {
+  if ('touches' in e && e.touches.length !== 1) {
+    stopDrag()
+    return
+  }
   if (dragResetTimer) clearTimeout(dragResetTimer)
   dragResetTimer = null
   isDragging.value = false
