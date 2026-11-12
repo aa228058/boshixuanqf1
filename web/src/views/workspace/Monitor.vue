@@ -269,7 +269,7 @@ async function fetchGroups() {
   const controller = new AbortController()
   groupsController = controller
   const requestId = ++groupsRequestId
-  if (!accountId) { groups.value = []; return }
+  if (!accountId) { groups.value = []; groupsController = null; return }
   try {
     const res = await groupApi.list(accountId, undefined, { signal: controller.signal })
     if (!monitorPageActive || requestId !== groupsRequestId || accountId !== monAccId.value) return
