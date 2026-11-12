@@ -43,6 +43,9 @@
           <template #plan_id="{ row }">
             <span class="text-xs">{{ planLabel(row.plan_id as string) }}</span>
           </template>
+          <template #created_at="{ row }">
+            <span class="text-xs">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '-' }}</span>
+          </template>
         </t-table>
       </div>
       <!-- 移动端卡片 -->
@@ -106,7 +109,7 @@ const tenantColumns = [
   { key: 'name', title: '租户名称' },
   { key: 'plan_id', title: '套餐' },
   { key: 'status', title: '状态' },
-  { key: 'created_at', title: '注册时间', format: (v: any) => new Date(v).toLocaleDateString('zh-CN') },
+  { key: 'created_at', title: '注册时间' },
 ]
 
 // TODO(数据接入): 以下两张图表的 x 轴与 series 均为占位示例数据（写死的周标签+编造的数值），
