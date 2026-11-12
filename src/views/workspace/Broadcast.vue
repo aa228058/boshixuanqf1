@@ -203,9 +203,9 @@
       <div class="flex items-center gap-2 mb-3 mt-5"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">2</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">消息内容</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <!-- 消息内容 -->
       <div>
-      <label class="block text-sm font-medium mb-2">消息内容</label>
+      <label for="broadcast-message" class="block text-sm font-medium mb-2">消息内容</label>
         <span v-if="draftSaved" class="text-xs text-[var(--t-ok)] mb-2 block">草稿已自动保存</span>
-        <t-textarea v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
+        <t-textarea id="broadcast-message" v-model="message" :autosize="{ minRows: 4, maxRows: 10 }"
                     placeholder="输入消息内容；如需随机表达，请使用 {选项一|选项二} 格式。" />
         <div class="flex items-center justify-between mt-2">
           <span class="text-xs text-text-muted">{{ message.length }} 字符</span>
@@ -224,8 +224,8 @@
 
       <!-- 富媒体(可选) -->
       <div>
-        <label class="block text-sm font-medium mb-2">附带媒体 <span class="text-text-muted font-normal">(可选)</span></label>
-        <t-select v-model="mediaType" class="mb-2" :options="[
+        <label for="broadcast-media-type" class="block text-sm font-medium mb-2">附带媒体 <span class="text-text-muted font-normal">(可选)</span></label>
+        <t-select id="broadcast-media-type" v-model="mediaType" class="mb-2" :options="[
           { label: '无', value: '' },
           { label: '图片', value: 'photo' },
           { label: '视频', value: 'video' },
@@ -265,8 +265,8 @@
 
       <!-- 单次任务的定时启动；循环任务使用下方首次执行时间 -->
       <div v-if="!isLoop">
-        <label class="block text-sm font-medium mb-2">定时启动 <span class="text-text-muted font-normal">(可选, 留空立即执行)</span></label>
-        <t-date-picker v-model="scheduledAtTs" type="datetime" value-type="time-stamp" clearable
+        <label for="broadcast-scheduled-at" class="block text-sm font-medium mb-2">定时启动 <span class="text-text-muted font-normal">(可选, 留空立即执行)</span></label>
+        <t-date-picker id="broadcast-scheduled-at" v-model="scheduledAtTs" type="datetime" value-type="time-stamp" clearable
                        placeholder="选择定时启动时间（留空立即执行）" class="w-full" />
         <p class="text-xs text-text-muted mt-1">到设定时间后任务自动进入队列执行</p>
       </div>
