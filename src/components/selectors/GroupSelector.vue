@@ -98,8 +98,9 @@
             @click="toggle(u)"
             class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer transition-[transform,opacity,border-color,background-color]"
             :class="isSelected(u) ? 'border-cyan/50 bg-cyan/5' : 'hover:bg-bg-hover'"
-           tabindex="0" role="button">
+           >
             <t-checkbox
+              :aria-label="'选择私聊对象 ' + u.title"
               :model-value="isSelected(u)"
               @click.stop
               @update:model-value="toggle(u)"
