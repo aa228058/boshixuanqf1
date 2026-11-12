@@ -50,7 +50,7 @@ export const accountApi = {
   update: (id: string, data: Partial<Account>) => api.put<Account>(`/accounts/${id}`, data),
   getQuotas: (id: string) => api.get<{ level: string; broadcast_daily: number; join_daily: number; scrape_daily: number; min_interval: number }>(`/accounts/${id}/quotas`),
   getDialogs: (id: string) => api.get<Array<{ id: string; title: string; type: string }>>(`/accounts/${id}/telegram-dialogs`),
-  getContacts: (id: string) => api.get<Array<{ id: string; tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>(`/accounts/${id}/telegram-contacts`),
+  getContacts: (id: string, options?: RequestOptions) => api.get<Array<{ id: string; tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>(`/accounts/${id}/telegram-contacts`, options),
 }
 
 // ============ 协议号管理 ============
