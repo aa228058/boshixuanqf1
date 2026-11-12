@@ -18,8 +18,8 @@ export interface GroupLibraryQuery {
 }
 
 // 平台级群组库(找群): 所有租户采集汇总, 登录即可见
-export function getGroupLibrary(params: GroupLibraryQuery): Promise<GroupLibraryResult> {
-  return api.get('/group-library', { params: { ...params } as Record<string, string | number | boolean | undefined> })
+export function getGroupLibrary(params: GroupLibraryQuery, options?: RequestOptions): Promise<GroupLibraryResult> {
+  return api.get('/group-library', { params: { ...params } as Record<string, string | number | boolean | undefined>, ...options })
 }
 
 // 勾选批量加入: 对每个账号创建一个加群任务。
