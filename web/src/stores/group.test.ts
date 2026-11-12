@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 const { listMock, syncMock } = vi.hoisted(() => ({
@@ -18,11 +18,19 @@ function deferred<T>() {
 }
 
 describe('group store refresh lifecycle', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     listMock.mockReset()
     syncMock.mockReset()
-    sessionStorage.clear()
+    const values = new Map<string, string>()
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      clear: () => values.clear(),
+    })
   })
 
   it('失效后到达的旧群组响应不会返回给调用方或写入缓存', async () => {
