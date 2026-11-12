@@ -49,7 +49,7 @@
     <div class="flex items-center gap-2 text-xs text-text-muted">
       <CheckCircle2 v-if="lastDone.status === 'completed'" class="w-3.5 h-3.5 text-emerald" />
       <XCircle v-else class="w-3.5 h-3.5 text-rose" />
-      <span>上次{{ typeLabel }}已{{ lastDone.status === 'completed' ? '完成' : '结束' }} · {{ Math.min(lastDoneProg.total, (lastDoneProg.done || 0) + (lastDoneProg.failed || 0)) }} / {{ lastDoneProg.total }}</span>
+      <span>上次{{ typeLabel }}已{{ lastDone.status === 'completed' ? '完成' : '结束' }} · {{ lastDoneProcessed }} / {{ lastDoneProg.total }}</span>
     </div>
     <button type="button" @click="$router.push(`/workspace/${accountId}/tasks/${lastDone.task_id}`)"
             class="text-xs text-text-muted hover:text-cyan transition-colors shrink-0">
@@ -83,6 +83,12 @@ function parseProgress(p: any): { total: number; done: number; failed: number } 
 }
 const prog = computed(() => parseProgress(task.value?.progress))
 const lastDoneProg = computed(() => parseProgress(lastDone.value?.progress))
+const lastDoneProcessed = computed(() => {
+  const total = Math.max(0, lastDoneProg.value.total || 0)
+  const done = Math.max(0, lastDoneProg.value.done || 0)
+  const failed = Math.max(0, lastDoneProg.value.failed || 0)
+  return Math.min(total, done + failed)
+})
 
 // 进度口径为已处理数：成功(done) + 失败(failed)，失败目标同样已经处理完毕。
 const processed = computed(() => {
