@@ -222,11 +222,11 @@ const taskChartOption = computed(() => ({
   backgroundColor: 'transparent',
   tooltip: {
     trigger: 'axis',
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: chartTheme.surface.value,
+    borderColor: chartTheme.border.value,
     borderWidth: 1,
     textStyle: { color: chartTheme.textPrimary.value },
-    extraCssText: 'box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-radius: 0.75rem;',
+    extraCssText: 'border-radius: 0.75rem;',
   },
   grid: { left: '2%', right: '3%', bottom: '2%', top: '8%', containLabel: true },
   xAxis: {
@@ -241,7 +241,7 @@ const taskChartOption = computed(() => ({
     minInterval: 1,
     axisLine: { show: false },
     axisTick: { show: false },
-    splitLine: { lineStyle: { color: chartTheme.border.value + '33' } },
+    splitLine: { lineStyle: { color: chartTheme.border.value } },
     axisLabel: { color: chartTheme.textMuted.value, fontSize: 11 },
   },
   series: [{
@@ -253,7 +253,7 @@ const taskChartOption = computed(() => ({
     showSymbol: false,
     data: taskData.value,
     lineStyle: { color: chartTheme.palette.value[0], width: 2.5 },
-    itemStyle: { color: chartTheme.palette.value[0], borderWidth: 2, borderColor: 'rgba(15,23,42,0.8)' },
+    itemStyle: { color: chartTheme.palette.value[0], borderWidth: 2, borderColor: chartTheme.surface.value },
     areaStyle: {
       color: {
         type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
@@ -269,18 +269,18 @@ const taskChartOption = computed(() => ({
 const accountChartOption = computed(() => ({
   backgroundColor: 'transparent',
   tooltip: {
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: chartTheme.surface.value,
+    borderColor: chartTheme.border.value,
     borderWidth: 1,
     textStyle: { color: chartTheme.textPrimary.value },
-    extraCssText: 'box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-radius: 0.75rem;',
+    extraCssText: 'border-radius: 0.75rem;',
   },
   legend: {
     bottom: 0,
     itemWidth: 8,
     itemHeight: 8,
     itemGap: 16,
-    textStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || 'var(--t-text-3)', fontSize: 11 },
+    textStyle: { color: chartTheme.textMuted.value, fontSize: 11 },
   },
   series: [{
     type: 'pie',
@@ -288,7 +288,7 @@ const accountChartOption = computed(() => ({
     center: ['50%', '44%'],
     avoidLabelOverlap: false,
     padAngle: 3,
-    itemStyle: { borderRadius: 6, borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2 },
+    itemStyle: { borderRadius: 6, borderColor: chartTheme.surface.value, borderWidth: 2 },
     data: accountData.value,
     label: { show: false },
     emphasis: {
