@@ -178,17 +178,27 @@ const hasContact = computed(() => !!config.value?.contact_value)
 // P1-32: 原 navigator.clipboard 无 ?.——非 HTTPS 环境 clipboard 为 undefined,
 // 直接抛 TypeError 触发全局红条。加 ?. + execCommand 兜底。
 function fallbackCopy(text: string): boolean {
-  const ta = document.createElement('textarea')
-  ta.value = text
-  ta.setAttribute('readonly', '')
-  ta.style.position = 'fixed'
-  ta.style.opacity = '0'
-  document.body.appendChild(ta)
-  ta.select()
-  let succeeded = false
-  try { succeeded = document.execCommand('copy') } catch { /* 浏览器可能禁用旧式复制接口 */ }
-  document.body.removeChild(ta)
-  return succeeded
+  let ta: HTMLTextAreaElement | null = null
+  let appended = false
+  try {
+    ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    appended = true
+    ta.select()
+    return document.execCommand('copy')
+  } catch {
+    // DOM 不可用、选择失败或浏览器禁用旧式复制接口时统一返回失败。
+    return false
+  } finally {
+    // 清理失败不能覆盖复制结果，也不能让回退链路抛出未处理异常。
+    if (appended && ta?.parentNode) {
+      try { ta.parentNode.removeChild(ta) } catch { /* 节点可能已被外部移除 */ }
+    }
+  }
 }
 
 function showCopyResult(succeeded: boolean) {
