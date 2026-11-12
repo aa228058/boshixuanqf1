@@ -4,7 +4,7 @@
     <div class="flex items-center gap-2 overflow-x-auto pb-1">
       <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showCreate = true"> 创建租户
       </t-button>
-      <t-select v-model="statusFilter" :options="[
+      <t-select v-model="statusFilter" aria-label="按租户状态筛选" :options="[
         { label: '全部状态', value: '' },
         { label: '正常', value: 'active' },
         { label: '未激活', value: 'inactive' },
