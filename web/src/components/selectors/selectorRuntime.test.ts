@@ -70,9 +70,15 @@ describe('selector runtime helpers', () => {
   it('deduplicates numeric and string Telegram IDs and drops invalid IDs', () => {
     const rows = [
       { tg_user_id: 123, name: 'first' },
+      { tg_user_id: ' 123 ', name: 'trimmed duplicate' },
       { tg_user_id: '123', name: 'duplicate' },
       { tg_user_id: null, name: 'missing' },
+      { tg_user_id: undefined, name: 'undefined' },
       { tg_user_id: '  ', name: 'blank' },
+      { tg_user_id: 0, name: 'numeric zero' },
+      { tg_user_id: '0', name: 'string zero' },
+      { tg_user_id: 'undefined', name: 'undefined sentinel' },
+      { tg_user_id: 'null', name: 'null sentinel' },
       { tg_user_id: 456, name: 'second' },
     ]
     expect(uniqueByNormalizedId(rows, row => row.tg_user_id).map(row => row.name))
