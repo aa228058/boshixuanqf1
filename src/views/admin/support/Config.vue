@@ -43,7 +43,7 @@
             class="ui-input !text-sm" aria-label="如：联系客服开通套餐" />
         </div>
         <div>
-          <label class="block text-sm text-text-secondary mb-1.5">二维码图片（可选）</label>
+          <span class="block text-sm text-text-secondary mb-1.5">二维码图片（可选）</span>
           <div class="flex items-center gap-3">
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)]/40 transition-colors">
               选择图片
