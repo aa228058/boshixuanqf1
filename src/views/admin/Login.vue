@@ -23,7 +23,7 @@
               autofocus
               @keyup="handleKeyup" />
             <!-- P1-30: 原 errors 只在 script 赋值, 模板从不显示——校验失败点登录毫无反馈 -->
-            <div v-if="errors.username" class="text-xs text-danger mt-1">{{ errors.username }}</div>
+            <div v-if="errors.username" role="alert" class="text-xs text-danger mt-1">{{ errors.username }}</div>
           </div>
           <div>
             <div class="text-sm text-text-secondary mb-1.5">密码</div>
@@ -45,8 +45,9 @@
                 </button>
               </template>
             </t-input>
+            <div v-if="errors.password" role="alert" class="text-xs text-danger mt-1">{{ errors.password }}</div>
           </div>
-          <p v-if="errorMsg" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
+          <p v-if="errorMsg" role="alert" aria-live="assertive" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
           <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full" theme="primary" size="sm"
             :disabled="loading"
             @click="handleLogin"
