@@ -61,7 +61,7 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border">
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
+        <t-button theme="primary" size="sm" :disabled="plansLoading || !!plansError || !plans.length" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
         <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
         <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
           {{ tenant.status === 'active' ? '停用租户' : '启用租户' }}
@@ -71,6 +71,12 @@
 
     <Modal v-model="showEdit" title="修改套餐">
       <div class="space-y-4">
+        <p v-if="plansLoading" class="text-sm text-text-secondary" role="status" aria-live="polite">正在读取套餐列表…</p>
+        <div v-else-if="plansError" class="space-y-2" role="alert">
+          <p class="text-sm text-[var(--t-err)]">{{ plansError }}</p>
+          <t-button size="small" variant="outline" :disabled="plansLoading" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="fetchPlans">重新加载套餐</t-button>
+        </div>
+        <div v-else>
         <div>
           <label for="tenant-detail-plan" class="block text-sm text-text-secondary mb-1.5">套餐</label>
           <t-select id="tenant-detail-plan" v-model="editForm.plan_id" :options="planOptions" />
@@ -79,10 +85,11 @@
           <label for="tenant-detail-expires" class="block text-sm text-text-secondary mb-1.5">到期时间</label>
           <input id="tenant-detail-expires" v-model="editForm.expires_at" type="datetime-local" class="ui-input !text-sm" />
         </div>
+        </div>
       </div>
       <template #footer>
         <t-button type="button" @click="showEdit = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
+        <t-button theme="primary" size="sm" :disabled="plansLoading || !!plansError || !plans.length" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
       </template>
     </Modal>
   </main>
@@ -119,6 +126,8 @@ const tenant = ref<Tenant | null>(null)
 const loadingTenant = ref(true)
 const loadError = ref('')
 const plans = ref<Plan[]>([])
+const plansLoading = ref(true)
+const plansError = ref('')
 const showEdit = ref(false)
 const editForm = ref({ plan_id: '', expires_at: '' })
 
@@ -197,14 +206,23 @@ function planLabel(p: string) {
   return map[p] || p
 }
 
-onMounted(async () => {
-  if (invalidId.value) return
-  await fetchTenant()
+async function fetchPlans() {
+  plansLoading.value = true
+  plansError.value = ''
   try {
     const res = await adminApiMod.listPlans()
     plans.value = res.list || []
+    if (!plans.value.length) plansError.value = '当前没有可用套餐，请检查套餐配置'
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    plansError.value = e instanceof Error ? e.message : '获取套餐失败，请稍后重试'
+    toast({ type: 'error', title: '获取套餐失败', message: plansError.value })
+  } finally {
+    plansLoading.value = false
   }
+}
+
+onMounted(async () => {
+  if (invalidId.value) return
+  await Promise.all([fetchTenant(), fetchPlans()])
 })
 </script>
