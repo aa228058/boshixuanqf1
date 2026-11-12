@@ -843,8 +843,8 @@ func memberActivity(user *tg.User) (string, *time.Time, bool, string) {
 	if user == nil {
 		return "", nil, false, ""
 	}
-	// v0.19 起 tg.User 不再携带 bio(需逐用户 GetFullUser, 采集场景成本过高)。
-	// 简介挖掘对空 bio 自动跳过, 这里恒空串优雅降级。
+	// tg.User 不携带 Bio；默认不额外请求。启用 bio_links 时由调用方
+	// 通过 fetchTelegramUserBio 逐用户读取并覆盖此空值。
 	bio := ""
 	var lastSeen *time.Time
 	now := time.Now()
