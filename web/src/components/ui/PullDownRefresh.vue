@@ -23,7 +23,7 @@
       @touchstart.passive="onStart"
       @touchmove="onMove"
       @touchend="onEnd"
-      @touchcancel="onEnd"
+      @touchcancel="onCancel"
       @mousedown="onMouseStart"
     >
       <slot />
@@ -106,6 +106,12 @@ function onEnd() {
   } else {
     pullY.value = 0
   }
+}
+
+// 系统手势打断触摸时不应误触发刷新(例如来电/切换应用/多指手势)。
+function onCancel() {
+  tracking = false
+  pullY.value = 0
 }
 
 // 桌面端鼠标兜底——方便非触屏设备测试同样的交互
