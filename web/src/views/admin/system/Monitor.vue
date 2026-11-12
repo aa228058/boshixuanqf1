@@ -165,12 +165,14 @@ function usageBarColor(percent: number): string {
 }
 
 let metricsRequestPending = false
+let metricsMounted = false
 async function fetchMetrics() {
   // 轮询间隔短于慢请求耗时会产生重叠请求；保持单飞，避免旧快照覆盖新指标。
-  if (metricsRequestPending) return
+  if (!metricsMounted || metricsRequestPending) return
   metricsRequestPending = true
   try {
     const data = await adminApiMod.getSystemMetrics()
+    if (!metricsMounted) return
     metrics.value = { ...metrics.value, ...data }
     metrics.value.totalAccounts = (data as any).total_accounts ?? 0
     metrics.value.onlineRate = (data as any).online_rate ?? 0
@@ -182,7 +184,7 @@ async function fetchMetrics() {
     // 每次成功拉取记一条 DEBUG(50 条环形缓冲, 不堆积)。
     pushLog('DEBUG', `指标已更新 CPU ${metrics.value.cpu}% 内存 ${metrics.value.memory}%`)
   } catch (e: unknown) {
-    pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
+    if (metricsMounted) pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
   } finally {
     metricsRequestPending = false
   }
@@ -198,6 +200,7 @@ function startAutoRefresh() {
 }
 
 onMounted(() => {
+  metricsMounted = true
   fetchMetrics()
   startAutoRefresh()
 })
@@ -205,7 +208,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(refreshTimer)
   // 防止组件离开后未完成的请求继续向已卸载页面写入状态。
-  metricsRequestPending = true
+  metricsMounted = false
   if (alertCooldownTimer) clearTimeout(alertCooldownTimer)
   document.removeEventListener('visibilitychange', tickHandler)
 })
