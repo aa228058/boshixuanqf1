@@ -452,7 +452,8 @@ async function exportTaskLinks(task: ScrapeTask, format = 'txt') {
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const mimeType = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'
+    const blob = new Blob([text], { type: mimeType })
     downloadBlob(`scrape-links-${task.task_id.slice(0, 8)}.${format}`, blob)
   } catch (e: unknown) {
     toast({ type: 'error', title: '导出失败', message: (e instanceof Error ? e.message : '请稍后重试') })
@@ -471,7 +472,8 @@ async function exportAllLinks(format: 'txt' | 'csv') {
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const mimeType = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'
+    const blob = new Blob([text], { type: mimeType })
     downloadBlob(`scrape-links-all.${format}`, blob)
   } catch {
     toast({ type: 'error', title: '导出失败' })
