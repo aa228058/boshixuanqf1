@@ -533,12 +533,14 @@ async function openSelector() {
         // P0-21: parseResponse 归一后列表接口统一 {list,total}, 但纯数组直返时
         // cr.list 是 undefined——私聊列表曾因此恒空。数组兜底。
         const rows = Array.isArray(cr) ? cr : (cr.list || cr.data || [])
-        dialogs.value = uniqueByNormalizedId(rows, (r: any) => r.tg_user_id).map((r: any) => ({
+        const contacts = uniqueByNormalizedId(rows, (r: any) => r.tg_user_id)
+        dialogs.value = contacts.map((r: any) => ({
           id: String(r.tg_user_id),
           title: r.username ? '@' + r.username : (r.first_name || String(r.tg_user_id)),
           type: 'user',
+          typeLabel: '私聊',
         }))
-        syncHint.value += `, 私聊缓存 ${rows.length} 人`
+        syncHint.value += `, 私聊缓存 ${contacts.length} 人`
       } catch { /* 私聊无缓存保持空, 切 tab 时才调接口 */ }
       return
     }
