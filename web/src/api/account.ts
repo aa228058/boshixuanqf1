@@ -18,7 +18,7 @@ export const accountApi = {
   // 资料运营(2026-10-21)
   // R119: 账号能力探测
   runProbe: (id: string) => api.post<any>(`/accounts/${id}/probe`),
-  getProbe: (id: string) => api.get<any>(`/accounts/${id}/probe`),
+  getProbe: (id: string, options?: RequestOptions) => api.get<any>(`/accounts/${id}/probe`, options),
   updateProfile: (id: string, p: { first_name?: string; last_name?: string; username?: string; about?: string }) =>
     api.put<{ ok: boolean }>(`/accounts/${id}/profile`, p),
   cloneProfile: (source: string, targetIds: string[]) =>
