@@ -22,7 +22,7 @@
       <div v-for="cell in gridCells" :key="cell.key"
            class="h-8 sm:h-9 rounded-md flex flex-col items-center justify-center text-[10px] transition-transform hover:scale-110 cursor-default"
            :class="cellClass(cell)"
-           :title="cell.day ? `${cell.day} 成功发送 ${cell.count} 条` : ''">
+           :title="cell.day ? `${cell.date} 日成功发送 ${cell.count} 条` : ''">
         <span v-if="cell.day" class="font-medium">{{ cell.date }}</span>
         <span v-if="cell.day && cell.count > 0" class="opacity-80">{{ cell.count > 999 ? '999+' : cell.count }}</span>
       </div>
