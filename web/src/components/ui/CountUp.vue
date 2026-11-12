@@ -13,14 +13,15 @@ const props = withDefaults(defineProps<{
 }>(), { duration: 800 })
 
 const display = ref('0')
+let currentValue = 0
 let raf = 0
 
 function animateTo(target: number) {
-  const start = parseFloat(String(display.value).replace(/[^\d.-]/g, '')) || 0
+  const start = currentValue
   cancelAnimationFrame(raf)
-  if (start === target) { display.value = String(target); return }
+  if (start === target) { currentValue = target; display.value = String(target); return }
   const duration = Number.isFinite(props.duration) ? Math.max(0, props.duration) : 800
-  if (duration === 0) { display.value = String(target); return }
+  if (duration === 0) { currentValue = target; display.value = String(target); return }
   const precisionOf = (value: number) => {
     const fraction = String(value).toLowerCase().split('e')[0].split('.')[1] || ''
     return Math.min(6, fraction.length)
@@ -31,9 +32,10 @@ function animateTo(target: number) {
     const p = Math.min(1, (now - t0) / duration)
     const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
     const current = start + (target - start) * eased
+    currentValue = current
     display.value = String(Number(current.toFixed(precision)))
     if (p < 1) raf = requestAnimationFrame(tick)
-    else display.value = String(target)
+    else { currentValue = target; display.value = String(target) }
   }
   raf = requestAnimationFrame(tick)
 }
