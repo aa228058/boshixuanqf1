@@ -693,6 +693,7 @@ void fetchImportJobs()
 const importJobsTimer = window.setInterval(fetchImportJobs, 5000)
 onUnmounted(() => {
   window.clearInterval(importJobsTimer)
+  taskListRequestId++
   importJobsRequestId++
   importJobsController?.abort()
   taskListController?.abort()
