@@ -2026,10 +2026,47 @@ useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummar
 .acc-actions { gap: 4px; }
 .acc-action-btn { min-width: 0; }
 @media (max-width: 639px) {
-  .acc-row { gap: 8px; padding: 10px 9px; }
-  .acc-actions { gap: 4px; }
-  .acc-action-btn { padding-left: 7px !important; padding-right: 7px !important; font-size: 11px !important; }
-  .acc-action-btn :deep(svg) { width: 12px; height: 12px; }
+  /* 移动端将账号信息与操作区分行，避免三个按钮挤在卡片右侧 */
+  .acc-row {
+    display: grid;
+    grid-template-columns: 0 36px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 12px 10px;
+  }
+  .acc-group.selecting .acc-row {
+    grid-template-columns: 26px 36px minmax(0, 1fr);
+  }
+  .check-col { width: auto; }
+  .acc-main { grid-column: 3; grid-row: 1; }
+  .acc-actions {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+    margin-top: 3px;
+  }
+  .acc-action-btn {
+    display: inline-flex !important;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 8px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    line-height: 1;
+  }
+  .acc-action-btn :deep(svg) { width: 14px; height: 14px; }
+  .acc-actions .relative { display: flex; }
+  .more-btn { min-width: 64px; min-height: 36px; justify-content: center; }
+  .acc-group.selecting .acc-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acc-title { flex-wrap: wrap; }
+  .send-report { margin-left: 0; }
 }
 
 /* 复选框列: 默认收起(width:0), 多选模式滑出 */
