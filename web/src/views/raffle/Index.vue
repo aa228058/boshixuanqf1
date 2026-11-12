@@ -236,7 +236,7 @@
 <!-- ACCOUNT_BLOCK_MOVED -->
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { accountApi } from '@/api/account'
 import { api as request } from '@/utils/request'  // request 是函数无 .post 方法, api 对象才有——修 f.post is not a function
 import { toast } from '@/utils/toast'
@@ -318,15 +318,24 @@ function statusLabel(s: string) {
   return map[s] || s
 }
 
+let rafflePageActive = true
+let raffleStatusController: AbortController | null = null
+let raffleAccountsController: AbortController | null = null
+let raffleResultsController: AbortController | null = null
 async function loadRaffleStatus() {
+  raffleStatusController?.abort()
+  const controller = new AbortController()
+  raffleStatusController = controller
   try {
-    const res = await request.get<{ enabled: boolean; reply_enabled?: boolean; reply_text?: string; ping_enabled?: boolean; ping_text?: string }>('/raffle/status')
+    const res = await request.get<{ enabled: boolean; reply_enabled?: boolean; reply_text?: string; ping_enabled?: boolean; ping_text?: string }>('/raffle/status', { signal: controller.signal })
+    if (!rafflePageActive) return
     raffleEnabled.value = !!res.enabled
     replyEnabled.value = !!res.reply_enabled
     if (res.reply_text) replyText.value = res.reply_text
     pingEnabled.value = !!res.ping_enabled
     if (res.ping_text) pingText.value = res.ping_text
   } catch (e: any) {
+    if (controller.signal.aborted || !rafflePageActive) return
     // 403 可见化: 套餐没勾抽奖时开关置灰的原因要说清楚。
     // P0-16: 原只判英文 'feature', 但 request.ts 的 translateError 已把后端
     // 403 消息翻成中文——提示从未触发。中英双判兜底。
@@ -337,10 +346,14 @@ async function loadRaffleStatus() {
 }
 
 async function loadAccounts() {
+  raffleAccountsController?.abort()
+  const controller = new AbortController()
+  raffleAccountsController = controller
   try {
-    const res = await accountApi.list()
-    accounts.value = res.list || []
+    const res = await accountApi.list(false, { signal: controller.signal })
+    if (rafflePageActive) accounts.value = res.list || []
   } catch { /* 列表加载失败不阻断 */ }
+  finally { if (raffleAccountsController === controller) raffleAccountsController = null }
 }
 
 // R128 清空全部参与记录: 确认 → 删除接口 → 重载 → toast
@@ -420,10 +433,14 @@ async function toggleAll() {
 // ===== 参与记录(058) =====
 const results = ref<any[]>([])
 async function loadResults() {
+  raffleResultsController?.abort()
+  const controller = new AbortController()
+  raffleResultsController = controller
   try {
-    const res = await request.get<{ list: any[] }>('/raffle/results')
-    results.value = res.list || []
+    const res = await request.get<{ list: any[] }>('/raffle/results', { signal: controller.signal })
+    if (rafflePageActive) results.value = res.list || []
   } catch { /* 未开通套餐时 403, 静默 */ }
+  finally { if (raffleResultsController === controller) raffleResultsController = null }
 }
 // R148: 记录按活动分组(同一群+同一关键词=同一活动), 最新活动在前, 卡内账号按时间排序
 const groupedResults = computed(() => {
@@ -457,5 +474,14 @@ onMounted(() => {
   loadRaffleStatus()
   loadAccounts()
   loadResults()
+})
+onUnmounted(() => {
+  rafflePageActive = false
+  raffleStatusController?.abort()
+  raffleAccountsController?.abort()
+  raffleResultsController?.abort()
+  raffleStatusController = null
+  raffleAccountsController = null
+  raffleResultsController = null
 })
 </script>
