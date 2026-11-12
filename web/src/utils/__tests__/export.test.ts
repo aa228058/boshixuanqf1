@@ -158,6 +158,20 @@ describe('downloadBlob', () => {
     vi.unstubAllGlobals()
   })
 
+  it('延迟释放定时器创建失败时立即释放 Object URL', () => {
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:timer-failed'), revokeObjectURL })
+    vi.stubGlobal('document', {
+      createElement: vi.fn(() => ({ href: '', download: '', click: vi.fn(), remove: vi.fn() })),
+      body: { appendChild: vi.fn() },
+    })
+    vi.stubGlobal('window', { setTimeout: vi.fn(() => { throw new Error('timer unavailable') }) })
+
+    expect(() => downloadBlob('report.json', new Blob(['{}']))).toThrow('timer unavailable')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:timer-failed')
+    vi.unstubAllGlobals()
+  })
+
   it('点击失败时立即释放 Object URL 并仍然移除临时锚点', () => {
     const remove = vi.fn()
     const revokeObjectURL = vi.fn()
