@@ -46,7 +46,7 @@ const emit = defineEmits<{
 }
 @media (max-width: 768px) {
   .confirm-actions {
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
   .confirm-actions :deep(.t-button) {
     width: 100%;
