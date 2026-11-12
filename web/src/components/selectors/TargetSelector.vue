@@ -515,7 +515,13 @@ const lastSyncText = computed(() => {
 // 打开时缓存优先: 库里有数据先展示(秒开), 后台静默同步; 无缓存才走全量同步
 async function openSelector() {
   const accountId = props.accountId || ''
-  if (!accountId) { syncHint.value = '错误: 缺少 accountId'; dialogs.value = []; return }
+  if (!accountId) {
+    syncHint.value = '错误: 缺少 accountId'
+    dialogs.value = []
+    loading.value = false
+    syncStatus.value = 'idle'
+    return
+  }
   const requestId = ++selectorRequestId
   try {
     const cached: any = await groupApi.list(accountId)
@@ -574,6 +580,8 @@ watch(() => props.accountId, (accountId, previousAccountId) => {
   // 账号上下文变化时，旧联系人结果失效；目标勾选保留，避免误删用户已选目标。
   selectorRequestId++
   dialogs.value = []
+  loading.value = false
+  syncStatus.value = 'idle'
   openSelector()
 })
 </script>
