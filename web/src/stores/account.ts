@@ -3,6 +3,7 @@ import { ref, computed, watch, onScopeDispose } from 'vue'
 import { accountApi } from '@/api/account'
 import type { Account, AccountGroup, AccountStatus } from '@/types'
 import { onMutation } from '@/utils/mutationBus'
+import type { RequestOptions } from '@/utils/request'
 
 const CURRENT_ACCOUNT_KEY = 'tg_current_account'
 
@@ -49,7 +50,7 @@ export const useAccountStore = defineStore('account', () => {
   let accountsRequestId = 0
   let loadingRequestId = 0
   // force=true 用于轮询：绕过 60s 新鲜期，否则状态轮询全部空转
-  async function fetchAccounts(force = false) {
+  async function fetchAccounts(force = false, options?: RequestOptions) {
     if (!force && Date.now() - lastAccountsFetch < 60_000 && accounts.value.length) return
     const requestId = ++accountsRequestId
     // 已有列表的后台刷新不显示整页 loading，避免轮询时列表闪烁。
@@ -58,7 +59,7 @@ export const useAccountStore = defineStore('account', () => {
       loading.value = true
     }
     try {
-      const res: any = await accountApi.list(!force) // 轮询(非force)走 silent: 不触发顶部进度条
+      const res: any = await accountApi.list(!force, options) // 轮询(非force)走 silent: 不触发顶部进度条
       // 并发刷新时只允许最后发起的请求写入列表/选中账号，防止旧响应覆盖新数据。
       if (requestId !== accountsRequestId) return
       lastAccountsFetch = Date.now()
