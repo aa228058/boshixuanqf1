@@ -72,7 +72,7 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
       el.style.overscrollBehavior = originalOverscrollBehavior
       clearResetTimer()
       resetTimer = setTimeout(() => {
-        if (elRef.value === el) el.style.transition = originalTransition
+        el.style.transition = originalTransition
         resetTimer = null
       }, 400)
     }
