@@ -41,7 +41,15 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
   const onTouchMove = (e: TouchEvent) => {
     const el = elRef.value
     if (!el) return
-    const deltaY = e.touches[0].clientY - startY
+    // Multi-touch streams are ambiguous; restore instead of indexing an absent touch.
+    if (e.touches.length !== 1) {
+      if (pulling) onTouchEnd()
+      else pulling = false
+      return
+    }
+    const touch = e.touches[0]
+    if (!touch) return
+    const deltaY = touch.clientY - startY
     const atTop = el.scrollTop <= 0 && deltaY > 0 && startScrollTop <= 0
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1 && deltaY < 0
     if (atTop || atBottom) {
