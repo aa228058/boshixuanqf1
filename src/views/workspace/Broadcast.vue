@@ -123,15 +123,14 @@
         <!-- R98 表单分组① -->
       <div class="flex items-center gap-2 mb-3 -mt-1"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">1</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送目标</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <span class="block text-sm font-medium mb-2">发送目标</span>
-        <div role="button" tabindex="0" aria-label="选择发送目标" @click="showTargetSelector = true" @keydown.enter.prevent="showTargetSelector = true" @keydown.space.prevent="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
+        <div role="group" aria-label="发送目标" class="p-3 rounded-lg border border-border hover:border-[color:var(--t-brand)]/30 transition-colors">
           <div class="flex items-center gap-2">
-            <MessageSquare class="w-5 h-5 text-text-muted shrink-0" />
-            <span v-if="!selectedTargets.length" class="text-text-muted">点击选择发送目标</span>
-            <!-- R118: 显示群名而不只是数量 —— 前3个群名 + 剩余折叠 -->
-            <template v-else>
-              <span class="text-sm">已选 {{ selectedTargets.length }} 个目标</span>
-              <t-button type="button" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm ml-auto shrink-0" @click.stop="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</t-button>
-            </template>
+            <button type="button" aria-label="选择发送目标" @click="showTargetSelector = true" class="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <MessageSquare class="w-5 h-5 text-text-muted shrink-0" />
+              <span v-if="!selectedTargets.length" class="text-text-muted">点击选择发送目标</span>
+              <span v-else class="text-sm">已选 {{ selectedTargets.length }} 个目标</span>
+            </button>
+            <t-button v-if="selectedTargets.length" type="button" theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm shrink-0" @click="showTargetNames = !showTargetNames">{{ showTargetNames ? '收起' : '查看群名' }}</t-button>
           </div>
           <!-- 群名 chips: 全部列出, 小字, 可滚动 -->
           <div v-if="selectedTargets.length && showTargetNames" class="flex flex-wrap gap-1 mt-2 max-h-40 overflow-y-auto">
