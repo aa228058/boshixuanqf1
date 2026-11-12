@@ -8,7 +8,7 @@
     <div class="glass rounded-[var(--t-r-md)] p-4 flex items-center gap-6">
       <div class="text-center">
         <div class="text-2xl font-bold text-cyan">{{ versions[0].version }}</div>
-        <div class="text-xs text-text-muted mt-0.5">当前版本</div>
+        <div class="text-xs text-text-muted mt-0.5">最近记录版本</div>
       </div>
       <div class="text-center">
         <div class="text-2xl font-bold text-text-primary">{{ versions.length }}</div>
