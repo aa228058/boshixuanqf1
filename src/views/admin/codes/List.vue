@@ -4,7 +4,7 @@
     <div class="flex items-center gap-2 overflow-x-auto pb-1">
       <t-button theme="primary" size="sm" class="shrink-0 ui-t-button ui-t-button--primary ui-t-button--sm" @click="showGenerate = true"> 生成卡密
       </t-button>
-      <t-select v-model="statusFilter" :options="[
+      <t-select v-model="statusFilter" aria-label="按卡密状态筛选" :options="[
         { label: '全部状态', value: '' },
         { label: '未使用', value: 'unused' },
         { label: '已使用', value: 'used' }
