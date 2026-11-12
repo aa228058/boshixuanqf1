@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 
 const props = defineProps<{ modelValue?: boolean }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: boolean): void; (e: 'refresh'): void }>()
@@ -54,6 +54,8 @@ const offset = computed(() => {
 let startY = 0
 let tracking = false
 let scrollParent: HTMLElement | null = null
+let activeMouseMove: ((event: MouseEvent) => void) | null = null
+let activeMouseUp: (() => void) | null = null
 
 // 找到最近的滚动容器(下拉手势只有在它顶部时才生效, 否则让位给正常滚动)
 function findScrollParent(el: HTMLElement | null): HTMLElement | null {
@@ -118,22 +120,36 @@ function onCancel() {
 function onMouseStart(e: MouseEvent) {
   if (e.button !== 0) return
   if (!canPull()) return
+  tracking = false
+  pullY.value = 0
   const move = (ev: MouseEvent) => {
     const delta = ev.clientY - e.clientY
-    if (delta > 0) {
-      ev.preventDefault()
-      pullY.value = delta
-      tracking = true
-    }
+    if (delta > 0) ev.preventDefault()
+    pullY.value = Math.max(0, delta)
+    tracking = delta > 0
   }
   const up = () => {
-    window.removeEventListener('mousemove', move)
-    window.removeEventListener('mouseup', up)
+    cleanupMouseListeners()
     onEnd()
   }
+  activeMouseMove = move
+  activeMouseUp = up
   window.addEventListener('mousemove', move)
   window.addEventListener('mouseup', up)
 }
+
+function cleanupMouseListeners() {
+  if (activeMouseMove) window.removeEventListener('mousemove', activeMouseMove)
+  if (activeMouseUp) window.removeEventListener('mouseup', activeMouseUp)
+  activeMouseMove = null
+  activeMouseUp = null
+}
+
+onUnmounted(() => {
+  cleanupMouseListeners()
+  tracking = false
+  pullY.value = 0
+})
 </script>
 
 <style scoped>
