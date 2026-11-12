@@ -22,7 +22,10 @@
         <t-button v-if="selected.size > 0" class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1" size="small" variant="text" @click="selected.clear()" title="清空所有勾选（含其他页）">
           清空已选
         </t-button>
-        <t-button class="ui-t-button ui-t-button--primary col-span-2 sm:col-span-1 sm:ml-auto w-full sm:w-auto" theme="primary" :disabled="selected.size === 0 || joining" :loading="joining" @click="joinModalVisible = true">
+        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="allSelecting || total === 0" :loading="allSelecting" @click="selectAllLibrary">
+          创建全库加群
+        </t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" theme="primary" :disabled="selected.size === 0 || joining" :loading="joining" @click="joinModalVisible = true">
           <CheckSquare class="w-4 h-4 mr-1" />
           加入所选（{{ selected.size }}）
         </t-button>
@@ -54,14 +57,8 @@
       </div>
     </section>
 
-    <!-- R128 统一示例2 seg 语言(与进群邀请/链接采集同款) -->
-    <div class="ui-segmented" role="tablist" aria-label="群组来源">
-      <button type="button" role="tab" :aria-selected="tab === 'library'" class="ui-segmented__item" :class="{ 'is-active': tab === 'library' }" @click="tab = 'library'">雷达群库</button>
-      <button type="button" role="tab" :aria-selected="tab === 'diy'" class="ui-segmented__item" :class="{ 'is-active': tab === 'diy' }" @click="tab = 'diy'">定向采集</button>
-    </div>
-
-    <!-- 系统群库 -->
-    <template v-if="tab === 'library'">
+    <!-- 群组库 -->
+    <template>
       <!-- 筛选条 -->
       <div class="ui-card p-3 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 lift">
         <div class="relative w-full col-span-2 sm:col-span-1 sm:w-56">
@@ -88,11 +85,7 @@
           <option value="import">文件/手动导入</option>
           <option value="search">Telegram 搜索</option>
         </select>
-        <!-- 群库本地过滤与全库任务入口 -->
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full sm:w-auto" size="small" theme="primary" @click="search">群库内搜索</t-button>
-        <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm w-full sm:w-auto" size="small" theme="default" variant="outline" :disabled="allSelecting || total === 0" :loading="allSelecting" @click="selectAllLibrary">
-          全库创建加群任务
-        </t-button>
+        <!-- 搜索框回车与筛选器变更即可检索，不再重复提供搜索按钮 -->
         <span class="hidden sm:block flex-1" />
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm col-span-2 sm:col-span-1 sm:ml-auto" size="small" variant="text" @click="load">刷新</t-button>
       </div>
@@ -103,7 +96,7 @@
         <!-- R98 移动端卡片化: 小屏用卡片列表替代表格(不再挤压截断), 桌面仍用表格 -->
         <div class="md:hidden space-y-2">
           <div v-for="row in aggregatedList" :key="row.sg_id"
-               class="ui-card p-3 flex items-center gap-3">
+               class="ui-card p-3 flex items-start gap-3">
             <input type="checkbox" :checked="selected.has(row.sg_id)" @change="toggle(row.sg_id)"
                    :aria-label="`选择群组 ${row.title || row.username || row.sg_id}`"
                    class="w-4 h-4 accent-[var(--t-brand)] shrink-0" />
@@ -118,12 +111,29 @@
                       :class="row.status === 'invalid' ? 'bg-[color:var(--t-danger-dim)] text-[var(--t-danger)]' : row.status === 'valid' ? 'bg-[color:var(--t-ok-dim)] text-[var(--t-ok)]' : 'bg-[color:var(--t-warn-dim)] text-[var(--t-warn)]'">
                   {{ statusLabel(row.status) }}
                 </span>
+                <button v-if="(row as any).entry_count > 1" type="button"
+                        class="ml-auto text-[10px] font-semibold text-[var(--t-brand)] whitespace-nowrap"
+                        @click.stop="toggleExpand(row.sg_id)">
+                  {{ isExpanded(row.sg_id) ? '收起入口' : '同群 ' + (row as any).entry_count + ' 个入口' }}
+                </button>
               </div>
-              <div class="text-[10.5px] text-text-muted mt-1">{{ Number(row.member_count || 0).toLocaleString() }} 成员 · {{ freeSpeechLabel(row.free_speech_status) }} · 最近收录 {{ fmtTime(row.last_seen_at) }}</div>
+              <div class="text-[10.5px] text-text-muted mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                <span>{{ Number(row.member_count || 0).toLocaleString() }} 成员</span>
+                <span>{{ freeSpeechLabel(row.free_speech_status) }}</span>
+                <span>收录于 {{ fmtTime(row.last_seen_at) }}</span>
+              </div>
               <div class="flex items-center gap-2 min-w-0 mt-1">
-                <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer" class="text-[10.5px] text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
-                <span v-else class="text-[10.5px] text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
-                <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接" @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
+                <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer" class="text-xs text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
+                <span v-else class="text-xs text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
+                <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接" aria-label="复制群组链接" @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
+              </div>
+              <div v-if="isExpanded(row.sg_id) && (row as any).entries?.length" class="mt-2 space-y-1 rounded-lg bg-bg-secondary/70 p-2">
+                <div v-for="e in (row as any).entries" :key="e.link_id || e.tme_link || e.sg_id" class="flex min-w-0 items-center gap-2 text-[11px]">
+                  <a v-if="e.tme_link" :href="e.tme_link" target="_blank" rel="noopener noreferrer" class="min-w-0 flex-1 truncate text-[var(--t-brand)]">{{ e.tme_link }}</a>
+                  <span v-else class="min-w-0 flex-1 truncate text-text-muted">{{ '@' + (e.username || '') }}</span>
+                  <span class="shrink-0 text-text-muted">{{ sourceLabel(e.source) }}</span>
+                  <button type="button" class="ui-icon-btn shrink-0" title="复制入口链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))" >⧉</button>
+                </div>
               </div>
             </div>
           </div>
@@ -221,16 +231,6 @@
       </div>
     </template>
 
-    <!-- 自助采集: 引导到工作区链接采集 -->
-    <div v-else class="ui-card p-8 text-center space-y-3 lift">
-      <Radar class="w-10 h-10 mx-auto text-[var(--t-brand)]" />
-      <div class="text-text-primary font-medium">自助采集</div>
-      <p class="text-sm text-text-secondary max-w-md mx-auto">
-        用你自己的账号做定向采集：监听指定群/频道里的 t.me 链接、挖成员简介，采集结果自动汇入系统群库。
-      </p>
-      <t-button theme="primary" class="whitespace-nowrap ui-t-button ui-t-button--primary" @click="goDiy">去工作区采集</t-button>
-    </div>
-
     <!-- 批量导入弹层: 粘贴链接文本, 自动解析群名/成员数入库 -->
     <Modal v-model="importModalVisible" title="导入群链接">
       <div class="space-y-3 pb-2">
@@ -315,8 +315,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { Search, CheckSquare, Radar, Loader2 } from 'lucide-vue-next'
+import { Search, CheckSquare, Loader2 } from 'lucide-vue-next'
 import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, deleteGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
@@ -324,10 +323,8 @@ import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
 
-const router = useRouter()
 const accountStore = useAccountStore()
 
-const tab = ref<'library' | 'diy'>('library')
 const list = ref<SystemGroup[]>([])
 
 // 同群聚合：只按已确认的 Telegram chat_id 或公开 username 归并。
@@ -727,12 +724,6 @@ async function doJoin() {
   } finally {
     joining.value = false
   }
-}
-
-function goDiy() {
-  const acc = accountStore.currentAccount
-  if (acc?.account_id) router.push(`/workspace/${acc.account_id}/scrape-links`)
-  else router.push('/accounts')
 }
 
 onMounted(() => {
