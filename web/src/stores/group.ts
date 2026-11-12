@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, onScopeDispose } from 'vue'
 import { groupApi } from '@/api/group'
 import type { Group } from '@/types'
 import { onMutation } from '@/utils/mutationBus'
@@ -103,7 +103,7 @@ export const useGroupStore = defineStore('group', () => {
   }
 
   // 全局变更总线：任何 /groups 相关写操作成功后自动清缓存重拉
-  onMutation(/\/groups/, () => {
+  const stopGroupMutation = onMutation(/\/groups/, () => {
     for (const accountId of refreshRequests.keys()) {
       cacheEpoch.set(accountId, (cacheEpoch.get(accountId) || 0) + 1)
       refreshRequests.set(accountId, (refreshRequests.get(accountId) || 0) + 1)
@@ -111,6 +111,7 @@ export const useGroupStore = defineStore('group', () => {
     cache.value = {}
     try { sessionStorage.removeItem(STORAGE_KEY) } catch {}
   })
+  onScopeDispose(stopGroupMutation)
 
   return { get, lastSyncAt, ensure, setGroups, refresh, invalidate, sync }
 })
