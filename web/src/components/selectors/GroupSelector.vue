@@ -118,7 +118,7 @@
           </div>
           <button v-if="dmDisplay.length < dmFiltered.length" type="button" @click="dmVisibleCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多私聊对象（{{ dmDisplay.length }} / {{ dmFiltered.length }}）</button>
         </template>
-        <div v-if="!loading && (activeTab === 'dm' ? !dmFiltered.length : !filtered.length)" class="py-8 text-center">
+        <div v-if="!loading && (activeTab === 'dm' ? (!dmLoading && !dmFiltered.length) : !filtered.length)" class="py-8 text-center">
           <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-bg-card flex items-center justify-center mx-auto mb-3">
             <Search class="w-8 h-8 text-text-muted" />
           </div>
