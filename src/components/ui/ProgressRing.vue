@@ -22,7 +22,7 @@ const successLen = computed(() => circ.value * (Math.min(props.success, normaliz
 <template>
   <div class="relative inline-grid place-items-center shrink-0" :style="{ width: size + 'px', height: size + 'px' }">
     <svg :width="size" :height="size" class="-rotate-90">
-      <circle :cx="size/2" :cy="size/2" :r="r" fill="none" stroke-width="stroke"
+      <circle :cx="size/2" :cy="size/2" :r="r" fill="none" :stroke-width="stroke"
               class="stroke-bg-primary" />
       <!-- 底进度(青/主色) -->
       <circle :cx="size/2" :cy="size/2" :r="r" fill="none" stroke-width="stroke"
