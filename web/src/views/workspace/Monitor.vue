@@ -256,11 +256,17 @@ const monitorAllMessages = ref(true)
 const selectedTargetGroups = ref<Group[]>([])
 
 async function fetchGroups() {
+  const accountId = monAccId.value
+  const requestId = ++groupsRequestId
+  if (!accountId) { groups.value = []; return }
   try {
-    const res = await groupApi.list(monAccId.value)
+    const res = await groupApi.list(accountId)
+    if (!monitorPageActive || requestId !== groupsRequestId || accountId !== monAccId.value) return
     const raw = res as any
     groups.value = Array.isArray(raw.list) ? raw.list : []
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    if (monitorPageActive && requestId === groupsRequestId) groups.value = []
+  }
 }
 
 const rules = ref<any[]>([])
