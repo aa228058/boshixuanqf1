@@ -42,7 +42,7 @@
               <input type="file" accept="image/*" class="hidden" @change="onQrFileChange" />
             </label>
             <span class="text-xs text-text-muted">支持 JPG、PNG 格式</span>
-            <img v-if="form.qr_code_url" :src="form.qr_code_url" class="w-16 h-16 rounded-lg object-cover" alt="二维码" loading="lazy">
+            <img v-if="form.qr_code_url" :src="form.qr_code_url" class="w-16 h-16 rounded-lg object-contain bg-white p-1" alt="二维码" loading="lazy">
             <t-button v-if="form.qr_code_url" type="button" @click="clearQr" class="ui-t-button--danger ui-t-button" aria-label="清除二维码图片">
               清除图片
             </t-button>
