@@ -14,15 +14,30 @@ const props = withDefaults(defineProps<{
 const display = ref('0')
 let raf = 0
 
-function animateTo(target: number) {
+function displayAffixes(source: unknown) {
+  const raw = String(source ?? '')
+  const match = /-?\d[\d,]*(?:\.\d+)?/.exec(raw)
+  if (!match || match.index === undefined) return { prefix: '', suffix: '' }
+  return {
+    prefix: raw.slice(0, match.index),
+    suffix: raw.slice(match.index + match[0].length),
+  }
+}
+
+function formatDisplay(value: number, source: unknown): string {
+  const { prefix, suffix } = displayAffixes(source)
+  return `${prefix}${Math.round(value)}${suffix}`
+}
+
+function animateTo(target: number, source: unknown) {
   const start = parseFloat(String(display.value).replace(/[^\d.-]/g, '')) || 0
-  if (start === target) { display.value = String(target); return }
+  if (start === target) { display.value = formatDisplay(target, source); return }
   cancelAnimationFrame(raf)
   const t0 = performance.now()
   const tick = (now: number) => {
     const p = Math.min(1, (now - t0) / props.duration)
     const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
-    display.value = String(Math.round(start + (target - start) * eased))
+    display.value = formatDisplay(start + (target - start) * eased, source)
     if (p < 1) raf = requestAnimationFrame(tick)
   }
   raf = requestAnimationFrame(tick)
@@ -35,6 +50,6 @@ function parseCountValue(v: unknown): number {
   return Number.isNaN(n) ? 0 : n
 }
 
-onMounted(() => animateTo(parseCountValue(props.value)))
-watch(() => props.value, (v) => animateTo(parseCountValue(v)))
+onMounted(() => animateTo(parseCountValue(props.value), props.value))
+watch(() => props.value, (v) => animateTo(parseCountValue(v), v))
 </script>
