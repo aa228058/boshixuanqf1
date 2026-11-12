@@ -59,12 +59,13 @@
           <t-textarea v-model="form.content" label="内容" :rows="4" />
         </div>
         <div>
-          <label for="ann-priority" class="block text-sm text-text-secondary mb-1.5">优先级</label>
+          <span class="block text-sm text-text-secondary mb-1.5">优先级</span>
           <div class="flex gap-2">
             <button type="button"
               @click="form.priority = 'normal'"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
               :class="form.priority === 'normal' ? 'border-[color:var(--t-brand)]/30 bg-[var(--t-brand)]/5 text-[var(--t-brand)]' : 'border-border text-text-secondary'"
+              :aria-pressed="form.priority === 'normal'"
             >
               普通
             </button>
@@ -72,6 +73,7 @@
               @click="form.priority = 'urgent'"
               class="flex-1 py-2 rounded-lg text-sm border transition-colors"
               :class="form.priority === 'urgent' ? 'border-[color:var(--t-err)]/30 bg-[var(--t-err)]/5 text-[var(--t-err)]' : 'border-border text-text-secondary'"
+              :aria-pressed="form.priority === 'urgent'"
             >
               紧急
             </button>
