@@ -284,7 +284,10 @@
           class="p-4 rounded-lg border transition-all cursor-pointer"
           :class="selectedPlan === plan.plan_id ? 'border-[color:var(--t-brand)]/50 bg-[var(--t-brand)]/5' : 'border-border hover:border-[color:var(--t-brand)]/30'"
           @click="selectedPlan = plan.plan_id"
-         tabindex="0" role="button">
+          @keydown.enter.prevent="selectedPlan = plan.plan_id"
+          @keydown.space.prevent="selectedPlan = plan.plan_id"
+          :aria-pressed="selectedPlan === plan.plan_id"
+          tabindex="0" role="button">
           <div class="flex items-center justify-between">
             <div>
               <p class="font-medium">{{ plan.name }}</p>
@@ -482,6 +485,7 @@ import { useCopy } from '@/composables/useCopy'
 import { MessageCircle, Trash2, Loader2 } from 'lucide-vue-next'
 import { settingsApi } from '@/api/settings'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 import { getAIConfig, saveAIConfig, testAIConfig, setVerifierEnabled } from '@/api/verifier'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -674,7 +678,20 @@ async function saveTextDict(d: import('@/api/settings').TextDict) {
   } finally { dictSaving.value = false }
 }
 async function deleteTextDict(id: string) {
-  if (!window.confirm('确定删除这个文本分组吗？')) return; try { await settingsApi.deleteTextDict(id); await fetchTextDicts(); toast({ type: 'success', message: '分组已删除' }) } catch (e: unknown) { toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' }) }
+  const confirmed = await ask('确定删除这个文本分组吗？此操作不可恢复。', {
+    title: '删除文本分组',
+    danger: true,
+    confirmText: '删除',
+  })
+  if (!confirmed) return
+
+  try {
+    await settingsApi.deleteTextDict(id)
+    await fetchTextDicts()
+    toast({ type: 'success', message: '分组已删除' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' })
+  }
 }
 async function copyDictItems(id: string) {
   const value = (textDicts.value.find(d => d.dict_id === id)?.entries || []).map(entry => entry.word).filter(Boolean).join(String.fromCharCode(10)); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部消息' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
