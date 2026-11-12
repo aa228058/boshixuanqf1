@@ -360,9 +360,11 @@ function exportCSV(taskId: string) {
   const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(csvCell).join(','))].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
+  const objectUrl = URL.createObjectURL(blob)
+  link.href = objectUrl
   link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.csv`
   link.click()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 // 导出单元格消毒：数据来自 TG 用户名/昵称等外部输入，恶意用户可设 =cmd|...!A1
@@ -385,16 +387,18 @@ function exportExcel(taskId: string) {
   const list = members.value[taskId] || []
   if (!list.length) return
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-    <head><meta charset="UTF-8"><style>td,th{border:1px solid var(--t-line);padding:var(--t-space-1-5)}</style></head>
+    <head><meta charset="UTF-8"><style>td,th{border:1px solid #d9e0ea;padding:6px 8px}</style></head>
     <body><table>
       <tr><th>User ID</th><th>Username</th><th>First Name</th><th>Last Name</th><th>Last Seen</th><th>Has Photo</th><th>Is Bot</th></tr>
       ${list.map((m: any) => `<tr><td>${m.user_id}</td><td>${m.username || ''}</td><td>${m.first_name || ''}</td><td>${m.last_name || ''}</td><td>${m.last_seen || ''}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
     </table></body></html>`
   const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
   const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
+  const objectUrl = URL.createObjectURL(blob)
+  link.href = objectUrl
   link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.xls`
   link.click()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 // 群组走缓存 store: 有缓存零请求, 只有 GroupSelector 里点"同步"才调接口
