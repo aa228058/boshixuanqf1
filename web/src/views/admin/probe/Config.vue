@@ -49,14 +49,19 @@ const form = ref<any>({ test_username: '', private_invite: '', public_link: '' }
 const saving = ref(false)
 let probePageActive = false
 let probeRequestId = 0
+let probeController: AbortController | null = null
 
 async function load() {
+  probeController?.abort()
+  const controller = new AbortController()
+  probeController = controller
   const requestId = ++probeRequestId
   try {
-    const d: any = await adminApiMod.getProbe()
+    const d: any = await adminApiMod.getProbe({ signal: controller.signal })
     if (!probePageActive || requestId !== probeRequestId) return
     form.value = { test_username: d.test_username || '', private_invite: d.private_invite || '', public_link: d.public_link || '', updated_at: d.updated_at }
   } catch { /* 拦截器已提示 */ }
+  finally { if (probeController === controller) probeController = null }
 }
 
 async function save() {
@@ -74,5 +79,5 @@ async function save() {
 }
 
 onMounted(() => { probePageActive = true; void load() })
-onUnmounted(() => { probePageActive = false; probeRequestId++ })
+onUnmounted(() => { probePageActive = false; probeRequestId++; probeController?.abort(); probeController = null })
 </script>
