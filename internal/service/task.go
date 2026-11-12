@@ -7,12 +7,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"tg-sender/internal/domain/task"
 	"time"
 
 	"github.com/google/uuid"
+
 	"tg-sender/internal/config"
 	"tg-sender/internal/domain"
+	"tg-sender/internal/domain/task"
 	"tg-sender/internal/repository"
 	"tg-sender/internal/sse"
 )
