@@ -1,139 +1,181 @@
 <template>
-  <main class="min-w-0 w-full space-y-3 sm:space-y-4 md:space-y-6">
-    <!-- R125 重设计(示例3 hero 语言): 渐变欢迎卡 + CTA -->
-    <section class="rounded-[24px] p-4 sm:p-6 md:p-7 relative overflow-hidden reveal"
-             style="background: linear-gradient(135deg, var(--t-brand), color-mix(in srgb, var(--t-brand) 62%, #8f7bff)); color: #fff; box-shadow: 0 14px 40px color-mix(in srgb, var(--t-brand) 30%, transparent);">
-      <div class="absolute w-[170px] h-[170px] rounded-full pointer-events-none"
-           style="border: 1px solid rgba(255,255,255,0.25); right: -50px; top: -50px; box-shadow: 0 0 0 24px rgba(255,255,255,0.06), 0 0 0 48px rgba(255,255,255,0.03);"></div>
-      <div class="relative">
-        <div class="text-[10.5px] font-extrabold tracking-[0.13em] uppercase" style="color: rgba(255,255,255,0.75);">{{ greeting }} · 运营概览</div>
-        <h2 class="mt-1.5 text-display sm:text-display font-black leading-tight tracking-tight">{{ greeting }}，今天也顺利</h2>
-        <p class="mt-1.5 text-caption max-w-[420px]" style="color: rgba(255,255,255,0.85);">账号、任务与监控都在正常运转。点下方按钮创建今天的群发任务。</p>
-        <router-link  :to="broadcastPath"
-                     class="inline-flex items-center gap-1.5 mt-4 px-4 py-2.5 rounded-[var(--t-r-md)] text-small font-extrabold active:scale-[0.97] transition-transform"
-                     style="background: #fff; color: var(--t-brand); box-shadow: 0 6px 18px rgba(0,0,0,0.15);">
-          {{ accountStore.currentAccount ? '＋ 创建群发任务 →' : '＋ 先添加 Telegram 账号 →' }}
-        </router-link>
+  <main class="min-w-0 w-full space-y-5 sm:space-y-6 lg:space-y-7">
+    <!-- Workspace header -->
+    <section class="relative overflow-hidden rounded-2xl border border-border bg-bg-primary p-5 sm:p-7 lg:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full opacity-20"
+           style="background: radial-gradient(circle, var(--t-brand), transparent 68%);" />
+      <div class="pointer-events-none absolute bottom-0 right-24 h-px w-2/5 opacity-30"
+           style="background: linear-gradient(90deg, transparent, var(--t-brand), transparent);" />
+      <div class="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 text-xs font-semibold tracking-wide text-text-muted">
+            <span class="h-1.5 w-1.5 rounded-full" style="background: var(--t-brand);" />
+            工作台 <span class="text-text-muted/50">/</span> 运营总览
+          </div>
+          <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">{{ greeting }}，欢迎回来</h1>
+          <p class="mt-2 max-w-xl text-sm leading-6 text-text-secondary">
+            在这里掌握账号状态、群发数据与近期动态。所有数据会随当前选中账号同步更新。
+          </p>
+          <p class="mt-3 text-xs text-text-muted">{{ todayLabel }}<span v-if="currentAccount"> · 当前账号：{{ currentAccount.first_name || currentAccount.remark || currentAccount.phone || '已选账号' }}</span></p>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <router-link to="/accounts"
+            class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-secondary">
+            <span aria-hidden="true">＋</span> 添加账号
+          </router-link>
+          <router-link :to="broadcastPath"
+            class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.98]"
+            style="background: var(--t-brand);">
+            <span aria-hidden="true">↗</span> 创建群发任务
+          </router-link>
+        </div>
       </div>
     </section>
 
-    <!-- 统计卡片 -->
-    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 reveal">
-      <StatCard v-for="(stat, i) in stats" :key="stat.label" v-bind="stat"
-                class="stat-card-enter" :style="{ animationDelay: (80 + i * 90) + 'ms' }" />
-    </section>
-
-    <!-- R126: 快速开始已按"首页只显示仪表盘"要求撤除 —— 功能入口统一在底部 Tab 的"更多"页 -->
-
-    <!-- 发送日历: 每日成功发送量月历热力图 -->
-    <section class="reveal reveal-delay-1">
-      <SendCalendar />
-    </section>
-
-    <!-- 图表区 -->
-    <section class="grid grid-cols-1 gap-4 reveal reveal-delay-1">
-      <!-- R98 仪表盘双栏: 趋势+分布并排(桌面端), 高度占用减半 -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <!-- 任务趋势 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-3.5 sm:p-5 md:p-6 min-h-[260px] md:min-h-[320px] min-w-0 lift">
-        <h3 class="text-body font-semibold text-text-primary mb-4">近 7 天任务趋势</h3>
-        <div v-if="loading" class="h-56 flex items-center justify-center">
-          <span class="w-5 h-5 rounded-full border-2 animate-spin inline-block" style="border-color: var(--t-brand); border-top-color: transparent;"></span>
+    <!-- KPI overview -->
+    <section>
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold text-text-primary">核心数据</h2>
+          <p class="mt-0.5 text-xs text-text-muted">当前账号范围内的运营概况</p>
         </div>
-        <div v-else-if="!hasTaskData" class="h-56 flex flex-col items-center justify-center text-text-muted text-sm">
-          <!-- Lottie 品牌空状态: 动态插画替代静态图标 -->
-          <LottieAnim src="@/assets/lottie/empty-tasks.json" width="150px" height="150px" />
-          <p class="mt-1">暂无任务数据，去创建一个新任务吧~</p>
-        </div>
-        <v-chart v-else class="h-48 md:h-56" :option="taskChartOption" autoresize />
-      </article>
-
-      <!-- 账号状态分布 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-5 md:p-6 min-h-[320px] lift">
-        <h3 class="text-body font-semibold text-text-primary mb-4">账号状态分布</h3>
-        <div v-if="loading" class="h-56 flex items-center justify-center">
-          <span class="w-5 h-5 rounded-full border-2 animate-spin inline-block" style="border-color: var(--t-brand); border-top-color: transparent;"></span>
-        </div>
-        <div v-else-if="!hasAccountData" class="empty-pretty h-56">
-          <div class="ep-icon">
-            <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" stroke-linecap="round" />
-            </svg>
-          </div>
-          <p class="text-sm">暂无账号</p>
-          <router-link to="/accounts" class="text-xs text-[var(--t-brand)] hover:underline">去添加第一个 Telegram 账号 →</router-link>
-        </div>
-        <v-chart v-else class="h-48 md:h-56" :option="accountChartOption" autoresize />
-      </article>
-      </div><!-- /R98 双栏 -->
-    </section>
-
-    <!-- 风险事件 & 最近活动 -->
-    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 reveal reveal-delay-2">
-      <!-- 风险事件 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-3.5 sm:p-5 md:p-6 lift">
-        <div class="flex items-center justify-between mb-5">
-          <h3 class="text-body font-semibold text-text-primary">最近风险事件</h3>
-          <router-link to="/accounts" class="text-xs text-[var(--t-brand)] hover:text-[var(--t-brand)] font-medium transition-colors">查看全部</router-link>
-        </div>
-        <div class="space-y-2.5 md:space-y-3">
-          <div
-            v-for="event in riskEvents"
-            :key="event.risk_id"
-            class="flex items-start gap-3 p-3.5 rounded-[var(--t-r-md)] bg-ink-01 hover:bg-bg-secondary transition-[transform,opacity,border-color,background-color] duration-300 hover:shadow-[var(--t-shadow-sm)]"
-          >
-            <AlertTriangle class="w-5 h-5 text-[var(--t-warn)] shrink-0 mt-0.5" stroke-width="2" />
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-text-primary">{{ riskTypeLabel(event.risk_type) }}</p>
-              <!-- R118: 补账号名+原因 —— 之前只有类型和时间, 看不出是哪个号为什么 -->
-              <p class="text-xs text-text-secondary mt-0.5 truncate">
-                <span v-if="event.account_id" class="text-[var(--t-warn)]/90">{{ riskAccName(event.account_id) }}</span>
-                <template v-if="event.account_id && event.detail"> · </template>
-                <span v-if="event.detail">{{ event.detail }}</span>
-              </p>
-              <p class="text-xs text-text-muted mt-0.5">{{ formatRelativeTime(event.created_at) }}</p>
-            </div>
-            <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="severityClass(event.severity)">
-              {{ severityLabel(event.severity) }}
+        <span class="text-[11px] text-text-muted">实时统计</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <article v-for="(stat, i) in stats" :key="stat.label"
+          class="group min-w-0 rounded-2xl border border-border bg-bg-primary p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="truncate text-xs font-medium text-text-muted">{{ stat.label }}</p>
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+              :class="['bg-cyan-dim text-cyan','bg-emerald/10 text-emerald','bg-amber/10 text-amber','bg-rose/10 text-rose'][i]">
+              {{ ['●','✓','▦','!'][i] }}
             </span>
           </div>
-          <EmptyState v-if="!riskEvents.length" icon="Shield" title="目前一切正常" description="最近 24 小时风平浪静，继续保持~" />
-        </div>
-      </article>
+          <p class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">{{ stat.value }}</p>
+          <p class="mt-1 text-[11px] text-text-muted">{{ ['当前可用账号','今日已完成任务','已收录群组','最近 24 小时'][i] }}</p>
+        </article>
+      </div>
+    </section>
 
-      <!-- 最近活动 -->
-      <article class="glass rounded-[var(--t-r-lg)] p-5 md:p-6 lift">
-        <div class="flex items-center justify-between mb-5">
-          <h3 class="text-body font-semibold text-text-primary">最近活动</h3>
-        </div>
-        <div class="space-y-3">
-          <div
-            v-for="log in auditLogs"
-            :key="log.log_id"
-            class="flex items-center gap-3 p-3.5 rounded-[var(--t-r-md)] bg-ink-01 hover:bg-bg-secondary transition-[transform,opacity,border-color,background-color] duration-300 hover:shadow-[var(--t-shadow-sm)]"
-          >
-            <Activity class="w-5 h-5 text-[var(--t-brand)] shrink-0" stroke-width="2" />
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-text-primary">{{ auditActionLabel(log.action) }}</p>
-              <p class="text-xs text-text-secondary">{{ targetLabel(log.target || '') }}</p>
+    <!-- Activity and analytics -->
+    <section class="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.8fr)]">
+      <div class="min-w-0 space-y-4">
+        <article class="rounded-2xl border border-border bg-bg-primary p-4 sm:p-5">
+          <div class="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-bold text-text-primary">发送日历</h2>
+              <p class="mt-1 text-xs text-text-muted">每日成功发送量，追踪近期运营节奏</p>
             </div>
-            <span class="text-xs text-text-secondary">{{ formatRelativeTime(log.created_at) }}</span>
+            <span class="rounded-lg bg-bg-secondary px-2.5 py-1 text-[11px] font-medium text-text-muted">近 6 个月</span>
           </div>
-          <EmptyState v-if="!auditLogs.length" icon="Clock" title="暂无操作记录" description="你的操作会在这里留下足迹~" />
+          <SendCalendar />
+        </article>
+
+        <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+          <article class="min-w-0 rounded-2xl border border-border bg-bg-primary p-4 sm:p-5">
+            <div class="mb-3">
+              <h2 class="text-sm font-bold text-text-primary">近 7 天任务趋势</h2>
+              <p class="mt-1 text-xs text-text-muted">每日完成任务数量</p>
+            </div>
+            <div v-if="loading" class="flex h-52 items-center justify-center">
+              <span class="h-5 w-5 animate-spin rounded-full border-2" style="border-color: var(--t-brand); border-top-color: transparent;" />
+            </div>
+            <div v-else-if="!hasTaskData" class="flex h-52 flex-col items-center justify-center text-center">
+              <span class="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-bg-secondary text-lg text-text-muted">↗</span>
+              <p class="text-sm font-medium text-text-secondary">暂无任务趋势</p>
+              <p class="mt-1 text-xs text-text-muted">创建任务后，这里会显示完成情况</p>
+            </div>
+            <v-chart v-else class="h-52 w-full" :option="taskChartOption" autoresize />
+          </article>
+
+          <article class="min-w-0 rounded-2xl border border-border bg-bg-primary p-4 sm:p-5">
+            <div class="mb-3">
+              <h2 class="text-sm font-bold text-text-primary">账号状态分布</h2>
+              <p class="mt-1 text-xs text-text-muted">账号连接状态概览</p>
+            </div>
+            <div v-if="loading" class="flex h-52 items-center justify-center">
+              <span class="h-5 w-5 animate-spin rounded-full border-2" style="border-color: var(--t-brand); border-top-color: transparent;" />
+            </div>
+            <div v-else-if="!hasAccountData" class="flex h-52 flex-col items-center justify-center text-center">
+              <span class="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-bg-secondary text-lg text-text-muted">◎</span>
+              <p class="text-sm font-medium text-text-secondary">还没有账号数据</p>
+              <router-link to="/accounts" class="mt-2 text-xs font-semibold hover:underline" style="color: var(--t-brand);">前往账号管理 →</router-link>
+            </div>
+            <v-chart v-else class="h-52 w-full" :option="accountChartOption" autoresize />
+          </article>
         </div>
-      </article>
+      </div>
+
+      <!-- Recent events -->
+      <div class="min-w-0 space-y-4">
+        <article class="rounded-2xl border border-border bg-bg-primary p-4 sm:p-5">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-bold text-text-primary">风险提醒</h2>
+              <p class="mt-1 text-xs text-text-muted">最近 24 小时的账号风险事件</p>
+            </div>
+            <router-link to="/accounts" class="shrink-0 text-xs font-semibold hover:underline" style="color: var(--t-brand);">账号管理 →</router-link>
+          </div>
+          <div class="space-y-2.5">
+            <div v-for="event in riskEvents" :key="event.risk_id"
+              class="flex min-w-0 items-start gap-3 rounded-xl bg-bg-secondary/70 p-3">
+              <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber/10 text-amber">
+                <AlertTriangle class="h-4 w-4" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-text-primary">{{ riskTypeLabel(event.risk_type) }}</p>
+                <p class="mt-1 truncate text-xs text-text-secondary">
+                  <span v-if="event.account_id">{{ riskAccName(event.account_id) }}</span>
+                  <template v-if="event.account_id && event.detail"> · </template>
+                  <span v-if="event.detail">{{ event.detail }}</span>
+                </p>
+                <p class="mt-1 text-[11px] text-text-muted">{{ formatRelativeTime(event.created_at) }}</p>
+              </div>
+              <span class="shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold" :class="severityClass(event.severity)">
+                {{ severityLabel(event.severity) }}
+              </span>
+            </div>
+            <div v-if="!riskEvents.length" class="flex flex-col items-center py-6 text-center">
+              <Shield class="mb-2 h-7 w-7 text-emerald" />
+              <p class="text-sm font-medium text-text-primary">暂时没有风险提醒</p>
+              <p class="mt-1 text-xs text-text-muted">有新的风险事件时会显示在这里</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="rounded-2xl border border-border bg-bg-primary p-4 sm:p-5">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-bold text-text-primary">最近操作</h2>
+              <p class="mt-1 text-xs text-text-muted">工作台内的最近操作记录</p>
+            </div>
+            <span class="text-[11px] text-text-muted">最近 5 条</span>
+          </div>
+          <div class="space-y-3">
+            <div v-for="log in auditLogs" :key="log.log_id" class="flex min-w-0 items-start gap-3">
+              <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-dim text-cyan">
+                <Activity class="h-4 w-4" />
+              </span>
+              <div class="min-w-0 flex-1 border-b border-border/70 pb-3">
+                <p class="truncate text-sm font-medium text-text-primary">{{ auditActionLabel(log.action) }}</p>
+                <p class="mt-1 truncate text-xs text-text-muted">{{ targetLabel(log.target || '') }}</p>
+                <p class="mt-1 text-[11px] text-text-muted">{{ formatRelativeTime(log.created_at) }}</p>
+              </div>
+            </div>
+            <div v-if="!auditLogs.length" class="py-6 text-center">
+              <Clock class="mx-auto mb-2 h-6 w-6 text-text-muted" />
+              <p class="text-sm text-text-secondary">暂无操作记录</p>
+            </div>
+          </div>
+        </article>
+      </div>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import { riskTypeLabel, severityLabel, auditActionLabel, targetLabel } from '@/utils/labels'
-
-
-import { defineAsyncComponent, ref, onMounted, computed, onUnmounted, onBeforeUnmount, watch } from 'vue'
-
-let scrollObserver: IntersectionObserver | null = null
-let scrollRafId: number | null = null
+import { ref, onMounted, computed, onUnmounted, onBeforeUnmount, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
@@ -141,13 +183,16 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import VChart from 'vue-echarts'
 import { useChartTheme } from '@/composables/useChartTheme'
 import { AlertTriangle, Activity, Shield, Clock } from 'lucide-vue-next'
-
 import { dashboardApi } from '@/api/dashboard'
-const LottieAnim = defineAsyncComponent(() => import('@/components/ui/LottieAnim.vue'))
 import { toast } from '@/utils/toast'
 import { useAccountStore } from '@/stores/account'
+import { settingsApi } from '@/api/settings'
+import StatCard from '@/components/charts/StatCard.vue'
+import SendCalendar from '@/components/SendCalendar.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { formatRelativeTime, formatDate } from '@/utils/format'
+import type { RiskEvent, AuditLog } from '@/types'
 
-// R125 hero: 按时段问候 + workspace 死参数约定(与 Layout/AppShell 同款)
 const greeting = (() => {
   const h = new Date().getHours()
   if (h < 6) return '夜深了'
@@ -156,40 +201,26 @@ const greeting = (() => {
   if (h < 18) return '下午好'
   return '晚上好'
 })()
-const broadcastPath = computed(() => {
-  const accountId = accountStore.currentAccount?.account_id
-  return accountId ? `/workspace/${accountId}/broadcast` : '/accounts'
-})
-
-// R126: 快速开始已撤除(功能入口统一在"更多"页) —— 原 quickActions 死代码一并清除
-
-// 账号切换: 仪表盘只统计当前账号的数据
+const todayLabel = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())
 const accountStore = useAccountStore()
 const currentAccount = computed(() => accountStore.currentAccount)
-// 请求序号防止快速切换账号时，较早的慢请求覆盖当前账号数据。
+const broadcastPath = computed(() => {
+  const accountId = currentAccount.value?.account_id
+  return accountId ? `/workspace/${accountId}/broadcast` : '/accounts'
+})
 let dashboardRequestId = 0
 watch(currentAccount, () => { loadDashboardData() })
-import { settingsApi } from '@/api/settings'
-import StatCard from '@/components/charts/StatCard.vue'
-import SendCalendar from '@/components/SendCalendar.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
-import { formatRelativeTime, formatDate } from '@/utils/format'
-import type { RiskEvent, AuditLog } from '@/types'
 
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
-
 const loading = ref(true)
-
 const stats = ref([
   { label: '在线账号', value: '0', icon: 'Users', color: 'cyan', trend: '+0' },
   { label: '今日任务', value: '0', icon: 'ListTodo', color: 'cyan', trend: '+0' },
   { label: '总群组', value: '0', icon: 'MessageSquare', color: 'amber', trend: '+0' },
   { label: '风险事件', value: '0', icon: 'AlertTriangle', color: 'rose', trend: '0' },
 ])
-
 const riskEvents = ref<RiskEvent[]>([])
 const auditLogs = ref<AuditLog[]>([])
-// R118: 风险事件的账号名映射(account_id → 展示名)
 function riskAccName(id: string) {
   const a = (accountStore.accounts || []).find((x: any) => String(x.account_id) === String(id))
   if (!a) return '账号 ' + String(id).slice(0, 6)
@@ -199,17 +230,12 @@ const taskData = ref<number[]>([])
 const accountData = ref<{ value: number; name: string }[]>([])
 const expiresAt = ref('')
 const daysLeft = ref(0)
-
 const hasTaskData = computed(() => (taskData.value?.length || 0) > 0 && taskData.value.some((v) => v > 0))
 const hasAccountData = computed(() => (accountData.value?.length || 0) > 0 && (accountData.value || []).some((v) => v.value > 0))
-
-// Phase 6: 图表主题(见 useChartTheme)
 const chartTheme = useChartTheme()
 onMounted(() => chartTheme.start())
 onBeforeUnmount(() => chartTheme.stop())
 
-// Phase 6: 图表颜色走 useChartTheme(CSS 变量→响应式), 切深浅主题/换肤自动跟随。
-// 此前硬编码 #f1f5f9/#94a3b8, 浅色主题下文字几乎不可见。
 const taskChartOption = computed(() => ({
   backgroundColor: 'transparent',
   tooltip: {
@@ -230,40 +256,32 @@ const taskChartOption = computed(() => ({
   },
   yAxis: {
     type: 'value',
-    minInterval: 1, // R87-M6: Y轴强制整数, 0.5 刻度不再出现
+    minInterval: 1,
     axisLine: { show: false },
     axisTick: { show: false },
-    // R87-M6: 网格线淡化(原 40% 透明度太重)
     splitLine: { lineStyle: { color: chartTheme.border.value + '33' } },
     axisLabel: { color: chartTheme.textMuted.value, fontSize: 11 },
   },
-  series: [
-    {
-      name: '完成任务',
-      type: 'line',
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 6,
-      showSymbol: false,
-      data: taskData.value,
-      // R87-M5: 改读图表令牌色板(--chart-1), 切主题自动跟随, 替换旧硬编码蓝 #7ab5e3
-      lineStyle: { color: chartTheme.palette.value[0], width: 2.5 },
-      itemStyle: { color: chartTheme.palette.value[0], borderWidth: 2, borderColor: 'rgba(15,23,42,0.8)' },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0,
-          y: 0,
-          x2: 0,
-          y2: 1,
-          colorStops: [
-            { offset: 0, color: `${chartTheme.palette.value[0]}40` },
-            { offset: 1, color: `${chartTheme.palette.value[0]}00` },
-          ],
-        },
+  series: [{
+    name: '完成任务',
+    type: 'line',
+    smooth: true,
+    symbol: 'circle',
+    symbolSize: 6,
+    showSymbol: false,
+    data: taskData.value,
+    lineStyle: { color: chartTheme.palette.value[0], width: 2.5 },
+    itemStyle: { color: chartTheme.palette.value[0], borderWidth: 2, borderColor: 'rgba(15,23,42,0.8)' },
+    areaStyle: {
+      color: {
+        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+        colorStops: [
+          { offset: 0, color: `${chartTheme.palette.value[0]}40` },
+          { offset: 1, color: `${chartTheme.palette.value[0]}00` },
+        ],
       },
     },
-  ],
+  }],
 }))
 
 const accountChartOption = computed(() => ({
@@ -282,22 +300,20 @@ const accountChartOption = computed(() => ({
     itemGap: 16,
     textStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || 'text-text-muted', fontSize: 11 },
   },
-  series: [
-    {
-      type: 'pie',
-      radius: ['42%', '72%'],
-      center: ['50%', '44%'],
-      avoidLabelOverlap: false,
-      padAngle: 3,
-      itemStyle: { borderRadius: 6, borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2 },
-      data: accountData.value,
-      label: { show: false },
-      emphasis: {
-        label: { show: true, fontSize: 13, fontWeight: 'bold', color: chartTheme.textPrimary.value },
-        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.1)' },
-      },
+  series: [{
+    type: 'pie',
+    radius: ['42%', '72%'],
+    center: ['50%', '44%'],
+    avoidLabelOverlap: false,
+    padAngle: 3,
+    itemStyle: { borderRadius: 6, borderColor: 'rgba(15,23,42,0.8)', borderWidth: 2 },
+    data: accountData.value,
+    label: { show: false },
+    emphasis: {
+      label: { show: true, fontSize: 13, fontWeight: 'bold', color: chartTheme.textPrimary.value },
+      itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.1)' },
     },
-  ],
+  }],
 }))
 
 function severityClass(s: string) {
@@ -310,37 +326,6 @@ function severityClass(s: string) {
   return m[s] || ''
 }
 
-// Scroll Reveal：苹果产品页滚动进入动画
-function initScrollReveal() {
-  scrollObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('revealed')
-          scrollObserver!.unobserve(entry.target)
-        }
-      })
-    },
-    { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
-  )
-
-  document.querySelectorAll('.reveal').forEach((el) => scrollObserver?.observe(el))
-}
-
-onMounted(async () => {  // 先触发动画（首屏内容直接显示）
-  scrollRafId = requestAnimationFrame(() => {
-    document.querySelectorAll('.reveal').forEach((el) => el.classList.add('revealed'))
-  })
-
-  // 首次加载；账号切换监听在 setup 顶层注册，组件卸载时由 Vue 自动清理。
-  loadDashboardData()
-
-  // 后续页面切换时重新绑定
-  initScrollReveal()
-})
-
-// ===== 诊断埋点: 页面上直接可见, 截图即真相 =====
-// 拉取仪表盘数据(首载与切账号共用, 避免整页刷新)
 async function loadDashboardData() {
   const requestId = ++dashboardRequestId
   const accountId = currentAccount.value?.account_id
@@ -356,13 +341,12 @@ async function loadDashboardData() {
       taskData.value = s.task_trend || []
       accountData.value = s.account_distribution || []
     }
-
     const re = await dashboardApi.getRiskEvents({ limit: 5 })
     if (requestId !== dashboardRequestId) return
     riskEvents.value = (re as any)?.list || (Array.isArray(re) ? re : [])
     const al = await dashboardApi.getAuditLogs({ limit: 5 })
     if (requestId !== dashboardRequestId) return
-    auditLogs.value = (al )?.list || []
+    auditLogs.value = (al)?.list || []
     try {
       const profile = await settingsApi.getProfile()
       if (requestId !== dashboardRequestId) return
@@ -374,14 +358,12 @@ async function loadDashboardData() {
     } catch (e) { /* ignore */ }
   } catch (e: unknown) {
     if (requestId !== dashboardRequestId) return
-    // 数据加载失败必须可见, 否则用户看到全 0 不知道原因
     toast({ type: 'error', title: '仪表盘数据加载失败', message: (e instanceof Error ? e.message : '请检查网络或联系管理员') })
   } finally {
     if (requestId === dashboardRequestId) loading.value = false
   }
 }
-onUnmounted(() => {
-  if (scrollObserver) { scrollObserver?.disconnect(); scrollObserver = null }
-  if (scrollRafId) { cancelAnimationFrame(scrollRafId); scrollRafId = null }
-})
+
+onMounted(() => { loadDashboardData() })
+onUnmounted(() => {})
 </script>
