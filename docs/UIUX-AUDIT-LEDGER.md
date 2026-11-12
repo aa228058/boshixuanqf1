@@ -36,7 +36,7 @@
 | #100 | `src/views/workspace/Scrape.vue` | CSV/XLS 导出创建 Object URL 后未 revoke | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 连续导出后检查 URL 生命周期 | 已提交 `ee3c1c9`：两个下载均在触发后 1 秒 revoke URL；待浏览器下载回归 |
 | #109 | `src/views/raffle/Index.vue` | 清空记录使用原生 `confirm()` | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 桌面/移动端确认交互回归 | 已提交 `17db125`：改用全局 `ask()` 确认弹窗；取消不触发删除 |
 | #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标位于 `main` 外，绝对定位缺少正确定位上下文 | 🟡 | 真缺陷 | 已确认 | 纯展示 | 管理端 dashboard 实机检查角标位置 | 已提交 `3170fa6`：角标移入 relative main 容器 |
-| #131 | `src/views/admin/dashboard/Index.vue` | 使用 `bg-warning` / `text-warning`，可能没有对应 Tailwind token | 🟡 | 待核 | 待 grep | 纯展示 | Tailwind 配置/构建 CSS 检查 | 需核对完整 token 定义与生成结果 |
+| #131 | `src/views/admin/dashboard/Index.vue` | 使用 `bg-warning` / `text-warning`，没有对应 Tailwind token | 🟡 | 真缺陷 | 已确认/已修复 | 纯展示 | 管理端三主题状态徽章检查 | 已提交 `2a44778`：改为已有 amber token；后续图表主题问题见 AQ |
 | #132 | `src/views/admin/dashboard/Index.vue` | created_at 的 format 元数据未被 TDesign columns 消费 | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 管理端 dashboard 日期列检查 | 已提交 `c1441e8`：改用 `#created_at` 插槽明确格式化日期，移除无效 format 字段 |
 | #138 | `src/views/admin/tenants/List.vue` | 注册时间列未格式化，原始日期值直接交给 TDesign | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 租户列表日期列检查 | 已提交 `e98aecc`：增加 `#created_at` 插槽，按 zh-CN 日期显示 |
 | #141 | `src/views/admin/codes/List.vue` | 使用 text-yellow/red/green 硬编码语义色 | 🟡 | 误报（当前文件） | 误报 | 纯展示 | 如有其他匹配文件再补证据 | 当前文件全文未检出所述 class |
@@ -54,11 +54,11 @@
 
 | ID | 路径/范围 | 待验证点 | 状态 | 触及层 | 验收方式 |
 |---|---|---|---|---|---|
-| #174 | Toast 组件/样式 | 淡出动画中途被移除是否闪断 | 待跑 | 触及逻辑 | 连续触发 toast 并慢放录屏 |
+| #174 | Toast 组件/样式 | 固定 2200ms 退场覆盖自定义 duration，可能提前消失/动画截断 | 源码已修，待跑 | 触及逻辑 | 默认/800ms/5000ms toast 录屏检查实际时长与完整退场 |
 | #176 | `src/components/ui/Modal.vue` | 移动端打开带自动 focus 的弹窗时键盘/transform 是否抖动 | 待跑 | 触及逻辑 | iOS/Android 真机录屏 |
 | #180 | `src/views/Layout.vue`、`src/views/admin/Layout.vue`、`src/components/MobileTabBar.vue` | 租户侧栏 `md:flex` 与 TabBar `md:hidden` 同以 768px 为切换点；管理端抽屉/按钮同以 `lg`（1024px）切换，源码断点成对一致，暂未发现冲突 | 源码已复核，待视口确认 | 待跑/疑似误报 | 纯展示 | 640/700/767/768/769/1023/1024px 视口实测，重点看 768px 边界 |
 | #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条最终是否可见 | 待跑 | 纯展示 | 构建后页面实测 |
-| #51 | `src/views/dashboard/Index.vue` | 深色主题 ECharts 图例/轴标签是否回退黑色 | 待跑 | 触及逻辑 | 三主题切换检查 |
+| #51 | `src/views/dashboard/Index.vue` / `src/composables/useChartTheme.ts` | 图表主题 composable 旧变量无定义、固定 fallback，tooltip/轴线部分硬编码 | 源码已修，待跑 | 触及逻辑 | 三主题切换两端 dashboard，检查 series/legend/tooltip/axis |
 | #65 | `src/views/dashboard/Index.vue` | 当前 KPI 区是 `grid-cols-2 lg:grid-cols-4`，卡片 `min-w-0`，源码未见 stat-strip 横向滚动容器；暂不支持原问题描述 | 源码已复核，待视口确认 | 待验证/疑似误报 | 纯展示 | 1920px 实测是否有页面级横向溢出 |
 | #61 | `src/views/accounts/List.vue` | 选择多账号时底部批量操作浮条可能遮挡列表末尾 | 🟠 | 真缺陷候选 | 已确认（布局空间不足） | 纯展示 | 移动端选 5+ 账号滚到列表末尾 | 已提交 `47504ae`：选中账号时列表主容器增加移动端底部滚动留白；待实机验证 |
 | #84 | `src/views/workspace/Broadcast.vue` | 已选目标 chips 预览区 max-height 仅 96px，20 个目标时可视区域较窄 | 🟡 | 细节 | 已确认（源码） | 纯展示 | 20 个目标实测 | 已提交 `0f8a8c0`：预览区 max-height 提升至 160px；待检查移动端表单高度与滚动体验 |
@@ -681,3 +681,19 @@
 - [x] 当前分支 12 个样式文件的 `var(--t-*)` 引用也做了同样检查。
 - [x] 除本节三处错误别名外，未发现其他未定义 `--t-*` 引用。
 - [ ] 仍需检查 Tailwind 任意值类最终是否进入构建产物；CSS var 存在不代表所有动态 class 均被扫描生成。
+
+
+## AV. 本轮新增的剩余语义色与交互结构修复
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/groups/Discover.vue` | 无效群状态徽章引用 `--t-danger` / `--t-danger-dim`，当前 Token 命名实际为 `--t-err` / `--t-err-dim` | `12ef0d1289e451f0b1d39b2c189fc8f5e8c729f8`、`20de356bb19225dcc631fcf1e289828eb8864fbc` | 纯展示 | 失效群链接三主题检查红色错误徽章 |
+| `src/views/tasks/Detail.vue` | checkpoint 持久化失败日志引用不存在的 `--t-warning`，正确语义 Token 为 `--t-warn` | `9a327ea83713938af2b58093b955fdb635da381e` | 纯展示 | 构造该 error_code 后检查警告徽章三主题颜色 |
+| `src/views/workspace/Broadcast.vue` | 发送目标选择器原本是 role=button 的 div，内部又嵌套“查看群名”按钮，形成嵌套交互控件；改为 group 容器 + 独立原生选择按钮 + 独立查看按钮 | `7f83310ec7f70e408ba43c55e42ec9caceef4e57` | 模板/交互可访问性 | Tab 顺序分别聚焦“选择发送目标”和“查看群名”；Enter/Space 打开目标选择器；查看/收起群名不触发弹窗 |
+
+### 当前全量静态扫描覆盖范围
+
+- 56 个 Vue SFC：常见硬编码状态色类、显式 label/for/id、常见伪按钮/键盘事件、旧语义变量、内联 hex/rgba。
+- 12 个 CSS 文件：旧 Token 引用、当前 `--t-*` 变量引用与 tokens.css 声明。
+- 对扫描中发现的悬空 label for、未定义语义色变量和嵌套交互控件已补修。
+- **不代表 180 条原始清单的逐条验收已全部完成**：还需要把每个原始条目映射到源码/页面，并进行浏览器、三主题、设备断点和交互回归。
