@@ -176,6 +176,30 @@ function translateError(msg: string): string {
   return msg
 }
 
+// 可取消的退避等待：页面卸载/路由切换时不必等完整退避周期才结束请求。
+function waitBeforeRetry(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    const error = new Error('请求已取消')
+    error.name = 'AbortError'
+    return Promise.reject(error)
+  }
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal?.removeEventListener('abort', onAbort)
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      cleanup()
+      const error = new Error('请求已取消')
+      error.name = 'AbortError'
+      reject(error)
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 // ===== 带重试的请求核心 =====
 // P0-05: 导出为公开接口——卡密导出等纯文本接口需要绕过 response.json() 直读 text
 export async function doFetchWithRetry(
@@ -250,7 +274,7 @@ export async function doFetchWithRetry(
       const response = await Promise.race([fetchPromise, timeoutPromise])
       // 只对幂等方法的 5xx 重试
       if (!response.ok && response.status >= 500 && idempotent && attempt < retries - 1) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+        await waitBeforeRetry(1000 * (attempt + 1), options.signal)
         continue
       }
       return response
@@ -261,7 +285,7 @@ export async function doFetchWithRetry(
       if (options.signal?.aborted || !idempotent || attempt >= retries - 1) {
         throw lastError
       }
-      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+      await waitBeforeRetry(1000 * (attempt + 1), options.signal)
     } finally {
       // fetch 胜出后清理计时器；超时则主动 abort，避免底层请求继续占用资源。
       clearTimeout(timeoutId)
