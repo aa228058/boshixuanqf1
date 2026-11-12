@@ -74,12 +74,14 @@
     <div class="glass rounded-[var(--t-r-md)] p-5 lift">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-text-secondary">系统日志</h3>
-        <span class="flex items-center gap-1 text-xs text-[var(--t-ok)]">
-          <span class="w-1.5 h-1.5 rounded-full bg-[var(--t-ok)] animate-pulse" />
-          实时
+        <span class="flex items-center gap-1 text-xs" :class="metricsError ? 'text-[var(--t-err)]' : 'text-[var(--t-ok)]'" role="status" aria-live="polite">
+          <span class="w-1.5 h-1.5 rounded-full" :class="metricsError ? 'bg-[var(--t-err)]' : 'bg-[var(--t-ok)] animate-pulse'" />
+          {{ metricsError ? '连接异常' : metricsUpdatedAt ? '实时更新' : '正在连接' }}
         </span>
       </div>
-      <div class="max-h-[300px] overflow-y-auto space-y-1 font-mono text-xs bg-bg-card rounded-lg p-4">
+      <p v-if="metricsError" class="text-xs text-[var(--t-err)] mb-2" role="alert">{{ metricsError }} · 上次成功更新：{{ metricsUpdatedAt || '暂无' }}</p>
+      <p v-else-if="metricsUpdatedAt" class="text-xs text-text-muted mb-2">最近更新：{{ metricsUpdatedAt }}</p>
+      <div class="max-h-[300px] overflow-y-auto space-y-1 font-mono text-xs bg-bg-card rounded-lg p-4" aria-label="系统监控更新日志" aria-live="polite">
         <div v-for="(log, i) in systemLogs" :key="`${log.time}-${i}`" class="flex items-start gap-2 py-0.5">
           <span class="text-text-muted shrink-0">{{ log.time }}</span>
           <span class="shrink-0" :class="logLevelClass(log.level)">[{{ log.level }}]</span>
@@ -106,6 +108,8 @@ const metrics = ref({
 })
 
 const systemLogs = ref<Array<{ time: string; level: string; message: string }>>([])
+const metricsUpdatedAt = ref('')
+const metricsError = ref('')
 let refreshTimer: ReturnType<typeof setInterval>
 let metricsRequestInFlight = false
 
@@ -174,6 +178,8 @@ async function fetchMetrics() {
   metricsRequestInFlight = true
   try {
     const data = await adminApiMod.getSystemMetrics()
+    metricsError.value = ''
+    metricsUpdatedAt.value = new Date().toLocaleTimeString('zh-CN')
     metrics.value = { ...metrics.value, ...data }
     metrics.value.totalAccounts = (data as any).total_accounts ?? 0
     metrics.value.onlineRate = (data as any).online_rate ?? 0
@@ -185,7 +191,8 @@ async function fetchMetrics() {
     // 每次成功拉取记一条 DEBUG(50 条环形缓冲, 不堆积)。
     pushLog('DEBUG', `指标已更新 CPU ${metrics.value.cpu}% 内存 ${metrics.value.memory}%`)
   } catch (e: unknown) {
-    pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
+    metricsError.value = (e as Error)?.message || '指标读取失败'
+    pushLog('ERROR', `指标拉取失败: ${metricsError.value}`)
   } finally {
     metricsRequestInFlight = false
   }
