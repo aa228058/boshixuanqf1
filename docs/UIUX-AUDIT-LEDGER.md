@@ -527,3 +527,24 @@
 - `src/views/settings/Index.vue` 套餐卡片的 `role=button` 已有 Enter/Space handler 和 `aria-pressed`，该处不是未处理的伪按钮。
 - 管理端套餐矩阵使用横向滚动容器与 `min-w-[720px]`，不应仅凭表格最小宽度将其判为页面横向溢出。
 - 本节只记录本轮已复核的文件和问题；180 项全量逐条状态仍在继续核验，未完成项不得推定为通过。
+
+
+## AN. 管理端表单与数据读取状态补齐
+
+| 文件 | 发现 | 修改提交 | 触及层 | 回归步骤 |
+|---|---|---|---|---|
+| `src/views/admin/codes/List.vue` | 桌面端/移动端卡密选择复选框没有可访问名称；移动端创建时间未对空值兜底，而桌面端已有 `-` 兜底 | `e115bd21dec89e2a88e6efccb963fdaa2551d115` | 模板 | 读屏应分别播报“选择卡密 + 卡密值”；created_at 为 null 时移动端显示 `-`，正常日期格式不变 |
+| `src/views/admin/support/Config.vue` | 联系账号/链接、显示名称可见 label 未通过 for/id 关联输入框（仅有 aria-label） | `e3ccbe1a5cf6d720fed0df3d90907588c88d371b` | 模板 | 点击可见标签聚焦对应输入框；读屏播报与可见标签一致 |
+| `src/views/admin/probe/Config.vue` | 三个探测配置字段的可见 label 未关联实际输入控件 | `cc37ecd265b2022f08c243e845fc12c0c8320517` | 模板 | 点击测试号、私有群链接、公开群链接标签分别聚焦对应输入框；原保存/读取流程不变 |
+| `src/views/admin/tenants/Detail.vue` | 租户详情 GET 失败时 `tenant` 保持 null，模板没有 loading/error 分支，页面主体空白，仅有 toast；直接进入页面也缺少加载反馈 | `9b656ec9ad63f1bb4c2174d05d88d96fd2d5beda` | 触及逻辑/模板 | 正常加载显示详情；网络失败显示错误与重新加载/返回入口；恢复网络后重新加载显示数据；无效 ID 不发起详情请求 |
+
+### 本批验证状态
+
+- [x] 四处源码修改已提交到 `audit/uiux-full-scan`
+- [ ] 前端 lint / typecheck / build
+- [ ] 管理端三主题视觉回归
+- [ ] 卡密选择读屏回归
+- [ ] 配置页标签点击/读屏回归
+- [ ] 租户详情 GET 失败与重试浏览器回归
+
+**以上均为源码级整改，不代表浏览器或构建验收已通过。**
