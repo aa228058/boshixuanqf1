@@ -226,7 +226,7 @@
               <textarea v-model="entry.word" class="ui-input w-full min-h-[76px] resize-y" :aria-label="'消息内容 ' + (index + 1)" placeholder="输入一条完整消息" />
               <div class="flex items-center justify-between gap-2">
                 <label class="inline-flex items-center gap-2 text-xs text-text-secondary"><input v-model="entry.enabled" type="checkbox" class="accent-[var(--t-brand)]" />启用这条消息</label>
-                <button type="button" class="text-xs text-[var(--t-danger)]" @click="d.entries.splice(index, 1)">删除</button>
+                <button type="button" class="text-xs text-[var(--t-err)]" @click="d.entries.splice(index, 1)">删除</button>
               </div>
             </div>
             <button type="button" class="text-xs text-[var(--t-brand)] px-2 py-1" @click="d.entries.push({ entry_id: '', dict_id: d.dict_id, word: '', weight: 1, enabled: true })">＋ 添加一条完整消息</button>
