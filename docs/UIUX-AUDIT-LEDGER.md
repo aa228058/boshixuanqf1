@@ -32,21 +32,21 @@
 | #57 | `src/views/accounts/List.vue` | 移动端账号操作按钮最小高度 36px | 🟡 | 细节 | 已确认 | 纯展示 | 320/375/430 宽度触控检查 | 36px 源码已定位；按 44px 目标评估布局空间 |
 | #58 | `src/views/accounts/List.vue` | `loginCodeFresh()` / `codeAge()` 未读取响应式时间依赖 | 🟠 | 真缺陷候选 | 已确认（源码） | 触及逻辑 | 验证验证码年龄是否随时间刷新及 10 分钟到期隐藏 | 已提交修复 `dea6832`：两个函数统一读取 `nowTs.value`；待手动回归 |
 | #68 | `src/views/accounts/List.vue` | `statusPoll` 与 `useAutoRefresh` 都触发账号刷新，可能重复轮询 | 🟠 | 横切/性能 | 已确认（双触发存在） | 触及逻辑 | 网络面板统计 30 秒请求次数、切后台恢复 | 已提交修复 `f7b392b`：合并为单一 30 秒强制刷新入口，统一刷新账号/统计/任务摘要，并保留切后台暂停、回前台立即刷新；待网络面板回归 |
-| #99 | `src/views/workspace/Scrape.vue` | 导出 Excel 的独立 HTML 使用 CSS 变量 `var(--t-line)` | 🟡 | 真缺陷 | 已确认 | 纯展示 | 下载 XLS 并检查边框 | 独立 Blob 文档不继承应用主题变量 |
-| #100 | `src/views/workspace/Scrape.vue` | CSV/XLS 导出创建 Object URL 后未 revoke | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 连续导出后检查 URL 生命周期 | 两处 createObjectURL 均未释放 |
-| #109 | `src/views/raffle/Index.vue` | 清空记录使用原生 `confirm()` | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 桌面/移动端确认交互回归 | 改用项目统一确认组件/ask |
+| #99 | `src/views/workspace/Scrape.vue` | 导出 Excel 的独立 HTML 使用 CSS 变量 `var(--t-line)` / `var(--t-space-1-5)` | 🟡 | 真缺陷 | 已确认 | 纯展示 | 下载 XLS 并检查边框与内边距 | 已提交 `ee3c1c9`：替换为 Excel 可识别的固定边框色与 px padding |
+| #100 | `src/views/workspace/Scrape.vue` | CSV/XLS 导出创建 Object URL 后未 revoke | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 连续导出后检查 URL 生命周期 | 已提交 `ee3c1c9`：两个下载均在触发后 1 秒 revoke URL；待浏览器下载回归 |
+| #109 | `src/views/raffle/Index.vue` | 清空记录使用原生 `confirm()` | 🟡 | 细节/横切 | 已确认 | 触及逻辑 | 桌面/移动端确认交互回归 | 已提交 `17db125`：改用全局 `ask()` 确认弹窗；取消不触发删除 |
 | #130 | `src/views/admin/dashboard/Index.vue` | 演示数据角标位于 `main` 外，定位上下文可能错误 | 🟡 | 真缺陷候选 | 已确认（结构） | 纯展示 | 管理端 dashboard 实机检查角标位置 | 顶层 span 在 main 前，需确认外层定位上下文 |
 | #131 | `src/views/admin/dashboard/Index.vue` | 使用 `bg-warning` / `text-warning`，可能没有对应 Tailwind token | 🟡 | 待核 | 待 grep | 纯展示 | Tailwind 配置/构建 CSS 检查 | 需核对完整 token 定义与生成结果 |
 | #132 | `src/views/admin/dashboard/Index.vue` | columns 的 `format` 函数未传给 TDesign columns | 🟠 | 真缺陷 | 已确认 | 触及逻辑 | 管理端表格日期列手测 | 映射只保留 colKey/title |
 | #138 | `src/views/admin/tenants/List.vue` | 表格列格式化函数可能未被 TDesign 消费 | 🟠 | 真缺陷候选 | 待核 | 触及逻辑 | 检查实际列定义及渲染 | 与 #132 可能同根因，需避免重复计数 |
 | #141 | `src/views/admin/codes/List.vue` | 使用 text-yellow/red/green 硬编码语义色 | 🟡 | 误报（当前文件） | 误报 | 纯展示 | 如有其他匹配文件再补证据 | 当前文件全文未检出所述 class |
-| #142 | `src/views/admin/codes/List.vue` | 批量操作浮条固定距底 92px | 🟡 | 细节 | 已确认 | 纯展示 | 管理端移动端实机检查遮挡 | 该页无租户 TabBar；92px 可能造成不必要空隙 |
-| #145 | `src/views/admin/support/Config.vue` | 二维码预览使用 `object-cover`，可能裁切二维码边缘 | 🟠 | 真缺陷候选 | 已确认（样式） | 纯展示 | 不同长宽比二维码实机扫码 | 图片预览当前 64px 盒子 + object-cover |
+| #142 | `src/views/admin/codes/List.vue` | 批量操作浮条固定距底 92px | 🟡 | 细节 | 已确认 | 纯展示 | 管理端移动端实机检查遮挡 | 已提交 `9c48b53`：移动端改为距底 20px + safe-area；待检查是否遮挡底部系统手势区 |
+| #145 | `src/views/admin/support/Config.vue` | 二维码预览使用 `object-cover`，可能裁切二维码边缘 | 🟠 | 真缺陷 | 已确认 | 纯展示 | 不同长宽比二维码实机扫码 | 已提交 `0f6ccca`：改为 object-contain，并提供白底与内边距；待扫码验证 |
 | #152 | `src/views/admin/system/Monitor.vue` | CPU 渐变条 `from-[var(--t-*)] to-[var(--t-*)]` 是否生成/显示异常 | 🟡 | 待验证 | 待跑 | 纯展示 | 构建产物 + 管理端监控页实机检查 | 当前源码是合法的 gradient-stop 写法；静态源码不能证明运行时可见 |
 | #159 | `src/views/admin/*`（4 个页面，待逐一列出） | 与 #132/#138 相同的表格 format 映射问题 | 🟠 | 横切 | 待核 | 触及逻辑 | 全部管理表格页面逐项核验 | 先定位四页及共同映射代码，避免重复登记 |
-| #175 | `src/styles/tailwind.css` | `:not([class*="t-"])` 会排除含 `t-` 的普通类（如 `text-sm`），使其失去该 focus-visible 样式 | 🟠 | 横切 | 已确认 | 纯展示 | 检查按钮/链接键盘 focus-visible | `text-*` 类名包含子串 `t-`，命中该排除条件 |
-| #121 | `src/views/NotFound.vue` | 无历史记录时仍调用 `router.back()` | 🟡 | 真缺陷 | 已确认 | 触及逻辑 | 直接打开 404 后点击返回 | 应提供安全 fallback |
-| #51 | `src/views/dashboard/Index.vue` | ECharts 读取 `--text-secondary`，当前 tokens 暴露的是 `--color-text-secondary` | 🟡 | 真缺陷候选 | 已确认（变量名差异） | 触及逻辑 | 三主题下检查图例/轴标签颜色 | 读取不到时 fallback 字符串可能不是有效 CSS 色值 |
+| #175 | `src/styles/tailwind.css` | `:not([class*="t-"])` 会排除含 `t-` 的普通类（如 `text-sm`），使其失去该 focus-visible 样式 | 🟠 | 横切 | 已确认 | 纯展示 | 检查按钮/链接键盘 focus-visible | 已提交 `75a27ec`：改用 class token 边界匹配，仅排除以 `t-` 开头的 TDesign 类 |
+| #121 | `src/views/NotFound.vue` | 无站内历史记录时仍调用 `router.back()` | 🟡 | 真缺陷 | 已确认 | 触及逻辑 | 直接打开 404 后点击返回 | 已提交 `bd1e02e`：优先检查 router history state；无站内上一页则回 dashboard |
+| #51 | `src/views/dashboard/Index.vue` | ECharts 读取不存在的 `--text-secondary`，fallback 也不是 CSS 颜色值 | 🟡 | 真缺陷 | 已确认 | 触及逻辑 | 三主题下检查图例/轴标签颜色 | 已提交 `8644b38`：改读 `--color-text-secondary`，fallback 使用 `var(--t-text-3)`；待图表回归 |
 
 > 注：用户原始 27 项为审计候选，并非全部自动认定为真缺陷。源码复核发现 #34、#141 至少在当前版本不支持原问题描述；#27 是有意的整页 fallback；#131、#138、#159 仍需补证据。保留编号便于追踪，不强行计入“已确认真缺陷”数量。
 
@@ -155,3 +155,18 @@
 - 卸载时清理 interval 与 visibilitychange 监听。
 
 该修正保留原有 30 秒账号强制刷新语义，同时消除重复定时器。仍需在浏览器 Network 面板验证实际请求节奏。
+
+
+## J. 横切与页面细节集中修复（第三批源码修改）
+
+| 问题 | 文件 | 修改 | 提交 | 触及层 | 验收 |
+|---|---|---|---|---|---|
+| #51 | `src/views/dashboard/Index.vue` | ECharts 图例改读实际存在的 `--color-text-secondary`，fallback 改为有效 CSS var | `8644b38` | 触及逻辑 | 待三主题图表验证 |
+| #99/#100 | `src/views/workspace/Scrape.vue` | Excel 导出 HTML 不再依赖应用 CSS 变量；CSV/XLS 下载 URL 均延迟释放 | `ee3c1c9` | 展示 + 逻辑 | 待下载文件检查及连续导出回归 |
+| #109 | `src/views/raffle/Index.vue` | 清空参与记录改用全局 `ask()`，不再调用原生 confirm | `17db125` | 触及逻辑 | 待桌面/移动端确认、取消和删除回归 |
+| #121 | `src/views/NotFound.vue` | 仅存在站内 history state 时返回；直接打开 404 时回 dashboard | `bd1e02e` | 触及逻辑 | 待直接访问 404、站内跳转后访问两种场景回归 |
+| #142 | `src/views/admin/codes/List.vue` | 管理端批量操作浮条距底从 92px 改为 20px + safe-area | `9c48b53` | 纯展示 | 待移动端底部遮挡检查 |
+| #145 | `src/views/admin/support/Config.vue` | 二维码预览改 object-contain，避免裁切二维码定位点 | `0f6ccca` | 纯展示 | 待不同尺寸二维码扫码测试 |
+| #175 | `src/styles/tailwind.css` | focus-visible 排除规则改为 class token 边界，避免误伤 `text-*` 等普通工具类 | `75a27ec` | 纯展示 | 待键盘导航检查按钮、链接与 TDesign 控件 |
+
+**以上修改均在审计工作分支；尚未通过本地 lint/typecheck/test/build，也没有浏览器实测结果。**
