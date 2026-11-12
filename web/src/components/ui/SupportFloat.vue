@@ -146,31 +146,45 @@ const hasContact = computed(() => !!config.value?.contact_value)
 
 // P1-32: 原 navigator.clipboard 无 ?.——非 HTTPS 环境 clipboard 为 undefined,
 // 直接抛 TypeError 触发全局红条。加 ?. + execCommand 兜底。
-function fallbackCopy(text: string) {
+function fallbackCopy(text: string): boolean {
   const ta = document.createElement('textarea')
   ta.value = text
+  ta.setAttribute('readonly', '')
   ta.style.position = 'fixed'
   ta.style.opacity = '0'
   document.body.appendChild(ta)
   ta.select()
-  try { document.execCommand('copy') } catch { /* 尽力而为 */ }
+  let succeeded = false
+  try { succeeded = document.execCommand('copy') } catch { /* 浏览器可能禁用旧式复制接口 */ }
   document.body.removeChild(ta)
+  return succeeded
 }
 
-function copyContact() {
-  if (!config.value?.contact_value) return
-  navigator.clipboard?.writeText(config.value.contact_value).then(() => {
-    copied.value = true
-    toast({ type: 'success', title: '已复制到剪贴板' })
-    if (copyTimer) clearTimeout(copyTimer)
-    copyTimer = setTimeout(() => { copied.value = false }, 2000)
-  }).catch(() => {
-    fallbackCopy(config.value!.contact_value)
-    copied.value = true
-    toast({ type: 'success', title: '已复制到剪贴板' })
-    if (copyTimer) clearTimeout(copyTimer)
-    copyTimer = setTimeout(() => { copied.value = false }, 2000)
+function showCopyResult(succeeded: boolean) {
+  if (copyTimer) clearTimeout(copyTimer)
+  copied.value = succeeded
+  toast({
+    type: succeeded ? 'success' : 'error',
+    title: succeeded ? '已复制到剪贴板' : '复制失败，请手动复制',
   })
+  if (succeeded) copyTimer = setTimeout(() => { copied.value = false }, 2000)
+}
+
+async function copyContact() {
+  const value = config.value?.contact_value
+  if (!value) return
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      showCopyResult(true)
+      return
+    }
+  } catch {
+    // 权限拒绝或非安全上下文时尝试兼容性回退。
+  }
+
+  showCopyResult(fallbackCopy(value))
 }
 
 // P1-25: 原 safeQrUrl 只判 http 前缀——客服二维码存 base64(data:image/...)时
