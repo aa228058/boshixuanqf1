@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import Modal from './Modal.vue'
 import EmptyState from './EmptyState.vue'
 import { settingsApi } from '@/api/settings'
@@ -47,7 +47,9 @@ const loading = ref(true)
 const loadError = ref(false)
 let disposed = false
 
-onMounted(async () => {
+async function loadAnnouncements() {
+  loading.value = true
+  loadError.value = false
   try {
     const res = await settingsApi.getAnnouncements()
     if (!disposed) announcements.value = Array.isArray(res) ? res : []
@@ -56,6 +58,10 @@ onMounted(async () => {
   } finally {
     if (!disposed) loading.value = false
   }
-})
+}
+
+watch(() => props.modelValue, visible => {
+  if (visible) void loadAnnouncements()
+}, { immediate: true })
 onUnmounted(() => { disposed = true })
 </script>
