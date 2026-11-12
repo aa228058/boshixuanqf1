@@ -90,6 +90,22 @@ test.describe('账号页视觉审计', () => {
     )
     expect(overflow, '页面不应横向溢出').toBeLessThanOrEqual(1)
 
+    if (testInfo.project.name.includes('mobile')) {
+      // 固定底栏会在 fullPage 截图中叠在初始视口位置；必须真实滚动到列表末尾，
+      // 确认最后一行已滚出底栏上沿，而不是仅凭整页截图判断被遮挡。
+      const main = page.locator('#main-content')
+      await main.evaluate((el) => el.scrollTo({ top: el.scrollHeight, behavior: 'instant' }))
+      const mobileNav = page.locator('nav.fixed').filter({ hasText: '首页' })
+      const lastAccountRow = page.locator('.acc-row').last()
+      await expect(lastAccountRow).toBeVisible()
+      await expect.poll(async () => {
+        const navBox = await mobileNav.boundingBox()
+        const rowBox = await lastAccountRow.boundingBox()
+        return navBox && rowBox ? rowBox.y + rowBox.height <= navBox.y - 8 : false
+      }, { message: '滚动到底部后，最后一条账号记录必须完全位于底部导航上方' }).toBe(true)
+      await page.screenshot({ path: testInfo.outputPath('accounts-mobile-bottom.png') })
+    }
+
     await page.screenshot({
       path: testInfo.outputPath(`accounts-${testInfo.project.name}.png`),
       fullPage: true,
