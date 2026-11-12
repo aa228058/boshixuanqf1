@@ -350,7 +350,7 @@ async function onRefresh() {
   if (accountId && !syncLock.acquire(accountId)) {
     loading.value = true
     syncStatus.value = 'syncing'
-    const syncFinished = await waitForGlobalSync()
+    const syncFinished = await waitForGlobalSync(accountId)
     if (!isCurrent()) return
     if (!syncFinished || syncLock.isSyncing(accountId)) {
       syncStatus.value = 'timeout'
@@ -401,7 +401,7 @@ async function onRefresh() {
   } finally {
     if (isCurrent()) loading.value = false
     // 这次调用持有全局锁；即使 UI 已切换，也必须释放原账号的锁。
-    syncLock.release()
+    syncLock.release(accountId)
   }
 }
 
@@ -420,16 +420,16 @@ watch(() => props.modelValue, (v) => {
 })
 
 // Wait for another component to finish syncing, then return
-async function waitForGlobalSync(): Promise<boolean> {
+async function waitForGlobalSync(accountId: string): Promise<boolean> {
   const checkInterval = 500
   const maxWait = 120000
   const start = Date.now()
   while (Date.now() - start < maxWait) {
-    if (!syncLock.isSyncing()) {
+    if (!syncLock.isSyncing(accountId)) {
       return true
     }
     await new Promise(r => setTimeout(r, checkInterval))
   }
-  return !syncLock.isSyncing()
+  return !syncLock.isSyncing(accountId)
 }
 </script>
