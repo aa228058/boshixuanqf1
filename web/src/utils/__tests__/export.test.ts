@@ -158,6 +158,18 @@ describe('downloadBlob', () => {
     vi.unstubAllGlobals()
   })
 
+  it('移除下载锚点失败时立即释放 Object URL', () => {
+    const revokeObjectURL = vi.fn()
+    const anchor = { href: '', download: '', click: vi.fn(), remove: vi.fn(() => { throw new Error('anchor removal failed') }) }
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:remove-failed'), revokeObjectURL })
+    vi.stubGlobal('document', { createElement: vi.fn(() => anchor), body: { appendChild: vi.fn() } })
+    vi.stubGlobal('window', { setTimeout: vi.fn() })
+
+    expect(() => downloadBlob('report.json', new Blob(['{}']))).toThrow('anchor removal failed')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:remove-failed')
+    vi.unstubAllGlobals()
+  })
+
   it('延迟释放定时器创建失败时立即释放 Object URL', () => {
     const revokeObjectURL = vi.fn()
     vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:timer-failed'), revokeObjectURL })
