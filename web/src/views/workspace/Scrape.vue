@@ -224,6 +224,8 @@ const currentAccount = computed(() => accountStore.currentAccount)
 const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.account_id || '').slice(0, 8)
 // R108: 执行账号下拉 —— 群列表/任务列表/提交全部跟随所选账号, 不依赖顶栏切换器
 const scrapeAccId = ref('')
+let taskListController: AbortController | null = null
+const memberControllers: Record<string, AbortController> = {}
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !scrapeAccId.value) scrapeAccId.value = acc.account_id }, { immediate: true })
 watch(scrapeAccId, () => {
   taskListController?.abort()
@@ -271,8 +273,6 @@ function relTime(iso: string): string {
 const tasks = ref<any[]>([])
 let taskListRequestId = 0
 let pageActive = true
-let taskListController: AbortController | null = null
-const memberControllers: Record<string, AbortController> = {}
 const taskLoading = ref(false)
 const expanded = ref<Record<string, boolean>>({})
 const members = ref<Record<string, any[]>>({})
