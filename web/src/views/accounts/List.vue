@@ -867,7 +867,10 @@ const probeCooldownText = ref('') // 冷却中提示(后端 429 返回)
 
 let probeRequestId = 0
 watch(showProbe, (visible) => {
-  if (!visible) probeRequestId++
+  if (!visible) {
+    probeRequestId++
+    probeRunning.value = false
+  }
 })
 async function openProbe(acc: any) {
   const requestId = ++probeRequestId
