@@ -446,11 +446,20 @@ function scheduleImportPoll(jobId: string) {
 }
 let groupListRequestId = 0
 let groupListController: AbortController | null = null
+let allSelectionRequestId = 0
+let allSelectionController: AbortController | null = null
+function cancelAllLibrarySelection() {
+  allSelectionRequestId++
+  allSelectionController?.abort()
+  allSelectionController = null
+  allSelecting.value = false
+}
 onUnmounted(() => {
   groupListController?.abort()
   groupListController = null
   // 使卸载前尚未返回的群库请求失效，避免旧页面继续写入状态。
   groupListRequestId++
+  cancelAllLibrarySelection()
   if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
   importPageUnmounted = true
   importFileReadRequestId++
@@ -651,17 +660,24 @@ async function doImport() {
 const allSelecting = ref(false)
 
 async function selectAllLibrary() {
-  if (allSelecting.value || total.value <= 0) return
+  if (allSelecting.value || total.value <= 0 || importPageUnmounted) return
+  cancelAllLibrarySelection()
+  const requestId = ++allSelectionRequestId
+  const controller = new AbortController()
+  allSelectionController = controller
   allSelecting.value = true
+  const isCurrent = () => !importPageUnmounted && requestId === allSelectionRequestId && !controller.signal.aborted
   try {
     const filterSnapshot = { ...filters }
     const pageLimit = 100
-    const first = await getGroupLibrary({ ...filterSnapshot, page: 1, page_size: pageLimit })
+    const first = await getGroupLibrary({ ...filterSnapshot, page: 1, page_size: pageLimit }, { signal: controller.signal })
+    if (!isCurrent()) return
     const totalRows = normalizeGroupMemberCount(first.total)
     const pages = Math.ceil(totalRows / pageLimit)
     const rows = [...(first.list || [])]
     for (let p = 2; p <= pages; p++) {
-      const next = await getGroupLibrary({ ...filterSnapshot, page: p, page_size: pageLimit })
+      const next = await getGroupLibrary({ ...filterSnapshot, page: p, page_size: pageLimit }, { signal: controller.signal })
+      if (!isCurrent()) return
       rows.push(...(next.list || []))
     }
     const identities = new Set<string>()
@@ -679,6 +695,7 @@ async function selectAllLibrary() {
       seenGroupIds.add(group.sg_id)
       ids.push(group.sg_id)
     }
+    if (!isCurrent()) return
     selected.clear()
     ids.forEach(id => selected.add(id))
     if (!ids.length) {
@@ -688,9 +705,10 @@ async function selectAllLibrary() {
     joinModalVisible.value = true
     toast({ type: 'success', title: '全库目标已准备好', message: `跨页读取 ${rows.length} 条，去重并排除失效链接后选择 ${ids.length} 个群。请确认账号后创建任务。` })
   } catch (err: any) {
-    toast({ type: 'error', title: '读取全库失败', message: err?.message || '无法读取完整群库，请稍后重试' })
+    if (isCurrent()) toast({ type: 'error', title: '读取全库失败', message: err?.message || '无法读取完整群库，请稍后重试' })
   } finally {
-    allSelecting.value = false
+    if (allSelectionController === controller) allSelectionController = null
+    if (requestId === allSelectionRequestId) allSelecting.value = false
   }
 }
 
@@ -752,6 +770,7 @@ async function load() {
   }
 }
 function search() {
+  cancelAllLibrarySelection()
   if (keywordSearchTimer !== undefined) {
     window.clearTimeout(keywordSearchTimer)
     keywordSearchTimer = undefined
