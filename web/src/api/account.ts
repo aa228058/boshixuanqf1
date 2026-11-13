@@ -45,7 +45,7 @@ export const accountApi = {
     api.post<{ success: number; failed: number; errors?: string[] }>('/accounts/profile-batch', { account_ids: ids, ...data }),
   batchSetPool: (ids: string[], status: 'active' | 'standby') =>
     api.post<{ success: number; failed: number; errors: string[] }>('/accounts/pool-batch', { account_ids: ids, status }),
-  getAuthState: (id: string) => api.get<{ phase: string; hint?: string; code_retries?: number; pwd_retries?: number }>(`/accounts/${id}/auth-state`),
+  getAuthState: (id: string, options?: RequestOptions) => api.get<{ phase: string; hint?: string; code_retries?: number; pwd_retries?: number }>(`/accounts/${id}/auth-state`, options),
   submit2FA: (id: string, password: string) => api.post<void>(`/accounts/${id}/password`, { password }),
   update: (id: string, data: Partial<Account>) => api.put<Account>(`/accounts/${id}`, data),
   getQuotas: (id: string) => api.get<{ level: string; broadcast_daily: number; join_daily: number; scrape_daily: number; min_interval: number }>(`/accounts/${id}/quotas`),
