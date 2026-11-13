@@ -175,7 +175,7 @@
             </span>
           </template>
           <template #member_count="{ row }">
-            <span class="text-xs tabular-nums">{{ Number(row.member_count || 0).toLocaleString() }}</span>
+            <span class="text-xs tabular-nums">{{ normalizeGroupMemberCount(row.member_count).toLocaleString() }}</span>
           </template>
           <template #free_speech_status="{ row }">
             <span class="text-xs whitespace-nowrap" :class="row.free_speech_status === 'allowed' ? 'text-[var(--t-ok)]' : row.free_speech_status === 'restricted' ? 'text-[var(--t-warn)]' : 'text-text-muted'">{{ freeSpeechLabel(row.free_speech_status) }}</span>
@@ -223,8 +223,8 @@
         <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-border">
           <span class="text-xs text-text-secondary">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
           <div class="flex gap-2">
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</t-button>
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page >= totalPages" @click="nextPage">下一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="loading || page <= 1" @click="prevPage">上一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="loading || page >= totalPages" @click="nextPage">下一页</t-button>
           </div>
         </div>
       </div>
@@ -233,8 +233,9 @@
     <Modal v-model="importModalVisible" title="导入群链接">
       <div class="space-y-3 pb-2">
         <label class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
-        <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs"
+        <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs" :disabled="importFileReading || importing"
           @change="onImportFile" />
+        <p v-if="importFileReading" class="text-xs text-text-muted" role="status">正在读取文件…</p>
         <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
         <textarea v-model="importText" rows="8" class="ui-input text-sm"
@@ -265,7 +266,7 @@
       </div>
       <template #footer>
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" :disabled="importFileReading" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
       </template>
     </Modal>
 
@@ -320,6 +321,7 @@ import { toast } from '@/utils/toast'
 import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
+import { formatGroupLibraryTime, normalizeGroupMemberCount, uniqueGroupIds, validateGroupImportFile, validateGroupJoinOptions } from '@/utils/groupLibraryGuards'
 
 const accountStore = useAccountStore()
 
@@ -385,8 +387,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 // 翻页必须走函数: 模板里 page++ 对 ref 无效(编译成 $setup.page++ 作用在对象上), page 永远=1 所以每页都是第一页内容
-function nextPage() { page.value++; load() }
-function prevPage() { if (page.value > 1) { page.value--; load() } }
+function nextPage() { if (!loading.value && page.value < totalPages.value) { page.value++; load() } }
+function prevPage() { if (!loading.value && page.value > 1) { page.value--; load() } }
 const loading = ref(false)
 const selected = reactive(new Set<string>())
 const filters = reactive({ keyword: '', gtype: '', status: '', source: '' })
@@ -412,6 +414,8 @@ const importModalVisible = ref(false)
 const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
+const importFileReading = ref(false)
+let importFileReadRequestId = 0
 const importAccountId = ref('')
 const importJob = ref<any>(null)
 const importJobs = ref<any[]>([])
@@ -449,6 +453,7 @@ onUnmounted(() => {
   groupListRequestId++
   if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
   importPageUnmounted = true
+  importFileReadRequestId++
   for (const timer of importPollTimers.values()) window.clearTimeout(timer)
   importPollTimers.clear()
 })
@@ -458,18 +463,33 @@ watch(importText, () => {
 })
 
 async function onImportFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  if (file.size > 20 * 1024 * 1024) {
-    toast({ type: 'error', title: '文件过大', message: '文件不能超过 20MB' })
-    ;(event.target as HTMLInputElement).value = ''
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || importPageUnmounted) return
+  const validationError = validateGroupImportFile(file)
+  if (validationError) {
+    toast({ type: 'error', title: '文件不可用', message: validationError })
     return
   }
+  const requestId = ++importFileReadRequestId
+  importFileReading.value = true
+  importJob.value = null
   try {
-    importText.value = await file.text()
-    importFileName.value = file.name
+    const content = await file.text()
+    if (importPageUnmounted || requestId !== importFileReadRequestId) return
+    if (!content.trim()) {
+      toast({ type: 'warning', title: '文件内容为空', message: '请检查文件后重新选择' })
+      return
+    }
+    importText.value = content
+    importFileName.value = file.name.trim()
   } catch {
-    toast({ type: 'error', title: '读取失败', message: '文件读取失败，请检查文件编码' })
+    if (!importPageUnmounted && requestId === importFileReadRequestId) {
+      toast({ type: 'error', title: '读取失败', message: '文件读取失败，请检查文件编码' })
+    }
+  } finally {
+    if (requestId === importFileReadRequestId) importFileReading.value = false
   }
 }
 
@@ -602,18 +622,21 @@ async function confirmImportJob(jobId: string) {
 }
 
 async function doImport() {
-  if (importing.value) return
+  if (importing.value || importFileReading.value || importPageUnmounted) return
   if (importJob.value?.status === 'review') {
     importing.value = true
     try { await confirmImportJob(importJob.value.job_id) }
     finally { importing.value = false }
     return
   }
-  if (!importText.value.trim()) return
+  const contentSnapshot = importText.value.trim()
+  const fileNameSnapshot = importFileName.value.trim()
+  const accountIdSnapshot = importAccountId.value || undefined
+  if (!contentSnapshot) return
   importing.value = true
   importJob.value = null
   try {
-    const job = await importLibraryGroups(importText.value, importFileName.value, importAccountId.value || undefined)
+    const job = await importLibraryGroups(contentSnapshot, fileNameSnapshot, accountIdSnapshot)
     if (importPageUnmounted) return
     importJob.value = job
     importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
@@ -633,7 +656,7 @@ async function selectAllLibrary() {
     const filterSnapshot = { ...filters }
     const pageLimit = 100
     const first = await getGroupLibrary({ ...filterSnapshot, page: 1, page_size: pageLimit })
-    const totalRows = first.total || 0
+    const totalRows = normalizeGroupMemberCount(first.total)
     const pages = Math.ceil(totalRows / pageLimit)
     const rows = [...(first.list || [])]
     for (let p = 2; p <= pages; p++) {
@@ -642,6 +665,7 @@ async function selectAllLibrary() {
     }
     const identities = new Set<string>()
     const ids: string[] = []
+    const seenGroupIds = new Set<string>()
     for (const group of rows) {
       if (group.status === 'invalid') continue
       const identity = group.telegram_chat_id
@@ -649,8 +673,9 @@ async function selectAllLibrary() {
         : group.username
           ? 'user:' + group.username.replace(/^@/, '').toLowerCase()
           : 'row:' + group.sg_id
-      if (identities.has(identity)) continue
+      if (identities.has(identity) || seenGroupIds.has(group.sg_id)) continue
       identities.add(identity)
+      seenGroupIds.add(group.sg_id)
       ids.push(group.sg_id)
     }
     selected.clear()
@@ -696,12 +721,7 @@ function statusLabel(s: string) {
 function sourceLabel(s: string) {
   return s === 'bio' ? '简介发现' : s === 'import' ? '手动/文件导入' : s === 'search' ? 'Telegram 搜索' : s === 'joined' ? '群组同步' : '链接采集'
 }
-function fmtTime(t: string) {
-  if (!t) return '—'
-  const d = new Date(t)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
+function fmtTime(t: string) { return formatGroupLibraryTime(t) }
 
 async function load() {
   const requestId = ++groupListRequestId
@@ -714,8 +734,8 @@ async function load() {
   try {
     const res = await getGroupLibrary(params, { signal: controller.signal })
     if (requestId !== groupListRequestId) return
-    list.value = res.list || []
-    total.value = res.total || 0
+    list.value = Array.isArray(res.list) ? res.list : []
+    total.value = normalizeGroupMemberCount(res.total)
     // 跨页勾选保留: 翻页/加载不再清空已选(分批加群需要跨页凑量);
     // 已失效条目保留勾选无意义, 顺手清掉
     for (const id of [...selected]) {
@@ -755,16 +775,25 @@ function toggleJoinAccount(id: string) {
 
 async function doJoin() {
   if (joining.value) return
-  const targets = [...selected]
-  const accountsSnapshot = [...joinAccounts.value]
-  if (!targets.length || !accountsSnapshot.length) {
-    toast({ type: 'warning', title: '请选择群组和执行账号' })
-    return
-  }
+  const targets = uniqueGroupIds([...selected])
+  const accountsSnapshot = uniqueGroupIds([...joinAccounts.value])
   const optionsSnapshot = {
-    perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
-    intervalMinMinutes: joinIntervalMin.value || 0,
-    intervalMaxMinutes: joinIntervalMax.value || 0,
+    perAccountCount: joinBatchEnabled.value ? Number(joinPerAccount.value) : 0,
+    intervalMinMinutes: joinIntervalMin.value === null ? null : Number(joinIntervalMin.value),
+    intervalMaxMinutes: joinIntervalMax.value === null ? null : Number(joinIntervalMax.value),
+  }
+  const validationError = validateGroupJoinOptions({
+    accountIds: accountsSnapshot,
+    targetIds: targets,
+    batchEnabled: joinBatchEnabled.value,
+    perAccountCount: optionsSnapshot.perAccountCount,
+    intervalMin: optionsSnapshot.intervalMinMinutes,
+    intervalMax: optionsSnapshot.intervalMaxMinutes,
+    onlineAccountIds: joinableAccounts.value.map(account => account.account_id),
+  })
+  if (validationError) {
+    toast({ type: 'warning', title: '加群参数无效', message: validationError })
+    return
   }
   joining.value = true
   try {
@@ -782,9 +811,11 @@ async function doJoin() {
       }
     }
     toast({ type: errors.length ? 'warning' : 'success', title: errors.length ? '任务部分创建' : '任务已创建', message: `已创建 ${created} 个加群任务（${links} 个群）${errors.length ? '；失败信息: ' + errors.join('；') : ''}` })
-    if (created > 0) {
+    if (created > 0 && errors.length === 0) {
       joinModalVisible.value = false
       selected.clear()
+    } else if (created > 0) {
+      toast({ type: 'info', title: '已保留群组选择', message: '部分批次未成功，保留当前选择，便于检查后继续处理' })
     }
   } catch (err: any) {
     toast({ type: 'error', title: '创建失败', message: err?.message || '创建加群任务失败' })
