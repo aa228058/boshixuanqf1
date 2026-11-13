@@ -575,8 +575,13 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 	if maxMsgsPerTask < 1 {
 		maxMsgsPerTask = 1
 	}
-	// Split mappings into chunks where each chunk has ≤ maxMsgsPerTask messages
 	chunks := splitMappings(mappings, maxMsgsPerTask)
+	if len(chunks) == 0 {
+		if quotaReserved {
+			s.refundBroadcastQuota(ctx, tenantID, totalMsgs)
+		}
+		return nil, fmt.Errorf("no valid sub-tasks to create")
+	}
 
 	batch := &domain.BatchTask{
 		BatchID:   uuid.New(),
@@ -587,24 +592,16 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 		CreatedAt: time.Now(),
 	}
 
-	// A split task must always have a durable parent record. Creating child
-	// tasks without the repository would leave batch_id references that cannot
-	// be queried or reconciled by the tenant.
+	// Keep the read-side batch repository dependency explicit. The write itself
+	// is performed by TaskRepository in one transaction with every child task.
 	if s.batchRepo == nil {
 		if quotaReserved {
 			s.refundBroadcastQuota(ctx, tenantID, totalMsgs)
 		}
 		return nil, fmt.Errorf("create batch record: batch repository is not configured")
 	}
-	if err := s.batchRepo.Create(ctx, batch); err != nil {
-		if quotaReserved {
-			s.refundBroadcastQuota(ctx, tenantID, totalMsgs)
-		}
-		return nil, fmt.Errorf("create batch record: %w", err)
-	}
 
-	// Create sub-tasks
-	createdMsgs := 0
+	tasks := make([]*domain.Task, 0, len(chunks))
 	for i, chunk := range chunks {
 		chunkMsgs := 0
 		for _, m := range chunk {
@@ -625,8 +622,8 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 			payload[k] = v
 		}
 
-		var accIDs []uuid.UUID
-		var allTargets []string
+		accIDs := make([]uuid.UUID, 0, len(chunk))
+		allTargets := make([]string, 0, chunkMsgs)
 		for _, m := range chunk {
 			accIDs = append(accIDs, m.AccountID)
 			allTargets = append(allTargets, m.Targets...)
@@ -644,50 +641,35 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 			Progress:    domain.TaskProgress{Total: chunkMsgs},
 			ScheduledAt: scheduledAt,
 		}
-		if scheduledAt == nil || scheduledAt.Before(time.Now()) {
-			task.Status = domain.TaskStatusQueued
-		} else {
+		if scheduledAt != nil && !scheduledAt.Before(time.Now()) {
 			task.Status = domain.TaskStatusPending
 		}
-		if err := s.repo.Create(ctx, task); err != nil {
-			// 已落库的子任务仍会执行，只退还尚未创建部分对应的额度。
-			if quotaReserved {
-				s.refundBroadcastQuota(ctx, tenantID, totalMsgs-createdMsgs)
-			}
-			return nil, fmt.Errorf("create sub-task %d/%d: %w", i+1, len(chunks), err)
-		}
-		createdMsgs += chunkMsgs
+		tasks = append(tasks, task)
 		batch.SubTasks = append(batch.SubTasks, task.TaskID)
-		if err := s.batchRepo.UpdateSubTask(ctx, tenantID, batch.BatchID, task.TaskID); err != nil {
-			// 当前子任务已经落库并计入 createdMsgs，不能退还其额度；
-			// 停止继续创建，并只退还剩余尚未创建的消息额度。
-			if quotaReserved {
-				s.refundBroadcastQuota(ctx, tenantID, totalMsgs-createdMsgs)
-			}
-			return nil, fmt.Errorf("link sub-task %d/%d to batch: %w", i+1, len(chunks), err)
-		}
 	}
 
-	// Notify tenant via SSE（走租户隔离广播， previously 全局 Broadcast 发到无人订阅的 topic）
+	// Parent and children commit together. A failure leaves no runnable orphan
+	// tasks, and the full quota reservation can safely be returned.
+	if err := s.repo.CreateSplitBatch(ctx, batch, tasks); err != nil {
+		if quotaReserved {
+			s.refundBroadcastQuota(ctx, tenantID, totalMsgs)
+		}
+		return nil, fmt.Errorf("create split batch atomically: %w", err)
+	}
+
 	if s.sseBroker != nil {
 		s.sseBroker.BroadcastToTenant(tenantID, "task_split", map[string]any{
 			"batch_id":     batch.BatchID,
 			"total_msgs":   totalMsgs,
-			"sub_tasks":    len(chunks),
+			"sub_tasks":    len(tasks),
 			"max_per_task": maxMsgsPerTask,
-			"message":      fmt.Sprintf("任务包含 %d 条消息，已自动拆分为 %d 个子任务并行执行", totalMsgs, len(chunks)),
+			"message":      fmt.Sprintf("任务包含 %d 条消息，已自动拆分为 %d 个子任务并行执行", totalMsgs, len(tasks)),
 			"time":         time.Now().UTC(),
 		})
 	}
 
-	log.Printf("[batch] created batch %s with %d sub-tasks (%d total msgs)", batch.BatchID, len(chunks), totalMsgs)
-
-	if len(batch.SubTasks) == 0 {
-		return nil, fmt.Errorf("no valid sub-tasks created (all chunks empty)")
-	}
-
-	// Return the first sub-task as the "main" task (frontend can poll all via batch_id)
-	return s.repo.GetByID(ctx, tenantID, batch.SubTasks[0])
+	log.Printf("[batch] created batch %s with %d sub-tasks (%d total msgs)", batch.BatchID, len(tasks), totalMsgs)
+	return tasks[0], nil
 }
 
 // splitMappings splits account-target mappings into chunks where each chunk has ≤ maxMsgs messages.
