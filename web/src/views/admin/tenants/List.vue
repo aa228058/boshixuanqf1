@@ -124,7 +124,7 @@
       </div>
       <template #footer>
         <t-button type="button" variant="outline" @click="showCreate = false" class="ui-t-button ui-t-button--secondary">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doCreate">创建</t-button>
+        <t-button class="ui-t-button ui-t-button--primary" theme="primary" @click="doCreate" :loading="creatingTenant" :disabled="creatingTenant">创建</t-button>
       </template>
     </Modal>
 
@@ -156,6 +156,8 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const showCreate = ref(false)
+const creatingTenant = ref(false)
+const deletingTenantBusy = ref(false)
 const createForm = ref({ name: '', username: '', password: '', plan_id: 'free' })
 
 const planOptions = computed(() => plans.value.map(p => ({ label: p.name, value: p.plan_id })))
@@ -219,6 +221,8 @@ watch([search, statusFilter], (_values, _oldValues, onCleanup) => {
 })
 
 async function doCreate() {
+  if (creatingTenant.value) return
+  creatingTenant.value = true
   try {
     await adminApiMod.createTenant(createForm.value)
     showCreate.value = false
@@ -227,6 +231,8 @@ async function doCreate() {
     toast({ type: 'success', title: '租户创建成功' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '创建失败', message: (e instanceof Error ? e.message : '请检查输入后重试') })
+  } finally {
+    creatingTenant.value = false
   }
 }
 
@@ -252,13 +258,16 @@ function confirmDelete(t: Tenant) {
 }
 
 async function doDelete() {
-  if (!deletingTenant.value) return
+  if (!deletingTenant.value || deletingTenantBusy.value) return
+  deletingTenantBusy.value = true
   try {
     await adminApiMod.deleteTenant(deletingTenant.value.tenant_id)
     await fetchTenants()
     toast({ type: 'success', title: '租户已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    deletingTenantBusy.value = false
   }
 }
 
