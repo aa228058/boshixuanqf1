@@ -255,7 +255,7 @@ func (r *TaskRepository) CreateSplitBatch(ctx context.Context, batch *domain.Bat
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 				RETURNING task_number`,
 				task.TaskID, task.TenantID, task.Type, task.Status, task.Priority, task.AccountIDs, task.TargetIDs, task.Payload, task.Progress, task.ScheduledAt,
-				task.IsLoop, task.LoopIntervalMinutes, task.MinIntervalSeconds, task.MaxIntervalSeconds, task.NextRunAt).Scan(&task.TaskNumber); err != nil {
+				task.IsLoop, task.LoopIntervalMinutes, task.MinIntervalSeconds, task.MaxIntervalSeconds, task.NextRunAt, task.CreatedAt).Scan(&task.TaskNumber); err != nil {
 				return fmt.Errorf("insert child task %d/%d: %w", i+1, len(tasks), err)
 			}
 		}
