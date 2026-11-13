@@ -179,16 +179,19 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
 
   it('会话切换后不使用新账号 token 重放旧请求', async () => {
     let resolveRefresh!: (token: string) => void
-    authMock.refresh.mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve }))
+    let markRefreshStarted!: () => void
+    const refreshStarted = new Promise<void>(resolve => { markRefreshStarted = resolve })
+    authMock.refresh.mockImplementationOnce(() => {
+      markRefreshStarted()
+      return new Promise(resolve => { resolveRefresh = resolve })
+    })
     const spy = mockFetchSequence([
       { status: 401, body: { message: 'access token expired' } },
       { status: 200, body: { code: 0, data: 'must-not-be-requested' } },
     ])
 
     const pending = request('/tenant/private').catch(error => error)
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
+    await refreshStarted
 
     // 模拟旧请求等待续签时，用户退出旧账号并登录了另一个账号。
     authMock.token = 'different-account-token'
