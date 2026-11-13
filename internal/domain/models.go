@@ -603,6 +603,7 @@ type RefreshTokenRepository interface {
 	Create(ctx context.Context, jti uuid.UUID, tenantID uuid.UUID, expiresAt time.Time) error
 	// V16: Peek 是非消费预检, 轮换流程签发新 token 前先确认旧 token 有效, 避免无效请求灌孤儿
 	Peek(ctx context.Context, jti uuid.UUID) (uuid.UUID, error)
+	IsActive(ctx context.Context, jti uuid.UUID, tenantID uuid.UUID) (bool, error)
 	Validate(ctx context.Context, jti uuid.UUID) (uuid.UUID, error)
 	Revoke(ctx context.Context, jti uuid.UUID) error
 	// F-02: 登出时按租户撤销全部 refresh token
