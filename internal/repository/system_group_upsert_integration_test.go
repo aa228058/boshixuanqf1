@@ -58,4 +58,43 @@ func TestSystemGroupUpsertReturnsCanonicalIDOnUsernameConflict(t *testing.T) {
 	if groups != 1 || links != 2 || contributions != 2 {
 		t.Fatalf("canonical rows/groups=%d links=%d contributions=%d, want 1/2/2", groups, links, contributions)
 	}
+
+	var refCount int
+	if err := pool.QueryRow(ctx, "SELECT ref_count FROM system_groups WHERE dedup_key=$1", second.DedupKey()).Scan(&refCount); err != nil {
+		t.Fatalf("read initial contribution count: %v", err)
+	}
+	if refCount != 2 {
+		t.Fatalf("initial ref_count=%d, want 2 distinct tenant/link contributions", refCount)
+	}
+
+	// Re-importing the same submitted URL from the same tenant must be idempotent.
+	if err := repo.Upsert(ctx, second); err != nil {
+		t.Fatalf("repeat same tenant/link upsert: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT ref_count FROM system_groups WHERE dedup_key=$1", second.DedupKey()).Scan(&refCount); err != nil {
+		t.Fatalf("read ref_count after duplicate import: %v", err)
+	}
+	if refCount != 2 {
+		t.Fatalf("ref_count after duplicate import=%d, want 2", refCount)
+	}
+
+	// The same URL submitted by a different tenant is a distinct contribution.
+	otherTenantID := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, 'systemgroupupsert2', 'x', 'System Group Upsert 2', 'system-group-upsert-key-2', 'free')
+	`, otherTenantID); err != nil {
+		t.Fatalf("seed second tenant: %v", err)
+	}
+	otherTenantSubmission := *second
+	otherTenantSubmission.ContributorTenantID = otherTenantID
+	if err := repo.Upsert(ctx, &otherTenantSubmission); err != nil {
+		t.Fatalf("upsert same link from second tenant: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT ref_count FROM system_groups WHERE dedup_key=$1", second.DedupKey()).Scan(&refCount); err != nil {
+		t.Fatalf("read ref_count after second tenant contribution: %v", err)
+	}
+	if refCount != 3 {
+		t.Fatalf("ref_count after second tenant contribution=%d, want 3", refCount)
+	}
 }
