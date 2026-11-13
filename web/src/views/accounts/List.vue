@@ -819,6 +819,8 @@ onUnmounted(() => {
   abortAuthController(reauthController)
   reauthController = null
   accountsPageActive = false
+  if (avatarRefreshTimer) { clearTimeout(avatarRefreshTimer); avatarRefreshTimer = null }
+  if (reconnectRefreshTimer) { clearTimeout(reconnectRefreshTimer); reconnectRefreshTimer = null }
   if (pressTimer) { clearTimeout(pressTimer); pressTimer = null }
   statsRequestId++
   statsController?.abort()
@@ -867,6 +869,8 @@ const { avatarOf, invalidate: invalidateAvatar } = useAccountAvatar()
 
 // 2FA改密/账号检测/申诉 功能已按租户要求移除(2026-10-20): 改密走TG官方App, 检测为假数据, 申诉手动操作
 const reconnectingId = ref('')
+let avatarRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const leavingAllId = ref('')
 // R87-M4: 卡片次要操作收纳进"更多"菜单, 只留主操作(状态切换/资料)
 const openMenuId = ref('')
@@ -1180,12 +1184,19 @@ async function refreshAvatar(acc: any) {
   avatarRefreshingId.value = acc?.account_id
   try {
     await accountApi.refreshAvatar(acc?.account_id)
+    if (!accountsPageActive) return
     toast({ type: 'success', message: '头像刷新中, 重连后自动更新' })
-    setTimeout(() => { invalidateAvatar(acc?.account_id); accountStore.fetchAccounts() }, 6000)
+    if (avatarRefreshTimer) clearTimeout(avatarRefreshTimer)
+    avatarRefreshTimer = setTimeout(() => {
+      avatarRefreshTimer = null
+      if (!accountsPageActive) return
+      invalidateAvatar(acc?.account_id)
+      void accountStore.fetchAccounts()
+    }, 6000)
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '刷新失败' })
   } finally {
-    avatarRefreshingId.value = ''
+    if (accountsPageActive) avatarRefreshingId.value = ''
   }
 }
 
@@ -1258,12 +1269,18 @@ async function reconnectAccount(acc: any) {
   reconnectingId.value = acc?.account_id
   try {
     await accountApi.reconnect(acc?.account_id)
+    if (!accountsPageActive) return
     toast({ type: 'success', message: '重连中, 稍候刷新看状态' })
-    setTimeout(() => accountStore.fetchAccounts(true), 5000)
+    if (reconnectRefreshTimer) clearTimeout(reconnectRefreshTimer)
+    reconnectRefreshTimer = setTimeout(() => {
+      reconnectRefreshTimer = null
+      if (!accountsPageActive) return
+      void accountStore.fetchAccounts(true)
+    }, 5000)
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '重连失败, 可能需重新登录' })
   } finally {
-    reconnectingId.value = ''
+    if (accountsPageActive) reconnectingId.value = ''
   }
 }
 
