@@ -95,6 +95,20 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	if _, err := pool.Exec(context.Background(), `CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_task_number_test ON tasks(task_number)`); err != nil {
 		t.Fatalf("create tasks.task_number test index: %v", err)
 	}
+	// TaskRepository.Delete also removes a deleted child from its parent batch.
+	// Keep this minimal fixture aligned with migrations/003_batch_tasks.sql.
+	_, err = pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS batch_tasks (
+			batch_id UUID PRIMARY KEY,
+			tenant_id UUID NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+			message TEXT NOT NULL,
+			total_msgs INT NOT NULL DEFAULT 0,
+			sub_tasks UUID[] NOT NULL DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`)
+	if err != nil {
+		t.Fatalf("create batch tasks table: %v", err)
+	}
 	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS group_library_import_jobs (
 			job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -149,6 +163,9 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 		)`)
 	if err != nil {
 		t.Fatalf("create task_logs table: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `DELETE FROM batch_tasks`); err != nil {
+		t.Fatalf("truncate batch_tasks: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), `DELETE FROM task_logs`); err != nil {
 		t.Fatalf("truncate task_logs: %v", err)
