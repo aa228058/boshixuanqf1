@@ -1298,7 +1298,17 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			TGUserID:  msg.FromID,
 			ScrapedAt: time.Now(),
 		}
-		if err := e.memberRepo.BatchCreate(ctx, []*domain.Member{member}); err != nil {
+		ownedMemberRepo, ok := e.memberRepo.(interface {
+			BatchCreateOwned(context.Context, uuid.UUID, uuid.UUID, string, []*domain.Member) error
+		})
+		if !ok {
+			delete(scrapedUsers, key)
+			scrapedCount--
+			countMu.Unlock()
+			taskLog.Printf("[monitor_scrape] member repository does not support lease-fenced writes")
+			return
+		}
+		if err := ownedMemberRepo.BatchCreateOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), []*domain.Member{member}); err != nil {
 			delete(scrapedUsers, key)
 			scrapedCount--
 			countMu.Unlock()
