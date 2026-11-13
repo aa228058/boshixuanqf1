@@ -191,20 +191,20 @@ async function saveAnnouncement() {
   try {
     if (editing.value) {
       await adminApiMod.updateAnnouncement(editId.value, payload)
-      toast({ type: 'success', title: '公告已更新' })
     } else {
       await adminApiMod.createAnnouncement(payload)
-      toast({ type: 'success', title: '公告已发布' })
     }
+    if (!announcementsPageActive) return
+    toast({ type: 'success', title: editing.value ? '公告已更新' : '公告已发布' })
     showCreate.value = false
     editing.value = false
     editId.value = ''
     form.value = { title: '', content: '', priority: 'normal', target_type: 'all', target_plans: [] }
     await fetchAnnouncements()
   } catch (e: unknown) {
-    toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (announcementsPageActive) toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    savingAnnouncement.value = false
+    if (announcementsPageActive) savingAnnouncement.value = false
   }
 }
 
@@ -219,13 +219,16 @@ async function doDelete() {
   deletingAnnouncementBusy.value = true
   try {
     await adminApiMod.deleteAnnouncement(announcementId)
+    if (!announcementsPageActive) return
     await fetchAnnouncements()
-    toast({ type: 'success', title: '公告已删除' })
+    if (announcementsPageActive) toast({ type: 'success', title: '公告已删除' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (announcementsPageActive) toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    deletingAnnouncementBusy.value = false
-    deletingAnnouncement.value = null
+    if (announcementsPageActive) {
+      deletingAnnouncementBusy.value = false
+      deletingAnnouncement.value = null
+    }
   }
 }
 
