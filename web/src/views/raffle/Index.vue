@@ -258,17 +258,18 @@ const pingSaving = ref(false)
 
 // 保存私聊激活设置
 async function savePing(enabled: boolean, text: string) {
-  if (pingSaving.value) return
+  if (!rafflePageActive || pingSaving.value) return
   pingSaving.value = true
   try {
     await request.post('/raffle/ping', { ping_enabled: enabled, ping_text: text })
+    if (!rafflePageActive) return
     pingEnabled.value = enabled
     pingText.value = text
     toast({ type: 'success', message: '私聊激活设置已保存' })
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '保存失败' })
+    if (rafflePageActive) toast({ type: 'error', message: e?.message || '保存失败' })
   } finally {
-    pingSaving.value = false
+    if (rafflePageActive) pingSaving.value = false
   }
 }
 
@@ -294,17 +295,18 @@ const accStats = computed(() => {
 
 // 保存中奖回复设置(开关拨动和按钮共用)
 async function saveReply(enabled: boolean, text: string) {
-  if (replySaving.value) return
+  if (!rafflePageActive || replySaving.value) return
   replySaving.value = true
   try {
     await request.post('/raffle/reply', { reply_enabled: enabled, reply_text: text })
+    if (!rafflePageActive) return
     replyEnabled.value = enabled
     replyText.value = text
     toast({ type: 'success', message: '中奖回复设置已保存' })
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '保存失败' })
+    if (rafflePageActive) toast({ type: 'error', message: e?.message || '保存失败' })
   } finally {
-    replySaving.value = false
+    if (rafflePageActive) replySaving.value = false
   }
 }
 
@@ -351,7 +353,7 @@ async function loadAccounts() {
   raffleAccountsController = controller
   try {
     const res = await accountApi.list(false, { signal: controller.signal })
-    if (rafflePageActive) accounts.value = res.list || []
+    if (rafflePageActive && !controller.signal.aborted) accounts.value = res.list || []
   } catch { /* 列表加载失败不阻断 */ }
   finally { if (raffleAccountsController === controller) raffleAccountsController = null }
 }
@@ -361,48 +363,54 @@ async function loadAccounts() {
 const clearing = ref(false)
 async function clearAllResults() {
   if (clearing.value) return
+  if (!rafflePageActive) return
   const confirmed = await ask('确定清空全部参与记录？此操作不可恢复。', {
     title: '清空参与记录',
     confirmText: '确认清空',
     danger: true,
   })
-  if (!confirmed) return
+  if (!confirmed || !rafflePageActive) return
   clearing.value = true
   try {
     const res: any = await request.delete('/raffle/results')
+    if (!rafflePageActive) return
     results.value = []
     toast({ type: 'success', message: res?.message || '已清空全部参与记录' })
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '清空失败' })
-  } finally { clearing.value = false }
+    if (rafflePageActive) toast({ type: 'error', message: e?.message || '清空失败' })
+  } finally { if (rafflePageActive) clearing.value = false }
 }
 
 async function toggleMaster() {
-  if (toggling.value) return
+  if (!rafflePageActive || toggling.value) return
   toggling.value = true
   try {
     const res = await request.post<{ enabled: boolean }>('/raffle/toggle', { enabled: !raffleEnabled.value })
+    if (!rafflePageActive) return
     raffleEnabled.value = !!res.enabled
     toast({ type: 'success', message: res.enabled ? '抽奖助手已开启' : '抽奖助手已关闭' })
   } catch (e: any) {
     // 失败必须可见(此前静默吞错, 用户以为开关坏了): 403=套餐未开通/权限缓存未刷新
-    toast({ type: 'error', message: (e?.message || '开启失败') + (e?.message?.includes('feature') ? '(套餐未勾选抽奖或刚保存权限未生效, 等1分钟重试)' : '') })
+    if (rafflePageActive) toast({ type: 'error', message: (e?.message || '开启失败') + (e?.message?.includes('feature') ? '(套餐未勾选抽奖或刚保存权限未生效, 等1分钟重试)' : '') })
   }
-  finally { toggling.value = false }
+  finally { if (rafflePageActive) toggling.value = false }
 }
 
 async function toggleAccount(acc: any) {
+  if (!rafflePageActive) return
   const id = String(acc.account_id || '')
   if (!id || accountTogglePending.value.has(id) || toggleAllPending.value) return
   const next = acc.raffle_enabled === false
   accountTogglePending.value = new Set(accountTogglePending.value).add(id)
   try {
     await accountApi.setRaffle(id, next)
+    if (!rafflePageActive) return
     acc.raffle_enabled = next
     toast({ type: 'success', message: `${acc.remark || acc.phone} 抽奖已${next ? '开启' : '关闭'}` })
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '账号抽奖状态更新失败' })
+    if (rafflePageActive) toast({ type: 'error', message: e?.message || '账号抽奖状态更新失败' })
   } finally {
+    if (!rafflePageActive) return
     const pending = new Set(accountTogglePending.value)
     pending.delete(id)
     accountTogglePending.value = pending
@@ -410,23 +418,25 @@ async function toggleAccount(acc: any) {
 }
 
 async function toggleAll() {
-  if (toggleAllPending.value || accountTogglePending.value.size) return
+  if (!rafflePageActive || toggleAllPending.value || accountTogglePending.value.size) return
   toggleAllPending.value = true
   const target = !allSelected.value
   try {
     for (const acc of accounts.value) {
+      if (!rafflePageActive) return
       if ((acc.raffle_enabled !== false) !== target) {
         const id = String(acc.account_id || '')
         try {
           await accountApi.setRaffle(id, target)
+          if (!rafflePageActive) return
           acc.raffle_enabled = target
         } catch (e: any) {
-          toast({ type: 'error', message: `${acc.remark || acc.phone || id} 更新失败：${e?.message || '请重试'}` })
+          if (rafflePageActive) toast({ type: 'error', message: `${acc.remark || acc.phone || id} 更新失败：${e?.message || '请重试'}` })
         }
       }
     }
   } finally {
-    toggleAllPending.value = false
+    if (rafflePageActive) toggleAllPending.value = false
   }
 }
 
@@ -438,7 +448,7 @@ async function loadResults() {
   raffleResultsController = controller
   try {
     const res = await request.get<{ list: any[] }>('/raffle/results', { signal: controller.signal })
-    if (rafflePageActive) results.value = res.list || []
+    if (rafflePageActive && !controller.signal.aborted) results.value = res.list || []
   } catch { /* 未开通套餐时 403, 静默 */ }
   finally { if (raffleResultsController === controller) raffleResultsController = null }
 }
