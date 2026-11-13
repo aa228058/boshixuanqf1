@@ -330,8 +330,13 @@ function percentOf(t: any) {
 function formatTime(iso: string) { return iso ? new Date(iso).toLocaleString('zh-CN') : '' }
 const pullRefreshing = ref(false)
 async function onPullRefresh() {
-  await fetchTasks()
-  pullRefreshing.value = false
+  if (pullRefreshing.value) return
+  pullRefreshing.value = true
+  try {
+    await fetchTasks()
+  } finally {
+    pullRefreshing.value = false
+  }
 }
 
 async function retryFailed(id: string) {
