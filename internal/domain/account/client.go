@@ -141,14 +141,20 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	// 2. Check pool size limit before creating new connection
 	e.poolMu.Lock()
 	poolSize := len(e.poolClients)
+	var evicted *pooledClient
 	if poolSize >= e.maxPoolSize {
-		// Try to evict the oldest idle connection (must hold write lock)
-		if !e.evictOldestIdleClientLocked() {
+		// Detach under poolMu, but stop the Telegram client after releasing
+		// the global lock because shutdown may block on network activity.
+		evicted = e.evictOldestIdleClientLocked()
+		if evicted == nil {
 			e.poolMu.Unlock()
 			return nil, false, fmt.Errorf("connection pool full (%d/%d), cannot create new connection for account %s", poolSize, e.maxPoolSize, accountID)
 		}
 	}
 	e.poolMu.Unlock()
+	if evicted != nil {
+		go e.stopPooledAsync(evicted)
+	}
 
 	// 3. 同账号并发建连去重: 已有 goroutine 在建 → 等它完成, 探活后从池里取
 	e.poolMu.RLock()
@@ -552,14 +558,9 @@ func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid
 		go e.stopPooledAsync(pc)
 	}
 
-	return e.updateStatus(ctx, tenantID, accountID, domain.AccountStatusOffline)
-}
-
-// evictOldestIdleClientLocked removes the oldest idle client from the pool to make room.
-// Caller must hold e.poolMu write lock.
-func (e *Engine) evictOldestIdleClientLocked() bool {
+	return e.updateStatus(ctx, tenfunc (e *Engine) evictOldestIdleClientLocked() *pooledClient {
 	if len(e.poolClients) == 0 {
-		return false
+		return nil
 	}
 	var oldestKey string
 	var oldestTime time.Time
@@ -569,28 +570,35 @@ func (e *Engine) evictOldestIdleClientLocked() bool {
 			oldestTime = pc.lastUsed
 		}
 	}
-	if oldestKey != "" {
-		pc := e.poolClients[oldestKey]
-		log.Printf("[client] evicting oldest idle client %s to free pool space\n", pc.accountID)
-		// 与 cleanupIdleConnections 一致：先拿 pc.mu 再操作，
-		// 拿不到说明该 client 正在执行任务，跳过本次驱逐避免竞态。
-		// 注意 TryLock 必须在 nil client 判断之外，否则无 client 的
-		// 条目会绕过保护（本文件的 client_test.go 钉死此行为）。
-		if !pc.mu.TryLock() {
-			log.Printf("[client] 账号 %s 正在执行任务，跳过本次驱逐", pc.accountID)
-			return false
-		}
-		defer pc.mu.Unlock()
-		if pc.client != nil {
-			pc.client.Stop()
-		}
-		delete(e.poolClients, oldestKey)
-		return true
+	if oldestKey == "" {
+		return nil
 	}
-	return false
+	pc := e.poolClients[oldestKey]
+	// TryLock must be checked even for nil clients: a held entry represents
+	// an in-flight user and must never be detached underneath that operation.
+	if !pc.mu.TryLock() {
+		log.Printf("[client] 账号 %s 正在执行任务，跳过本次驱逐", pc.accountID)
+		return nil
+	}
+	delete(e.poolClients, oldestKey)
+	pc.mu.Unlock()
+	log.Printf("[client] evicted idle client %s to free pool space", pc.accountID)
+	return pc
 }
 
-// evictOldestIdleClient is the public wrapper that acquires the lock.
+// evictOldestIdleClient is the public wrapper that acquires the lock and
+// schedules shutdown only after releasing it.
+func (e *Engine) evictOldestIdleClient() bool {
+	e.poolMu.Lock()
+	pc := e.evictOldestIdleClientLocked()
+	e.poolMu.Unlock()
+	if pc != nil {
+		go e.stopPooledAsync(pc)
+	}
+	return pc != nil
+}
+
+t is the public wrapper that acquires the lock.
 func (e *Engine) evictOldestIdleClient() bool {
 	e.poolMu.Lock()
 	defer e.poolMu.Unlock()
