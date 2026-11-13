@@ -51,8 +51,8 @@
         <template #actions="{ row }">
           <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(row.code as string)">复制</t-button>
           <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(row as any)">查看</t-button>
-          <t-button v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)" :disabled="revokingCodeIds.includes(row.code_id as string)">作废</t-button>
-          <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)" :disabled="deletingCodeIds.includes(row.code_id as string)">删除</t-button>
+          <t-button v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)" :disabled="batchRevoking || batchDeleting || revokingCodeIds.includes(row.code_id as string) || deletingCodeIds.includes(row.code_id as string)">作废</t-button>
+          <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)" :disabled="batchRevoking || batchDeleting || revokingCodeIds.includes(row.code_id as string) || deletingCodeIds.includes(row.code_id as string)">删除</t-button>
         </template>
       </t-table>
     </div>
@@ -82,8 +82,8 @@
           <div>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(c.code)">复制</t-button>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</t-button>
-            <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)" :disabled="revokingCodeIds.includes(c.code_id)">作废</t-button>
-            <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)" :disabled="deletingCodeIds.includes(c.code_id)">删除</t-button>
+            <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)" :disabled="batchRevoking || batchDeleting || revokingCodeIds.includes(c.code_id) || deletingCodeIds.includes(c.code_id)">作废</t-button>
+            <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)" :disabled="batchRevoking || batchDeleting || revokingCodeIds.includes(c.code_id) || deletingCodeIds.includes(c.code_id)">删除</t-button>
           </div>
         </div>
       </div>
@@ -147,8 +147,8 @@
     <Transition name="batch-bar">
       <div v-if="selectedIds.length" class="fixed bottom-[calc(92px_+_env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
-        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke" :disabled="batchRevoking || batchDeleting">批量作废</t-button>
-        <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete" :disabled="batchDeleting || batchRevoking">批量删除</t-button>
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke" :disabled="batchRevoking || batchDeleting || revokingCodeIds.length > 0 || deletingCodeIds.length > 0">批量作废</t-button>
+        <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete" :disabled="batchDeleting || batchRevoking || revokingCodeIds.length > 0 || deletingCodeIds.length > 0">批量删除</t-button>
         <button type="button" @click="selectedIds = []" class="ui-icon-btn" aria-label="清空已选卡密" title="清空已选卡密">×</button>
       </div>
     </Transition>
@@ -279,7 +279,7 @@ async function doGenerate() {
 }
 
 async function revokeCode(c: ActivationCode) {
-  if (revokingCodeIds.value.includes(c.code_id)) return
+  if (batchRevoking.value || batchDeleting.value || revokingCodeIds.value.includes(c.code_id) || deletingCodeIds.value.includes(c.code_id)) return
   revokingCodeIds.value = [...revokingCodeIds.value, c.code_id]
   try {
     await adminApiMod.revokeCode(c.code_id)
@@ -315,7 +315,7 @@ async function exportCodes() {
 const selectedIds = ref<string[]>([])
 
 async function batchRevoke() {
-  if (batchRevoking.value || batchDeleting.value || !selectedIds.value.length) return
+  if (batchRevoking.value || batchDeleting.value || revokingCodeIds.value.length || deletingCodeIds.value.length || !selectedIds.value.length) return
   const ids = [...new Set(selectedIds.value)]
   batchRevoking.value = true
   try {
@@ -330,7 +330,7 @@ async function batchRevoke() {
 }
 
 async function batchDelete() {
-  if (batchDeleting.value || batchRevoking.value || !selectedIds.value.length) return
+  if (batchDeleting.value || batchRevoking.value || revokingCodeIds.value.length || deletingCodeIds.value.length || !selectedIds.value.length) return
   const ids = [...new Set(selectedIds.value)]
   batchDeleting.value = true
   try {
@@ -345,7 +345,7 @@ async function batchDelete() {
 }
 
 async function delCode(c: ActivationCode) {
-  if (deletingCodeIds.value.includes(c.code_id)) return
+  if (batchRevoking.value || batchDeleting.value || deletingCodeIds.value.includes(c.code_id) || revokingCodeIds.value.includes(c.code_id)) return
   deletingCodeIds.value = [...deletingCodeIds.value, c.code_id]
   try {
     if (!await ask(`确认删除卡密 ${c.code}？不可恢复！`)) return
