@@ -369,12 +369,13 @@ func TestAccountCountAndCreateRespectsTenantLimitUnderConcurrency(t *testing.T) 
 			defer wg.Done()
 			id := uuid.New()
 			account := &domain.Account{
-				AccountID: id,
-				TenantID: tenantID,
-				Phone: "+1" + id.String()[:10],
-				SessionName: "limit-" + id.String(),
-				Status: domain.AccountStatusOffline,
-				Level: domain.AccountLevelNormal,
+				AccountID:     id,
+				TenantID:      tenantID,
+				Phone:         "+1" + id.String()[:10],
+				SessionName:   "limit-" + id.String(),
+				Status:        domain.AccountStatusOffline,
+				Level:         domain.AccountLevelNormal,
+				DeviceProfile: map[string]any{},
 			}
 			if _, _, err := repo.CountAndCreate(ctx, account, limit); err != nil {
 				if !strings.Contains(err.Error(), "account limit reached") {
