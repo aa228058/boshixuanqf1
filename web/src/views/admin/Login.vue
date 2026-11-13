@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { validateAdminLogin } from '@/utils/adminPageGuards'
+import { validateAdminLogin, type AdminLoginErrors } from '@/utils/adminPageGuards'
 // R87-M7: DynamicBackground 已移除
 import { useRouter } from 'vue-router'
 import { Shield, Loader2, Eye, EyeOff } from 'lucide-vue-next'
@@ -81,7 +81,7 @@ const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
 const showPassword = ref(false)
-const errors = ref<Record<string, string>>({})
+const errors = ref<AdminLoginErrors>({})
 
 function validateForm(): boolean {
   errors.value = validateAdminLogin(username.value, password.value)
