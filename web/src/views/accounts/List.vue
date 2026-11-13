@@ -1530,7 +1530,6 @@ async function getVerificationCode() {
     } else if (result.phase === 'success' || result.phase === 'connected' || result.phase === 'online') {
       showAddModal.value = false
       await accountStore.fetchAccounts(true)
-      throwIfAuthAborted(signal)
       toast({ type: 'success', title: '账号已是登录状态', message: '会话有效，无需验证码' })
     } else {
       throw new Error(result.phase === 'timeout'
