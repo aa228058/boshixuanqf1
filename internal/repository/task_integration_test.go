@@ -401,6 +401,84 @@ func TestClaimTasks_ConcurrentClaimersGetDisjointSets(t *testing.T) {
 	}
 }
 
+func TestClaimTasksWithGlobalLimit_ConcurrentClaimersRespectLimit(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenant := uuid.New()
+	for i := 0; i < 12; i++ {
+		seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	}
+	var wg sync.WaitGroup
+	results := make([][]*domain.Task, 2)
+	errs := make([]error, 2)
+	for worker := 0; worker < 2; worker++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			tasks, err := repo.ClaimTasksWithGlobalLimit(context.Background(), fmt.Sprintf("global-worker-%d", idx), 10, 5, 3)
+			results[idx], errs[idx] = tasks, err
+		}(worker)
+	}
+	wg.Wait()
+	claimed := 0
+	seen := make(map[uuid.UUID]bool)
+	for worker, err := range errs {
+		if err != nil {
+			t.Fatalf("worker-%d claim: %v", worker, err)
+		}
+		for _, task := range results[worker] {
+			claimed++
+			if seen[task.TaskID] {
+				t.Fatalf("task %s claimed by more than one worker", task.TaskID)
+			}
+			seen[task.TaskID] = true
+		}
+	}
+	if claimed != 3 {
+		t.Fatalf("total claimed = %d, want exactly global limit 3", claimed)
+	}
+	var running int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM tasks WHERE status='running'
+		  AND locked_at >= NOW() - INTERVAL '1 minute'`).Scan(&running); err != nil {
+		t.Fatalf("count running tasks: %v", err)
+	}
+	if running != 3 {
+		t.Fatalf("active running tasks = %d, want 3", running)
+	}
+}
+
+func TestClaimTasksWithGlobalLimit_CombinesQueuedAndExpiredLeases(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	tenant := uuid.New()
+	expiredID := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 10)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE tasks SET status='running', worker_id='dead-worker',
+			locked_at=NOW() - INTERVAL '10 minutes' WHERE task_id=$1`, expiredID); err != nil {
+		t.Fatalf("expire task lease: %v", err)
+	}
+	seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
+	seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 4)
+	claimed, err := repo.ClaimTasksWithGlobalLimit(context.Background(), "recovery-worker", 10, 5, 2)
+	if err != nil {
+		t.Fatalf("claim within global limit: %v", err)
+	}
+	if len(claimed) != 2 {
+		t.Fatalf("claimed %d tasks, want 2", len(claimed))
+	}
+	if claimed[0].TaskID != expiredID {
+		t.Fatalf("first claimed task = %s, want expired lease %s", claimed[0].TaskID, expiredID)
+	}
+	for _, task := range claimed {
+		if task.WorkerID == nil || *task.WorkerID != "recovery-worker" {
+			t.Errorf("task %s worker = %v, want recovery-worker", task.TaskID, task.WorkerID)
+		}
+	}
+}
+
 func TestClaimTimeoutTasks_ReclaimsExpiredLock(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)

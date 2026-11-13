@@ -318,6 +318,84 @@ func (r *TaskRepository) CountRunningGlobal(ctx context.Context) (int, error) {
 	return n, err
 }
 
+func (r *TaskRepository) ClaimTasksWithGlobalLimit(ctx context.Context, workerID string, batchLimit, lockTimeoutMin, globalLimit int) ([]*domain.Task, error) {
+	if batchLimit <= 0 || globalLimit <= 0 {
+		return nil, nil
+	}
+	var claimed []*domain.Task
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(72623859790382856)`); err != nil {
+			return fmt.Errorf("lock global task capacity: %w", err)
+		}
+		var running int
+		if err := tx.QueryRow(ctx, `
+			SELECT count(*) FROM tasks t
+			JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
+			WHERE t.status = 'running'
+			  AND t.locked_at IS NOT NULL
+			  AND t.locked_at >= NOW() - ($1 * INTERVAL '1 minute')
+			  AND tenant.status = 'active'
+			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())`,
+			lockTimeoutMin,
+		).Scan(&running); err != nil {
+			return fmt.Errorf("count active running tasks: %w", err)
+		}
+		available := globalLimit - running
+		if available <= 0 {
+			return nil
+		}
+		if batchLimit > available {
+			batchLimit = available
+		}
+		rows, err := tx.Query(ctx, `
+			WITH candidates AS (
+				SELECT t.task_id
+				FROM tasks t
+				JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
+				WHERE tenant.status = 'active'
+				  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())
+				  AND (
+					(t.status = 'queued'
+					 AND (t.locked_at IS NULL OR t.locked_at < NOW() - ($3 * INTERVAL '1 minute'))
+					 AND (t.scheduled_at IS NULL OR t.scheduled_at <= NOW()))
+					OR
+					(t.status = 'running'
+					 AND (t.locked_at IS NULL OR t.locked_at < NOW() - ($3 * INTERVAL '1 minute')))
+				  )
+				ORDER BY t.priority DESC, t.created_at ASC, t.task_id ASC
+				FOR UPDATE OF t SKIP LOCKED
+				LIMIT $2
+			)
+			UPDATE tasks AS claimed
+			SET status = 'running', locked_at = NOW(), worker_id = $1,
+			    started_at = COALESCE(claimed.started_at, NOW())
+			FROM candidates
+			WHERE claimed.task_id = candidates.task_id
+			RETURNING claimed.task_id, claimed.task_number, claimed.tenant_id, claimed.type, claimed.status,
+			          claimed.priority, claimed.account_ids, claimed.target_ids, claimed.payload, claimed.progress,
+			          claimed.locked_at, claimed.worker_id, claimed.retry_count, claimed.scheduled_at,
+			          claimed.started_at, claimed.completed_at, claimed.created_at, claimed.is_loop,
+			          claimed.loop_interval_minutes, claimed.min_interval_seconds, claimed.max_interval_seconds,
+			          claimed.next_run_at`,
+			workerID, batchLimit, lockTimeoutMin,
+		)
+		if err != nil {
+			return fmt.Errorf("claim tasks within global limit: %w", err)
+		}
+		defer rows.Close()
+		claimed, err = r.scanTasks(rows)
+		if err != nil {
+			return fmt.Errorf("scan globally claimed tasks: %w", err)
+		}
+		sortClaimedTasks(claimed)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return claimed, nil
+}
+
 func (r *TaskRepository) claimTasksWithStatus(ctx context.Context, workerID string, limit int, status domain.TaskStatus, lockTimeoutMin int) ([]*domain.Task, error) {
 	rows, err := r.db.Query(ctx, `
 		UPDATE tasks AS claimed SET status = 'running', locked_at = NOW(), worker_id = $1, started_at = COALESCE(claimed.started_at, NOW())
