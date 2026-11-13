@@ -373,7 +373,7 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	e.poolMu.Lock()
 	// Double-check: another goroutine may have added this key while we were connecting.
 	existing, exists := e.poolClients[key]
-	if exists && existing != nil && existing.client != nil && existing.client.IsConnected() {
+	if exists && existing != nil {
 		e.poolMu.Unlock()
 		pc.mu.Unlock() // unlock the new unused client
 		client.Stop()
