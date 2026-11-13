@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampPercentage, finiteMetric, formatValidDate, isAdminMenuPathActive, isSupportedQrImage, isValidAuditDateRange, isValidDateTimeLocal, validateAdminLogin, validateTenantCreateInput } from './adminPageGuards'
+import { clampPercentage, finiteMetric, formatValidDate, formatValidDateTime, isAdminMenuPathActive, isSupportedQrImage, isValidAuditDateRange, isValidDateTimeLocal, normalizePlanFeatures, validateAdminLogin, validateAnnouncementInput, validateCodeGenerationInput, validateTenantCreateInput } from './adminPageGuards'
 
 describe('validateAdminLogin', () => {
   it('requires a username', () => expect(validateAdminLogin(' ', 'secret')).toEqual({ username: '请输入用户名' }))
@@ -75,8 +75,6 @@ describe('formatValidDate', () => {
   it('returns a placeholder for invalid timestamps', () => expect(formatValidDate('not-a-date')).toBe('—'))
 })
 
-
-import { formatValidDateTime, normalizePlanFeatures, validateAnnouncementInput, validateCodeGenerationInput } from './adminPageGuards'
 
 describe('formatValidDateTime', () => {
   it('returns a placeholder for invalid timestamps', () => expect(formatValidDateTime('bad-date')).toBe('—'))
