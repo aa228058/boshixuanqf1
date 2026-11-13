@@ -662,18 +662,29 @@ func (r *TaskRepository) ResumeLoop(ctx context.Context, tenantID, taskID uuid.U
 
 // Delete removes a task.
 func (r *TaskRepository) Delete(ctx context.Context, tenantID, taskID uuid.UUID) error {
-	res, err := r.db.Exec(ctx, `
-		DELETE FROM tasks
-		WHERE tenant_id = $1 AND task_id = $2
-		  AND status IN ('completed', 'failed', 'cancelled')
-	`, tenantID, taskID)
-	if err != nil {
-		return err
-	}
-	if res.RowsAffected() == 0 {
-		return fmt.Errorf("task is not terminal or no longer exists")
-	}
-	return nil
+	return pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		res, err := tx.Exec(ctx, `
+			DELETE FROM tasks
+			WHERE tenant_id = $1 AND task_id = $2
+			  AND status IN ('completed', 'failed', 'cancelled')
+		`, tenantID, taskID)
+		if err != nil {
+			return err
+		}
+		if res.RowsAffected() == 0 {
+			return fmt.Errorf("task is not terminal or no longer exists")
+		}
+		// batch_tasks stores child IDs in a UUID array rather than a foreign key.
+		// Keep that denormalized index consistent with task deletion atomically.
+		if _, err := tx.Exec(ctx, `
+			UPDATE batch_tasks
+			SET sub_tasks = array_remove(sub_tasks, $1)
+			WHERE tenant_id = $2 AND sub_tasks @> ARRAY[$1]::uuid[]
+		`, taskID, tenantID); err != nil {
+			return fmt.Errorf("remove deleted task from batch references: %w", err)
+		}
+		return nil
+	})
 }
 
 // CountStats returns task statistics for a tenant.
