@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
         <span class="relative flex h-2.5 w-2.5">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-60" />
+          <span class="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-cyan opacity-60" />
           <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan" />
         </span>
         <span class="text-sm font-medium">{{ typeLabel }} · {{ statusText }}</span>
@@ -22,13 +22,13 @@
         <span class="font-semibold text-cyan">{{ percent }}%</span>
       </div>
       <div class="h-2.5 rounded-full bg-bg-hover overflow-hidden">
-        <div class="h-full rounded-full transition-all duration-500 bg-cyan" :style="{ width: percent + '%' }" />
+        <div class="h-full rounded-full transition-all duration-500 motion-reduce:transition-none bg-cyan" :style="{ width: percent + '%' }" />
       </div>
     </div>
 
     <!-- 当前动作: 单行实时步骤, 不再刷日志列表 -->
     <div class="flex items-center gap-2 text-xs text-text-secondary min-h-5">
-      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin motion-reduce:animate-none text-cyan" />
       <span class="truncate">{{ currentAction }}</span>
       <span v-if="waitRemain > 0" class="ml-2 px-2 py-0.5 rounded-full bg-amber/15 text-amber text-xs shrink-0">
         下次发送 {{ waitRemain }}s
