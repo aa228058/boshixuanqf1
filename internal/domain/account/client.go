@@ -17,6 +17,29 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// lockPooledClient returns the current pool entry with its per-client mutex held.
+// It revalidates the map identity after acquiring the mutex: a cleaner or
+// eviction may detach the entry between the initial lookup and the lock.
+func (e *Engine) lockPooledClient(key string) *pooledClient {
+	for {
+		e.poolMu.RLock()
+		pc := e.poolClients[key]
+		e.poolMu.RUnlock()
+		if pc == nil {
+			return nil
+		}
+
+		pc.mu.Lock()
+		e.poolMu.RLock()
+		current := e.poolClients[key]
+		e.poolMu.RUnlock()
+		if current == pc {
+			return pc
+		}
+		pc.mu.Unlock()
+	}
+}
+
 func (e *Engine) GetClient(ctx context.Context, tenantID, accountID uuid.UUID) (*telegram.Client, error) {
 	// 有限重试: 并发窗口/double-check 拿到死连接时剔除后重走一遍，
 	// 而不是把死连接交给调用方(任务拿到僵尸连接 = 发送失败/挂起, 重启才恢复)。
@@ -106,37 +129,37 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 		}()
 	}
 
-	// 1. Check connection pool。写锁: 命中时要更新 lastUsed(D/N修复: 原来在 RLock 下写字段, race)
-	e.poolMu.Lock()
-	pc, ok := e.poolClients[key]
-	if ok && pc != nil && pc.client != nil && pc.client.IsConnected() {
-		pc.lastUsed = time.Now()
-		e.poolMu.Unlock()
-		pc.mu.Lock()
-		probeErr := e.probeClient(ctx, pc.client)
-		if probeErr == nil {
-			pc.probeFails = 0
-			return pc.client, false, nil // 持锁返回, ReleaseClient 解锁
+	// 1. Check connection pool. Lock the entry, then revalidate that it is
+	// still the current map value before probing or handing it to a caller.
+	pc := e.lockPooledClient(key)
+	if pc != nil {
+		if pc.client != nil && pc.client.IsConnected() {
+			pc.lastUsed = time.Now()
+			probeErr := e.probeClient(ctx, pc.client)
+			if probeErr == nil {
+				pc.probeFails = 0
+				return pc.client, false, nil // 持锁返回, ReleaseClient 解锁
+			}
+			pc.probeFails++
+			fails := pc.probeFails
+			// R181: 死密钥立即熔断(区别于网络抖动的"两次失败"容忍)
+			if isAuthKeyDead(probeErr) {
+				pc.mu.Unlock()
+				e.markDeadKey(ctx, tenantID, accountID)
+				return nil, false, fmt.Errorf("会话密钥已失效(需重新登录)")
+			}
+			if fails >= 2 {
+				pc.mu.Unlock()
+				log.Printf("[client] 池内连接探活失败(连续 %d 次), 剔除重拨 account=%s", fails, accountID)
+				e.InvalidatePooledClient(tenantID, accountID)
+				return nil, true, nil
+			}
+			// R163: 单次失败不剔除(网络抖动), 持锁交调用方容错
+			log.Printf("[client] 池内连接探活失败(%v), 第 %d 次, 暂不剔除(连续失败才重拨) account=%s", probeErr, fails, accountID)
+			return pc.client, false, nil // 持锁返回
 		}
-		pc.probeFails++
-		fails := pc.probeFails
-		// R181: 死密钥立即熔断(区别于网络抖动的"两次失败"容忍)
-		if isAuthKeyDead(probeErr) {
-			pc.mu.Unlock()
-			e.markDeadKey(ctx, tenantID, accountID)
-			return nil, false, fmt.Errorf("会话密钥已失效(需重新登录)")
-		}
-		if fails >= 2 {
-			pc.mu.Unlock()
-			log.Printf("[client] 池内连接探活失败(连续 %d 次), 剔除重拨 account=%s", fails, accountID)
-			e.InvalidatePooledClient(tenantID, accountID)
-			return nil, true, nil
-		}
-		// R163: 单次失败不剔除(网络抖动), 持锁交调用方容错
-		log.Printf("[client] 池内连接探活失败(%v), 第 %d 次, 暂不剔除(连续失败才重拨) account=%s", probeErr, fails, accountID)
-		return pc.client, false, nil // 持锁返回
+		pc.mu.Unlock()
 	}
-	e.poolMu.Unlock()
 
 	// 2. Check pool size limit before creating new connection
 	e.poolMu.Lock()
@@ -157,48 +180,8 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	}
 
 	// 3. 同账号并发建连去重: 已有 goroutine 在建 → 等它完成, 探活后从池里取
-	e.poolMu.RLock()
-	if pc, ok := e.poolClients[key]; ok && pc != nil && pc.client != nil && pc.client.IsConnected() {
-		e.poolMu.RUnlock()
-		pc.mu.Lock()
-		probeErr := e.probeClient(ctx, pc.client)
-		if probeErr == nil {
-			pc.probeFails = 0
-			return pc.client, false, nil // 持锁返回
-		}
-		pc.probeFails++
-		fails := pc.probeFails
-		// R181: 死密钥立即熔断(区别于网络抖动的"两次失败"容忍)
-		if isAuthKeyDead(probeErr) {
-			pc.mu.Unlock()
-			e.markDeadKey(ctx, tenantID, accountID)
-			return nil, false, fmt.Errorf("会话密钥已失效(需重新登录)")
-		}
-		if fails >= 2 {
-			pc.mu.Unlock()
-			log.Printf("[client] 并发窗口探活失败(连续 %d 次), 剔除重拨 account=%s", fails, accountID)
-			e.InvalidatePooledClient(tenantID, accountID)
-			return nil, true, nil
-		}
-		log.Printf("[client] 并发窗口探活失败(%v), 第 %d 次, 暂不剔除 account=%s", probeErr, fails, accountID)
-		return pc.client, false, nil // 持锁返回
-	}
-	e.poolMu.RUnlock()
-
-	e.connectInflightMu.Lock()
-	if ch, ok := e.connectInflight[key]; ok {
-		e.connectInflightMu.Unlock()
-		select {
-		case <-ctx.Done():
-			return nil, false, ctx.Err()
-		case <-ch:
-		}
-		// M修复: 等待唤醒后同样探活, 不把死连接交给调用方
-		e.poolMu.RLock()
-		pc, ok := e.poolClients[key]
-		e.poolMu.RUnlock()
-		if ok && pc != nil && pc.client != nil && pc.client.IsConnected() {
-			pc.mu.Lock()
+	if pc := e.lockPooledClient(key); pc != nil {
+		if pc.client != nil && pc.client.IsConnected() {
 			probeErr := e.probeClient(ctx, pc.client)
 			if probeErr == nil {
 				pc.probeFails = 0
@@ -214,12 +197,51 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 			}
 			if fails >= 2 {
 				pc.mu.Unlock()
-				log.Printf("[client] 并发等待路径探活失败(连续 %d 次), 剔除重拨 account=%s", fails, accountID)
+				log.Printf("[client] 并发窗口探活失败(连续 %d 次), 剔除重拨 account=%s", fails, accountID)
 				e.InvalidatePooledClient(tenantID, accountID)
 				return nil, true, nil
 			}
-			log.Printf("[client] 并发等待路径探活失败(%v), 第 %d 次, 暂不剔除 account=%s", probeErr, fails, accountID)
+			log.Printf("[client] 并发窗口探活失败(%v), 第 %d 次, 暂不剔除 account=%s", probeErr, fails, accountID)
 			return pc.client, false, nil // 持锁返回
+		}
+		pc.mu.Unlock()
+	}
+
+	e.connectInflightMu.Lock()
+	if ch, ok := e.connectInflight[key]; ok {
+		e.connectInflightMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, false, ctx.Err()
+		case <-ch:
+		}
+		// M修复: 等待唤醒后同样探活, 不把死连接交给调用方。
+		// The helper revalidates the map entry after acquiring pc.mu.
+		if pc := e.lockPooledClient(key); pc != nil {
+			if pc.client != nil && pc.client.IsConnected() {
+				probeErr := e.probeClient(ctx, pc.client)
+				if probeErr == nil {
+					pc.probeFails = 0
+					return pc.client, false, nil // 持锁返回
+				}
+				pc.probeFails++
+				fails := pc.probeFails
+				// R181: 死密钥立即熔断(区别于网络抖动的"两次失败"容忍)
+				if isAuthKeyDead(probeErr) {
+					pc.mu.Unlock()
+					e.markDeadKey(ctx, tenantID, accountID)
+					return nil, false, fmt.Errorf("会话密钥已失效(需重新登录)")
+				}
+				if fails >= 2 {
+					pc.mu.Unlock()
+					log.Printf("[client] 并发等待路径探活失败(连续 %d 次), 剔除重拨 account=%s", fails, accountID)
+					e.InvalidatePooledClient(tenantID, accountID)
+					return nil, true, nil
+				}
+				log.Printf("[client] 并发等待路径探活失败(%v), 第 %d 次, 暂不剔除 account=%s", probeErr, fails, accountID)
+				return pc.client, false, nil // 持锁返回
+			}
+			pc.mu.Unlock()
 		}
 		return nil, false, fmt.Errorf("connection for account %s failed (in-flight connect error)", accountID)
 	}
@@ -349,15 +371,22 @@ func (e *Engine) getClientOnce(ctx context.Context, tenantID, accountID uuid.UUI
 	pc.mu.Lock()
 
 	e.poolMu.Lock()
-	// Double-check: another goroutine may have added this key while we were connecting
-	if existing, exists := e.poolClients[key]; exists && existing != nil && existing.client != nil && existing.client.IsConnected() {
-		// Use existing connection, discard new one
-		pc.mu.Unlock() // unlock the new unused client
-		existing.lastUsed = time.Now()
+	// Double-check: another goroutine may have added this key while we were connecting.
+	existing, exists := e.poolClients[key]
+	if exists && existing != nil && existing.client != nil && existing.client.IsConnected() {
 		e.poolMu.Unlock()
+		pc.mu.Unlock() // unlock the new unused client
 		client.Stop()
+		// Reacquire and revalidate the existing entry before probing it.
+		existing = e.lockPooledClient(key)
+		if existing == nil || existing.client == nil || !existing.client.IsConnected() {
+			if existing != nil {
+				existing.mu.Unlock()
+			}
+			return nil, true, nil
+		}
+		existing.lastUsed = time.Now()
 		// M修复: double-check 路径也探活, 死了就剔除走外层重试
-		existing.mu.Lock()
 		dcProbeErr := e.probeClient(ctx, existing.client)
 		if dcProbeErr == nil {
 			return existing.client, false, nil
