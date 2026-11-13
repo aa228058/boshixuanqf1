@@ -52,6 +52,23 @@ func (r *RefreshTokenRepository) Peek(ctx context.Context, jti uuid.UUID) (uuid.
 	return tenantID, nil
 }
 
+// IsActive reports whether a refresh token is still present and usable for the tenant.
+// It is used by logout so a cryptographically valid but already-rotated token
+// cannot revoke every active session belonging to the tenant.
+func (r *RefreshTokenRepository) IsActive(ctx context.Context, jti uuid.UUID, tenantID uuid.UUID) (bool, error) {
+	var active bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM refresh_tokens
+			WHERE jti = $1 AND tenant_id = $2
+			  AND expires_at > NOW() AND revoked_at IS NULL
+		)`, jti, tenantID).Scan(&active)
+	if err != nil {
+		return false, fmt.Errorf("check refresh token activity: %w", err)
+	}
+	return active, nil
+}
+
 // Validate checks if a refresh token exists, is not expired, and not revoked.
 func (r *RefreshTokenRepository) Validate(ctx context.Context, jti uuid.UUID) (uuid.UUID, error) {
 	// L-01: 原子消费(DELETE...RETURNING)——原 SELECT 校验存在并发复用窗口:
