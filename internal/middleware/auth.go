@@ -155,9 +155,8 @@ func IsTokenRevoked(db *pgxpool.Pool, jti string) bool {
 
 // RevokeToken adds a token JTI to the persistent blacklist.
 func RevokeToken(db *pgxpool.Pool, jti string, tenantID uuid.UUID, expiresAt time.Time) error {
-	tokenBlacklistMu.Lock()
-	tokenBlacklist[jti] = tokenBlacklistEntry{ExpiresAt: expiresAt}
-	tokenBlacklistMu.Unlock()
+	// Persist first so a failed write is never reported as a successful,
+	// process-local-only revocation in a multi-instance deployment.
 	if db != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -169,6 +168,9 @@ func RevokeToken(db *pgxpool.Pool, jti string, tenantID uuid.UUID, expiresAt tim
 			return fmt.Errorf("revoke token: %w", err)
 		}
 	}
+	tokenBlacklistMu.Lock()
+	tokenBlacklist[jti] = tokenBlacklistEntry{ExpiresAt: expiresAt}
+	tokenBlacklistMu.Unlock()
 	return nil
 }
 

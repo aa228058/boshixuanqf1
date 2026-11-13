@@ -525,14 +525,21 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	}
 
 	tenantID, _ := uuid.Parse(claims.TenantID)
-	if err := middleware.RevokeToken(h.db, claims.ID, tenantID, claims.ExpiresAt.Time); err != nil {
-		log.Printf("[handler] revoke token failed: %v", err)
-	}
+	accessErr := middleware.RevokeToken(h.db, claims.ID, tenantID, claims.ExpiresAt.Time)
 
 	// F-02: 登出必须同时撤销该租户全部 refresh token，否则 refresh 接口
 	// 可在"登出"后继续签发 access token，登出形同虚设。
-	if err := h.refreshRepo.RevokeAllForTenant(c.Request().Context(), tenantID); err != nil {
-		log.Printf("[handler] revoke refresh tokens failed: %v", err)
+	refreshErr := h.refreshRepo.RevokeAllForTenant(c.Request().Context(), tenantID)
+	if accessErr != nil || refreshErr != nil {
+		if accessErr != nil {
+			log.Printf("[handler] revoke access token failed: %v", accessErr)
+		}
+		if refreshErr != nil {
+			log.Printf("[handler] revoke refresh tokens failed: %v", refreshErr)
+		}
+		// The refresh cookie is still cleared by the deferred handler above,
+		// but never claim logout succeeded unless both revocations persisted.
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to revoke session tokens")
 	}
 
 	return Success(c, map[string]string{"message": "logged out"})
