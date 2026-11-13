@@ -1391,14 +1391,6 @@ function authDelay(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-watch(showAddModal, (visible) => {
-  if (!visible) {
-    abortAuthController(addAuthController)
-    addAuthController = null
-    adding.value = false
-    submitting.value = false
-  }
-})
 // 添加方式: phone=手机号验证码流程; protocol=协议号导入(原sessions页功能整合进来)
 const addMode = ref<'phone' | 'protocol'>('phone')
 const importText = ref('')
@@ -1453,6 +1445,15 @@ const submitting = ref(false)
 const codeError = ref('')
 const twoFAError = ref('')
 const newAccountId = ref('')
+
+watch(showAddModal, (visible) => {
+  if (!visible) {
+    abortAuthController(addAuthController)
+    addAuthController = null
+    adding.value = false
+    submitting.value = false
+  }
+})
 const addModalTitle = computed(() => {
   if (addStep.value === 'phone') return '添加 Telegram 账号'
   if (addStep.value === 'code') return '输入验证码'
