@@ -407,6 +407,7 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
         emitMutation(options.method || 'GET', endpoint)
         return parseResponse<T>(retryData)
       } catch (refreshErr: unknown) {
+        if (refreshErr instanceof Error && refreshErr.name === 'AbortError') throw refreshErr
         const msg = refreshErr instanceof Error ? refreshErr.message : '登录已过期，请重新登录'
         throw new Error(msg)
       }
