@@ -62,6 +62,18 @@ func (r *PlanLimitRepository) TryAddDailyUsageAmount(ctx context.Context, tenant
 	return true, nil
 }
 
+// ReleaseDailyUsageAmount 仅在已预留额度但对应业务记录未创建时回滚预留。
+func (r *PlanLimitRepository) ReleaseDailyUsageAmount(ctx context.Context, tenantID uuid.UUID, kind string, amount int) error {
+	if amount <= 0 {
+		return nil
+	}
+	_, err := r.db.Exec(ctx, `
+		UPDATE plan_daily_counters
+		SET used = GREATEST(used - $4, 0)
+		WHERE tenant_id = $1 AND day = CURRENT_DATE AND kind = $2`, tenantID, kind, amount, amount)
+	return err
+}
+
 // TryAddDailyUsage 在数据库内原子执行“未达上限才加一”，并发请求也无法突破日额度。
 func (r *PlanLimitRepository) TryAddDailyUsage(ctx context.Context, tenantID uuid.UUID, kind string, limit int) (bool, error) {
 	var used int
