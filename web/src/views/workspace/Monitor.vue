@@ -194,7 +194,7 @@
         </div>
         <div class="flex justify-end gap-3 mt-6">
           <t-button @click="showAddRule = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-          <t-button @click="saveRule" class="ui-t-button--primary ui-t-button">保存</t-button>
+          <t-button @click="saveRule" class="ui-t-button--primary ui-t-button" :loading="ruleSaving" :disabled="ruleSaving">保存</t-button>
         </div>
     </Modal>
 
@@ -437,6 +437,10 @@ function openAddRule() {
 
 async function saveRule() {
   if (ruleSaving.value) return
+  if (ruleForm.value.type === 'forward' && !selectedTargetGroups.value.length) {
+    toast({ type: 'warning', title: '请选择转发目标', message: '转发规则至少需要一个目标群组' })
+    return
+  }
   if (!monitorAllMessages.value && !selectedSourceGroups.value.length) {
     toast({ type: 'warning', title: '请选择监控来源', message: '请至少选择一个源群组，或开启“监控全部消息”' })
     return
@@ -480,8 +484,8 @@ async function saveRule() {
     selectedSourceGroups.value = []
     monitorAllMessages.value = true
     selectedTargetGroups.value = []
+    await fetchRules()
     toast({ type: 'success', title: wasEditing ? '规则已更新' : '监控规则已创建', message: '规则即时生效' })
-    fetchRules()
   } catch (e: any) {
     toast({ type: 'error', title: '保存失败', message: e?.message || '请稍后重试' })
   } finally {
