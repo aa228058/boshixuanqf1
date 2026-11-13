@@ -69,4 +69,21 @@ describe('auth store session restoration', () => {
     expect(store.isLoggedIn).toBe(true)
     expect(storage.get('tg_sender_session')).toBe('1')
   })
+  it('登出后迟到的登录响应不能重新建立会话', async () => {
+    installLocalStorage()
+    let resolveLogin!: (value: { token: string }) => void
+    authApiMock.login.mockReturnValueOnce(new Promise(resolve => { resolveLogin = resolve }))
+    authApiMock.logout.mockResolvedValueOnce(undefined)
+    const store = useAuthStore()
+
+    const pendingLogin = store.login('user', 'password')
+    await store.logout()
+    resolveLogin({ token: 'stale-token' })
+    await pendingLogin
+
+    expect(store.token).toBe('')
+    expect(store.isLoggedIn).toBe(false)
+    expect(store.hasSession).toBe(false)
+  })
+
 })
