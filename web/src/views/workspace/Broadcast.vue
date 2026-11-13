@@ -767,6 +767,7 @@ watch(currentAccount, () => {
   broadcastTasksController?.abort()
   tasks.value = []
   tasksError.value = ''
+  taskActionsPending.value = new Set()
   tasksLoading.value = true
   fetchTasks()
 })
