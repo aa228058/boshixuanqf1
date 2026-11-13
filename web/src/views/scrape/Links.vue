@@ -272,8 +272,14 @@ const taskLinkRequestIds = new Map<string, number>()
 const taskLinkControllers = new Map<string, AbortController>()
 let messageStatusController: AbortController | null = null
 let bioStatusController: AbortController | null = null
+let messageToggleRequestId = 0
+let bioToggleRequestId = 0
 watch(linksAccId, () => {
   // 切换账号时立即取消旧账号网络请求并清空旧数据。
+  messageToggleRequestId++
+  bioToggleRequestId++
+  listeningSaving.value = false
+  bioSaving.value = false
   messageStatusController?.abort()
   bioStatusController?.abort()
   taskListController?.abort()
@@ -360,11 +366,13 @@ async function loadAllLinks() {
 }
 
 async function toggleAllLinks() {
+  if (!linksPageActive) return
   allLinksOpen.value = !allLinksOpen.value
   if (allLinksOpen.value && !allLinks.value.length) await loadAllLinks()
 }
 
 async function toggleTask(task: ScrapeTask) {
+  if (!linksPageActive) return
   if (expandedTaskId.value === task.task_id) {
     expandedTaskId.value = null
     taskLinkControllers.get(task.task_id)?.abort()
@@ -446,6 +454,7 @@ async function copyLink(url: string) {
 
 // 导出纯文本(每行一个链接), 与"自动加群-导入链接"的格式一致
 async function exportTaskLinks(task: ScrapeTask, format: 'txt' | 'csv' = 'txt') {
+  if (!linksPageActive) return
   const accountId = task.account_ids?.[0]
   if (!accountId) {
     toast({ type: 'error', title: '导出失败', message: '该任务没有关联的账号，无法导出' })
@@ -470,6 +479,7 @@ async function exportTaskLinks(task: ScrapeTask, format: 'txt' | 'csv' = 'txt') 
 
 // 导出全部链接(不带时间窗口)
 async function exportAllLinks(format: 'txt' | 'csv') {
+  if (!linksPageActive) return
   const acc = accountStore.accounts.find((a: any) => a.account_id === linksAccId.value)
   if (!acc) { toast({ type: 'error', title: '请先选择账号' }); return }
   try {
@@ -545,10 +555,11 @@ async function loadBioListeningStatus(accountId: string) {
 }
 
 async function toggleBioListening() {
-  if (bioSaving.value) return
+  if (!linksPageActive || bioSaving.value) return
   const accountId = linksAccId.value
   if (!accountId) return
   const next = !bioListening.value
+  const requestId = ++bioToggleRequestId
   bioSaving.value = true
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/toggle`, {
@@ -557,13 +568,13 @@ async function toggleBioListening() {
       body: JSON.stringify({ account_id: accountId, enabled: next, mode: 'bio' }),
     })
     if (!res.ok) throw new Error()
-    if (linksPageActive && linksAccId.value === accountId) {
+    if (linksPageActive && requestId === bioToggleRequestId && linksAccId.value === accountId) {
       bioListening.value = next
       toast({ type: 'success', title: next ? '简介实时解析已开启' : '简介实时解析已关闭' })
     }
   } catch {
-    if (linksPageActive && linksAccId.value === accountId) toast({ type: 'error', title: '简介解析开关操作失败', message: '请稍后重试' })
-  } finally { if (linksPageActive) bioSaving.value = false }
+    if (linksPageActive && requestId === bioToggleRequestId && linksAccId.value === accountId) toast({ type: 'error', title: '简介解析开关操作失败', message: '请稍后重试' })
+  } finally { if (linksPageActive && requestId === bioToggleRequestId) bioSaving.value = false }
 }
 
 async function loadMessageListeningStatus(accountId: string) {
@@ -598,11 +609,12 @@ watch(linksAccId, accountId => {
 // ===== R111: 协议协同脚本已全部删除(loadCampaigns/submitProtocol/controlCampaign/exportLinks) =====
 
 async function toggleListening() {
-  if (listeningSaving.value) return
+  if (!linksPageActive || listeningSaving.value) return
   const accountId = linksAccId.value
   const acc = accountStore.accounts.find((a: any) => a.account_id === accountId)
   if (!acc) { toast({ type: 'error', title: '请先选择账号' }); return }
   const next = !listening.value
+  const requestId = ++messageToggleRequestId
   listeningSaving.value = true
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/toggle`, {
@@ -611,15 +623,15 @@ async function toggleListening() {
       body: JSON.stringify({ account_id: acc.account_id, enabled: next }),
     })
     if (!res.ok) throw new Error()
-    if (linksPageActive && linksAccId.value === accountId) {
+    if (linksPageActive && requestId === messageToggleRequestId && linksAccId.value === accountId) {
       listening.value = next
       toast({ type: 'success', title: next ? '链接监听已开启' : '链接监听已关闭' })
       if (next) switchTab('results')
     }
   } catch {
-    if (linksPageActive && linksAccId.value === accountId) toast({ type: 'error', title: '操作失败, 请重试' })
+    if (linksPageActive && requestId === messageToggleRequestId && linksAccId.value === accountId) toast({ type: 'error', title: '操作失败, 请重试' })
   } finally {
-    if (linksPageActive) listeningSaving.value = false
+    if (linksPageActive && requestId === messageToggleRequestId) listeningSaving.value = false
   }
 }
 </script>
