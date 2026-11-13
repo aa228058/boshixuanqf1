@@ -14,7 +14,7 @@ function toQueryString(params?: Record<string, unknown>): string {
 }
 
 export const dashboardApi = {
-  getStats: (accountId?: string, options?: RequestOptions) => api.get<DashboardStats>(`/dashboard/stats${accountId ? `?account_id=${accountId}` : ''}`, options),
+  getStats: (accountId?: string, options?: RequestOptions) => api.get<DashboardStats>(`/dashboard/stats${accountId ? `?account_id=${encodeURIComponent(accountId)}` : ''}`, options),
   getRiskEvents: (params?: { start_time?: string; end_time?: string; limit?: number; offset?: number }, options?: RequestOptions) => {
     return api.get<ListResponse<RiskEvent>>(`/dashboard/risk-events${toQueryString(params as Record<string, unknown>)}`, options)
   },
