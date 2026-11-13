@@ -1033,3 +1033,108 @@ func TestDeleteOnlyAllowsTerminalTasks(t *testing.T) {
 		}
 	}
 }
+
+
+func TestStaleWorkerCannotWriteAfterLeaseReclaimed(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeBroadcast), 5)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE tasks SET status='running', worker_id='old-worker',
+			locked_at=NOW() - INTERVAL '10 minutes',
+			progress='{"done":1,"failed":0}'::jsonb
+		WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, taskID); err != nil {
+		t.Fatalf("prepare expired old lease: %v", err)
+	}
+
+	claimed, err := repo.ClaimTimeoutTasks(ctx, "new-worker", 1, 5)
+	if err != nil {
+		t.Fatalf("reclaim expired task: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].TaskID != taskID {
+		t.Fatalf("reclaimed tasks = %d, want task %s", len(claimed), taskID)
+	}
+
+	if owned, err := repo.RefreshTaskLock(ctx, tenantID, taskID, "old-worker"); err != nil || owned {
+		t.Fatalf("old worker refresh = %t, %v; want false, nil", owned, err)
+	}
+	if err := repo.UpdateProgressOwned(ctx, tenantID, taskID, "old-worker", domain.TaskProgress{
+		Done: 5, Failed: 2, CurrentTarget: "stale-target",
+	}); err == nil {
+		t.Fatal("stale worker incremental progress write unexpectedly succeeded")
+	}
+	if err := repo.UpdateProgressExactOwned(ctx, tenantID, taskID, "old-worker", domain.TaskProgress{
+		Total: 99, Done: 99, Failed: 99,
+	}); err == nil {
+		t.Fatal("stale worker exact progress write unexpectedly succeeded")
+	}
+	if err := repo.UpdateStatusOwned(ctx, tenantID, taskID, "old-worker", domain.TaskStatusCompleted); err == nil {
+		t.Fatal("stale worker completion unexpectedly succeeded")
+	}
+
+	var status, workerID, done, failed string
+	if err := pool.QueryRow(ctx, `
+		SELECT status, worker_id, progress->>'done', progress->>'failed'
+		FROM tasks WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, taskID).Scan(&status, &workerID, &done, &failed); err != nil {
+		t.Fatalf("read task after stale writes: %v", err)
+	}
+	if status != "running" || workerID != "new-worker" || done != "1" || failed != "0" {
+		t.Fatalf("task after stale writes = status:%s worker:%s progress:%s/%s; want running/new-worker/1/0",
+			status, workerID, done, failed)
+	}
+}
+
+func TestCancelledTaskRejectsFormerWorkerWrites(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	repo := NewTaskRepository(pool)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	taskID := seedTask(t, pool, tenantID, string(domain.TaskTypeBroadcast), 5)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE tasks SET status='running', worker_id='cancelled-worker',
+			locked_at=NOW(), progress='{"done":2,"failed":1}'::jsonb
+		WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, taskID); err != nil {
+		t.Fatalf("prepare running task: %v", err)
+	}
+	cancelled, err := repo.CancelIfActive(ctx, tenantID, taskID)
+	if err != nil || !cancelled {
+		t.Fatalf("CancelIfActive = %t, %v; want true, nil", cancelled, err)
+	}
+
+	if err := repo.UpdateProgressOwned(ctx, tenantID, taskID, "cancelled-worker", domain.TaskProgress{
+		Done: 10, Failed: 0, CurrentTarget: "after-cancel",
+	}); err == nil {
+		t.Fatal("former worker progress write after cancellation unexpectedly succeeded")
+	}
+	if err := repo.UpdateProgressExactOwned(ctx, tenantID, taskID, "cancelled-worker", domain.TaskProgress{
+		Total: 100, Done: 100,
+	}); err == nil {
+		t.Fatal("former worker exact progress write after cancellation unexpectedly succeeded")
+	}
+	if err := repo.UpdateStatusOwned(ctx, tenantID, taskID, "cancelled-worker", domain.TaskStatusCompleted); err == nil {
+		t.Fatal("former worker completion after cancellation unexpectedly succeeded")
+	}
+
+	var status string
+	var workerID *string
+	var done, failed string
+	if err := pool.QueryRow(ctx, `
+		SELECT status, worker_id, progress->>'done', progress->>'failed'
+		FROM tasks WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, taskID).Scan(&status, &workerID, &done, &failed); err != nil {
+		t.Fatalf("read cancelled task: %v", err)
+	}
+	if status != "cancelled" || workerID != nil || done != "2" || failed != "1" {
+		t.Fatalf("cancelled task = status:%s worker:%v progress:%s/%s; want cancelled/nil/2/1",
+			status, workerID, done, failed)
+	}
+}
