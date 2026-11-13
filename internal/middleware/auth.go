@@ -117,6 +117,11 @@ func cleanupTokenBlacklist(db *pgxpool.Pool) {
 	}
 }
 
+// blacklistLookupRevoked treats lookup errors as revoked to keep JWT revocation fail-closed.
+func blacklistLookupRevoked(count int, err error) bool {
+	return err != nil || count > 0
+}
+
 // IsTokenRevoked checks if a token JTI is in the blacklist (memory first, then DB).
 func IsTokenRevoked(db *pgxpool.Pool, jti string) bool {
 	tokenBlacklistMu.RLock()
@@ -136,13 +141,12 @@ func IsTokenRevoked(db *pgxpool.Pool, jti string) bool {
 		defer cancel()
 		var count int
 		err := db.QueryRow(ctx, `SELECT COUNT(*) FROM token_blacklist WHERE jti = $1`, jti).Scan(&count)
-		if err != nil {
-			// 黑名单查询失败不能当作“未撤销”：租户状态缓存可能仍命中，
-			// 否则数据库短暂故障时已撤销的跨实例令牌会被放行。
-			log.Printf("[auth] token blacklist lookup failed closed: %v", err)
-			return true
-		}
-		if count > 0 {
+		if blacklistLookupRevoked(count, err) {
+			if err != nil {
+				// 黑名单查询失败不能当作“未撤销”：租户状态缓存可能仍命中，
+				// 否则数据库短暂故障时已撤销的跨实例令牌会被放行。
+				log.Printf("[auth] token blacklist lookup failed closed: %v", err)
+			}
 			return true
 		}
 	}
