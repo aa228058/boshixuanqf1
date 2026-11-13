@@ -146,12 +146,13 @@ async function saveConfig() {
       contact_value: payload.contact_value.trim(),
       display_name: payload.display_name.trim(),
     })
+    if (!supportPageActive) return
     await fetchConfig()
-    toast({ type: 'success', title: '配置已保存' })
+    if (supportPageActive) toast({ type: 'success', title: '配置已保存' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (supportPageActive) toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    savingSupport.value = false
+    if (supportPageActive) savingSupport.value = false
   }
 }
 
