@@ -1395,6 +1395,8 @@ watch(showAddModal, (visible) => {
   if (!visible) {
     abortAuthController(addAuthController)
     addAuthController = null
+    adding.value = false
+    submitting.value = false
   }
 })
 // 添加方式: phone=手机号验证码流程; protocol=协议号导入(原sessions页功能整合进来)
@@ -1491,7 +1493,8 @@ async function waitForAuthPhase(accountId: string, timeoutMs: number, signal: Ab
       const phase = (state as { phase?: string }).phase || ''
       // 初始空串和 connecting 都是中间态，继续等
       if (phase && phase !== 'connecting') return { phase }
-    } catch {
+    } catch (error) {
+      if (signal.aborted) throw error
       // 轮询失败(如客户端刚被后端移除)按 none 处理，由调用方判失败
       return { phase: 'none' }
     }
@@ -1511,9 +1514,10 @@ async function getVerificationCode() {
     const digits = newPhone.value.replace(/[\s+]/g, '')
     const phone = '+' + digits
     const acc = await accountStore.createAccount(phone, newRemark.value || undefined)
-    throwIfAuthAborted(signal)
-    newAccountId.value = acc?.account_id
-    await accountApi.connect(acc?.account_id)
+    if (!acc?.account_id) throw new Error('账号创建失败，请重试')
+    if (!signal.aborted) newAccountId.value = acc.account_id
+    // 创建请求一旦发出，仍需完成服务端连接启动，避免关闭弹窗留下未启动的账号。
+    await accountApi.connect(acc.account_id)
     throwIfAuthAborted(signal)
     // connect 仅启动异步认证；轮询确认 TG 真正进入等码阶段，防止"假已发送"
     const result = await waitForAuthPhase(acc?.account_id, 75000, signal)
@@ -1524,7 +1528,7 @@ async function getVerificationCode() {
       addStep.value = '2fa'
     } else if (result.phase === 'success' || result.phase === 'connected' || result.phase === 'online') {
       showAddModal.value = false
-      await accountStore.fetchAccounts(true, { signal })
+      await accountStore.fetchAccounts(true)
       throwIfAuthAborted(signal)
       toast({ type: 'success', title: '账号已是登录状态', message: '会话有效，无需验证码' })
     } else {
@@ -1533,7 +1537,7 @@ async function getVerificationCode() {
         : 'TG 未发送验证码（号码可能被风控或 API 受限），请稍后重试')
     }
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '发送失败', message: (e instanceof Error ? e.message : '请检查手机号格式') })
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '发送失败', message: (e instanceof Error ? e.message : '请检查手机号格式') })
   } finally {
     if (addAuthController === controller && !signal.aborted) adding.value = false
   }
@@ -1561,7 +1565,7 @@ async function resendCode() {
       toast({ type: 'error', title: '重新发送失败', message: 'TG 未响应，请稍后重试' })
     }
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '重新发送失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '重新发送失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -1772,6 +1776,8 @@ watch(showAuth, (visible) => {
   if (!visible) {
     abortAuthController(reauthController)
     reauthController = null
+    oldAuthStarting.value = false
+    oldAuthSubmitting.value = false
   }
 })
 
@@ -1784,7 +1790,8 @@ async function waitOldAuthReady(accountId: string, signal: AbortSignal): Promise
       if (state.phase === 'waiting_code') return 'code'
       if (state.phase === 'waiting_password') return 'password'
       if (state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
-    } catch {
+    } catch (error) {
+      if (signal.aborted) throw error
       // 刚启动时状态接口可能短暂尚未可读，继续等待。
     }
     try {
@@ -1792,7 +1799,8 @@ async function waitOldAuthReady(accountId: string, signal: AbortSignal): Promise
       throwIfAuthAborted(signal)
       const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
       if (latest?.status === 'online') return 'success'
-    } catch {
+    } catch (error) {
+      if (signal.aborted) throw error
       // 列表刷新失败不应中断认证状态轮询。
     }
     await authDelay(1000, signal)
@@ -1841,8 +1849,10 @@ async function waitOldAuthResult(accountId: string, expected: 'code' | 'password
   const deadline = Date.now() + 90000
   while (Date.now() < deadline) {
     try {
-      await accountStore.fetchAccounts(true)
-    } catch {
+      await accountStore.fetchAccounts(true, { signal })
+      throwIfAuthAborted(signal)
+    } catch (error) {
+      if (signal.aborted) throw error
       // 轮询刷新失败时继续查询认证状态。
     }
     try {
@@ -1854,7 +1864,8 @@ async function waitOldAuthResult(accountId: string, expected: 'code' | 'password
         if (expected === 'code' || (state.pwd_retries ?? 0) > 0) return 'password'
       }
       if (state.phase === 'waiting_code' && expected === 'code' && (state.code_retries ?? 0) > 0) return 'code'
-    } catch {
+    } catch (error) {
+      if (signal.aborted) throw error
       // 状态接口短暂失败时保留弹窗并继续等待。
     }
     await authDelay(1000, signal)
