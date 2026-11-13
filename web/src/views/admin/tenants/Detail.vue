@@ -91,6 +91,7 @@ import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import type { Tenant, Plan } from '@/types'
+import { isValidDateTimeLocal } from '@/utils/adminPageGuards'
 
 function isValidUUID(id: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -149,6 +150,14 @@ const tenantActionPending = ref(false)
 
 async function saveEdit() {
   if (savingTenant.value) return
+  if (!editForm.value.plan_id) {
+    toast({ type: 'warning', title: '请选择套餐' })
+    return
+  }
+  if (editForm.value.expires_at && !isValidDateTimeLocal(editForm.value.expires_at)) {
+    toast({ type: 'warning', title: '到期时间无效', message: '请重新选择有效的日期和时间' })
+    return
+  }
   savingTenant.value = true
   try {
     // P2-49: datetime-local 给的是无时区本地时间, 原样提交后端按 UTC 解析——
