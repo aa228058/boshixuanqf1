@@ -229,6 +229,7 @@ const isHttpUrl = (u: string): boolean => /^https?:\/\//i.test(u || '')
 const router = useRouter()
 const authStore = useAuthStore()
 const accountStore = useAccountStore()
+let linksPageActive = true
 
 // ===== Tab: create=新建采集 results=采集结果 =====
 const activeTab = ref<'create' | 'results'>('create')
@@ -306,15 +307,15 @@ async function fetchTasks() {
   taskListController = controller
   try {
     const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any, { signal: controller.signal })
-    if (requestId !== taskListRequestId || accId !== linksAccId.value) return
+    if (!linksPageActive || requestId !== taskListRequestId || accId !== linksAccId.value) return
     const raw = res as any
     tasks.value = raw.list || raw.items || []
   } catch (e: unknown) {
-    if (!controller.signal.aborted && requestId === taskListRequestId && accId === linksAccId.value) {
+    if (linksPageActive && !controller.signal.aborted && requestId === taskListRequestId && accId === linksAccId.value) {
       toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     }
   } finally {
-    if (requestId === taskListRequestId) tasksLoading.value = false
+    if (linksPageActive && requestId === taskListRequestId) tasksLoading.value = false
     if (taskListController === controller) taskListController = null
   }
 }
@@ -326,7 +327,7 @@ async function onPullRefresh() {
   try {
     await Promise.allSettled([loadAllLinks(), fetchTasks()])
   } finally {
-    pullRefreshing.value = false
+    if (linksPageActive) pullRefreshing.value = false
   }
 }
 
@@ -345,15 +346,15 @@ async function loadAllLinks() {
   allLinksController = controller
   try {
     const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 }, { signal: controller.signal })
-    if (requestId !== allLinksRequestId || accId !== linksAccId.value) return
+    if (!linksPageActive || requestId !== allLinksRequestId || accId !== linksAccId.value) return
     const raw = res as any
     allLinks.value = raw.list || raw.items || []
   } catch (e: any) {
-    if (!controller.signal.aborted && requestId === allLinksRequestId && accId === linksAccId.value) {
+    if (linksPageActive && !controller.signal.aborted && requestId === allLinksRequestId && accId === linksAccId.value) {
       toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
     }
   } finally {
-    if (requestId === allLinksRequestId) allLinksLoading.value = false
+    if (linksPageActive && requestId === allLinksRequestId) allLinksLoading.value = false
     if (allLinksController === controller) allLinksController = null
   }
 }
@@ -396,15 +397,15 @@ async function toggleTask(task: ScrapeTask) {
       page: 1,
       page_size: 100,
     }, { signal: controller.signal })
-    if (accId !== linksAccId.value || taskLinkRequestIds.get(task.task_id) !== requestId) return
+    if (!linksPageActive || accId !== linksAccId.value || taskLinkRequestIds.get(task.task_id) !== requestId) return
     const raw = res as any
     taskLinks.value = { ...taskLinks.value, [task.task_id]: raw.list || raw.items || [] }
   } catch (e: unknown) {
-    if (!controller.signal.aborted && accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+    if (linksPageActive && !controller.signal.aborted && accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
       toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     }
   } finally {
-    if (accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+    if (linksPageActive && accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
       linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
     }
     if (taskLinkControllers.get(task.task_id) === controller) taskLinkControllers.delete(task.task_id)
@@ -416,7 +417,7 @@ async function copyLink(url: string) {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(url)
-      toast({ type: 'success', title: '已复制链接' })
+      if (linksPageActive) toast({ type: 'success', title: '已复制链接' })
       return
     }
   } catch {
@@ -438,6 +439,7 @@ async function copyLink(url: string) {
   } finally {
     ta.remove()
   }
+  if (!linksPageActive) return
   if (copied) toast({ type: 'success', title: '已复制链接' })
   else toast({ type: 'error', title: '复制失败', message: '请手动选择并复制链接' })
 }
@@ -457,11 +459,12 @@ async function exportTaskLinks(task: ScrapeTask, format: 'txt' | 'csv' = 'txt') 
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
+    if (!linksPageActive) return
     const mimeType = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'
     const blob = new Blob([text], { type: mimeType })
     downloadBlob(`scrape-links-${task.task_id.slice(0, 8)}.${format}`, blob)
   } catch (e: unknown) {
-    toast({ type: 'error', title: '导出失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (linksPageActive) toast({ type: 'error', title: '导出失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -477,11 +480,12 @@ async function exportAllLinks(format: 'txt' | 'csv') {
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
+    if (!linksPageActive) return
     const mimeType = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'
     const blob = new Blob([text], { type: mimeType })
     downloadBlob(`scrape-links-all.${format}`, blob)
   } catch {
-    toast({ type: 'error', title: '导出失败' })
+    if (linksPageActive) toast({ type: 'error', title: '导出失败' })
   }
 }
 
@@ -495,6 +499,7 @@ function statusLabel(s: string) {
 
 
 onUnmounted(() => {
+  linksPageActive = false
   messageStatusController?.abort()
   bioStatusController?.abort()
   taskListController?.abort()
@@ -530,7 +535,10 @@ async function loadBioListeningStatus(accountId: string) {
       headers: { Authorization: `Bearer ${authStore.token}` },
       signal: controller.signal,
     })
-    if (res.ok && linksAccId.value === accountId) bioListening.value = (await res.json()).enabled
+    if (res.ok) {
+      const data = await res.json()
+      if (linksPageActive && linksAccId.value === accountId && !controller.signal.aborted) bioListening.value = data.enabled
+    }
   } catch {} finally {
     if (bioStatusController === controller) bioStatusController = null
   }
@@ -549,13 +557,13 @@ async function toggleBioListening() {
       body: JSON.stringify({ account_id: accountId, enabled: next, mode: 'bio' }),
     })
     if (!res.ok) throw new Error()
-    if (linksAccId.value === accountId) {
+    if (linksPageActive && linksAccId.value === accountId) {
       bioListening.value = next
       toast({ type: 'success', title: next ? '简介实时解析已开启' : '简介实时解析已关闭' })
     }
   } catch {
-    if (linksAccId.value === accountId) toast({ type: 'error', title: '简介解析开关操作失败', message: '请稍后重试' })
-  } finally { bioSaving.value = false }
+    if (linksPageActive && linksAccId.value === accountId) toast({ type: 'error', title: '简介解析开关操作失败', message: '请稍后重试' })
+  } finally { if (linksPageActive) bioSaving.value = false }
 }
 
 async function loadMessageListeningStatus(accountId: string) {
@@ -569,7 +577,10 @@ async function loadMessageListeningStatus(accountId: string) {
       headers: { Authorization: `Bearer ${authStore.token}` },
       signal: controller.signal,
     })
-    if (res.ok && linksAccId.value === accountId) listening.value = (await res.json()).enabled
+    if (res.ok) {
+      const data = await res.json()
+      if (linksPageActive && linksAccId.value === accountId && !controller.signal.aborted) listening.value = data.enabled
+    }
   } catch {} finally {
     if (messageStatusController === controller) messageStatusController = null
   }
@@ -600,15 +611,15 @@ async function toggleListening() {
       body: JSON.stringify({ account_id: acc.account_id, enabled: next }),
     })
     if (!res.ok) throw new Error()
-    if (linksAccId.value === accountId) {
+    if (linksPageActive && linksAccId.value === accountId) {
       listening.value = next
       toast({ type: 'success', title: next ? '链接监听已开启' : '链接监听已关闭' })
       if (next) switchTab('results')
     }
   } catch {
-    if (linksAccId.value === accountId) toast({ type: 'error', title: '操作失败, 请重试' })
+    if (linksPageActive && linksAccId.value === accountId) toast({ type: 'error', title: '操作失败, 请重试' })
   } finally {
-    listeningSaving.value = false
+    if (linksPageActive) listeningSaving.value = false
   }
 }
 </script>
