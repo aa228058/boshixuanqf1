@@ -41,7 +41,7 @@
           <span class="text-sm">{{ planLabel(row.plan_id as string) }}</span>
         </template>
         <template #created_at="{ row }">
-          <span class="text-sm">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '—' }}</span>
+          <span class="text-sm">{{ formatValidDate(row.created_at || '') }}</span>
         </template>
         <template #status="{ row }">
           <span class="text-xs px-2 py-0.5 rounded-full" :class="codeStatusClass(row.status as string)">
@@ -51,8 +51,8 @@
         <template #actions="{ row }">
           <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(row.code as string)">复制</t-button>
           <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(row as any)">查看</t-button>
-          <t-button v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)">作废</t-button>
-          <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)">删除</t-button>
+          <t-button v-if="row.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(row as any)" :disabled="revokingCodeIds.includes(row.code_id as string)">作废</t-button>
+          <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(row as any)" :disabled="deletingCodeIds.includes(row.code_id as string)">删除</t-button>
         </template>
       </t-table>
     </div>
@@ -78,12 +78,12 @@
           <span v-else-if="c.used_by">使用者: {{ c.used_by.slice(0, 8) }}...</span>
         </div>
         <div class="flex items-center justify-between text-xs text-text-secondary">
-          <span>{{ new Date(c.created_at).toLocaleDateString('zh-CN') }}</span>
+          <span>{{ formatValidDate(c.created_at || '') }}</span>
           <div>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="copyCode(c.code)">复制</t-button>
             <t-button theme="primary" variant="text" size="sm" class="ui-t-button ui-t-button--text ui-t-button--sm" @click="viewCode(c)">查看</t-button>
-            <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)">作废</t-button>
-            <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)">删除</t-button>
+            <t-button v-if="c.status === 'unused'" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="revokeCode(c)" :disabled="revokingCodeIds.includes(c.code_id)">作废</t-button>
+            <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click="delCode(c)" :disabled="deletingCodeIds.includes(c.code_id)">删除</t-button>
           </div>
         </div>
       </div>
@@ -131,8 +131,8 @@
         <div class="flex justify-between"><span class="text-text-secondary">套餐</span><span>{{ planLabel(viewingCode.plan_id) }}</span></div>
         <div class="flex justify-between"><span class="text-text-secondary">状态</span><span>{{ viewingCode.status === 'unused' ? '未使用' : viewingCode.status === 'used' ? '已使用' : viewingCode.status === 'expired' ? '已过期' : '已作废' }}</span></div>
         <div class="flex justify-between"><span class="text-text-secondary">使用租户</span><span>{{ viewingCode.used_by_tenant_name || '-' }}</span></div>
-        <div class="flex justify-between"><span class="text-text-secondary">使用时间</span><span>{{ viewingCode.used_at ? new Date(viewingCode.used_at).toLocaleString('zh-CN') : '-' }}</span></div>
-        <div class="flex justify-between"><span class="text-text-secondary">过期时间</span><span>{{ viewingCode.expires_at ? new Date(viewingCode.expires_at).toLocaleString('zh-CN') : '-' }}</span></div>
+        <div class="flex justify-between"><span class="text-text-secondary">使用时间</span><span>{{ viewingCode.used_at ? formatValidDateTime(viewingCode.used_at) : '—' }}</span></div>
+        <div class="flex justify-between"><span class="text-text-secondary">过期时间</span><span>{{ viewingCode.expires_at ? formatValidDateTime(viewingCode.expires_at) : '—' }}</span></div>
         <div class="flex justify-between"><span class="text-text-secondary">生效方式</span><span>{{ viewingCode.timing_type === 'immediate' ? '立即生效' : '使用时生效' }}</span></div>
         <div v-if="viewingCode.notes" class="flex justify-between gap-4"><span class="text-text-secondary shrink-0">备注</span><span class="text-right">{{ viewingCode.notes }}</span></div>
       </div>
@@ -147,8 +147,8 @@
     <Transition name="batch-bar">
       <div v-if="selectedIds.length" class="fixed bottom-[calc(92px_+_env(safe-area-inset-bottom,0px))] md:bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 pl-4 pr-2 py-1.5 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-hide rounded-full glass border border-border elev-pop">
         <span class="text-xs text-text-muted whitespace-nowrap">已选 {{ selectedIds.length }} 张</span>
-        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke">批量作废</t-button>
-        <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete">批量删除</t-button>
+        <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm whitespace-nowrap" @click="batchRevoke" :disabled="batchRevoking || batchDeleting">批量作废</t-button>
+        <t-button theme="danger" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm whitespace-nowrap" @click="batchDelete" :disabled="batchDeleting || batchRevoking">批量删除</t-button>
         <button type="button" @click="selectedIds = []" class="ui-icon-btn" aria-label="清空已选卡密" title="清空已选卡密">×</button>
       </div>
     </Transition>
@@ -167,6 +167,7 @@ import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import type { ActivationCode, Plan } from '@/types'
 // R115: 恢复 codeStatusClass(复核脚本误判, 正文实际有使用)
 import { codeStatusClass, planLabel } from '@/utils/format'
+import { formatValidDate, formatValidDateTime, validateCodeGenerationInput } from '@/utils/adminPageGuards'
 import { ask } from '@/utils/confirm'
 
 const codes = ref<ActivationCode[]>([])
@@ -199,6 +200,10 @@ const page = ref(1)
 const total = ref(0)
 const showGenerate = ref(false)
 const generatingCodes = ref(false)
+const revokingCodeIds = ref<string[]>([])
+const deletingCodeIds = ref<string[]>([])
+const batchRevoking = ref(false)
+const batchDeleting = ref(false)
 const generateForm = ref({ plan_id: 'basic', count: 10, timing_type: 'immediate', expires_days: undefined as number | undefined })
 
 const planOptions = computed(() => plans.value.map(p => ({ label: p.name, value: p.plan_id })))
@@ -252,9 +257,15 @@ async function fetchCodes() {
 
 async function doGenerate() {
   if (generatingCodes.value) return
+  const validationError = validateCodeGenerationInput(generateForm.value, planOptions.value.map(option => option.value))
+  if (validationError) {
+    toast({ type: 'warning', title: '生成参数无效', message: validationError })
+    return
+  }
+  const payload = { ...generateForm.value }
   generatingCodes.value = true
   try {
-    await adminApiMod.generateCodes(generateForm.value)
+    await adminApiMod.generateCodes(payload)
     showGenerate.value = false
     generateForm.value = { plan_id: 'basic', count: 10, timing_type: 'immediate', expires_days: undefined }
     await fetchCodes()
@@ -267,12 +278,16 @@ async function doGenerate() {
 }
 
 async function revokeCode(c: ActivationCode) {
+  if (revokingCodeIds.value.includes(c.code_id)) return
+  revokingCodeIds.value = [...revokingCodeIds.value, c.code_id]
   try {
     await adminApiMod.revokeCode(c.code_id)
     await fetchCodes()
     toast({ type: 'success', title: '卡密已作废' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '作废失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    revokingCodeIds.value = revokingCodeIds.value.filter(id => id !== c.code_id)
   }
 }
 
@@ -299,37 +314,48 @@ async function exportCodes() {
 const selectedIds = ref<string[]>([])
 
 async function batchRevoke() {
-  if (!await ask(`批量作废 ${selectedIds.value.length} 张卡密？`)) return
+  if (batchRevoking.value || batchDeleting.value || !selectedIds.value.length) return
+  const ids = [...new Set(selectedIds.value)]
+  if (!await ask(`批量作废 ${ids.length} 张卡密？`)) return
+  batchRevoking.value = true
   try {
-    await adminApiMod.batchRevokeCodes({ ids: selectedIds.value })
-    selectedIds.value = []
+    await adminApiMod.batchRevokeCodes({ ids })
+    selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
     await fetchCodes()
     toast({ type: 'success', title: '已批量作废' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '批量作废失败', message: (e instanceof Error ? e.message : '请稍后重试') })
-  }
+  } finally { batchRevoking.value = false }
 }
 
 async function batchDelete() {
-  if (!await ask(`批量删除 ${selectedIds.value.length} 张卡密？不可恢复！`)) return
+  if (batchDeleting.value || batchRevoking.value || !selectedIds.value.length) return
+  const ids = [...new Set(selectedIds.value)]
+  if (!await ask(`批量删除 ${ids.length} 张卡密？不可恢复！`)) return
+  batchDeleting.value = true
   try {
-    await adminApiMod.batchDeleteCodes({ ids: selectedIds.value })
-    selectedIds.value = []
+    await adminApiMod.batchDeleteCodes({ ids })
+    selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
     await fetchCodes()
     toast({ type: 'success', title: '已批量删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '批量删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
-  }
+  } finally { batchDeleting.value = false }
 }
 
 async function delCode(c: ActivationCode) {
+  if (deletingCodeIds.value.includes(c.code_id)) return
   if (!await ask(`确认删除卡密 ${c.code}？不可恢复！`)) return
+  deletingCodeIds.value = [...deletingCodeIds.value, c.code_id]
   try {
     await adminApiMod.batchDeleteCodes({ ids: [c.code_id] })
+    selectedIds.value = selectedIds.value.filter(id => id !== c.code_id)
     await fetchCodes()
     toast({ type: 'success', title: '卡密已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    deletingCodeIds.value = deletingCodeIds.value.filter(id => id !== c.code_id)
   }
 }
 
