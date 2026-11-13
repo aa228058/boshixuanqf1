@@ -131,3 +131,47 @@ func TestCreateSplitBatchIsAtomic(t *testing.T) {
 		t.Fatalf("partial batch survived rollback: parent=%d child=%d", parentCount, childCount)
 	}
 }
+
+func TestDeleteRemovesTaskFromBatchReferences(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, $2, 'x', 'batch delete test', $3, 'free')`,
+		tenantID, "batch-delete-"+tenantID.String(), "batch-delete-key-"+tenantID.String())
+	if err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+
+	taskID := uuid.New()
+	batchID := uuid.New()
+	now := time.Now()
+	batchRepo := NewBatchTaskRepository(pool)
+	if err := batchRepo.Create(ctx, &domain.BatchTask{
+		BatchID: batchID, TenantID: tenantID, Message: "delete child",
+		TotalMsgs: 1, SubTasks: []uuid.UUID{taskID}, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+	taskRepo := NewTaskRepository(pool)
+	if err := taskRepo.Create(ctx, &domain.Task{
+		TaskID: taskID, TenantID: tenantID, Type: domain.TaskTypeBroadcast,
+		Status: domain.TaskStatusCompleted, Priority: 5,
+		AccountIDs: []uuid.UUID{}, TargetIDs: []string{"target"},
+		Payload: map[string]any{"batch_id": batchID.String()},
+		Progress: domain.TaskProgress{Total: 1, Done: 1}, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("create terminal child: %v", err)
+	}
+	if err := taskRepo.Delete(ctx, tenantID, taskID); err != nil {
+		t.Fatalf("delete terminal child: %v", err)
+	}
+	got, err := batchRepo.GetByID(ctx, tenantID, batchID)
+	if err != nil {
+		t.Fatalf("get batch after child deletion: %v", err)
+	}
+	if len(got.SubTasks) != 0 {
+		t.Fatalf("batch sub_tasks = %v after deleting child, want empty", got.SubTasks)
+	}
+}
