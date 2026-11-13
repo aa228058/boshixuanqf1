@@ -324,18 +324,18 @@ func (r *TaskRepository) ClaimTasksWithGlobalLimit(ctx context.Context, workerID
 	}
 	var claimed []*domain.Task
 	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, \`SELECT pg_advisory_xact_lock(72623859790382856)\`); err != nil {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(72623859790382856)`); err != nil {
 			return fmt.Errorf("lock global task capacity: %w", err)
 		}
 		var running int
-		if err := tx.QueryRow(ctx, \`
+		if err := tx.QueryRow(ctx, `
 			SELECT count(*) FROM tasks t
 			JOIN tenants tenant ON tenant.tenant_id = t.tenant_id
 			WHERE t.status = 'running'
 			  AND t.locked_at IS NOT NULL
 			  AND t.locked_at >= NOW() - ($1 * INTERVAL '1 minute')
 			  AND tenant.status = 'active'
-			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())\`,
+			  AND (tenant.expires_at IS NULL OR tenant.expires_at > NOW())`,
 			lockTimeoutMin,
 		).Scan(&running); err != nil {
 			return fmt.Errorf("count active running tasks: %w", err)
@@ -347,7 +347,7 @@ func (r *TaskRepository) ClaimTasksWithGlobalLimit(ctx context.Context, workerID
 		if batchLimit > available {
 			batchLimit = available
 		}
-		rows, err := tx.Query(ctx, \`
+		rows, err := tx.Query(ctx, `
 			WITH candidates AS (
 				SELECT t.task_id
 				FROM tasks t
@@ -376,7 +376,7 @@ func (r *TaskRepository) ClaimTasksWithGlobalLimit(ctx context.Context, workerID
 			          claimed.locked_at, claimed.worker_id, claimed.retry_count, claimed.scheduled_at,
 			          claimed.started_at, claimed.completed_at, claimed.created_at, claimed.is_loop,
 			          claimed.loop_interval_minutes, claimed.min_interval_seconds, claimed.max_interval_seconds,
-			          claimed.next_run_at\`,
+			          claimed.next_run_at`,
 			workerID, batchLimit, lockTimeoutMin,
 		)
 		if err != nil {
