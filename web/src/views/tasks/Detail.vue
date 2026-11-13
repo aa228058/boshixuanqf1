@@ -743,13 +743,12 @@ async function connectSSE() {
       sseRuntime.handleError(source)
     }
   } catch {
-    if (pageActive && !sseTicketController?.signal.aborted) {
+    if (pageActive) {
       connState.value = 'disconnected'
       sseRuntime.scheduleReconnect()
     }
   } finally {
-    if (sseTicketController?.signal.aborted || !pageActive) sseTicketController = null
-    else sseTicketController = null
+    sseTicketController = null
     sseConnecting = false
   }
 }
