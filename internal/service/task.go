@@ -640,6 +640,7 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 			Payload:     payload,
 			Progress:    domain.TaskProgress{Total: chunkMsgs},
 			ScheduledAt: scheduledAt,
+			CreatedAt:   time.Now(),
 		}
 		if scheduledAt != nil && !scheduledAt.Before(time.Now()) {
 			task.Status = domain.TaskStatusPending
