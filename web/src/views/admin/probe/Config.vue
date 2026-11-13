@@ -83,10 +83,11 @@ async function save() {
       private_invite: privateInvite,
       public_link: publicLink,
     })
+    if (!probePageActive) return
     await load()
-    toast({ type: 'success', title: '探测配置已保存' })
+    if (probePageActive) toast({ type: 'success', title: '探测配置已保存' })
   } catch { /* 拦截器已提示 */ }
-  finally { saving.value = false }
+  finally { if (probePageActive) saving.value = false }
 }
 
 onMounted(() => { probePageActive = true; void load() })
