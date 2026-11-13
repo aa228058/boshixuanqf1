@@ -69,6 +69,24 @@ describe('auth store session restoration', () => {
     expect(store.isLoggedIn).toBe(true)
     expect(storage.get('tg_sender_session')).toBe('1')
   })
+
+  it('登出并重新登录后，迟到的续签结果不能返回旧 token', async () => {
+    installLocalStorage()
+    let resolveRefresh!: (value: { token: string }) => void
+    authApiMock.refresh.mockReturnValueOnce(new Promise(resolve => { resolveRefresh = resolve }))
+    authApiMock.logout.mockResolvedValueOnce(undefined)
+    authApiMock.login.mockResolvedValueOnce({ token: 'new-session-token' })
+    const store = useAuthStore()
+
+    const pendingRefresh = store.refresh()
+    await store.logout()
+    await store.login('new-user', 'password')
+    resolveRefresh({ token: 'stale-refresh-token' })
+
+    await expect(pendingRefresh).rejects.toMatchObject({ name: 'AbortError' })
+    expect(store.token).toBe('new-session-token')
+  })
+
   it('登出后迟到的登录响应不能重新建立会话', async () => {
     installLocalStorage()
     let resolveLogin!: (value: { token: string }) => void
