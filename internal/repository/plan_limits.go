@@ -69,8 +69,8 @@ func (r *PlanLimitRepository) ReleaseDailyUsageAmount(ctx context.Context, tenan
 	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE plan_daily_counters
-		SET used = GREATEST(used - $4, 0)
-		WHERE tenant_id = $1 AND day = CURRENT_DATE AND kind = $2`, tenantID, kind, amount, amount)
+		SET used = GREATEST(used - $3, 0)
+		WHERE tenant_id = $1 AND day = CURRENT_DATE AND kind = $2`, tenantID, kind, amount)
 	return err
 }
 
