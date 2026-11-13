@@ -1437,11 +1437,14 @@ async function doProtocolImport() {
     const sessions = importText.value.split('\n').map((s) => s.trim()).filter(Boolean)
     if (sessions.length > 0) {
       const r = await importSessions(sessions, remark)
+      // 字符串导入已发出后不能由页面卸载回滚；但离页后不再继续启动文件导入。
+      if (!accountsPageActive) return
       parts.push(`字符串导入: 成功 ${r.created} / 失败 ${r.failed}`)
       r.errors?.slice(0, 3).forEach((e) => parts.push(e))
     }
     if (importFileList.value.length > 0) {
       const r2 = await importSessionFiles(importFileList.value, remark)
+      if (!accountsPageActive) return
       parts.push(`文件导入: 成功 ${r2.created} / 失败 ${r2.failed}`)
       r2.errors?.slice(0, 3).forEach((e) => parts.push(e))
     }
@@ -1449,7 +1452,7 @@ async function doProtocolImport() {
       toast({ type: 'success', message: parts.join('；') || '导入完成' })
       closeAddModal()
     }
-    accountStore.fetchAccounts(true)
+    if (accountsPageActive) accountStore.fetchAccounts(true)
   } catch (err: any) {
     if (accountsPageActive) toast({ type: 'error', message: err?.message || '导入失败' })
   } finally {
@@ -1952,7 +1955,7 @@ async function submitOld2FA() {
     if (result === 'success') {
       showAuth.value = false
       await accountStore.fetchAccounts(true)
-      toast({ type: 'success', title: '重新登录成功' })
+      if (accountsPageActive) toast({ type: 'success', title: '重新登录成功' })
     } else if (result === 'password') {
       oldTwoFAPassword.value = ''
       toast({ type: 'error', title: '二级验证未通过', message: '请检查两步验证密码后重新输入' })
@@ -2010,6 +2013,8 @@ async function saveRemark() {
   // 备注失败全停; 代理失败单独告警但保留备注成果。
   try {
     await accountApi.update(editingAccount.value.account_id, { remark: editRemarkText.value })
+    // 备注请求完成后若页面已卸载，不再继续发起第二个代理写请求。
+    if (!accountsPageActive) return
   } catch (e: unknown) {
     if (accountsPageActive) toast({ type: 'error', title: '备注保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     return
