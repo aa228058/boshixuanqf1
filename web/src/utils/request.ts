@@ -35,6 +35,7 @@ function setLoading(loading: boolean) {
 export interface RequestOptions {
   method?: string
   headers?: Record<string, string>
+  credentials?: RequestCredentials
   body?: Record<string, unknown> | unknown
   timeout?: number
   signal?: AbortSignal
@@ -256,6 +257,7 @@ export async function doFetchWithRetry(
         method: method,
         headers: attemptHeaders,
         body: isForm ? (options.body as FormData) : (options.body ? JSON.stringify(options.body) : undefined),
+        credentials: options.credentials,
         signal: controller.signal,
       })
     } catch {
