@@ -45,3 +45,9 @@ const successLen = computed(() => circ.value * (success.value / 100))
     <span class="absolute text-[10px] font-bold tabular-nums text-text-primary">{{ Math.round(progress) }}%</span>
   </div>
 </template>
+
+<style scoped>
+@media (prefers-reduced-motion: reduce) {
+  svg circle { transition: none !important; }
+}
+</style>
