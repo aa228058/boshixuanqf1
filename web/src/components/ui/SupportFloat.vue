@@ -288,4 +288,9 @@ onUnmounted(() => {
 .delay-500 {
   animation-delay: 0.6s;
 }
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping-slow { animation: none; }
+  .support-enter-active,
+  .support-leave-active { transition: none; }
+}
 </style>
