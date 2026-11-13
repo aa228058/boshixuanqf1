@@ -987,6 +987,7 @@ async function runBatchProfile() {
   batchingProfile.value = true
   try {
     const r = await accountApi.batchUpdateProfile(ids, profile)
+    if (!accountsPageActive) return
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号资料已修改` })
     } else {
@@ -995,9 +996,9 @@ async function runBatchProfile() {
     showBatchProfile.value = false
     selectedIds.value = new Set([...selectedIds.value].filter(id => !ids.includes(id)))
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '批量修改失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '批量修改失败' })
   } finally {
-    batchingProfile.value = false
+    if (accountsPageActive) batchingProfile.value = false
   }
 }
 // 卡片"资料"按钮: 单号快速编辑——选中之并打开批量资料弹窗(空字段=不改)
@@ -1021,10 +1022,10 @@ async function onAvatarPick(e: Event) {
   avatarFileName.value = file.name
   try {
     await uploadAvatar(accId, file)
-    toast({ type: 'success', message: '头像已上传, 稍等片刻刷新可见' })
-  } catch { avatarFileName.value = '' /* 拦截器已提示 */ }
+    if (accountsPageActive) toast({ type: 'success', message: '头像已上传, 稍等片刻刷新可见' })
+  } catch { if (accountsPageActive) avatarFileName.value = '' /* 拦截器已提示 */ }
   finally {
-    avatarUploading.value = false
+    if (accountsPageActive) avatarUploading.value = false
     input.value = '' // 允许重复选同一文件
   }
 }
@@ -1059,6 +1060,7 @@ async function runClone() {
   cloning.value = true
   try {
     const r = await accountApi.cloneProfile(cloneSource.value.trim(), [...selectedIds.value])
+    if (!accountsPageActive) return
     if (r.failed === 0) {
       toast({ type: 'success', message: `已克隆 @${cloneSource.value.trim().replace(/^@/, '')} 的资料到 ${r.applied} 个账号` })
     } else {
@@ -1066,9 +1068,9 @@ async function runClone() {
     }
     showClone.value = false
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '克隆失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '克隆失败' })
   } finally {
-    cloning.value = false
+    if (accountsPageActive) cloning.value = false
   }
 }
 // R124 竞态守卫: 数组整体替换瞬间, computed 重算读到越界 undefined ——
@@ -1166,6 +1168,7 @@ async function batchSetPool(status: 'active' | 'standby') {
   batchingPool.value = true
   try {
     const r = await accountApi.batchSetPool(ids, status)
+    if (!accountsPageActive) return
     if (r.failed === 0) {
       toast({ type: 'success', message: `${r.success} 个账号已${label}` })
     } else {
@@ -1175,9 +1178,9 @@ async function batchSetPool(status: 'active' | 'standby') {
     if (r.failed === 0) selectedIds.value = new Set()
     accountStore.fetchAccounts(true)
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '批量操作失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '批量操作失败' })
   } finally {
-    batchingPool.value = false
+    if (accountsPageActive) batchingPool.value = false
   }
 }
 
@@ -1206,18 +1209,19 @@ async function refreshAvatar(acc: any) {
 // 一键退群: 确认后退出该账号加入的全部群组(逐个执行带风控间隔)
 async function leaveAllGroups(acc: any) {
   const ok = await ask(`确定让 ${acc.remark || acc.phone} 退出全部已加入群组吗? 逐个执行需等待, 期间勿重复点击。`, { title: '一键退群', danger: true })
-  if (!ok) return
+  if (!ok || !accountsPageActive) return
   leavingAllId.value = acc?.account_id
   try {
     const r = await accountApi.leaveAllGroups(acc?.account_id)
+    if (!accountsPageActive) return
     const parts = [`已退 ${r.left} 群`]
     if (r.skipped) parts.push(`${r.skipped} 个普通群需手动`)
     if (r.failed) parts.push(`${r.failed} 个失败`)
     toast({ type: r.failed ? 'warning' : 'success', message: parts.join(' · ') })
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '退群失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '退群失败' })
   } finally {
-    leavingAllId.value = ''
+    if (accountsPageActive) leavingAllId.value = ''
   }
 }
 
@@ -1252,6 +1256,7 @@ async function doTransfer() {
   transferRunning.value = true
   try {
     const r = await accountApi.transferGroups(transferSource.value.account_id, transferTargetId.value, min, max)
+    if (!accountsPageActive) return
     transferResult.value = { links_total: r.links_total, skipped: r.skipped || [] }
     if (r.links_total > 0) {
       toast({ type: 'success', message: `转移任务已创建：${r.links_total} 个群` })
@@ -1260,9 +1265,9 @@ async function doTransfer() {
       toast({ type: 'warning', message: r.message || '没有可转移的群' })
     }
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '转移失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '转移失败' })
   } finally {
-    transferRunning.value = false
+    if (accountsPageActive) transferRunning.value = false
   }
 }
 
@@ -1757,14 +1762,15 @@ async function connect(acc: Account) {
   try {
     await accountApi.connect(acc?.account_id)
     await accountStore.fetchAccounts()
+    if (!accountsPageActive) return
     // 连接成功后，如果当前没有选中账号，自动选这个
     if (!accountStore.currentAccount) {
       accountStore.currentAccount = accountStore.phoneAccounts.find(a => a?.account_id === acc?.account_id) || null
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '连接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '连接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    connecting.value = ''
+    if (accountsPageActive) connecting.value = ''
   }
 }
 
@@ -1773,14 +1779,15 @@ async function disconnect(acc: Account) {
   try {
     await accountApi.disconnect(acc?.account_id)
     await accountStore.fetchAccounts()
+    if (!accountsPageActive) return
     // 如果断开的是当前选中账号，重置选中
     if (accountStore.currentAccount?.account_id === acc?.account_id) {
       accountStore.currentAccount = null
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '断开失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '断开失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    disconnecting.value = ''
+    if (accountsPageActive) disconnecting.value = ''
   }
 }
 
