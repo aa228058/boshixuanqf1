@@ -1471,13 +1471,9 @@ func (h *TaskHandler) BatchDelete(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	taskIDs := make([]uuid.UUID, 0, len(req.TaskIDs))
-	for _, id := range req.TaskIDs {
-		uid, err := uuid.Parse(id)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid task id: "+id)
-		}
-		taskIDs = append(taskIDs, uid)
+	taskIDs, err := parseBatchTaskIDs(req.TaskIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	deleted, failed, err := h.svc.BatchDelete(c.Request().Context(), tenantID, taskIDs)
 	if err != nil {
