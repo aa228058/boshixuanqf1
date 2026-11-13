@@ -558,7 +558,12 @@ func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid
 		go e.stopPooledAsync(pc)
 	}
 
-	return e.updateStatus(ctx, tenfunc (e *Engine) evictOldestIdleClientLocked() *pooledClient {
+	return e.updateStatus(ctx, tenantID, accountID, domain.AccountStatusOffline)
+}
+
+// evictOldestIdleClientLocked removes the oldest idle client from the pool to make room.
+// Caller must hold e.poolMu write lock.
+func (e *Engine) evictOldestIdleClientLocked() *pooledClient {
 	// Choose the least-recently-used entry that is actually idle. A busy
 	// oldest entry must not prevent reclaiming another idle connection.
 	var oldestKey string
