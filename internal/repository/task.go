@@ -396,7 +396,6 @@ func (r *TaskRepository) ClaimTasksWithGlobalLimit(ctx context.Context, workerID
 	return claimed, nil
 }
 
-
 func (r *TaskRepository) claimTasksWithStatus(ctx context.Context, workerID string, limit int, status domain.TaskStatus, lockTimeoutMin int) ([]*domain.Task, error) {
 	rows, err := r.db.Query(ctx, `
 		UPDATE tasks AS claimed SET status = 'running', locked_at = NOW(), worker_id = $1, started_at = COALESCE(claimed.started_at, NOW())
