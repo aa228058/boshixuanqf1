@@ -70,17 +70,13 @@ func (h *GroupLibraryHandler) Search(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusServiceUnavailable, "额度服务暂不可用, 请稍后重试")
 		}
 		if dailySearch > 0 {
-			// P2-47 审计修复: 原来 AddDailyUsage(+1) 在超限判断之前——超限的这次也扣了
-			// 次数。改为先查当前用量, 超限直接拒绝不扣, 没超才 +1。
-			used, err := h.planLimits.GetDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch)
+			// 配额检查与扣减必须在同一条 SQL 中原子完成，避免并发请求同时读到剩余额度。
+			allowed, err := h.planLimits.TryAddDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch, dailySearch)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusServiceUnavailable, "用量服务暂不可用, 请稍后重试")
 			}
-			if used >= dailySearch {
+			if !allowed {
 				return echo.NewHTTPError(http.StatusTooManyRequests, fmt.Sprintf("今日搜群次数已用完(体验版 %d 次/天), 升级套餐不限量", dailySearch))
-			}
-			if _, err := h.planLimits.AddDailyUsage(c.Request().Context(), tenantID, repository.KindGroupSearch, 1); err != nil {
-				return echo.NewHTTPError(http.StatusServiceUnavailable, "用量记录失败, 请稍后重试")
 			}
 		}
 	}
