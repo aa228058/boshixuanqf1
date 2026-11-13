@@ -9,6 +9,7 @@ import (
 	"context"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -376,7 +377,9 @@ func TestAccountCountAndCreateRespectsTenantLimitUnderConcurrency(t *testing.T) 
 				Level: domain.AccountLevelNormal,
 			}
 			if _, _, err := repo.CountAndCreate(ctx, account, limit); err != nil {
-				// Limit-reached errors are expected; database/constraint errors are reported below by final count.
+				if !strings.Contains(err.Error(), "account limit reached") {
+					errs <- err
+				}
 				return
 			}
 			created.Add(1)
