@@ -258,11 +258,12 @@ async function batchDelete() {
     confirmText: '确认删除',
     cancelText: '取消',
   })
-  if (!confirmed || deletingBatch.value) return
+  if (!confirmed || deletingBatch.value || !pageActive) return
   const ids = Array.from(selected.value)
   deletingBatch.value = true
   try {
     const results = await Promise.allSettled(ids.map((id) => accountStore.deleteAccount(id)))
+    if (!pageActive) return
     const failedIds = ids.filter((_, index) => results[index].status === 'rejected')
     // 仅移除成功项；失败账号保留勾选，便于用户重试而不是丢失操作上下文。
     const remaining = new Set(selected.value)
@@ -275,7 +276,7 @@ async function batchDelete() {
       toast({ type: 'success', title: `已删除 ${ids.length} 个协议号` })
     }
   } finally {
-    deletingBatch.value = false
+    if (pageActive) deletingBatch.value = false
   }
 }
 
@@ -331,21 +332,34 @@ async function doImport() {
     const res = sessionFiles.value.length > 0
       ? await importSessionFiles(sessionFiles.value, importRemark.value)
       : await importSessions(importLines.value, importRemark.value)
+    if (!pageActive) return
     importResult.value = res
     if (res.created > 0) {
       toast({ type: 'success', title: `成功导入 ${res.created} 个`, message: '正在后台连接验证…' })
       accountStore.fetchAccounts(true) // 立即刷新——行已在DB，无需等8秒
       if (importRefreshTimer) clearTimeout(importRefreshTimer)
-      importRefreshTimer = setTimeout(() => { importRefreshTimer = null; refresh(); accountStore.fetchAccounts(true) }, 8000) // 8秒后二次刷新获取连接状态
+      importRefreshTimer = setTimeout(() => {
+        importRefreshTimer = null
+        if (!pageActive) return
+        refresh()
+        accountStore.fetchAccounts(true)
+      }, 8000) // 8秒后二次刷新获取连接状态
     }
     if (res.failed === 0) {
       if (importCloseTimer) clearTimeout(importCloseTimer)
-      importCloseTimer = setTimeout(() => { importCloseTimer = null; showImport.value = false; importText.value = ''; sessionFiles.value = []; importResult.value = null }, 1500)
+      importCloseTimer = setTimeout(() => {
+        importCloseTimer = null
+        if (!pageActive) return
+        showImport.value = false
+        importText.value = ''
+        sessionFiles.value = []
+        importResult.value = null
+      }, 1500)
     }
   } catch (e: any) {
-    toast({ type: 'error', title: '导入失败', message: e?.message })
+    if (pageActive) toast({ type: 'error', title: '导入失败', message: e?.message })
   } finally {
-    importing.value = false
+    if (pageActive) importing.value = false
   }
 }
 
@@ -383,13 +397,14 @@ async function doSave() {
       twofa: form.twofa,
       remark: form.remark,
     })
+    if (!pageActive) return
     toast({ type: 'success', title: '资料已更新' })
     showEdit.value = false
     refresh()
   } catch (e: any) {
-    toast({ type: 'error', title: '保存失败', message: e?.message })
+    if (pageActive) toast({ type: 'error', title: '保存失败', message: e?.message })
   } finally {
-    saving.value = false
+    if (pageActive) saving.value = false
   }
 }
 
@@ -413,10 +428,11 @@ async function onAvatarPicked(e: Event) {
   }
   try {
     await uploadAvatar(avatarFor.value, file)
+    if (!pageActive) return
     toast({ type: 'success', title: '头像已更新' })
     refresh()
   } catch (err: any) {
-    toast({ type: 'error', title: '上传失败', message: err?.message })
+    if (pageActive) toast({ type: 'error', title: '上传失败', message: err?.message })
   }
 }
 
