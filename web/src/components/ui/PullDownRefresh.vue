@@ -33,6 +33,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
+import { canStartPullRefresh } from './pullDownRefresh'
 
 const props = defineProps<{ modelValue?: boolean }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: boolean): void; (e: 'refresh'): void }>()
@@ -74,10 +75,18 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
 }
 
 function canPull(): boolean {
-  if (refreshing.value) return false
   if (!scrollParent) scrollParent = findScrollParent(wrapEl.value)
-  if (!scrollParent) return true // 无滚动容器时总能拉(整页场景)
-  return scrollParent.scrollTop <= 0
+  // When content scrolls at the document level, there is no element scroll
+  // parent. Respect the page's scroll position instead of refreshing mid-page.
+  const scrollTop = scrollParent
+    ? scrollParent.scrollTop
+    : (typeof window !== 'undefined' && typeof document !== 'undefined'
+      ? Math.max(
+          window.scrollY || 0,
+          document.scrollingElement?.scrollTop ?? document.documentElement.scrollTop ?? 0,
+        )
+      : 0)
+  return canStartPullRefresh(scrollTop, refreshing.value)
 }
 
 function onStart(e: TouchEvent) {
