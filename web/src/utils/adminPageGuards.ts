@@ -28,3 +28,8 @@ export function clampPercentage(value: unknown): number {
   if (!Number.isFinite(numeric)) return 0
   return Math.min(100, Math.max(0, numeric))
 }
+
+export function finiteMetric(value: unknown): number {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : 0
+}
