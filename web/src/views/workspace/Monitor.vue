@@ -373,29 +373,36 @@ async function toggleRule(id: string, val: boolean) {
   ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.toggleRule(id, { is_active: val })
-    await fetchRules()
+    if (monitorPageActive) await fetchRules()
   } catch {
-    toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
-    await fetchRules() // 回滚本地乐观变更
+    if (monitorPageActive) {
+      toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
+      await fetchRules() // 回滚本地乐观变更
+    }
   } finally {
-    const next = new Set(ruleActionsPending.value)
-    next.delete(id)
-    ruleActionsPending.value = next
+    if (monitorPageActive) {
+      const next = new Set(ruleActionsPending.value)
+      next.delete(id)
+      ruleActionsPending.value = next
+    }
+  }
   }
 }
 
 async function deleteRule(id: string) {
-  if (ruleActionsPending.value.has(id) || !await ask('确定删除此规则吗？')) return
+  if (ruleActionsPending.value.has(id) || !await ask('确定删除此规则吗？') || !monitorPageActive) return
   ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.deleteRule(id)
-    await fetchRules()
+    if (monitorPageActive) await fetchRules()
   } catch {
-    toast({ type: 'error', title: '删除失败', message: '请稍后重试' })
+    if (monitorPageActive) toast({ type: 'error', title: '删除失败', message: '请稍后重试' })
   } finally {
-    const next = new Set(ruleActionsPending.value)
-    next.delete(id)
-    ruleActionsPending.value = next
+    if (monitorPageActive) {
+      const next = new Set(ruleActionsPending.value)
+      next.delete(id)
+      ruleActionsPending.value = next
+    }
   }
 }
 
@@ -476,6 +483,7 @@ async function saveRule() {
     } else {
       await monitorApi.createRule(data)
     }
+    if (!monitorPageActive) return
     // 先记录是否编辑态(editingRule 随后会被清空), 保证提示文案准确
     const wasEditing = !!editingRule.value
     showAddRule.value = false
@@ -487,9 +495,9 @@ async function saveRule() {
     await fetchRules()
     toast({ type: 'success', title: wasEditing ? '规则已更新' : '监控规则已创建', message: '规则即时生效' })
   } catch (e: any) {
-    toast({ type: 'error', title: '保存失败', message: e?.message || '请稍后重试' })
+    if (monitorPageActive) toast({ type: 'error', title: '保存失败', message: e?.message || '请稍后重试' })
   } finally {
-    ruleSaving.value = false
+    if (monitorPageActive) ruleSaving.value = false
   }
 }
 
