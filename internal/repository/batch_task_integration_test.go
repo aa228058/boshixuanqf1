@@ -159,7 +159,7 @@ func TestDeleteRemovesTaskFromBatchReferences(t *testing.T) {
 		TaskID: taskID, TenantID: tenantID, Type: domain.TaskTypeBroadcast,
 		Status: domain.TaskStatusCompleted, Priority: 5,
 		AccountIDs: []uuid.UUID{}, TargetIDs: []string{"target"},
-		Payload: map[string]any{"batch_id": batchID.String()},
+		Payload:  map[string]any{"batch_id": batchID.String()},
 		Progress: domain.TaskProgress{Total: 1, Done: 1}, CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("create terminal child: %v", err)
