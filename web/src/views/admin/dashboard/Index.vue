@@ -44,7 +44,7 @@
             <span class="text-xs">{{ planLabel(row.plan_id as string) }}</span>
           </template>
           <template #created_at="{ row }">
-            <span class="text-xs">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('zh-CN') : '—' }}</span>
+            <span class="text-xs">{{ row.created_at ? formatValidDate(row.created_at) : '—' }}</span>
           </template>
         </t-table>
       </div>
@@ -63,7 +63,7 @@
           </div>
           <div class="flex items-center gap-3 text-xs text-text-secondary">
             <span>{{ planLabel(t.plan_id) }}</span>
-            <span>{{ new Date(t.created_at).toLocaleDateString('zh-CN') }}</span>
+            <span>{{ formatValidDate(t.created_at) }}</span>
           </div>
         </div>
         <EmptyState v-if="!recentTenants.length" icon="Users" title="暂无租户" description="还没有租户注册" />
@@ -95,6 +95,7 @@ import { toast } from '@/utils/toast'
 import StatCard from '@/components/charts/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import type { Tenant } from '@/types'
+import { finiteMetric, formatValidDate } from '@/utils/adminPageGuards'
 
 use([CanvasRenderer, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -162,12 +163,12 @@ onMounted(async () => {
   try {
     const s = await adminApiMod.getStats({ signal: controller.signal })
     if (!dashboardPageActive || requestId !== dashboardRequestId) return
-    stats.value[0].value = String(s.total_tenants || 0)
-    stats.value[1].value = String(s.active_tenants || 0)
-    stats.value[2].value = String(s.total_accounts || 0)
-    stats.value[3].value = String(s.total_codes || 0)
-    stats.value[4].value = String(s.unused_codes || 0)
-    stats.value[5].value = `¥${s.today_revenue || 0}`
+    stats.value[0].value = String(finiteMetric(s.total_tenants))
+    stats.value[1].value = String(finiteMetric(s.active_tenants))
+    stats.value[2].value = String(finiteMetric(s.total_accounts))
+    stats.value[3].value = String(finiteMetric(s.total_codes))
+    stats.value[4].value = String(finiteMetric(s.unused_codes))
+    stats.value[5].value = `¥${finiteMetric(s.today_revenue)}`
 
     const res = await adminApiMod.listTenants({ limit: 5 }, { signal: controller.signal })
     if (!dashboardPageActive || requestId !== dashboardRequestId) return
