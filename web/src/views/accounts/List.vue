@@ -1445,13 +1445,15 @@ async function doProtocolImport() {
       parts.push(`文件导入: 成功 ${r2.created} / 失败 ${r2.failed}`)
       r2.errors?.slice(0, 3).forEach((e) => parts.push(e))
     }
-    toast({ type: 'success', message: parts.join('；') || '导入完成' })
-    closeAddModal()
+    if (accountsPageActive) {
+      toast({ type: 'success', message: parts.join('；') || '导入完成' })
+      closeAddModal()
+    }
     accountStore.fetchAccounts(true)
   } catch (err: any) {
-    toast({ type: 'error', message: err?.message || '导入失败' })
+    if (accountsPageActive) toast({ type: 'error', message: err?.message || '导入失败' })
   } finally {
-    importing.value = false
+    if (accountsPageActive) importing.value = false
   }
 }
 const addStep = ref<'phone' | 'code' | '2fa'>('phone')
@@ -2108,7 +2110,7 @@ async function saveGroup() {
 }
 
 async function deleteGroup(g: AccountGroup) {
-  if (!await ask(`确定删除分组「${g.name}」吗？`)) return
+  if (!await ask(`确定删除分组「${g.name}」吗？`) || !accountsPageActive) return
   try {
     await settingsApi.deleteAccountGroup(g.group_id)
     if (!accountsPageActive) return
