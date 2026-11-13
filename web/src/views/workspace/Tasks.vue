@@ -316,21 +316,24 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize))
 const clearingFinished = ref(false)
 const importJobActionsPending = ref(new Set<string>())
 
-// 清空已结束任务: 复用现有 batch/delete 接口, 零后端改动
-// 跨页拉全量(每状态最多 500 条), 避免只清当前页漏其他页
-// R109: 任务列表全租户化 —— 移除 account_id 过滤(原绑全局切换器, 已删除;
+// 清空已结束任务：后端任务列表每页最多 100 条，逐页读取直到末页，不能用 500 条单页请求。
+ // R109: 任务列表全租户化 —— 移除 account_id 过滤(原绑全局切换器, 已删除;
 // 页头文案已是"全部账号的任务汇总")
 async function clearFinished() {
   if (clearingFinished.value) return
   clearingFinished.value = true
   try {
     const ids: string[] = []
+    const pageSize = 100
     for (const status of ['completed', 'failed', 'cancelled']) {
-      const res: any = await taskApi.list({
-        status, page: 1, page_size: 500, hide_loops: 1, range: 'all',
-      } as any)
-      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : Array.isArray(res?.list) ? res.list : [])
-      ids.push(...list.map((task: any) => task?.task_id))
+      for (let page = 1; ; page++) {
+        const res: any = await taskApi.list({
+          status, page, page_size: pageSize, hide_loops: 1, range: 'all',
+        })
+        const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : Array.isArray(res?.list) ? res.list : [])
+        ids.push(...list.map((task: any) => task?.task_id).filter(Boolean))
+        if (list.length < pageSize) break
+      }
     }
     const uniqueIds = uniqueTaskIds(ids)
     if (!uniqueIds.length) {
