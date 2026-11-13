@@ -1670,7 +1670,7 @@ async function submitVerificationCode() {
     }
     codeError.value = '认证超时，请到账号列表确认状态'
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) codeError.value = (e instanceof Error ? e.message : '验证码错误')
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) codeError.value = (e instanceof Error ? e.message : '验证码错误')
   } finally {
     if (!signal.aborted) submitting.value = false
   }
@@ -1739,7 +1739,7 @@ async function submit2FA() {
     }
     twoFAError.value = '认证超时，请到账号列表确认状态'
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) twoFAError.value = (e instanceof Error ? e.message : '密码错误')
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) twoFAError.value = (e instanceof Error ? e.message : '密码错误')
   } finally {
     if (!signal.aborted) submitting.value = false
   }
@@ -1855,7 +1855,7 @@ async function showAuthModal(acc: Account) {
       toast({ type: 'warning', title: '登录流程启动超时', message: '弹窗保持打开，请稍后重试或检查服务端日志' })
     }
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '无法启动重新登录', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '无法启动重新登录', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
     if (!signal.aborted) oldAuthStarting.value = false
   }
@@ -1916,7 +1916,7 @@ async function submitOldCode() {
       toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后查看账号状态' })
     }
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '验证码提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '验证码提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
     if (!signal.aborted) oldAuthSubmitting.value = false
   }
@@ -1944,7 +1944,7 @@ async function submitOld2FA() {
       toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后确认账号状态' })
     }
   } catch (e: unknown) {
-    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '二级验证提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!signal.aborted && !(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '二级验证提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
     if (!signal.aborted) oldAuthSubmitting.value = false
   }
