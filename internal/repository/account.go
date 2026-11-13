@@ -510,6 +510,34 @@ func (r *AccountRepository) UpdateRemark(ctx context.Context, tenantID, accountI
 	return err
 }
 
+// ActivatePoolAccount 原子地将备用账号转为启用账号，避免并发转正突破租户套餐上限。
+func (r *AccountRepository) ActivatePoolAccount(ctx context.Context, tenantID, accountID uuid.UUID, maxAccounts int) error {
+	return pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		var lockedTenantID uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT tenant_id FROM tenants WHERE tenant_id = $1 FOR UPDATE`, tenantID).Scan(&lockedTenantID); err != nil {
+			return err
+		}
+		var currentStatus string
+		if err := tx.QueryRow(ctx, `SELECT pool_status FROM accounts WHERE tenant_id = $1 AND account_id = $2 FOR UPDATE`, tenantID, accountID).Scan(&currentStatus); err != nil {
+			return err
+		}
+		if currentStatus == "active" {
+			return nil
+		}
+		if maxAccounts > 0 {
+			var count int
+			if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM accounts WHERE tenant_id = $1 AND pool_status = 'active'`, tenantID).Scan(&count); err != nil {
+				return err
+			}
+			if count >= maxAccounts {
+				return fmt.Errorf("account limit reached: %d/%d", count, maxAccounts)
+			}
+		}
+		_, err := tx.Exec(ctx, `UPDATE accounts SET pool_status = 'active' WHERE tenant_id = $1 AND account_id = $2`, tenantID, accountID)
+		return err
+	})
+}
+
 // UpdatePoolStatus 切换账号 启用/备用 状态(056)
 // 转备用时业务由上层停止; 转正后占套餐额度(由 service 校验额度余量)
 func (r *AccountRepository) UpdatePoolStatus(ctx context.Context, tenantID, accountID uuid.UUID, status string) error {
