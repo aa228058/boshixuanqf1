@@ -500,6 +500,7 @@ function targetDisplayName(targetId: any, explicitName?: any): string {
 let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
 let sseConnecting = false
+let sseTicketController: AbortController | null = null
 let onVisCleanup: (() => void) | null = null
 
 const sseRuntime = createTaskSseRuntime({
@@ -652,6 +653,7 @@ async function connectSSE() {
     // Short-lived ticket replaces the JWT in the EventSource URL.
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
     const ticketController = new AbortController()
+    sseTicketController = ticketController
     const ticketTimeout = setTimeout(() => ticketController.abort(), 15000)
     let ticketResponse: Response
     let ticket = ''
@@ -741,11 +743,13 @@ async function connectSSE() {
       sseRuntime.handleError(source)
     }
   } catch {
-    if (pageActive) {
+    if (pageActive && !sseTicketController?.signal.aborted) {
       connState.value = 'disconnected'
       sseRuntime.scheduleReconnect()
     }
   } finally {
+    if (sseTicketController?.signal.aborted || !pageActive) sseTicketController = null
+    else sseTicketController = null
     sseConnecting = false
   }
 }
@@ -880,6 +884,8 @@ onUnmounted(() => {
   membersController = null
   for (const controller of logPageControllers.values()) controller.abort()
   logPageControllers.clear()
+  sseTicketController?.abort()
+  sseTicketController = null
   accountLabelsController?.abort()
   accountLabelsController = null
   groupLabelsController?.abort()
