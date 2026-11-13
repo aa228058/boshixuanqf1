@@ -814,6 +814,13 @@ const statusPoll = setInterval(() => {
 const onVisBack = () => { if (!document.hidden) accountStore.fetchAccounts(true) }
 document.addEventListener('visibilitychange', onVisBack)
 onUnmounted(() => {
+  accountsPageActive = false
+  statsRequestId++
+  statsController?.abort()
+  statsController = null
+  taskSummaryRequestId++
+  taskSummaryController?.abort()
+  taskSummaryController = null
   clearInterval(nowTick)
   clearInterval(statusPoll)
   document.removeEventListener('visibilitychange', onVisBack)
@@ -1978,17 +1985,35 @@ async function deleteGroup(g: AccountGroup) {
 
 // ===== 每账号累计记分牌: 成功/失败/跳过(来自 task_logs 聚合) =====
 const accStats = ref<Record<string, { success: number; failed: number; skipped: number }>>({})
+let accountsPageActive = true
+let statsRequestId = 0
+let statsController: AbortController | null = null
+let taskSummaryRequestId = 0
+let taskSummaryController: AbortController | null = null
 
 async function loadStats() {
-  try { accStats.value = await accountApi.stats() } catch { /* 统计失败不阻断 */ }
+  statsController?.abort()
+  const controller = new AbortController()
+  statsController = controller
+  const requestId = ++statsRequestId
+  try {
+    const result = await accountApi.stats({ signal: controller.signal })
+    if (accountsPageActive && requestId === statsRequestId) accStats.value = result
+  } catch { /* 统计失败或取消不阻断 */ }
+  finally { if (statsController === controller) statsController = null }
 }
 
 // ===== 账号任务摘要(v1.19): 反查 running 任务, 显示每号在执行什么 =====
 const taskSummary = ref<Record<string, string[]>>({})
 
 async function loadTaskSummary() {
+  taskSummaryController?.abort()
+  const controller = new AbortController()
+  taskSummaryController = controller
+  const requestId = ++taskSummaryRequestId
   try {
-    const res = await taskApi.list({ status: 'running', page: 1, page_size: 100 })
+    const res = await taskApi.list({ status: 'running', page: 1, page_size: 100 }, { signal: controller.signal })
+    if (!accountsPageActive || requestId !== taskSummaryRequestId) return
     const map: Record<string, string[]> = {}
     for (const t of res.list || []) {
       const name = t.name || `${typeLabel(t.type)}任务`
@@ -1999,8 +2024,9 @@ async function loadTaskSummary() {
         if (map[id].length < 3) map[id].push(name)
       }
     }
-    taskSummary.value = map
-  } catch { /* 摘要失败不阻断 */ }
+    if (accountsPageActive && requestId === taskSummaryRequestId) taskSummary.value = map
+  } catch { /* 摘要失败或取消不阻断 */ }
+  finally { if (taskSummaryController === controller) taskSummaryController = null }
 }
 
 // 能力摘要(v1.22): 体检 capabilities → 人话 tooltip
@@ -2035,6 +2061,7 @@ watch([selectedIds, filteredAccounts], () => {
 }, { deep: true, flush: 'post' })
 
 onMounted(() => {
+  accountsPageActive = true
   accountStore.fetchAccounts()
   fetchGroups()
   loadStats()
@@ -2043,7 +2070,7 @@ onMounted(() => {
 // 30 秒轮询: 在线/受限状态与冷却恢复倒计时自动更新(配合 store 的 60 秒缓存平滑生效)
 // P0-29: 原轮询只刷账号列表,统计徽标(风控/任务摘要)只在挂载时加载一次——
 // 中途变化永不更新。统计一并纳入轮询。
-useAutoRefresh(() => { accountStore.fetchAccounts(); loadStats(); loadTaskSummary() }, 30000)
+useAutoRefresh(() => { if (!accountsPageActive) return; accountStore.fetchAccounts(); loadStats(); loadTaskSummary() }, 30000)
 </script>
 
 <style scoped>
