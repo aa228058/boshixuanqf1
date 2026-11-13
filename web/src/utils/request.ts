@@ -391,10 +391,14 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
           })
       }
 
-      // 等待刷新完成，然后用新 token 重试原请求
+      // 等待刷新完成，然后用新 token 重试原请求。
+      // 若等待期间用户已登出/切换账号，旧请求不得借用新会话的 token 重放。
       try {
-        await refreshPromise
-        const retryResponse = await doFetchWithRetry(BASE_URL, endpoint, options, authStore.token)
+        const refreshedToken = await refreshPromise
+        if (!refreshedToken || authStore.token !== refreshedToken) {
+          throw Object.assign(new Error('会话已切换，请重新发起请求'), { name: 'AbortError' })
+        }
+        const retryResponse = await doFetchWithRetry(BASE_URL, endpoint, options, refreshedToken)
         if (!retryResponse.ok) {
           const retryData = await retryResponse.json().catch(() => ({}))
           throw new Error(translateError(retryData.message) || `请求失败: ${retryResponse.status}`)
