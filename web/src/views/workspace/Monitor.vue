@@ -373,10 +373,10 @@ async function toggleRule(id: string, val: boolean) {
   ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.toggleRule(id, { is_active: val })
-    fetchRules()
+    await fetchRules()
   } catch {
     toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
-    fetchRules() // 回滚本地乐观变更
+    await fetchRules() // 回滚本地乐观变更
   } finally {
     const next = new Set(ruleActionsPending.value)
     next.delete(id)
@@ -389,7 +389,7 @@ async function deleteRule(id: string) {
   ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.deleteRule(id)
-    fetchRules()
+    await fetchRules()
   } catch {
     toast({ type: 'error', title: '删除失败', message: '请稍后重试' })
   } finally {
