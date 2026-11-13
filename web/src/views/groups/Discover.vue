@@ -387,8 +387,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 // 翻页必须走函数: 模板里 page++ 对 ref 无效(编译成 $setup.page++ 作用在对象上), page 永远=1 所以每页都是第一页内容
-function nextPage() { if (!loading.value && page.value < totalPages.value) { page.value++; load() } }
-function prevPage() { if (!loading.value && page.value > 1) { page.value--; load() } }
+function nextPage() { if (!loading.value && page.value < totalPages.value) { cancelAllLibrarySelection(); page.value++; load() } }
+function prevPage() { if (!loading.value && page.value > 1) { cancelAllLibrarySelection(); page.value--; load() } }
 const loading = ref(false)
 const selected = reactive(new Set<string>())
 const filters = reactive({ keyword: '', gtype: '', status: '', source: '' })
