@@ -124,9 +124,9 @@ func (r *MemberRepository) BatchCreate(ctx context.Context, members []*domain.Me
 	})
 }
 
-// BatchCreateOwned persists monitor-scraped members only while the task lease is
-// still owned by workerID. The row lock serializes this write with cancellation
-// and lease reclamation: whichever transaction locks the task first wins.
+// BatchCreateOwned persists monitor-scraped members and their progress only while
+// the task lease is still owned by workerID. The row lock serializes both writes
+// with cancellation and lease reclamation: whichever transaction locks first wins.
 func (r *MemberRepository) BatchCreateOwned(ctx context.Context, tenantID, taskID uuid.UUID, workerID string, members []*domain.Member) error {
 	if workerID == "" {
 		return fmt.Errorf("persist owned members: empty worker ID")
