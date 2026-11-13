@@ -1231,6 +1231,20 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 		t.Fatalf("upserted username = %q, want updated", username)
 	}
 
+	// A failure halfway through a batch must roll back earlier inserts.
+	rollbackGroupID := uuid.New()
+	sharedMemberID := uuid.New()
+	rollbackMembers := []*domain.Member{
+		{MemberID: sharedMemberID, TenantID: tenantID, GroupID: rollbackGroupID, TGUserID: 3001, ScrapedAt: time.Now().UTC()},
+		{MemberID: sharedMemberID, TenantID: tenantID, GroupID: rollbackGroupID, TGUserID: 3002, ScrapedAt: time.Now().UTC()},
+	}
+	if err := memberRepo.BatchCreateOwned(ctx, tenantID, staleTaskID, "current-member-worker", rollbackMembers); err == nil {
+		t.Fatal("batch with duplicate primary key unexpectedly succeeded")
+	}
+	if got := countMembers(rollbackGroupID); got != 0 {
+		t.Fatalf("partially committed batch left %d members, want 0", got)
+	}
+
 	// Cancellation clears the worker lease; the former worker must be fenced out.
 	cancelledTaskID := seedTask(t, pool, tenantID, string(domain.TaskTypeMonitorScrape), 5)
 	cancelledGroupID := uuid.New()
