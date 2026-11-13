@@ -899,7 +899,6 @@ func TestClaimTimeoutTasks_PreservesRecurringRoundCheckpoint(t *testing.T) {
 	}
 }
 
-
 func TestDeleteOnlyAllowsTerminalTasks(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)
