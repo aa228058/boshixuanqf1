@@ -169,6 +169,9 @@ function handleQrUpload(file: File) {
   reader.onload = () => {
     if (supportPageActive && requestId === qrReadRequestId) form.value.qr_code_url = reader.result as string
   }
+  reader.onerror = () => {
+    if (supportPageActive && requestId === qrReadRequestId) toast({ type: 'error', title: '二维码读取失败', message: '请重新选择图片' })
+  }
   reader.readAsDataURL(file)
 }
 
