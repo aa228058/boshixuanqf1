@@ -559,31 +559,31 @@ func (e *Engine) DisconnectAccount(ctx context.Context, tenantID, accountID uuid
 	}
 
 	return e.updateStatus(ctx, tenfunc (e *Engine) evictOldestIdleClientLocked() *pooledClient {
-	if len(e.poolClients) == 0 {
-		return nil
-	}
+	// Choose the least-recently-used entry that is actually idle. A busy
+	// oldest entry must not prevent reclaiming another idle connection.
 	var oldestKey string
-	var oldestTime time.Time
+	var oldest *pooledClient
 	for key, pc := range e.poolClients {
-		if oldestKey == "" || pc.lastUsed.Before(oldestTime) {
+		if pc == nil || !pc.mu.TryLock() {
+			continue
+		}
+		if oldest == nil || pc.lastUsed.Before(oldest.lastUsed) {
+			if oldest != nil {
+				oldest.mu.Unlock()
+			}
 			oldestKey = key
-			oldestTime = pc.lastUsed
+			oldest = pc
+		} else {
+			pc.mu.Unlock()
 		}
 	}
-	if oldestKey == "" {
-		return nil
-	}
-	pc := e.poolClients[oldestKey]
-	// TryLock must be checked even for nil clients: a held entry represents
-	// an in-flight user and must never be detached underneath that operation.
-	if !pc.mu.TryLock() {
-		log.Printf("[client] 账号 %s 正在执行任务，跳过本次驱逐", pc.accountID)
+	if oldest == nil {
 		return nil
 	}
 	delete(e.poolClients, oldestKey)
-	pc.mu.Unlock()
-	log.Printf("[client] evicted idle client %s to free pool space", pc.accountID)
-	return pc
+	oldest.mu.Unlock()
+	log.Printf("[client] evicted idle client %s to free pool space", oldest.accountID)
+	return oldest
 }
 
 // evictOldestIdleClient is the public wrapper that acquires the lock and
@@ -596,13 +596,6 @@ func (e *Engine) evictOldestIdleClient() bool {
 		go e.stopPooledAsync(pc)
 	}
 	return pc != nil
-}
-
-t is the public wrapper that acquires the lock.
-func (e *Engine) evictOldestIdleClient() bool {
-	e.poolMu.Lock()
-	defer e.poolMu.Unlock()
-	return e.evictOldestIdleClientLocked()
 }
 
 // StartPoolCleaner starts a background goroutine that cleans up idle connections.
