@@ -762,20 +762,23 @@ func (e *Engine) claimAndExecute(ctx context.Context) {
 		log.Printf("[engine] 激活待处理任务失败: %v", err)
 	}
 
-	// 全局并发上限(内存自适应): 达到上限则本轮暂停领取, 等下一轮(30s 内)
+	claimWorkerID := e.workerID + ":" + uuid.NewString()
 	if e.GlobalLimitFn != nil {
 		if limit := e.GlobalLimitFn(); limit > 0 {
-			running, err := e.repo.CountRunningGlobal(ctx)
-			if shouldDeferGlobalClaim(running, limit, err) {
-				if err != nil {
-					taskLog.Printf("[engine] 全局运行任务数读取失败，暂停本轮认领以保护并发上限: %v", err)
-				}
+			batchLimit := e.cfg.TaskClaimBatch + e.cfg.TaskTimeoutClaim
+			tasks, err := e.repo.ClaimTasksWithGlobalLimit(ctx, claimWorkerID, batchLimit, e.cfg.TaskLockTimeoutMin, limit)
+			if err != nil {
+				taskLog.Printf("[engine] 全局并发原子认领失败，本轮停止领取: %v", err)
 				return
 			}
+			for _, task := range tasks {
+				e.runTask(ctx, task)
+			}
+			return
 		}
 	}
 
-	claimWorkerID := e.workerID + ":" + uuid.NewString()
+	// No configured global cap: retain the legacy batch behavior.
 	tasks, err := e.repo.ClaimTasks(ctx, claimWorkerID, e.cfg.TaskClaimBatch, e.cfg.TaskLockTimeoutMin)
 	if err != nil {
 		return
