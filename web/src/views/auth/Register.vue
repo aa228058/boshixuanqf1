@@ -137,10 +137,12 @@ const error = ref('')
 const success = ref(false)
 let redirectTimer: ReturnType<typeof setTimeout> | null = null
 let failureTimer: ReturnType<typeof setTimeout> | null = null
+let registerPageActive = true
 const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 
 onUnmounted(() => {
+  registerPageActive = false
   if (redirectTimer) clearTimeout(redirectTimer)
   if (failureTimer) clearTimeout(failureTimer)
 })
@@ -154,6 +156,7 @@ const form = reactive({
 })
 
 async function handleRegister() {
+  if (!registerPageActive || loading.value) return
   if (form.password !== form.confirmPassword) {
     error.value = '两次输入的密码不一致'
     return
@@ -168,18 +171,24 @@ async function handleRegister() {
       password: form.password,
       code: form.code,
     })
+    if (!registerPageActive) return
     success.value = true
-    // 3秒后自动跳转到登录页
+    // 3秒后自动跳转到登录页；用户提前离开页面时由卸载钩子清理。
     redirectTimer = setTimeout(() => {
-      router.push('/login')
+      redirectTimer = null
+      if (registerPageActive) void router.push('/login')
     }, 3000)
   } catch (err: unknown) {
+    if (!registerPageActive) return
     error.value = (err instanceof Error ? err.message : String(err)) || '注册失败，请稍后重试'
     regFailed.value = true
     if (failureTimer) clearTimeout(failureTimer)
-    failureTimer = setTimeout(() => { regFailed.value = false; failureTimer = null }, 2000)
+    failureTimer = setTimeout(() => {
+      failureTimer = null
+      if (registerPageActive) regFailed.value = false
+    }, 2000)
   } finally {
-    loading.value = false
+    if (registerPageActive) loading.value = false
   }
 }
 </script>
