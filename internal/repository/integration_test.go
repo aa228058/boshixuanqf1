@@ -9,6 +9,8 @@ import (
 	"context"
 	"io"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -338,5 +340,61 @@ func TestUpdateLinkValidityByLinkPreservesAlternateLinks(t *testing.T) {
 	}
 	if groupStatus != "invalid" {
 		t.Fatalf("single-link group status = %q, want invalid", groupStatus)
+	}
+}
+
+
+func TestAccountCountAndCreateRespectsTenantLimitUnderConcurrency(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, $2, 'x', 'account limit test', $3, 'free')`,
+		tenantID, "account-limit-"+tenantID.String(), "account-limit-key-"+tenantID.String())
+	if err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+
+	repo := NewAccountRepository(pool)
+	const limit = 2
+	const requests = 12
+	var created atomic.Int32
+	var wg sync.WaitGroup
+	errs := make(chan error, requests)
+	for i := 0; i < requests; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			id := uuid.New()
+			account := &domain.Account{
+				AccountID: id,
+				TenantID: tenantID,
+				Phone: "+1" + id.String()[:10],
+				SessionName: "limit-" + id.String(),
+				Status: domain.AccountStatusOffline,
+				Level: domain.AccountLevelNormal,
+			}
+			if _, _, err := repo.CountAndCreate(ctx, account, limit); err != nil {
+				// Limit-reached errors are expected; database/constraint errors are reported below by final count.
+				return
+			}
+			created.Add(1)
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("CountAndCreate: %v", err)
+	}
+	if got := created.Load(); got != limit {
+		t.Fatalf("created accounts = %d, want exactly %d", got, limit)
+	}
+	var stored int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM accounts WHERE tenant_id = $1 AND pool_status = 'active'`, tenantID).Scan(&stored); err != nil {
+		t.Fatalf("count stored accounts: %v", err)
+	}
+	if stored != limit {
+		t.Fatalf("stored active accounts = %d, want %d", stored, limit)
 	}
 }
