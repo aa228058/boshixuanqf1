@@ -124,10 +124,9 @@ func (h *TaskHandler) List(c echo.Context) error {
 		t := domain.TaskType(tStr)
 		taskType = &t
 	}
-	if accStr := c.QueryParam("account_id"); accStr != "" {
-		if accUUID, err := uuid.Parse(accStr); err == nil {
-			accountID = &accUUID
-		}
+	accountID, err = parseOptionalUUIDParam(c.QueryParam("account_id"), "account_id")
+	if err != nil {
+		return err
 	}
 
 	// hide_loops=1 时隐藏循环包装任务(任务列表页用, 只显示实际执行记录)
