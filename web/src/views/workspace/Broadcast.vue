@@ -810,30 +810,33 @@ async function onPullRefresh() {
 }
 
 async function retryFailed(id: string) {
+  const accountId = currentAccount.value?.account_id
   try {
     await taskApi.retry(id, 'failed')
-    if (broadcastPageActive) await fetchTasks()
+    if (broadcastPageActive && currentAccount.value?.account_id === accountId) await fetchTasks()
   } catch (e: any) {
-    if (broadcastPageActive) toast({ type: 'error', title: '重试失败', message: e?.message })
+    if (broadcastPageActive && currentAccount.value?.account_id === accountId) toast({ type: 'error', title: '重试失败', message: e?.message })
   }
 }
 const taskActionsPending = ref(new Set<string>())
 async function runTaskAction(id: string, action: 'stop' | 'pause' | 'resume' | 'retry') {
   if (taskActionsPending.value.has(id)) return
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
+  const accountId = currentAccount.value?.account_id
+  const isCurrent = () => broadcastPageActive && currentAccount.value?.account_id === accountId
   const labels = { stop: ['停止失败', '任务已停止'], pause: ['暂停失败', '任务已暂停'], resume: ['继续失败', '任务已继续'], retry: ['重试失败', '任务已重新排队'] } as const
   try {
     if (action === 'stop') await taskApi.cancel(id)
     else if (action === 'pause') await taskApi.pause(id)
     else if (action === 'resume') await taskApi.resume(id)
     else await taskApi.retry(id, 'failed')
-    if (!broadcastPageActive) return
+    if (!isCurrent()) return
     toast({ type: 'success', title: labels[action][1] })
     await fetchTasks()
   } catch (e: any) {
-    if (broadcastPageActive) toast({ type: 'error', title: labels[action][0], message: e?.message || '请稍后重试' })
+    if (isCurrent()) toast({ type: 'error', title: labels[action][0], message: e?.message || '请稍后重试' })
   } finally {
-    if (broadcastPageActive) {
+    if (isCurrent()) {
       const next = new Set(taskActionsPending.value)
       next.delete(id)
       taskActionsPending.value = next
