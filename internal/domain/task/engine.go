@@ -1321,15 +1321,9 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		}
 		countMu.Unlock()
 
-		// Persist progress with the same lease fence before publishing it. A stale
-		// worker must not update either the database snapshot or the SSE cache.
+		// Member persistence and the database progress increment commit atomically
+		// inside BatchCreateOwned; only publish the committed snapshot to SSE.
 		currentTarget := fmt.Sprintf("user_%d", msg.FromID)
-		if err := e.repo.UpdateProgressOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskProgress{
-			Done: 1, CurrentTarget: currentTarget,
-		}); err != nil {
-			taskLog.Printf("[monitor_scrape] task lease lost before progress publication: %v", err)
-			return
-		}
 		e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
 			Total:         int(maxResults),
 			Done:          currentCount,
