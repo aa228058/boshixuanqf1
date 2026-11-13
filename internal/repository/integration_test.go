@@ -401,3 +401,69 @@ func TestAccountCountAndCreateRespectsTenantLimitUnderConcurrency(t *testing.T) 
 		t.Fatalf("stored active accounts = %d, want %d", stored, limit)
 	}
 }
+
+
+func TestActivatePoolAccountRespectsTenantLimitUnderConcurrency(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, $2, 'x', 'pool activation test', $3, 'free')`,
+		tenantID, "pool-limit-"+tenantID.String(), "pool-limit-key-"+tenantID.String())
+	if err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+
+	repo := NewAccountRepository(pool)
+	const requests = 8
+	ids := make([]uuid.UUID, requests)
+	for i := range ids {
+		id := uuid.New()
+		ids[i] = id
+		account := &domain.Account{
+			AccountID: id, TenantID: tenantID, Phone: "+1" + id.String()[:10],
+			SessionName: "pool-" + id.String(), Status: domain.AccountStatusOffline,
+			Level: domain.AccountLevelNormal, DeviceProfile: map[string]any{},
+		}
+		if err := repo.Create(ctx, account); err != nil {
+			t.Fatalf("seed standby account: %v", err)
+		}
+		if err := repo.UpdatePoolStatus(ctx, tenantID, id, "standby"); err != nil {
+			t.Fatalf("set standby: %v", err)
+		}
+	}
+
+	const limit = 2
+	var activated atomic.Int32
+	var wg sync.WaitGroup
+	errs := make(chan error, requests)
+	for _, id := range ids {
+		wg.Add(1)
+		go func(accountID uuid.UUID) {
+			defer wg.Done()
+			if err := repo.ActivatePoolAccount(ctx, tenantID, accountID, limit); err != nil {
+				if !strings.Contains(err.Error(), "account limit reached") {
+					errs <- err
+				}
+				return
+			}
+			activated.Add(1)
+		}(id)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("ActivatePoolAccount: %v", err)
+	}
+	if got := activated.Load(); got != limit {
+		t.Fatalf("activated accounts = %d, want exactly %d", got, limit)
+	}
+	var stored int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM accounts WHERE tenant_id = $1 AND pool_status = 'active'`, tenantID).Scan(&stored); err != nil {
+		t.Fatalf("count active accounts: %v", err)
+	}
+	if stored != limit {
+		t.Fatalf("stored active accounts = %d, want %d", stored, limit)
+	}
+}
