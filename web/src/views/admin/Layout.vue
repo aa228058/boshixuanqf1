@@ -29,7 +29,7 @@
           :key="item.path"
           :to="item.path"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-[transform,opacity,border-color,background-color]"
-          :class="$route.path.startsWith(item.path) ? 'bg-[var(--t-brand)]/10 text-[var(--t-brand)] border border-[color:var(--t-brand)]/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
+          :class="isAdminMenuPathActive($route.path, item.path) ? 'bg-[var(--t-brand)]/10 text-[var(--t-brand)] border border-[color:var(--t-brand)]/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'"
           @click="mobileMenuOpen = false"
         >
           <component :is="item.icon" class="w-5 h-5" />
@@ -87,6 +87,7 @@ import {
   SlidersHorizontal
 } from 'lucide-vue-next'
 import { useAdminStore } from '@/stores/admin'
+import { isAdminMenuPathActive } from '@/utils/adminPageGuards'
 
 const router = useRouter()
 const adminStore = useAdminStore()
