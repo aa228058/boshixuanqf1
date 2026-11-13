@@ -47,8 +47,8 @@ func (r *PlanLimitRepository) TryAddDailyUsageAmount(ctx context.Context, tenant
 	var used int
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO plan_daily_counters (tenant_id, day, kind, used)
-		SELECT $1, CURRENT_DATE, $2, $3
-		WHERE $3 <= $4
+		SELECT $1, CURRENT_DATE, $2, $3::integer
+		WHERE $3::integer <= $4::integer
 		ON CONFLICT (tenant_id, day, kind) DO UPDATE
 		SET used = plan_daily_counters.used + EXCLUDED.used
 		WHERE plan_daily_counters.used + EXCLUDED.used <= $4
