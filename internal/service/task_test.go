@@ -43,3 +43,25 @@ func TestValidTransitions_RejectsIllegal(t *testing.T) {
 		}
 	}
 }
+
+
+func TestIsDeletableTaskStatus(t *testing.T) {
+	cases := []struct {
+		status domain.TaskStatus
+		want   bool
+	}{
+		{domain.TaskStatusPending, false},
+		{domain.TaskStatusScheduled, false},
+		{domain.TaskStatusQueued, false},
+		{domain.TaskStatusRunning, false},
+		{domain.TaskStatusPaused, false},
+		{domain.TaskStatusCompleted, true},
+		{domain.TaskStatusFailed, true},
+		{domain.TaskStatusCancelled, true},
+	}
+	for _, tc := range cases {
+		if got := isDeletableTaskStatus(tc.status); got != tc.want {
+			t.Errorf("isDeletableTaskStatus(%s) = %v, want %v", tc.status, got, tc.want)
+		}
+	}
+}
