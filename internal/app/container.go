@@ -47,6 +47,7 @@ type Container struct {
 	MemberRepo       *repository.MemberRepository
 	TaskRepo         *repository.TaskRepository
 	TaskLogRepo      *repository.TaskLogRepository
+	BatchTaskRepo    *repository.BatchTaskRepository
 	QuotaRepo        *repository.QuotaRepository
 	RiskRepo         *repository.RiskRepository
 	MonitorRuleRepo  *repository.MonitorRuleRepository
@@ -196,6 +197,7 @@ func (c *Container) initRepositories() {
 	c.MemberRepo = repository.NewMemberRepository(pool)
 	c.TaskRepo = repository.NewTaskRepository(pool)
 	c.TaskLogRepo = repository.NewTaskLogRepository(pool)
+	c.BatchTaskRepo = repository.NewBatchTaskRepository(pool)
 	c.QuotaRepo = repository.NewQuotaRepository(pool)
 	c.RiskRepo = repository.NewRiskRepository(pool)
 	c.MonitorRuleRepo = repository.NewMonitorRuleRepository(pool)
@@ -373,7 +375,7 @@ func (c *Container) initServices() {
 	c.GroupService = service.NewGroupService(c.DB.Pool, c.GroupRepo, c.MemberRepo)
 	// 抽奖结果追踪(058): RaffleResultRepo 在此初始化, 供 NewTaskService 注入
 	c.RaffleResultRepo = repository.NewRaffleResultRepository(c.DB.Pool)
-	c.TaskService = service.NewTaskService(c.Cfg, c.TaskRepo, c.TaskLogRepo, c.QuotaRepo, c.AccountRepo, c.TenantRepo, c.GroupRepo, c.MemberRepo, nil, c.SSEBroker, c.TaskEngine, c.ScrapedLinkRepo, c.RaffleResultRepo)
+	c.TaskService = service.NewTaskService(c.Cfg, c.TaskRepo, c.TaskLogRepo, c.QuotaRepo, c.AccountRepo, c.TenantRepo, c.GroupRepo, c.MemberRepo, c.BatchTaskRepo, c.SSEBroker, c.TaskEngine, c.ScrapedLinkRepo, c.RaffleResultRepo)
 	c.TaskService.SetLinkScraper(c.LinkScraper)
 	// 群组库(找群): 平台级聚合器 + 接口
 	c.SystemGroupRepo = repository.NewSystemGroupRepository(c.DB.Pool)
