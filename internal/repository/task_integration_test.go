@@ -1177,7 +1177,6 @@ func TestCancelledTaskRejectsFormerWorkerWrites(t *testing.T) {
 	}
 }
 
-
 func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)
