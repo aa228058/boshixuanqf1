@@ -41,7 +41,7 @@
               </button>
             </t-tooltip>
             <t-tooltip content="重置Key" position="top">
-              <button type="button" @click="resetKey(row as any)" class="ui-icon-btn" aria-label="重置Key">
+              <button type="button" @click="resetKey(row as any)" class="ui-icon-btn" aria-label="重置Key" :disabled="resettingTenantIds.includes(row.tenant_id)" :aria-busy="resettingTenantIds.includes(row.tenant_id)">
                 <KeyRound class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
@@ -80,7 +80,7 @@
               </button>
             </t-tooltip>
             <t-tooltip content="重置Key" position="top">
-              <button type="button" @click="resetKey(t)" class="ui-icon-btn" aria-label="重置Key">
+              <button type="button" @click="resetKey(t)" class="ui-icon-btn" aria-label="重置Key" :disabled="resettingTenantIds.includes(t.tenant_id)" :aria-busy="resettingTenantIds.includes(t.tenant_id)">
                 <KeyRound class="w-4 h-4 text-text-muted" />
               </button>
             </t-tooltip>
@@ -146,6 +146,8 @@ import type { Tenant, Plan } from '@/types'
 // R115: tenantStatusLabel 死导入已删(正文零使用, 状态色由 tenantStatusClass 承担)
 import { planLabel, tenantStatusClass } from '@/utils/format'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
+import { validateTenantCreateInput } from '@/utils/adminPageGuards'
 
 const router = useRouter()
 const tenants = ref<Tenant[]>([])
@@ -158,6 +160,7 @@ const total = ref(0)
 const showCreate = ref(false)
 const creatingTenant = ref(false)
 const deletingTenantBusy = ref(false)
+const resettingTenantIds = ref<string[]>([])
 const createForm = ref({ name: '', username: '', password: '', plan_id: 'free' })
 
 const planOptions = computed(() => plans.value.map(p => ({ label: p.name, value: p.plan_id })))
@@ -222,9 +225,19 @@ watch([search, statusFilter], (_values, _oldValues, onCleanup) => {
 
 async function doCreate() {
   if (creatingTenant.value) return
+  const validationError = validateTenantCreateInput(createForm.value)
+  if (validationError) {
+    toast({ type: 'warning', title: '信息不完整', message: validationError })
+    return
+  }
   creatingTenant.value = true
   try {
-    await adminApiMod.createTenant(createForm.value)
+    await adminApiMod.createTenant({
+      ...createForm.value,
+      name: createForm.value.name.trim(),
+      username: createForm.value.username.trim(),
+      // 密码保留原样，不对用户凭据做 trim。
+    })
     showCreate.value = false
     createForm.value = { name: '', username: '', password: '', plan_id: 'free' }
     await fetchTenants()
@@ -241,11 +254,17 @@ function viewDetail(t: Tenant) {
 }
 
 async function resetKey(t: Tenant) {
+  if (resettingTenantIds.value.includes(t.tenant_id)) return
+  const ok = await ask(`重置「${t.name}」的 API Key 后旧 Key 将立即失效，确定继续？`)
+  if (!ok) return
+  resettingTenantIds.value = [...resettingTenantIds.value, t.tenant_id]
   try {
     await adminApiMod.resetApiKey(t.tenant_id)
     toast({ type: 'success', title: 'API Key 已重置' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    resettingTenantIds.value = resettingTenantIds.value.filter(id => id !== t.tenant_id)
   }
 }
 
@@ -262,6 +281,8 @@ async function doDelete() {
   deletingTenantBusy.value = true
   try {
     await adminApiMod.deleteTenant(deletingTenant.value.tenant_id)
+    // 删除当前页最后一条时回退一页，避免停留在超出总页数的空页面。
+    if (tenants.value.length === 1 && page.value > 1) page.value--
     await fetchTenants()
     toast({ type: 'success', title: '租户已删除' })
   } catch (e: unknown) {
