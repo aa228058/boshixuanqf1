@@ -51,7 +51,7 @@
       </div>
       <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-border">
         <t-button type="button" @click="fetchConfig" class="ui-t-button--secondary ui-t-button">重置</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveConfig">保存配置</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveConfig" :loading="savingSupport" :disabled="savingSupport">保存配置</t-button>
       </div>
     </div>
 
@@ -91,6 +91,7 @@ const contactTypes = [
 ]
 
 const qrFile = ref<File | null>(null)
+const savingSupport = ref(false)
 let supportPageActive = false
 let supportRequestId = 0
 let supportController: AbortController | null = null
@@ -128,6 +129,8 @@ async function fetchConfig() {
 }
 
 async function saveConfig() {
+  if (savingSupport.value) return
+  savingSupport.value = true
   try {
     // qr_code_file 是 File 对象（仅本地预览用），JSON 序列化为空对象{}；
     // 剥离后提交，二维码内容走 qr_code_url（base64 data URL 或外链）。
@@ -136,6 +139,8 @@ async function saveConfig() {
     toast({ type: 'success', title: '配置已保存' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    savingSupport.value = false
   }
 }
 
