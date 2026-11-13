@@ -52,8 +52,8 @@ export const taskApi = {
   // 发送前目标预检: 批量校验目标有效性, 返回有效与无效(附原因)目标
   validateTargets: (targetIds: string[]) => api.post<{ total: number; valid: string[]; invalid: Array<{ target: string; reason: string }> }>('/tasks/validate-targets', { target_ids: targetIds }),
   delete: (id: string) => api.delete<void>(`/tasks/${id}`),
-  batchCancel: (taskIds: string[]) => api.post<{ cancelled: number }>('/tasks/batch/cancel', { task_ids: taskIds }),
-  batchDelete: (taskIds: string[]) => api.post<{ deleted: number }>('/tasks/batch/delete', { task_ids: taskIds }),
+  batchCancel: (taskIds: string[]) => api.post<{ cancelled: number; failed: number }>('/tasks/batch/cancel', { task_ids: taskIds }),
+  batchDelete: (taskIds: string[]) => api.post<{ deleted: number; failed: number }>('/tasks/batch/delete', { task_ids: taskIds }),
   getLogs: (id: string, page = 1, pageSize = 50, beforeLogId?: string, range?: { from?: string; to?: string }, options?: RequestOptions) => api.get<TaskLog[]>(`/tasks/${id}/logs${toQueryString({ page, page_size: pageSize, before_log_id: beforeLogId, from: range?.from, to: range?.to })}`, options),
   getAccountLogs: (accountId: string, page = 1, pageSize = 50) =>
     api.get<ListResponse<TaskLog>>(`/tasks/logs${toQueryString({ account_id: accountId, page, page_size: pageSize })}`),
