@@ -53,12 +53,12 @@ describe('validateTenantCreateInput', () => {
 describe('isSupportedQrImage', () => {
   it('accepts non-empty JPEG and PNG within the size limit', () => {
     expect(isSupportedQrImage('image/jpeg', 1024)).toBe(true)
-    expect(isSupportedQrImage('image/png', 512 * 1024)).toBe(true)
+    expect(isSupportedQrImage('image/png', 500 * 1024)).toBe(true)
   })
   it('rejects unsupported, empty, oversized and invalid sizes', () => {
     expect(isSupportedQrImage('image/gif', 1024)).toBe(false)
     expect(isSupportedQrImage('image/png', 0)).toBe(false)
-    expect(isSupportedQrImage('image/png', 512 * 1024 + 1)).toBe(false)
+    expect(isSupportedQrImage('image/png', 500 * 1024 + 1)).toBe(false)
     expect(isSupportedQrImage('image/png', Number.NaN)).toBe(false)
   })
 })
