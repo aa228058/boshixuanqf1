@@ -144,10 +144,10 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
-              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
+              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">停止</t-button>
+              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
-                         class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
+                         class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')" :disabled="taskActionIds.has(row.task_id)">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
                 <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(row)" title="每账号统计">
@@ -201,10 +201,10 @@
         </div>
         </RouterLink>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
-          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
+          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">取消</t-button>
+          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
-                     size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
+                     size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')" :disabled="taskActionIds.has(task.task_id)">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
           <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
         </div>
       </div>
@@ -510,7 +510,7 @@ async function cancelTask(id: string) {
   taskActionIds.value = new Set(taskActionIds.value).add(id)
   try {
     await taskApi.cancel(id)
-    void fetchTasks()
+    await fetchTasks()
     toast({ type: 'success', title: '任务已取消' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '取消失败', message: (e instanceof Error ? e.message : '请稍后重试') })
@@ -527,7 +527,9 @@ const accStatsLoading = ref(false)
 const accStatsData = ref<{ phone: string; success: number; failed: number; skipped: number }[]>([])
 const accStatsTaskName = ref('')
 
+let accStatsRequestId = 0
 async function showAccStats(row: any) {
+  const requestId = ++accStatsRequestId
   accStatsVisible.value = true
   accStatsLoading.value = true
   accStatsTaskName.value = row.name || row.task_id?.slice(0, 8) || ''
@@ -543,12 +545,13 @@ async function showAccStats(row: any) {
     for (const acc of accountStore.accounts) {
       if (idSet.has(String(acc.account_id))) phoneMap[String(acc.account_id)] = acc.phone
     }
+    if (requestId !== accStatsRequestId) return
     accStatsData.value = Object.entries(raw).map(([id, v]) => ({
       phone: phoneMap[id] || `账号 ${id.slice(0, 6)}…`,
       success: v.success, failed: v.failed, skipped: v.skipped,
     })).sort((a, b) => b.success - a.success)
   } catch { /* 请求层统一报错 */ }
-  finally { accStatsLoading.value = false }
+  finally { if (requestId === accStatsRequestId) accStatsLoading.value = false }
 }
 
 async function retryTask(id: string, scope?: 'failed') {
@@ -556,7 +559,7 @@ async function retryTask(id: string, scope?: 'failed') {
   taskActionIds.value = new Set(taskActionIds.value).add(id)
   try {
     await taskApi.retry(id, scope)
-    void fetchTasks()
+    await fetchTasks()
     toast({ type: 'success', title: scope === 'failed' ? '已创建续发任务(仅失败目标)' : '任务已重试' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '重试失败', message: (e instanceof Error ? e.message : '请稍后重试') })
