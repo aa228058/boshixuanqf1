@@ -177,6 +177,67 @@ func TestLockPooledClientReturnsReplacementEntry(t *testing.T) {
 	}
 }
 
+
+func TestLockPooledClientRevalidatesAfterWaitingForEntryLock(t *testing.T) {
+	e := newEvictionTestEngine()
+	tenant, accountID := uuid.New(), uuid.New()
+	old := insertPooled(e, tenant, accountID, time.Now())
+	key := accountKey(tenant, accountID)
+
+	old.mu.Lock()
+	result := make(chan *pooledClient, 1)
+	go func() {
+		result <- e.lockPooledClient(key)
+	}()
+
+	// Let the lookup capture old and block on old.mu before replacing it.
+	time.Sleep(20 * time.Millisecond)
+	e.poolMu.Lock()
+	delete(e.poolClients, key)
+	e.poolMu.Unlock()
+	old.mu.Unlock()
+
+	select {
+	case got := <-result:
+		if got != nil {
+			got.mu.Unlock()
+			t.Fatal("returned a detached pooled client")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("lockPooledClient did not finish after detached entry was unlocked")
+	}
+}
+
+func TestLockPooledClientReturnsReplacementEntry(t *testing.T) {
+	e := newEvictionTestEngine()
+	tenant, accountID := uuid.New(), uuid.New()
+	old := insertPooled(e, tenant, accountID, time.Now())
+	key := accountKey(tenant, accountID)
+	replacement := &pooledClient{accountID: accountID, tenantID: tenant, lastUsed: time.Now()}
+
+	old.mu.Lock()
+	result := make(chan *pooledClient, 1)
+	go func() {
+		result <- e.lockPooledClient(key)
+	}()
+	time.Sleep(20 * time.Millisecond)
+
+	e.poolMu.Lock()
+	e.poolClients[key] = replacement
+	e.poolMu.Unlock()
+	old.mu.Unlock()
+
+	select {
+	case got := <-result:
+		if got != replacement {
+			t.Fatalf("returned %p, want replacement %p", got, replacement)
+		}
+		got.mu.Unlock()
+	case <-time.After(time.Second):
+		t.Fatal("lockPooledClient did not retry against replacement entry")
+	}
+}
+
 func TestGetClient_PoolFullReturnsErrorWhenAllBusy(t *testing.T) {
 	e := newEvictionTestEngine()
 	tenant := uuid.New()
