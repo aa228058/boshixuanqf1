@@ -467,12 +467,13 @@ async function onImportFile(event: Event) {
   const file = input.files?.[0]
   input.value = ''
   if (!file || importPageUnmounted) return
+  const requestId = ++importFileReadRequestId
+  importFileReading.value = false
   const validationError = validateGroupImportFile(file)
   if (validationError) {
     toast({ type: 'error', title: '文件不可用', message: validationError })
     return
   }
-  const requestId = ++importFileReadRequestId
   importFileReading.value = true
   importJob.value = null
   try {
