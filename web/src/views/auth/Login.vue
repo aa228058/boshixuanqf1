@@ -124,7 +124,9 @@ const authStore = useAuthStore()
 
 let loginFailedTimer: ReturnType<typeof setTimeout> | null = null
 let renewLoginTimer: ReturnType<typeof setTimeout> | null = null
+let loginPageActive = true
 onUnmounted(() => {
+  loginPageActive = false
   if (loginFailedTimer) clearTimeout(loginFailedTimer)
   if (renewLoginTimer) clearTimeout(renewLoginTimer)
 })
@@ -144,6 +146,7 @@ const form = reactive({
 // R140: inputFocus/inputBlur 已删(JS 焦点方案与用户框/密码框纯 CSS focus 统一)
 
 async function handleLogin() {
+  if (!loginPageActive || loading.value) return
   if (!form.username || !form.password) {
     error.value = '请输入用户名和密码'
     return
@@ -154,16 +157,20 @@ async function handleLogin() {
 
   try {
     await authStore.login(form.username, form.password)
-    router.push('/').finally(() => {
-      toast({ type: 'success', message: '登录成功，欢迎回来' })
-    })
+    if (!loginPageActive) return
+    await router.push('/')
+    if (loginPageActive) toast({ type: 'success', message: '登录成功，欢迎回来' })
   } catch (err: unknown) {
+    if (!loginPageActive) return
     error.value = (err instanceof Error ? err.message : String(err)) || '登录失败，请稍后重试'
     loginFailed.value = true
     if (loginFailedTimer) clearTimeout(loginFailedTimer)
-    loginFailedTimer = setTimeout(() => { loginFailed.value = false; loginFailedTimer = null }, 2000)
+    loginFailedTimer = setTimeout(() => {
+      loginFailedTimer = null
+      if (loginPageActive) loginFailed.value = false
+    }, 2000)
   } finally {
-    loading.value = false
+    if (loginPageActive) loading.value = false
   }
 }
 
@@ -177,20 +184,25 @@ const isExpired = computed(() =>
 
 async function doRenew() {
   const code = renewCode.value.trim()
-  if (!code || renewing.value) return
+  if (!loginPageActive || !code || renewing.value) return
   renewing.value = true
   renewMsg.value = ''
   try {
     await authApi.renew(form.username, form.password, code)
+    if (!loginPageActive) return
     renewOk.value = true
     renewMsg.value = '续费成功，正在登录…'
     if (renewLoginTimer) clearTimeout(renewLoginTimer)
-    renewLoginTimer = setTimeout(() => { renewLoginTimer = null; void handleLogin() }, 800)
+    renewLoginTimer = setTimeout(() => {
+      renewLoginTimer = null
+      if (loginPageActive) void handleLogin()
+    }, 800)
   } catch (err: unknown) {
+    if (!loginPageActive) return
     renewOk.value = false
     renewMsg.value = (err instanceof Error ? err.message : String(err)) || '续费失败，请检查卡密'
   } finally {
-    renewing.value = false
+    if (loginPageActive) renewing.value = false
   }
 }
 </script>
