@@ -342,7 +342,7 @@ async function onPullRefresh() {
 async function retryFailed(id: string) {
   if (taskActionsPending.value.has(id)) return
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
-  try { await taskApi.retry(id, 'failed'); fetchTasks() }
+  try { await taskApi.retry(id, 'failed'); await fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
   finally {
     const next = new Set(taskActionsPending.value)
@@ -353,7 +353,7 @@ async function retryFailed(id: string) {
 async function stopTask(id: string) {
   if (taskActionsPending.value.has(id)) return
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
-  try { await taskApi.cancel(id); fetchTasks() }
+  try { await taskApi.cancel(id); await fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
   finally {
     const next = new Set(taskActionsPending.value)
@@ -379,6 +379,7 @@ function onImportFile(e: Event) {
     const items = parseTargets(String(r.result || ''), { keepTmeLinks: true })
     linksInput.value = [...new Set([...linksInput.value.split('\n').filter(Boolean), ...items])].join('\n')
   }
+  r.onerror = () => toast({ type: 'error', title: '读取文件失败', message: '无法读取所选文件，请重新选择' })
   r.readAsText(f)
   ;(e.target as HTMLInputElement).value = ''
 }
