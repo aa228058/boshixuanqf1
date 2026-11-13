@@ -439,9 +439,9 @@ func TestClaimTasksWithGlobalLimit_ConcurrentClaimersRespectLimit(t *testing.T) 
 		t.Fatalf("total claimed = %d, want exactly global limit 3", claimed)
 	}
 	var running int
-	if err := pool.QueryRow(context.Background(), \`
+	if err := pool.QueryRow(context.Background(), `
 		SELECT count(*) FROM tasks WHERE status='running'
-		  AND locked_at >= NOW() - INTERVAL '1 minute'\`).Scan(&running); err != nil {
+		  AND locked_at >= NOW() - INTERVAL '1 minute'`).Scan(&running); err != nil {
 		t.Fatalf("count running tasks: %v", err)
 	}
 	if running != 3 {
@@ -455,9 +455,9 @@ func TestClaimTasksWithGlobalLimit_CombinesQueuedAndExpiredLeases(t *testing.T) 
 	repo := NewTaskRepository(pool)
 	tenant := uuid.New()
 	expiredID := seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 10)
-	if _, err := pool.Exec(context.Background(), \`
+	if _, err := pool.Exec(context.Background(), `
 		UPDATE tasks SET status='running', worker_id='dead-worker',
-			locked_at=NOW() - INTERVAL '10 minutes' WHERE task_id=$1\`, expiredID); err != nil {
+			locked_at=NOW() - INTERVAL '10 minutes' WHERE task_id=$1`, expiredID); err != nil {
 		t.Fatalf("expire task lease: %v", err)
 	}
 	seedTask(t, pool, tenant, string(domain.TaskTypeBroadcast), 5)
