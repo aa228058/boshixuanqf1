@@ -343,8 +343,33 @@ async function clearFinished() {
     const ok = await ask(`确定清空 ${uniqueIds.length} 条已结束任务？此操作不可恢复`,
       { title: '清空任务', danger: true, confirmText: '清空' })
     if (!ok) return
-    await taskApi.batchDelete(uniqueIds)
-    toast({ type: 'success', title: `已清空 ${uniqueIds.length} 条任务` })
+    // 分块删除，避免清理大量历史任务时请求体过大；每块独立回报实际成功/失败数。
+    let deleted = 0
+    let failed = 0
+    let requestFailed = false
+    const batchSize = 100
+    for (let offset = 0; offset < uniqueIds.length; offset += batchSize) {
+      const chunk = uniqueIds.slice(offset, offset + batchSize)
+      try {
+        const result = await taskApi.batchDelete(chunk)
+        deleted += Math.max(0, Number(result?.deleted) || 0)
+        failed += Math.max(0, Number(result?.failed) || 0)
+      } catch {
+        // 写请求不能盲目重试：网络中断时服务端可能已经完成本批操作。
+        requestFailed = true
+        failed += uniqueIds.length - offset
+        break
+      }
+    }
+    if (requestFailed || failed > 0 || deleted < uniqueIds.length) {
+      toast({
+        type: 'warning',
+        title: `清理部分完成：已删除 ${deleted} 条`,
+        message: `另有 ${Math.max(failed, uniqueIds.length - deleted)} 条未能确认删除，请刷新后核对`,
+      })
+    } else {
+      toast({ type: 'success', title: `已清空 ${deleted} 条任务` })
+    }
     page.value = 1
     await fetchTasks()
   } catch (e: any) {
