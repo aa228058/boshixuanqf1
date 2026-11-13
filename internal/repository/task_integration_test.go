@@ -84,6 +84,26 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("create tasks table: %v", err)
 	}
+	_, err = pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS members (
+			member_id UUID PRIMARY KEY,
+			tenant_id UUID NOT NULL,
+			group_id UUID NOT NULL,
+			tg_user_id BIGINT NOT NULL,
+			username TEXT NOT NULL DEFAULT '',
+			first_name TEXT NOT NULL DEFAULT '',
+			last_name TEXT NOT NULL DEFAULT '',
+			phone TEXT NOT NULL DEFAULT '',
+			bio TEXT NOT NULL DEFAULT '',
+			last_seen TIMESTAMPTZ,
+			has_photo BOOLEAN NOT NULL DEFAULT FALSE,
+			scraped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			access_hash BIGINT NOT NULL DEFAULT 0,
+			CONSTRAINT members_tenant_id_group_id_tg_user_id_key UNIQUE (tenant_id, group_id, tg_user_id)
+		)`)
+	if err != nil {
+		t.Fatalf("create members table fixture: %v", err)
+	}
 	// Keep reused minimal test databases compatible with TaskRepository.scanTasks,
 	// which reads task_number in the same position as the production schema.
 	if _, err := pool.Exec(context.Background(), `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_number BIGINT NOT NULL DEFAULT nextval('global_task_number_seq')`); err != nil {
@@ -1135,5 +1155,100 @@ func TestCancelledTaskRejectsFormerWorkerWrites(t *testing.T) {
 	if status != "cancelled" || workerID != nil || done != "2" || failed != "1" {
 		t.Fatalf("cancelled task = status:%s worker:%v progress:%s/%s; want cancelled/nil/2/1",
 			status, workerID, done, failed)
+	}
+}
+
+
+func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	ctx := context.Background()
+	taskRepo := NewTaskRepository(pool)
+	memberRepo := NewMemberRepository(pool)
+	tenantID := uuid.New()
+
+	makeMember := func(groupID uuid.UUID, userID int64, username string) *domain.Member {
+		return &domain.Member{
+			MemberID: uuid.New(), TenantID: tenantID, GroupID: groupID,
+			TGUserID: userID, Username: username, ScrapedAt: time.Now().UTC(),
+		}
+	}
+	countMembers := func(groupID uuid.UUID) int {
+		t.Helper()
+		var count int
+		if err := pool.QueryRow(ctx, `
+			SELECT COUNT(*) FROM members WHERE tenant_id=$1 AND group_id=$2
+		`, tenantID, groupID).Scan(&count); err != nil {
+			t.Fatalf("count members for group %s: %v", groupID, err)
+		}
+		return count
+	}
+
+	// An expired worker must not write after another worker reclaims the lease.
+	staleTaskID := seedTask(t, pool, tenantID, string(domain.TaskTypeMonitorScrape), 5)
+	staleGroupID := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		UPDATE tasks SET status='running', worker_id='stale-member-worker',
+			locked_at=NOW() - INTERVAL '10 minutes'
+		WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, staleTaskID); err != nil {
+		t.Fatalf("prepare expired monitor task: %v", err)
+	}
+	claimed, err := taskRepo.ClaimTimeoutTasks(ctx, "current-member-worker", 1, 5)
+	if err != nil {
+		t.Fatalf("reclaim expired monitor task: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].TaskID != staleTaskID {
+		t.Fatalf("reclaimed tasks = %d, want task %s", len(claimed), staleTaskID)
+	}
+	if err := memberRepo.BatchCreateOwned(ctx, tenantID, staleTaskID, "stale-member-worker",
+		[]*domain.Member{makeMember(staleGroupID, 1001, "stale")}); err == nil {
+		t.Fatal("stale worker member write unexpectedly succeeded")
+	}
+	if got := countMembers(staleGroupID); got != 0 {
+		t.Fatalf("stale worker persisted %d members, want 0", got)
+	}
+
+	// The new lease owner can write, and duplicate member keys upsert rather than duplicate.
+	if err := memberRepo.BatchCreateOwned(ctx, tenantID, staleTaskID, "current-member-worker",
+		[]*domain.Member{makeMember(staleGroupID, 1001, "current")}); err != nil {
+		t.Fatalf("current worker member write: %v", err)
+	}
+	if err := memberRepo.BatchCreateOwned(ctx, tenantID, staleTaskID, "current-member-worker",
+		[]*domain.Member{makeMember(staleGroupID, 1001, "updated")}); err != nil {
+		t.Fatalf("current worker duplicate upsert: %v", err)
+	}
+	if got := countMembers(staleGroupID); got != 1 {
+		t.Fatalf("member count after duplicate upsert = %d, want 1", got)
+	}
+	var username string
+	if err := pool.QueryRow(ctx, `
+		SELECT username FROM members WHERE tenant_id=$1 AND group_id=$2 AND tg_user_id=1001
+	`, tenantID, staleGroupID).Scan(&username); err != nil {
+		t.Fatalf("read upserted member: %v", err)
+	}
+	if username != "updated" {
+		t.Fatalf("upserted username = %q, want updated", username)
+	}
+
+	// Cancellation clears the worker lease; the former worker must be fenced out.
+	cancelledTaskID := seedTask(t, pool, tenantID, string(domain.TaskTypeMonitorScrape), 5)
+	cancelledGroupID := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		UPDATE tasks SET status='running', worker_id='cancelled-member-worker', locked_at=NOW()
+		WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, cancelledTaskID); err != nil {
+		t.Fatalf("prepare cancellable monitor task: %v", err)
+	}
+	cancelled, err := taskRepo.CancelIfActive(ctx, tenantID, cancelledTaskID)
+	if err != nil || !cancelled {
+		t.Fatalf("CancelIfActive = %t, %v; want true, nil", cancelled, err)
+	}
+	if err := memberRepo.BatchCreateOwned(ctx, tenantID, cancelledTaskID, "cancelled-member-worker",
+		[]*domain.Member{makeMember(cancelledGroupID, 2002, "after-cancel")}); err == nil {
+		t.Fatal("cancelled worker member write unexpectedly succeeded")
+	}
+	if got := countMembers(cancelledGroupID); got != 0 {
+		t.Fatalf("cancelled worker persisted %d members, want 0", got)
 	}
 }
