@@ -61,7 +61,6 @@ func TestBatchTaskUpdateSubTaskIsIdempotentAndTenantScoped(t *testing.T) {
 	}
 }
 
-
 func TestCreateSplitBatchIsAtomic(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
@@ -86,7 +85,7 @@ func TestCreateSplitBatchIsAtomic(t *testing.T) {
 			TaskID: id, TenantID: tenantID, Type: domain.TaskTypeBroadcast,
 			Status: domain.TaskStatusQueued, Priority: 5,
 			AccountIDs: []uuid.UUID{}, TargetIDs: []string{"target"},
-			Payload: map[string]any{"batch_id": batch.BatchID.String()},
+			Payload:  map[string]any{"batch_id": batch.BatchID.String()},
 			Progress: domain.TaskProgress{Total: 1}, CreatedAt: now,
 		}
 	}
