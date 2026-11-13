@@ -37,7 +37,7 @@ func TestEvictOldest_EvictsLeastRecentlyUsed(t *testing.T) {
 	evicted := e.evictOldestIdleClientLocked()
 	e.poolMu.Unlock()
 
-	if !evicted {
+	if evicted == nil {
 		t.Fatal("expected eviction to succeed")
 	}
 	if _, stillThere := e.poolClients[accountKey(tenant, old.accountID)]; stillThere {
@@ -64,7 +64,7 @@ func TestEvictOldest_SkipsWhenMuHeld(t *testing.T) {
 	evicted := e.evictOldestIdleClientLocked()
 	e.poolMu.Unlock()
 
-	if evicted {
+	if evicted != nil {
 		t.Error("must NOT evict a client whose mu is held (in-flight task); TryLock guard failed")
 	}
 	if _, gone := e.poolClients[accountKey(tenant, pc.accountID)]; !gone {
@@ -77,7 +77,7 @@ func TestEvictOldest_EmptyPool(t *testing.T) {
 	e.poolMu.Lock()
 	evicted := e.evictOldestIdleClientLocked()
 	e.poolMu.Unlock()
-	if evicted {
+	if evicted != nil {
 		t.Error("empty pool must report no eviction")
 	}
 }
