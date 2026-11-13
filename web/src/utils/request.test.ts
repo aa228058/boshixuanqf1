@@ -44,6 +44,16 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
     vi.unstubAllGlobals()
   })
 
+
+  it('将显式 credentials 选项透传到底层 fetch（refresh Cookie 跨源场景）', async () => {
+    const spy = mockFetchSequence([{ status: 200, body: { code: 0, data: 'ok' } }])
+    const p = request('/auth/refresh', { method: 'POST', credentials: 'include' })
+    await vi.runAllTimersAsync()
+    await p
+
+    expect(spy.mock.calls[0][1].credentials).toBe('include')
+  })
+
   it('GET 5xx 幂等重试：前两次 500 第三次 200 应成功', async () => {
     const spy = mockFetchSequence([
       { status: 500, body: {} },
