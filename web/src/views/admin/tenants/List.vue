@@ -238,14 +238,15 @@ async function doCreate() {
       username: createForm.value.username.trim(),
       // 密码保留原样，不对用户凭据做 trim。
     })
+    if (!tenantListPageActive) return
     showCreate.value = false
     createForm.value = { name: '', username: '', password: '', plan_id: 'free' }
     await fetchTenants()
-    toast({ type: 'success', title: '租户创建成功' })
+    if (tenantListPageActive) toast({ type: 'success', title: '租户创建成功' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '创建失败', message: (e instanceof Error ? e.message : '请检查输入后重试') })
+    if (tenantListPageActive) toast({ type: 'error', title: '创建失败', message: (e instanceof Error ? e.message : '请检查输入后重试') })
   } finally {
-    creatingTenant.value = false
+    if (tenantListPageActive) creatingTenant.value = false
   }
 }
 
@@ -256,15 +257,15 @@ function viewDetail(t: Tenant) {
 async function resetKey(t: Tenant) {
   if (resettingTenantIds.value.includes(t.tenant_id)) return
   const ok = await ask(`重置「${t.name}」的 API Key 后旧 Key 将立即失效，确定继续？`)
-  if (!ok) return
+  if (!ok || !tenantListPageActive) return
   resettingTenantIds.value = [...resettingTenantIds.value, t.tenant_id]
   try {
     await adminApiMod.resetApiKey(t.tenant_id)
-    toast({ type: 'success', title: 'API Key 已重置' })
+    if (tenantListPageActive) toast({ type: 'success', title: 'API Key 已重置' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantListPageActive) toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    resettingTenantIds.value = resettingTenantIds.value.filter(id => id !== t.tenant_id)
+    if (tenantListPageActive) resettingTenantIds.value = resettingTenantIds.value.filter(id => id !== t.tenant_id)
   }
 }
 
@@ -281,14 +282,15 @@ async function doDelete() {
   deletingTenantBusy.value = true
   try {
     await adminApiMod.deleteTenant(deletingTenant.value.tenant_id)
+    if (!tenantListPageActive) return
     // 删除当前页最后一条时回退一页，避免停留在超出总页数的空页面。
     if (tenants.value.length === 1 && page.value > 1) page.value--
     await fetchTenants()
-    toast({ type: 'success', title: '租户已删除' })
+    if (tenantListPageActive) toast({ type: 'success', title: '租户已删除' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantListPageActive) toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    deletingTenantBusy.value = false
+    if (tenantListPageActive) deletingTenantBusy.value = false
   }
 }
 
