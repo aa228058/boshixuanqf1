@@ -289,11 +289,11 @@ async function loadInviteGroups() {
   try {
     const groups = await groupStore.ensure(accountId)
     // 账号切换期间旧请求可能后返回；只允许当前选择账号的结果更新下拉。
-    if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+    if (joinPageActive && requestId === inviteGroupRequest && phoneAccId.value === accountId) {
       inviteGroups.value = groups
     }
   } catch {
-    if (requestId === inviteGroupRequest && phoneAccId.value === accountId) {
+    if (joinPageActive && requestId === inviteGroupRequest && phoneAccId.value === accountId) {
       inviteGroups.value = []
       toast({ type: 'error', title: '群组加载失败', message: '请检查账号连接后重试' })
     }
@@ -343,30 +343,42 @@ async function onPullRefresh() {
   try {
     await fetchTasks()
   } finally {
-    pullRefreshing.value = false
+    if (joinPageActive) pullRefreshing.value = false
   }
 }
 
 async function retryFailed(id: string) {
   if (taskActionsPending.value.has(id)) return
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
-  try { await taskApi.retry(id, 'failed'); await fetchTasks() }
-  catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
-  finally {
-    const next = new Set(taskActionsPending.value)
-    next.delete(id)
-    taskActionsPending.value = next
+  try {
+    await taskApi.retry(id, 'failed')
+    if (!joinPageActive) return
+    await fetchTasks()
+  } catch (e: any) {
+    if (joinPageActive) toast({ type: 'error', title: '重试失败', message: e?.message })
+  } finally {
+    if (joinPageActive) {
+      const next = new Set(taskActionsPending.value)
+      next.delete(id)
+      taskActionsPending.value = next
+    }
   }
 }
 async function stopTask(id: string) {
   if (taskActionsPending.value.has(id)) return
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
-  try { await taskApi.cancel(id); await fetchTasks() }
-  catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
-  finally {
-    const next = new Set(taskActionsPending.value)
-    next.delete(id)
-    taskActionsPending.value = next
+  try {
+    await taskApi.cancel(id)
+    if (!joinPageActive) return
+    await fetchTasks()
+  } catch (e: any) {
+    if (joinPageActive) toast({ type: 'error', title: '停止失败', message: e?.message })
+  } finally {
+    if (joinPageActive) {
+      const next = new Set(taskActionsPending.value)
+      next.delete(id)
+      taskActionsPending.value = next
+    }
   }
 }
 
@@ -448,6 +460,7 @@ async function submit() {
           source_group_id: sourceGroupId,
         },
       })
+      if (!joinPageActive) return
       toast({ type: 'success', title: '邀请入群任务已创建', message: '成员邀请已排队执行' })
       inviteTargetId.value = ''
       inviteSourceId.value = ''
@@ -455,9 +468,9 @@ async function submit() {
       showCreate.value = false
       fetchTasks()
     } catch (e: any) {
-      toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
+      if (joinPageActive) toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
     } finally {
-      submitting.value = false
+      if (joinPageActive) submitting.value = false
     }
     return
   }
@@ -484,11 +497,16 @@ async function submit() {
     let created = 0
     const errors: string[] = []
     for (const assignment of assignments) {
+      if (!joinPageActive) return
       try {
         await taskApi.create({ type: 'join_groups', account_id: assignment.accountId, links: assignment.links,
           interval_min_minutes: intervalMin, interval_max_minutes: intervalMax })
+        if (!joinPageActive) return
         created++
-      } catch (err: any) { errors.push(err?.message || '任务创建失败') }
+      } catch (err: any) {
+        if (!joinPageActive) return
+        errors.push(err?.message || '任务创建失败')
+      }
     }
     if (created === 0) throw new Error(errors[0] || '所有账号任务创建失败')
     linksInput.value = ''
@@ -496,9 +514,9 @@ async function submit() {
     toast({ type: errors.length ? 'warning' : 'success', title: '已创建 ' + created + '/' + assignments.length + ' 个加群任务', message: (distribution === 'round_robin' ? '链接已按账号均分' : '每个账号执行全部链接') + (errors.length ? '；失败：' + errors.join('；') : '') })
     fetchTasks()
   } catch (e: any) {
-    toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
+    if (joinPageActive) toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
   } finally {
-    submitting.value = false
+    if (joinPageActive) submitting.value = false
   }
 }
 
