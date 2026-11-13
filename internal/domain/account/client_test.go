@@ -37,7 +37,7 @@ func TestEvictOldest_EvictsLeastRecentlyUsed(t *testing.T) {
 	evicted := e.evictOldestIdleClientLocked()
 	e.poolMu.Unlock()
 
-	if !evicted {
+	if evicted == nil {
 		t.Fatal("expected eviction to succeed")
 	}
 	if _, stillThere := e.poolClients[accountKey(tenant, old.accountID)]; stillThere {
@@ -64,7 +64,7 @@ func TestEvictOldest_SkipsWhenMuHeld(t *testing.T) {
 	evicted := e.evictOldestIdleClientLocked()
 	e.poolMu.Unlock()
 
-	if evicted {
+	if evicted != nil {
 		t.Error("must NOT evict a client whose mu is held (in-flight task); TryLock guard failed")
 	}
 	if _, gone := e.poolClients[accountKey(tenant, pc.accountID)]; !gone {
@@ -72,12 +72,46 @@ func TestEvictOldest_SkipsWhenMuHeld(t *testing.T) {
 	}
 }
 
+func TestEvictOldest_SkipsBusyOldestAndEvictsNextIdle(t *testing.T) {
+	e := newEvictionTestEngine()
+	tenant := uuid.New()
+
+	busy := insertPooled(e, tenant, uuid.New(), time.Now().Add(-30*time.Minute))
+	idle := insertPooled(e, tenant, uuid.New(), time.Now().Add(-5*time.Minute))
+	busy.mu.Lock()
+	defer busy.mu.Unlock()
+
+	e.poolMu.Lock()
+	evicted := e.evictOldestIdleClientLocked()
+	e.poolMu.Unlock()
+
+	if evicted != idle {
+		t.Fatalf("evicted entry = %p, want next-oldest idle entry %p", evicted, idle)
+	}
+	if _, ok := e.poolClients[accountKey(tenant, busy.accountID)]; !ok {
+		t.Fatal("busy entry was removed")
+	}
+}
+
+func TestEvictOldestWrapperReleasesPoolLockBeforeShutdown(t *testing.T) {
+	e := newEvictionTestEngine()
+	insertPooled(e, uuid.New(), uuid.New(), time.Now().Add(-time.Minute))
+
+	if !e.evictOldestIdleClient() {
+		t.Fatal("expected eviction")
+	}
+	if !e.poolMu.TryLock() {
+		t.Fatal("pool lock remained held after eviction returned")
+	}
+	e.poolMu.Unlock()
+}
+
 func TestEvictOldest_EmptyPool(t *testing.T) {
 	e := newEvictionTestEngine()
 	e.poolMu.Lock()
 	evicted := e.evictOldestIdleClientLocked()
 	e.poolMu.Unlock()
-	if evicted {
+	if evicted != nil {
 		t.Error("empty pool must report no eviction")
 	}
 }
