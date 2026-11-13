@@ -295,9 +295,9 @@ async function clearLogs() {
     skippedBots.value = {}
     await fetchTasks()
   } catch (e: any) {
-    if (accountId === scrapeAccId.value) toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
+    if (pageActive && accountId === scrapeAccId.value) toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
   } finally {
-    clearing.value = false
+    if (pageActive) clearing.value = false
   }
 }
 
@@ -405,7 +405,7 @@ async function onPullRefresh() {
   try {
     await fetchTasks()
   } finally {
-    pullRefreshing.value = false
+    if (pageActive) pullRefreshing.value = false
   }
 }
 
@@ -468,16 +468,17 @@ async function submit() {
         } : {}),
       },
     })
+    if (!pageActive) return
     if (scrapeAccId.value === accountId && selectedGroup.value?.group_id === group.group_id) {
       showCreate.value = false
       selectedGroup.value = null
     }
     if (scrapeAccId.value === accountId) await fetchTasks()
-    toast({ type: 'success', title: '任务创建成功', message: '成员采集已开始，进度见任务列表' })
+    if (pageActive && scrapeAccId.value === accountId) toast({ type: 'success', title: '任务创建成功', message: '成员采集已开始，进度见任务列表' })
   } catch (e: any) {
-    toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
+    if (pageActive && scrapeAccId.value === accountId) toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
   } finally {
-    submitting.value = false
+    if (pageActive) submitting.value = false
   }
 }
 
