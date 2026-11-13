@@ -190,9 +190,10 @@ function copyCode(code: string) {
   void copyText(code, code)
 }
 function copySelected() {
-  const text = codes.value.filter(c => selectedIds.value.includes(c.code_id)).map(c => c.code).join('\n')
+  const selectedCodes = codes.value.filter(c => selectedIds.value.includes(c.code_id))
+  const text = selectedCodes.map(c => c.code).join('\n')
   if (!text) return
-  void copyText(text, `${selectedIds.value.length} 条卡密`)
+  void copyText(text, `${selectedCodes.length} 条卡密`)
 }
 const plans = ref<Plan[]>([])
 const statusFilter = ref('')
@@ -316,9 +317,9 @@ const selectedIds = ref<string[]>([])
 async function batchRevoke() {
   if (batchRevoking.value || batchDeleting.value || !selectedIds.value.length) return
   const ids = [...new Set(selectedIds.value)]
-  if (!await ask(`批量作废 ${ids.length} 张卡密？`)) return
   batchRevoking.value = true
   try {
+    if (!await ask(`批量作废 ${ids.length} 张卡密？`)) return
     await adminApiMod.batchRevokeCodes({ ids })
     selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
     await fetchCodes()
@@ -331,9 +332,9 @@ async function batchRevoke() {
 async function batchDelete() {
   if (batchDeleting.value || batchRevoking.value || !selectedIds.value.length) return
   const ids = [...new Set(selectedIds.value)]
-  if (!await ask(`批量删除 ${ids.length} 张卡密？不可恢复！`)) return
   batchDeleting.value = true
   try {
+    if (!await ask(`批量删除 ${ids.length} 张卡密？不可恢复！`)) return
     await adminApiMod.batchDeleteCodes({ ids })
     selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
     await fetchCodes()
@@ -345,9 +346,9 @@ async function batchDelete() {
 
 async function delCode(c: ActivationCode) {
   if (deletingCodeIds.value.includes(c.code_id)) return
-  if (!await ask(`确认删除卡密 ${c.code}？不可恢复！`)) return
   deletingCodeIds.value = [...deletingCodeIds.value, c.code_id]
   try {
+    if (!await ask(`确认删除卡密 ${c.code}？不可恢复！`)) return
     await adminApiMod.batchDeleteCodes({ ids: [c.code_id] })
     selectedIds.value = selectedIds.value.filter(id => id !== c.code_id)
     await fetchCodes()
