@@ -121,7 +121,7 @@
       </div>
       <template #footer>
         <t-button type="button" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="showGenerate = false">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doGenerate">生成</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" theme="primary" size="sm" @click="doGenerate" :loading="generatingCodes" :disabled="generatingCodes">生成</t-button>
       </template>
     </Modal>
 
@@ -198,6 +198,7 @@ const statusFilter = ref('')
 const page = ref(1)
 const total = ref(0)
 const showGenerate = ref(false)
+const generatingCodes = ref(false)
 const generateForm = ref({ plan_id: 'basic', count: 10, timing_type: 'immediate', expires_days: undefined as number | undefined })
 
 const planOptions = computed(() => plans.value.map(p => ({ label: p.name, value: p.plan_id })))
@@ -250,6 +251,8 @@ async function fetchCodes() {
 }
 
 async function doGenerate() {
+  if (generatingCodes.value) return
+  generatingCodes.value = true
   try {
     await adminApiMod.generateCodes(generateForm.value)
     showGenerate.value = false
@@ -258,6 +261,8 @@ async function doGenerate() {
     toast({ type: 'success', title: '卡密已生成' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '生成失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    generatingCodes.value = false
   }
 }
 
