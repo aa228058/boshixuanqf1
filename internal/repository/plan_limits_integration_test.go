@@ -60,7 +60,6 @@ func TestTryAddDailyUsageDoesNotExceedLimitUnderConcurrency(t *testing.T) {
 	}
 }
 
-
 func TestTryAddDailyUsageAmountReservesWholeBatchAtomically(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
