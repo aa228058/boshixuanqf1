@@ -236,6 +236,11 @@ func (r *AccountRepository) Create(ctx context.Context, a *domain.Account) error
 func (r *AccountRepository) CountAndCreate(ctx context.Context, a *domain.Account, maxAccounts int) (*domain.Account, int, error) {
 	var count int
 	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		// 锁定租户行，串行化同一租户的账号计数+创建事务，防止并发请求同时通过套餐上限检查。
+		var lockedTenantID uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT tenant_id FROM tenants WHERE tenant_id = $1 FOR UPDATE`, a.TenantID).Scan(&lockedTenantID); err != nil {
+			return err
+		}
 		// 056: 备用池不占额度 —— 只统计"启用"状态的账号
 		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM accounts WHERE tenant_id = $1 AND pool_status = 'active'`, a.TenantID).Scan(&count); err != nil {
 			return err
