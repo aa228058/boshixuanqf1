@@ -386,7 +386,6 @@ async function toggleRule(id: string, val: boolean) {
       ruleActionsPending.value = next
     }
   }
-  }
 }
 
 async function deleteRule(id: string) {
