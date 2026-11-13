@@ -95,7 +95,7 @@
         </div>
       </div>
       <template #footer>
-        <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="showCreate = false">取消</t-button>
+        <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="closeEditor" :disabled="savingAnnouncement">取消</t-button>
         <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement" :loading="savingAnnouncement" :disabled="savingAnnouncement">
           {{ editing ? '保存' : '发布' }}
         </t-button>
@@ -114,6 +114,7 @@ import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import type { Announcement, Plan } from '@/types'
+import { validateAnnouncementInput } from '@/utils/adminPageGuards'
 
 const announcements = ref<Announcement[]>([])
 const plans = ref<Plan[]>([])
@@ -151,6 +152,13 @@ async function fetchAnnouncements() {
   }
 }
 
+function closeEditor() {
+  if (savingAnnouncement.value) return
+  showCreate.value = false
+  editing.value = false
+  editId.value = ''
+}
+
 function editAnnouncement(a: Announcement) {
   editing.value = true
   editId.value = a.announcement_id
@@ -162,17 +170,35 @@ function editAnnouncement(a: Announcement) {
 
 async function saveAnnouncement() {
   if (savingAnnouncement.value) return
+  const payload = {
+    ...form.value,
+    title: String(form.value.title || '').trim(),
+    content: String(form.value.content || '').trim(),
+    target_plans: form.value.target_type === 'specific_plan'
+      ? [...new Set((form.value.target_plans || []).filter(id => typeof id === 'string' && id.trim()))]
+      : [],
+  }
+  const validationError = validateAnnouncementInput({
+    title: payload.title || '', content: payload.content || '',
+    priority: String(payload.priority || ''), target_type: String(payload.target_type || ''),
+    target_plans: payload.target_plans,
+  })
+  if (validationError) {
+    toast({ type: 'warning', title: '公告内容无效', message: validationError })
+    return
+  }
   savingAnnouncement.value = true
   try {
     if (editing.value) {
-      await adminApiMod.updateAnnouncement(editId.value, form.value)
+      await adminApiMod.updateAnnouncement(editId.value, payload)
       toast({ type: 'success', title: '公告已更新' })
     } else {
-      await adminApiMod.createAnnouncement(form.value)
+      await adminApiMod.createAnnouncement(payload)
       toast({ type: 'success', title: '公告已发布' })
     }
     showCreate.value = false
     editing.value = false
+    editId.value = ''
     form.value = { title: '', content: '', priority: 'normal', target_type: 'all', target_plans: [] }
     await fetchAnnouncements()
   } catch (e: unknown) {
@@ -189,15 +215,17 @@ function deleteAnnouncement(a: Announcement) {
 
 async function doDelete() {
   if (!deletingAnnouncement.value || deletingAnnouncementBusy.value) return
+  const announcementId = deletingAnnouncement.value.announcement_id
   deletingAnnouncementBusy.value = true
   try {
-    await adminApiMod.deleteAnnouncement(deletingAnnouncement.value.announcement_id)
+    await adminApiMod.deleteAnnouncement(announcementId)
     await fetchAnnouncements()
     toast({ type: 'success', title: '公告已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
     deletingAnnouncementBusy.value = false
+    deletingAnnouncement.value = null
   }
 }
 
