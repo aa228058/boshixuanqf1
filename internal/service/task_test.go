@@ -44,7 +44,6 @@ func TestValidTransitions_RejectsIllegal(t *testing.T) {
 	}
 }
 
-
 func TestIsDeletableTaskStatus(t *testing.T) {
 	cases := []struct {
 		status domain.TaskStatus
