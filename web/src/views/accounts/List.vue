@@ -818,6 +818,9 @@ onUnmounted(() => {
   addAuthController = null
   abortAuthController(reauthController)
   reauthController = null
+  probeController?.abort()
+  probeController = null
+  probeRequestId++
   accountsPageActive = false
   if (avatarRefreshTimer) { clearTimeout(avatarRefreshTimer); avatarRefreshTimer = null }
   if (reconnectRefreshTimer) { clearTimeout(reconnectRefreshTimer); reconnectRefreshTimer = null }
