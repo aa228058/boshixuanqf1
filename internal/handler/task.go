@@ -1388,7 +1388,6 @@ func (h *TaskHandler) Delete(c echo.Context) error {
 	return NoContent(c)
 }
 
-
 // parseBatchTaskIDs validates and parses a bounded batch task ID list.
 func parseBatchTaskIDs(raw []string) ([]uuid.UUID, error) {
 	if len(raw) == 0 {
