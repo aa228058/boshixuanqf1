@@ -8,9 +8,9 @@
           <span class="text-sm text-text-secondary">CPU 使用率</span>
           <Cpu class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
-        <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.cpu || 0).toFixed(1) }}%</p>
+        <p class="text-3xl tracking-tight font-bold font-mono">{{ clampPercentage(metrics.cpu).toFixed(1) }}%</p>
         <div class="w-full h-2 bg-bg-card rounded-full mt-3 overflow-hidden">
-          <div class="h-full bg-gradient-to-r rounded-full glow-progress transition-[width,background-color] duration-500" :class="usageColor(metrics.cpu)" :style="{ width: `${Math.min(metrics.cpu, 100)}%` }" />
+          <div class="h-full bg-gradient-to-r rounded-full glow-progress transition-[width,background-color] duration-500" :class="usageColor(clampPercentage(metrics.cpu))" :style="{ width: `${clampPercentage(metrics.cpu)}%` }" />
         </div>
       </div>
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
@@ -18,10 +18,10 @@
           <span class="text-sm text-text-secondary">内存使用</span>
           <MemoryStick class="w-5 h-5 text-[var(--t-brand)]" />
         </div>
-        <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.memory || 0).toFixed(1) }}%</p>
-        <p class="text-xs text-text-secondary mt-1">{{ (metrics.memoryUsed || 0).toFixed(1) }} / {{ (metrics.memoryTotal || 0).toFixed(1) }} GB</p>
+        <p class="text-3xl tracking-tight font-bold font-mono">{{ clampPercentage(metrics.memory).toFixed(1) }}%</p>
+        <p class="text-xs text-text-secondary mt-1">{{ finiteMetric(metrics.memoryUsed).toFixed(1) }} / {{ finiteMetric(metrics.memoryTotal).toFixed(1) }} GB</p>
         <div class="w-full h-2 bg-bg-card rounded-full mt-2 overflow-hidden">
-          <div class="h-full rounded-full transition-[width,background-color] duration-500" :class="usageBarColor(metrics.memory)" :style="{ width: `${Math.min(metrics.memory, 100)}%` }" />
+          <div class="h-full rounded-full transition-[width,background-color] duration-500" :class="usageBarColor(clampPercentage(metrics.memory))" :style="{ width: `${clampPercentage(metrics.memory)}%` }" />
         </div>
       </div>
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
@@ -29,10 +29,10 @@
           <span class="text-sm text-text-secondary">磁盘使用</span>
           <HardDrive class="w-5 h-5 text-[var(--t-warn)]" />
         </div>
-        <p class="text-3xl tracking-tight font-bold font-mono">{{ (metrics.disk || 0).toFixed(1) }}%</p>
+        <p class="text-3xl tracking-tight font-bold font-mono">{{ clampPercentage(metrics.disk).toFixed(1) }}%</p>
         <!-- P1-36: diskTotal 为 0(未加载或后端未给)时显示占位, 不造假容量 -->
-        <p class="text-xs text-text-secondary mt-1">{{ metrics.diskTotal > 0 ? (metrics.diskUsed || 0).toFixed(1) + ' / ' + metrics.diskTotal.toFixed(1) + ' GB' : '—' }}</p>
-        <t-progress :percentage="Math.round((metrics.disk || 0) * 10) / 10"  class="mt-2" />
+        <p class="text-xs text-text-secondary mt-1">{{ finiteMetric(metrics.diskTotal) > 0 ? finiteMetric(metrics.diskUsed).toFixed(1) + ' / ' + finiteMetric(metrics.diskTotal).toFixed(1) + ' GB' : '—' }}</p>
+        <t-progress :percentage="Math.round(clampPercentage(metrics.disk) * 10) / 10"  class="mt-2" />
       </div>
     </div>
 
@@ -42,12 +42,12 @@
         <h3 class="text-sm font-medium text-text-secondary mb-4">在线 TG 连接</h3>
         <div class="flex items-center gap-4">
           <div class="w-20 h-20 rounded-full border-4 border-[color:var(--t-brand)]/20 flex items-center justify-center">
-            <span class="text-2xl tracking-tight font-bold font-mono text-[var(--t-brand)]">{{ metrics.onlineConnections }}</span>
+            <span class="text-2xl tracking-tight font-bold font-mono text-[var(--t-brand)]">{{ finiteMetric(metrics.onlineConnections) }}</span>
           </div>
           <div class="space-y-1">
             <p class="text-sm max-w-[65ch]">在线账号</p>
-            <p class="text-xs text-text-secondary">总账号: {{ metrics.totalAccounts }}</p>
-            <p class="text-xs text-text-secondary">在线率: {{ (metrics.onlineRate || 0).toFixed(1) }}%</p>
+            <p class="text-xs text-text-secondary">总账号: {{ finiteMetric(metrics.totalAccounts) }}</p>
+            <p class="text-xs text-text-secondary">在线率: {{ clampPercentage(metrics.onlineRate).toFixed(1) }}%</p>
           </div>
         </div>
       </div>
@@ -56,15 +56,15 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-sm">排队中</span>
-            <span class="font-mono text-[var(--t-warn)]">{{ metrics.queuedTasks }}</span>
+            <span class="font-mono text-[var(--t-warn)]">{{ finiteMetric(metrics.queuedTasks) }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-sm">执行中</span>
-            <span class="font-mono text-[var(--t-brand)]">{{ metrics.runningTasks }}</span>
+            <span class="font-mono text-[var(--t-brand)]">{{ finiteMetric(metrics.runningTasks) }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-sm">今日完成</span>
-            <span class="font-mono text-[var(--t-ok)]">{{ metrics.completedToday }}</span>
+            <span class="font-mono text-[var(--t-ok)]">{{ finiteMetric(metrics.completedToday) }}</span>
           </div>
         </div>
       </div>
@@ -95,6 +95,7 @@ import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Cpu, MemoryStick, HardDrive } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
+import { clampPercentage, finiteMetric } from '@/utils/adminPageGuards'
 
 const metrics = ref({
   cpu: 0, memory: 0, memoryUsed: 0, memoryTotal: 4,
@@ -177,8 +178,19 @@ async function fetchMetrics() {
     const data = await adminApiMod.getSystemMetrics({ signal: controller.signal })
     if (!metricsMounted) return
     metrics.value = { ...metrics.value, ...data }
-    metrics.value.totalAccounts = (data as any).total_accounts ?? 0
-    metrics.value.onlineRate = (data as any).online_rate ?? 0
+    metrics.value.cpu = clampPercentage(data.cpu)
+    metrics.value.memory = clampPercentage(data.memory)
+    metrics.value.memoryUsed = finiteMetric(data.memoryUsed)
+    metrics.value.memoryTotal = finiteMetric(data.memoryTotal)
+    metrics.value.disk = clampPercentage(data.disk)
+    metrics.value.diskUsed = finiteMetric(data.diskUsed)
+    metrics.value.diskTotal = finiteMetric(data.diskTotal)
+    metrics.value.onlineConnections = finiteMetric(data.onlineConnections)
+    metrics.value.totalAccounts = finiteMetric((data as any).total_accounts)
+    metrics.value.onlineRate = clampPercentage((data as any).online_rate)
+    metrics.value.queuedTasks = finiteMetric(data.queuedTasks)
+    metrics.value.runningTasks = finiteMetric(data.runningTasks)
+    metrics.value.completedToday = finiteMetric(data.completedToday)
     // 平滑采样警报检查
     checkAlert('memory', metrics.value.memory, 85)
     checkAlert('cpu', metrics.value.cpu, 90)
