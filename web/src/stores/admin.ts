@@ -20,6 +20,7 @@ export const useAdminStore = defineStore('admin', () => {
   const token = ref('') // 纯内存
   const admin = ref<AdminProfile | null>(null)
   const loading = ref(false)
+  let sessionGeneration = 0
 
   // 清除旧版本持久化的 admin token
   safeRemoveItem(LEGACY_TOKEN_KEY)
@@ -27,23 +28,26 @@ export const useAdminStore = defineStore('admin', () => {
   const isLoggedIn = computed(() => !!token.value)
 
   async function login(username: string, password: string) {
+    const generation = ++sessionGeneration
     loading.value = true
     try {
       const res = await adminApiMod.login(username, password)
+      if (generation !== sessionGeneration) return res
       token.value = res.token
       safeSetItem(SESSION_KEY, '1')
       return res
     } finally {
-      loading.value = false
+      if (generation === sessionGeneration) loading.value = false
     }
   }
 
   async function logout() {
-    // 先通知后端把当前 admin token 的 JTI 加入撤销黑名单（泄露时可立即作废），
-    // 再清本地；请求失败也不阻塞本地登出。
+    // 使在途登录响应失效；若登出请求期间用户重新登录，旧登出不得清除新会话。
+    const generation = ++sessionGeneration
     try {
       await adminApiMod.logout()
     } catch { /* 后端不可达时仅本地登出 */ }
+    if (generation !== sessionGeneration) return
     token.value = ''
     admin.value = null
     safeRemoveItem(SESSION_KEY)
