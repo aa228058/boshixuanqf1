@@ -22,3 +22,11 @@ describe('clampPercentage', () => {
     expect(clampPercentage('42.5')).toBe(42.5)
   })
 })
+
+describe('finiteMetric', () => {
+  it('replaces non-finite values with zero', () => {
+    expect(finiteMetric(Number.NaN)).toBe(0)
+    expect(finiteMetric(Number.POSITIVE_INFINITY)).toBe(0)
+  })
+  it('accepts finite numeric strings', () => expect(finiteMetric('12.5')).toBe(12.5))
+})
