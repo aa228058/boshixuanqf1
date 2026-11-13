@@ -383,6 +383,7 @@ const router = useRouter()
 const accountStore = useAccountStore()
 const currentAccount = computed(() => accountStore.currentAccount)
 const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.account_id || '').slice(0, 8)
+let broadcastPageActive = true
 
 // ===== tab 与发送模式状态(2026-10-20: 此前多轮编辑事故把这块定义整体冲丢, 模板引用 undefined
 // 导致 tab 栏/循环开关静默不显示。此处集中补回, 以后动这个文件先看这里) =====
@@ -467,10 +468,10 @@ async function loadAllGroups() {
   // 直接 for...of 会抛 "not iterable" 导致群发页整页爆红。兼容数组/包装两种形态。
   try {
     const res: any = await groupApi.list(undefined, undefined, { signal: controller.signal })
-    if (requestId !== allGroupsRequestId || !showCreate.value) return
+    if (!broadcastPageActive || controller.signal.aborted || requestId !== allGroupsRequestId || !showCreate.value) return
     _allGroups.value = Array.isArray(res) ? res : (res?.list ?? [])
   } catch {
-    if (!controller.signal.aborted && requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
+    if (broadcastPageActive && !controller.signal.aborted && requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
   } finally {
     if (allGroupsController === controller) allGroupsController = null
   }
@@ -544,7 +545,11 @@ function onImportFile(e: Event) {
   const f = (e.target as HTMLInputElement).files?.[0]
   if (!f) return
   const r = new FileReader()
-  r.onload = () => { importText.value = String(r.result || ''); applyImportText() }
+  r.onload = () => {
+    if (!broadcastPageActive) return
+    importText.value = String(r.result || '')
+    applyImportText()
+  }
   r.readAsText(f)
 }
 const message = ref('')
@@ -562,8 +567,12 @@ async function loadTextSnippets() {
   textDictController?.abort()
   const controller = new AbortController()
   textDictController = controller
-  try { const res = await settingsApi.getTextDicts({ signal: controller.signal }); if (!controller.signal.aborted) textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] })) }
-  catch (e) { if (!controller.signal.aborted) console.warn('加载文本素材失败', e) }
+  try {
+    const res = await settingsApi.getTextDicts({ signal: controller.signal })
+    if (broadcastPageActive && !controller.signal.aborted) textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] }))
+  } catch (e) {
+    if (broadcastPageActive && !controller.signal.aborted) console.warn('加载文本素材失败', e)
+  }
   finally { if (textDictController === controller) textDictController = null }
 }
 function insertTextSnippet(item: string) {
@@ -622,6 +631,7 @@ watch([currentAccount, () => authStore.tenant?.tenant_id], ([account]) => {
 })
 onMounted(() => restoreDraft(activeDraftKey.value, true))
 onUnmounted(() => {
+  broadcastPageActive = false
   allGroupsRequestId++
   allGroupsController?.abort()
   textDictController?.abort()
@@ -685,7 +695,7 @@ async function precheckTargets() {
     const res = await taskApi.validateTargets(targetSnapshot)
     const unchanged = targetSnapshot.length === selectedTargets.value.length &&
       targetSnapshot.every((target, index) => target === selectedTargets.value[index])
-    if (requestId !== precheckRequestId || !unchanged) return
+    if (!broadcastPageActive || requestId !== precheckRequestId || !unchanged) return
     if (res.invalid?.length) {
       const invalidSet = new Set(res.invalid.map(i => i.target))
       selectedTargets.value = targetSnapshot.filter(t => !invalidSet.has(t))
@@ -694,9 +704,9 @@ async function precheckTargets() {
       toast({ type: 'success', title: `全部 ${res.total} 个目标有效` })
     }
   } catch {
-    if (requestId === precheckRequestId) toast({ type: 'error', title: '预检失败', message: '可忽略预检直接创建' })
+    if (broadcastPageActive && requestId === precheckRequestId) toast({ type: 'error', title: '预检失败', message: '可忽略预检直接创建' })
   } finally {
-    if (requestId === precheckRequestId) validating.value = false
+    if (broadcastPageActive && requestId === precheckRequestId) validating.value = false
   }
 }
 
@@ -727,16 +737,16 @@ async function fetchTasks() {
   tasksLoading.value = true
   try {
     const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any, { signal: controller.signal })
-    if (requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
+    if (!broadcastPageActive || controller.signal.aborted || requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
-    if (!controller.signal.aborted && requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
+    if (broadcastPageActive && !controller.signal.aborted && requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
       tasksError.value = e?.message || '加载失败, 点击重试'
     }
   } finally {
     if (broadcastTasksController === controller) broadcastTasksController = null
-    if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
+    if (broadcastPageActive && requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
       tasksLoading.value = false
     }
   }
@@ -796,12 +806,16 @@ function formatTime(iso: string) { return iso ? new Date(iso).toLocaleString('zh
 const pullRefreshing = ref(false)
 async function onPullRefresh() {
   await fetchTasks()
-  pullRefreshing.value = false
+  if (broadcastPageActive) pullRefreshing.value = false
 }
 
 async function retryFailed(id: string) {
-  try { await taskApi.retry(id, 'failed'); fetchTasks() }
-  catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
+  try {
+    await taskApi.retry(id, 'failed')
+    if (broadcastPageActive) await fetchTasks()
+  } catch (e: any) {
+    if (broadcastPageActive) toast({ type: 'error', title: '重试失败', message: e?.message })
+  }
 }
 const taskActionsPending = ref(new Set<string>())
 async function runTaskAction(id: string, action: 'stop' | 'pause' | 'resume' | 'retry') {
@@ -813,14 +827,17 @@ async function runTaskAction(id: string, action: 'stop' | 'pause' | 'resume' | '
     else if (action === 'pause') await taskApi.pause(id)
     else if (action === 'resume') await taskApi.resume(id)
     else await taskApi.retry(id, 'failed')
+    if (!broadcastPageActive) return
     toast({ type: 'success', title: labels[action][1] })
     await fetchTasks()
   } catch (e: any) {
-    toast({ type: 'error', title: labels[action][0], message: e?.message || '请稍后重试' })
+    if (broadcastPageActive) toast({ type: 'error', title: labels[action][0], message: e?.message || '请稍后重试' })
   } finally {
-    const next = new Set(taskActionsPending.value)
-    next.delete(id)
-    taskActionsPending.value = next
+    if (broadcastPageActive) {
+      const next = new Set(taskActionsPending.value)
+      next.delete(id)
+      taskActionsPending.value = next
+    }
   }
 }
 async function stopTask(id: string) { return runTaskAction(id, 'stop') }
@@ -871,16 +888,16 @@ async function onMediaFile(e: Event) {
   try {
     const res: any = await mediaApi.uploadMedia(f)
     // 用户可能在上传期间点了清除或选择了另一份文件；旧响应不得复活旧媒体。
-    if (requestId !== mediaUploadRequestId) return
+    if (!broadcastPageActive || requestId !== mediaUploadRequestId) return
     mediaPath.value = res.path || res
     toast({ type: 'success', title: '媒体上传成功' })
   } catch (err: any) {
-    if (requestId === mediaUploadRequestId) {
+    if (broadcastPageActive && requestId === mediaUploadRequestId) {
       toast({ type: 'error', title: '上传失败', message: err?.message })
     }
   } finally {
-    if (requestId === mediaUploadRequestId) uploadingMedia.value = false
-    input.value = ''
+    if (broadcastPageActive && requestId === mediaUploadRequestId) uploadingMedia.value = false
+    if (broadcastPageActive) input.value = ''
   }
 }
 function clearMedia() {
@@ -918,7 +935,7 @@ async function fetchData() {
   } catch {
     // 缓存加载失败由选择器空态/手动同步承接。
   } finally {
-    if (requestId === groupsRequestId && currentAccount.value?.account_id === accountId) {
+    if (broadcastPageActive && requestId === groupsRequestId && currentAccount.value?.account_id === accountId) {
       groupsLoading.value = false
     }
   }
@@ -1046,19 +1063,20 @@ async function submit() {
     }
 
     await taskApi.create(payload)
+    if (!broadcastPageActive) return
     showCreate.value = false
     void fetchTasks()
     resetCreateForm()
     toast({ type: 'success', title: '任务创建成功', message: '实时进度见下方任务列表' })
   } catch (e: any) {
     // 失败不清空任何输入，用户可直接修正后重试。
-    toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
+    if (broadcastPageActive) toast({ type: 'error', title: '创建失败', message: e?.message || '请稍后重试' })
   } finally {
-    submitting.value = false
+    if (broadcastPageActive) submitting.value = false
   }
 }
 
-onMounted(() => { fetchData(); fetchTasks(); loadTextSnippets() })
+onMounted(() => { broadcastPageActive = true; fetchData(); fetchTasks(); loadTextSnippets() })
 // 侧边栏切换账号: 重新拉取群组缓存
 watch(currentAccount, () => { fetchData() })
 </script>
