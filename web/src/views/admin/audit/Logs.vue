@@ -13,7 +13,7 @@
         type="date"
         class="ui-input !w-auto !min-w-[140px] !min-h-[40px] !px-2.5 !py-1.5 !text-sm shrink-0"
         aria-label="结束日期" />
-      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" @click="page = 1; fetchLogs()">查询</t-button>
+      <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm shrink-0" :loading="logsLoading" :disabled="logsLoading" @click="page = 1; fetchLogs()">查询</t-button>
     </div>
 
     <!-- 桌面端表格 -->
@@ -70,18 +70,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { adminApiMod } from '@/api/admin'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { toast } from '@/utils/toast'
 import type { AuditLog } from '@/types'
+import { isValidAuditDateRange } from '@/utils/adminPageGuards'
 
 const logs = ref<AuditLog[]>([])
 const page = ref(1)
 const total = ref(0)
 const startDate = ref('')
 const endDate = ref('')
+const logsLoading = ref(false)
 
 const columns = [
   { key: 'created_at', title: '时间', format: (v: any) => new Date(v).toLocaleString('zh-CN') },
@@ -115,21 +117,38 @@ function actionClass(action: string) {
   return 'bg-[color:var(--t-brand-dim)] text-[var(--t-brand)]'
 }
 
+let logsRequestId = 0
+let logsController: AbortController | null = null
 async function fetchLogs() {
+  if (!isValidAuditDateRange(startDate.value, endDate.value)) {
+    toast({ type: 'error', title: '日期范围无效', message: '请检查日期格式，并确保开始日期不晚于结束日期' })
+    return
+  }
+  logsController?.abort()
+  const controller = new AbortController()
+  logsController = controller
+  const requestId = ++logsRequestId
+  logsLoading.value = true
+  const params: any = { page: page.value, page_size: 20 }
   try {
-    const params: any = { page: page.value, page_size: 20 }
     // 时区修正：此前直接拼 'T00:00:00Z'（UTC 零点 = 北京时间 08:00），
     // 会漏掉当天 0-8 点的日志。改为本地零点/末点转 UTC ISO 串，与后端
     // parseAuditTime 的 RFC3339 分支对齐，筛选边界与管理员预期一致。
     if (startDate.value) params.start_time = new Date(startDate.value + 'T00:00:00').toISOString()
     if (endDate.value) params.end_time = new Date(endDate.value + 'T23:59:59').toISOString()
-    const res = await adminApiMod.getAuditLogs(params)
+    const res = await adminApiMod.getAuditLogs(params, { signal: controller.signal })
+    if (requestId !== logsRequestId) return
     logs.value = (res.list || []) as any
     total.value = res.total || 0
   } catch (e: unknown) {
+    if (controller.signal.aborted || requestId !== logsRequestId) return
     toast({ type: 'error', title: '查询失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    if (logsController === controller) logsController = null
+    if (requestId === logsRequestId) logsLoading.value = false
   }
 }
 
+onUnmounted(() => { logsRequestId++; logsController?.abort(); logsController = null; logsLoading.value = false })
 onMounted(fetchLogs)
 </script>

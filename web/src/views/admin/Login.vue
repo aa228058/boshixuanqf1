@@ -21,6 +21,8 @@
               placeholder="请输入管理员用户名"
               clearable
               autofocus
+              autocomplete="username"
+              @update:model-value="clearLoginFeedback('username')"
               @keyup="handleKeyup" />
             <!-- P1-30: 原 errors 只在 script 赋值, 模板从不显示——校验失败点登录毫无反馈 -->
             <div v-if="errors.username" class="text-xs text-danger mt-1">{{ errors.username }}</div>
@@ -33,6 +35,8 @@
               :type="showPassword ? 'text' : 'password'"
               placeholder="请输入密码"
               clearable
+              autocomplete="current-password"
+              @update:model-value="clearLoginFeedback('password')"
               @keyup="handleKeyup">
               <template #suffix>
                 <button
@@ -45,8 +49,9 @@
                 </button>
               </template>
             </t-input>
+            <div v-if="errors.password" class="text-xs text-danger mt-1">{{ errors.password }}</div>
           </div>
-          <p v-if="errorMsg" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
+          <p v-if="errorMsg" role="alert" aria-live="assertive" class="text-sm text-[var(--t-err)]">{{ errorMsg }}</p>
           <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm w-full" theme="primary" size="sm"
             :disabled="loading"
             @click="handleLogin"
@@ -62,6 +67,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { validateAdminLogin, type AdminLoginErrors } from '@/utils/adminPageGuards'
 // R87-M7: DynamicBackground 已移除
 import { useRouter } from 'vue-router'
 import { Shield, Loader2, Eye, EyeOff } from 'lucide-vue-next'
@@ -75,13 +81,20 @@ const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
 const showPassword = ref(false)
-const errors = ref<Record<string, string>>({})
+const errors = ref<AdminLoginErrors>({})
 
 function validateForm(): boolean {
-  errors.value = {}
-  if (!username.value.trim()) errors.value.username = '请输入用户名'
-  if (!password.value.trim()) errors.value.password = '请输入密码'
+  errors.value = validateAdminLogin(username.value, password.value)
   return Object.keys(errors.value).length === 0
+}
+
+function clearLoginFeedback(field: 'username' | 'password') {
+  if (errors.value[field]) {
+    const next = { ...errors.value }
+    delete next[field]
+    errors.value = next
+  }
+  if (errorMsg.value) errorMsg.value = ''
 }
 
 // TDesign Input 的 keyup emit 签名是 (value, {e}) —— 第一个参数是字符串。
@@ -92,11 +105,11 @@ function handleKeyup(_value: string, ctx?: { e?: KeyboardEvent }) {
 }
 
 async function handleLogin() {
-  if (!validateForm()) return
+  if (loading.value || !validateForm()) return
   loading.value = true
   errorMsg.value = ''
   try {
-    await adminStore.login(username.value, password.value)
+    await adminStore.login(username.value.trim(), password.value)
     router.push('/admin/dashboard')
   } catch (e: unknown) {
     errorMsg.value = (e instanceof Error ? e.message : '登录失败，请重试')

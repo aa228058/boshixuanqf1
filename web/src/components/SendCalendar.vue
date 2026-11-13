@@ -22,7 +22,7 @@
       <div v-for="cell in gridCells" :key="cell.key"
            class="h-8 sm:h-9 rounded-md flex flex-col items-center justify-center text-[10px] transition-transform hover:scale-110 cursor-default"
            :class="cellClass(cell)"
-           :title="cell.day ? `${cell.day} 成功发送 ${cell.count} 条` : ''">
+           :title="cell.day ? `${cell.date} 日成功发送 ${cell.count} 条` : ''">
         <span v-if="cell.day" class="font-medium">{{ cell.date }}</span>
         <span v-if="cell.day && cell.count > 0" class="opacity-80">{{ cell.count > 999 ? '999+' : cell.count }}</span>
       </div>
@@ -43,11 +43,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/utils/request'
 
 const dayData = ref<Record<string, number>>({})
 const offset = ref(0)
+let disposed = false
 
 // 近6个月的月份列表(最新在前)
 const months = computed(() => {
@@ -105,8 +106,10 @@ async function load() {
   try {
     // P0-24 审计修复: 原 request 是导出的函数(request() 发起请求), request.get
     // 是 undefined——日历永远空。api 对象才有 get/post 方法。
-    dayData.value = await api.get<Record<string, number>>('/dashboard/send-calendar', { params: { months: 6 } })
+    const data = await api.get<Record<string, number>>('/dashboard/send-calendar', { params: { months: 6 } })
+    if (!disposed) dayData.value = data
   } catch { /* 统计失败显示空日历 */ }
 }
 onMounted(load)
+onUnmounted(() => { disposed = true })
 </script>

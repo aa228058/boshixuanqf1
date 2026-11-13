@@ -92,6 +92,7 @@
         </template>
         <!-- 私聊 tab: 采集过的成员 -->
         <template v-else>
+          <div v-if="dmLoading" class="py-8 text-center text-sm text-text-muted" role="status" aria-live="polite">正在加载私聊联系人...</div>
           <div
             v-for="u in dmDisplay"
             :key="u.group_id"
@@ -117,7 +118,7 @@
           </div>
           <button v-if="dmDisplay.length < dmFiltered.length" type="button" @click="dmVisibleCount += 200" class="w-full py-2 text-xs text-cyan hover:text-cyan/80">加载更多私聊对象（{{ dmDisplay.length }} / {{ dmFiltered.length }}）</button>
         </template>
-        <div v-if="!loading && (activeTab === 'dm' ? !dmFiltered.length : !filtered.length)" class="py-8 text-center">
+        <div v-if="!loading && (activeTab === 'dm' ? (!dmLoading && !dmFiltered.length) : !filtered.length)" class="py-8 text-center">
           <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-bg-card flex items-center justify-center mx-auto mb-3">
             <Search class="w-8 h-8 text-text-muted" />
           </div>
@@ -157,6 +158,7 @@ import { syncLock, markSyncing } from '@/utils/syncLock'
 import { useGroupStore } from '@/stores/group'
 import Modal from '@/components/ui/Modal.vue'
 import { toggleSelectionByKey } from './selection'
+import { uniqueByNormalizedId } from './selectorRuntime'
 import type { Group } from '@/types'
 
 const props = defineProps<{
@@ -197,14 +199,16 @@ watch(() => props.groups, (groups) => {
   localGroups.value = [...(groups || [])]
 }, { deep: true, immediate: true })
 
-async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '') {
+async function loadAccountGroups(requestId = ++selectorRequestId, accountId = props.accountId || '', preferAccountStore = false) {
   if (!accountId) {
     localGroups.value = []
+    if (requestId === selectorRequestId) loading.value = false
     return
   }
   const suppliedGroups = props.groups || []
-  if (suppliedGroups.length) {
+  if (!preferAccountStore && suppliedGroups.length) {
     localGroups.value = [...suppliedGroups]
+    if (requestId === selectorRequestId) loading.value = false
     return
   }
   loading.value = true
@@ -233,8 +237,10 @@ watch(() => props.accountId, (accountId, previousAccountId) => {
   localGroups.value = []
   dmUsers.value = []
   dmLoaded.value = false
+  dmLoading.value = false
+  dmError.value = ''
   syncStatus.value = 'idle'
-  if (visible.value) loadAccountGroups(selectorRequestId, accountId || '')
+  if (visible.value) loadAccountGroups(selectorRequestId, accountId || '', true)
 })
 
 const filtered = computed(() => {
@@ -254,21 +260,20 @@ watch(search, () => { visibleGroupCount.value = 200 })
 // ===== 私聊 tab: contacts 表缓存(同步群组时已写入), 按 tg_user_id 去重, 伪装 Group 结构供父组件取 tg_chat_id =====
 const dmUsers = ref<Group[]>([])
 const dmLoaded = ref(false)
+const dmLoading = ref(false)
+const dmError = ref('')
 
 async function loadDmUsers() {
   if (dmLoaded.value || !props.accountId) return
   const accountId = props.accountId
   const requestId = ++dmRequestId
+  dmLoading.value = true
+  dmError.value = ''
   try {
     const raw: any = await groupApi.listMembersGlobal(accountId)
     if (requestId !== dmRequestId || !visible.value || props.accountId !== accountId) return
     const arr: any[] = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
-    const seen = new Set<number>()
-    dmUsers.value = arr.filter((m: any) => {
-      if (seen.has(m.tg_user_id)) return false
-      seen.add(m.tg_user_id)
-      return true
-    }).map((m: any) => ({
+    dmUsers.value = uniqueByNormalizedId(arr, (m: any) => m.tg_user_id).map((m: any) => ({
       group_id: 'dm_' + m.tg_user_id,
       title: [m.first_name, m.last_name].filter(Boolean).join(' ') || m.username || String(m.tg_user_id),
       tg_chat_id: String(m.tg_user_id),
@@ -283,8 +288,13 @@ async function loadDmUsers() {
     if (requestId === dmRequestId && visible.value && props.accountId === accountId) {
       console.error('[GroupSelector] loadDmUsers:', e)
       dmUsers.value = []
-      dmLoaded.value = true
+      dmError.value = '私聊联系人加载失败，请重试'
+      // Keep the request retryable when the user revisits the DM tab. A failed
+      // fetch is not a successfully loaded empty contact list.
+      dmLoaded.value = false
     }
+  } finally {
+    if (requestId === dmRequestId) dmLoading.value = false
   }
 }
 
@@ -347,25 +357,27 @@ async function onRefresh() {
     requestId === selectorRequestId && visible.value && props.accountId === accountId
 
   // 如果其他组件正在同步同一账号，只等待并读取该账号结果；等待期间切换/关闭即放弃 UI 写入。
-  if (accountId && !syncLock.acquire(accountId)) {
+  const syncToken = accountId ? syncLock.acquire(accountId) : null
+  if (accountId && syncToken === null) {
     loading.value = true
     syncStatus.value = 'syncing'
-    const syncFinished = await waitForGlobalSync()
-    if (!isCurrent()) return
-    if (!syncFinished || syncLock.isSyncing(accountId)) {
-      syncStatus.value = 'timeout'
-      loading.value = false
-      return
-    }
     try {
-      const raw: any = await groupApi.list(accountId)
+      const syncFinished = await waitForGlobalSync(accountId, isCurrent)
       if (!isCurrent()) return
-      const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
-      localGroups.value = list
-      groupStore.setGroups(accountId, list)
-      emit('refresh')
-    } catch (e) {
-      if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
+      if (!syncFinished || syncLock.isSyncing(accountId)) {
+        syncStatus.value = 'timeout'
+        return
+      }
+      try {
+        const raw: any = await groupApi.list(accountId)
+        if (!isCurrent()) return
+        const list = raw.list || raw.data || (Array.isArray(raw) ? raw : [])
+        localGroups.value = list
+        groupStore.setGroups(accountId, list)
+        emit('refresh')
+      } catch (e) {
+        if (isCurrent()) console.error('[GroupSelector] list after global sync:', e)
+      }
     } finally {
       if (isCurrent()) loading.value = false
     }
@@ -401,13 +413,15 @@ async function onRefresh() {
   } finally {
     if (isCurrent()) loading.value = false
     // 这次调用持有全局锁；即使 UI 已切换，也必须释放原账号的锁。
-    syncLock.release()
+    if (syncToken !== null) syncLock.release(accountId, syncToken)
   }
 }
 
 watch(() => props.modelValue, (v) => {
   selectorRequestId++
   dmRequestId++
+  dmLoading.value = false
+  if (!v) dmError.value = ''
   if (v) {
     selected.value = []
     search.value = ''
@@ -420,16 +434,17 @@ watch(() => props.modelValue, (v) => {
 })
 
 // Wait for another component to finish syncing, then return
-async function waitForGlobalSync(): Promise<boolean> {
+async function waitForGlobalSync(accountId: string, shouldContinue: () => boolean = () => true): Promise<boolean> {
   const checkInterval = 500
   const maxWait = 120000
   const start = Date.now()
   while (Date.now() - start < maxWait) {
-    if (!syncLock.isSyncing()) {
+    if (!shouldContinue()) return false
+    if (!syncLock.isSyncing(accountId)) {
       return true
     }
     await new Promise(r => setTimeout(r, checkInterval))
   }
-  return !syncLock.isSyncing()
+  return !syncLock.isSyncing(accountId)
 }
 </script>

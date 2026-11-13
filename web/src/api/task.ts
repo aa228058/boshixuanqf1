@@ -1,4 +1,4 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 import type { Task, TaskLog, ListResponse, PaginationParams } from '@/types'
 
 function toQueryString(params?: Record<string, unknown>): string {
@@ -35,14 +35,14 @@ export interface ScrapedLink {
 
 // R128: 第二份重复的 ScrapedLink 定义已删(审计注释与实际不符——两份都在, 删下方这份, 上方 17 行处保留)
 export const taskApi = {
-  list: (params?: { status?: string; account_id?: string; type?: string; task_number?: number | string; hide_loops?: number; range?: string } & PaginationParams) => {
-    return api.get<ListResponse<Task>>(`/tasks${toQueryString(params as Record<string, unknown>)}`)
+  list: (params?: { status?: string; account_id?: string; type?: string; task_number?: number | string; hide_loops?: number; range?: string } & PaginationParams, options?: RequestOptions) => {
+    return api.get<ListResponse<Task>>(`/tasks${toQueryString(params as Record<string, unknown>)}`, options)
   },
   deleteTaskLogs: (taskId: string) => api.delete(`/tasks/${taskId}/logs`),
   // R116: cleanupLogs 封装已删(零页面调用; 对应后端 /logs/cleanup 同步移除)
-  listScrapedLinks: (params: { account_id: string; since?: string; page?: number; page_size?: number }) =>
-    api.get<{ items: ScrapedLink[]; total: number }>(`/scrape-links${toQueryString(params as Record<string, unknown>)}`),
-  getById: (id: string) => api.get<Task>(`/tasks/${id}`),
+  listScrapedLinks: (params: { account_id: string; since?: string; page?: number; page_size?: number }, options?: RequestOptions) =>
+    api.get<{ items: ScrapedLink[]; total: number }>(`/scrape-links${toQueryString(params as Record<string, unknown>)}`, options),
+  getById: (id: string, options?: RequestOptions) => api.get<Task>(`/tasks/${id}`, options),
   create: (data: Record<string, unknown>) => api.post<Task>('/tasks', data),
   // 重试: scope=failed 仅重发失败目标(克隆新任务, 续传防重保证不重复), 否则整任务重跑
   retry: (id: string, scope?: 'failed') => api.post<void>(`/tasks/${id}/retry${scope ? `?scope=${scope}` : ''}`),
@@ -54,7 +54,7 @@ export const taskApi = {
   delete: (id: string) => api.delete<void>(`/tasks/${id}`),
   batchCancel: (taskIds: string[]) => api.post<{ cancelled: number }>('/tasks/batch/cancel', { task_ids: taskIds }),
   batchDelete: (taskIds: string[]) => api.post<{ deleted: number }>('/tasks/batch/delete', { task_ids: taskIds }),
-  getLogs: (id: string, page = 1, pageSize = 50, beforeLogId?: string, range?: { from?: string; to?: string }) => api.get<TaskLog[]>(`/tasks/${id}/logs${toQueryString({ page, page_size: pageSize, before_log_id: beforeLogId, from: range?.from, to: range?.to })}`),
+  getLogs: (id: string, page = 1, pageSize = 50, beforeLogId?: string, range?: { from?: string; to?: string }, options?: RequestOptions) => api.get<TaskLog[]>(`/tasks/${id}/logs${toQueryString({ page, page_size: pageSize, before_log_id: beforeLogId, from: range?.from, to: range?.to })}`, options),
   getAccountLogs: (accountId: string, page = 1, pageSize = 50) =>
     api.get<ListResponse<TaskLog>>(`/tasks/logs${toQueryString({ account_id: accountId, page, page_size: pageSize })}`),
   getProgress: (id: string) => api.get<{ progress: number; status: string; total: number; completed: number }>(`/tasks/${id}/progress`),

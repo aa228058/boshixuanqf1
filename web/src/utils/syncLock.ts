@@ -1,35 +1,36 @@
-// Global sync lock to prevent multiple components from syncing simultaneously for the same accountId.
-// This prevents duplicate Telegram API calls and reduces flood wait risk.
-
-let syncingAccountId: string | null = null
-let syncStartTime = 0
+// Per-account sync locks prevent duplicate Telegram requests without allowing
+// one account's completion to release another account's in-flight sync.
+interface SyncLease { startedAt: number; token: number }
+const syncingAccounts = new Map<string, SyncLease>()
+let nextLeaseToken = 0
 const SYNC_LOCK_TTL = 120000 // Slightly above the 110s backend sync deadline
 const SYNC_INTERVAL = 10 * 60 * 1000 // 10 minutes between syncs
 
+function pruneExpiredLocks() {
+  const now = Date.now()
+  for (const [accountId, lease] of syncingAccounts) {
+    if (now - lease.startedAt > SYNC_LOCK_TTL) syncingAccounts.delete(accountId)
+  }
+}
+
 export const syncLock = {
   isSyncing(accountId?: string): boolean {
-    if (!syncingAccountId) return false
-    // Safety: auto-release if lock is too old
-    if (Date.now() - syncStartTime > SYNC_LOCK_TTL) {
-      this.release()
-      return false
-    }
-    // If no accountId specified, any sync is considered active
-    if (!accountId) return true
-    return syncingAccountId === accountId
+    pruneExpiredLocks()
+    return accountId ? syncingAccounts.has(accountId) : syncingAccounts.size > 0
   },
-  acquire(accountId: string): boolean {
-    if (this.isSyncing(accountId)) return false
-    syncingAccountId = accountId
-    syncStartTime = Date.now()
-    return true
+  acquire(accountId: string): number | null {
+    if (this.isSyncing(accountId)) return null
+    const token = ++nextLeaseToken
+    syncingAccounts.set(accountId, { startedAt: Date.now(), token })
+    return token
   },
-  release() {
-    syncingAccountId = null
-    syncStartTime = 0
+  release(accountId: string, token: number) {
+    // An expired request must never release a newer lease for the same account.
+    if (syncingAccounts.get(accountId)?.token === token) syncingAccounts.delete(accountId)
   },
   getAccountId(): string | null {
-    return syncingAccountId
+    pruneExpiredLocks()
+    return syncingAccounts.keys().next().value ?? null
   },
 }
 

@@ -51,9 +51,9 @@
         </div>
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-if="job.status === 'cancelling'" class="text-xs text-text-muted">正在停止…</span>
-        <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="cancelImportJob(job.job_id)">取消任务</t-button>
-        <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
-        <t-button v-if="['review', 'completed', 'failed', 'cancelled'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text" @click="deleteImportJob(job.job_id)">删除记录</t-button>
+        <t-button v-if="['pending', 'processing'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text"  :disabled="importJobActions.has(job.job_id)" :loading="importJobActions.has(job.job_id)" @click="cancelImportJob(job.job_id)">取消任务</t-button>
+        <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" size="small" class="ui-t-button ui-t-button--secondary"  :disabled="importJobActions.has(job.job_id)" :loading="importJobActions.has(job.job_id)" @click="retryFailedImportJob(job.job_id)">重试失败 {{ job.failed_count }} 条</t-button>
+        <t-button v-if="['review', 'completed', 'failed', 'cancelled'].includes(job.status)" size="small" class="ui-t-button ui-t-button--text"  :disabled="importJobActions.has(job.job_id)" :loading="importJobActions.has(job.job_id)" @click="deleteImportJob(job.job_id)">删除记录</t-button>
       </div>
     </section>
 
@@ -175,7 +175,7 @@
             </span>
           </template>
           <template #member_count="{ row }">
-            <span class="text-xs tabular-nums">{{ Number(row.member_count || 0).toLocaleString() }}</span>
+            <span class="text-xs tabular-nums">{{ normalizeGroupMemberCount(row.member_count).toLocaleString() }}</span>
           </template>
           <template #free_speech_status="{ row }">
             <span class="text-xs whitespace-nowrap" :class="row.free_speech_status === 'allowed' ? 'text-[var(--t-ok)]' : row.free_speech_status === 'restricted' ? 'text-[var(--t-warn)]' : 'text-text-muted'">{{ freeSpeechLabel(row.free_speech_status) }}</span>
@@ -223,8 +223,8 @@
         <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-border">
           <span class="text-xs text-text-secondary">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
           <div class="flex gap-2">
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page <= 1" @click="prevPage">上一页</t-button>
-            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="page >= totalPages" @click="nextPage">下一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="loading || page <= 1" @click="prevPage">上一页</t-button>
+            <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" :disabled="loading || page >= totalPages" @click="nextPage">下一页</t-button>
           </div>
         </div>
       </div>
@@ -233,8 +233,9 @@
     <Modal v-model="importModalVisible" title="导入群链接">
       <div class="space-y-3 pb-2">
         <label class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
-        <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs"
+        <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs" :disabled="importFileReading || importing"
           @change="onImportFile" />
+        <p v-if="importFileReading" class="text-xs text-text-muted" role="status">正在读取文件…</p>
         <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
         <textarea v-model="importText" rows="8" class="ui-input text-sm"
@@ -265,7 +266,7 @@
       </div>
       <template #footer>
         <t-button class="ui-t-button ui-t-button--text ui-t-button--sm" size="small" variant="text" @click="importModalVisible = false">关闭</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" :loading="importing" :disabled="importFileReading" @click="doImport">{{ importJob?.status === 'review' ? '确认有效链接并开始解析' : '筛选链接' }}</t-button>
       </template>
     </Modal>
 
@@ -320,6 +321,7 @@ import { toast } from '@/utils/toast'
 import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import type { SystemGroup } from '@/types/models'
+import { formatGroupLibraryTime, normalizeGroupMemberCount, uniqueGroupIds, validateGroupImportFile, validateGroupJoinOptions } from '@/utils/groupLibraryGuards'
 
 const accountStore = useAccountStore()
 
@@ -368,16 +370,25 @@ function toggleExpand(id: string) {
   expandedSg.value = s
 }
 const isExpanded = (id: string) => expandedSg.value.has(id)
-function copyLink(link: string) {
+async function copyLink(link: string) {
   if (!link) return
-  navigator.clipboard?.writeText(link).catch(() => {})
+  try {
+    if (!navigator.clipboard?.writeText) {
+      toast({ type: 'warning', title: '当前浏览器不支持复制', message: '请手动选择并复制群组链接' })
+      return
+    }
+    await navigator.clipboard.writeText(link)
+    toast({ type: 'success', title: '链接已复制' })
+  } catch {
+    toast({ type: 'error', title: '复制失败', message: '请检查浏览器剪贴板权限后重试' })
+  }
 }
 const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 // 翻页必须走函数: 模板里 page++ 对 ref 无效(编译成 $setup.page++ 作用在对象上), page 永远=1 所以每页都是第一页内容
-function nextPage() { page.value++; load() }
-function prevPage() { if (page.value > 1) { page.value--; load() } }
+function nextPage() { if (!loading.value && page.value < totalPages.value) { page.value++; load() } }
+function prevPage() { if (!loading.value && page.value > 1) { page.value--; load() } }
 const loading = ref(false)
 const selected = reactive(new Set<string>())
 const filters = reactive({ keyword: '', gtype: '', status: '', source: '' })
@@ -403,11 +414,24 @@ const importModalVisible = ref(false)
 const importText = ref('')
 const importing = ref(false)
 const importFileName = ref('')
+const importFileReading = ref(false)
+let importFileReadRequestId = 0
 const importAccountId = ref('')
 const importJob = ref<any>(null)
 const importJobs = ref<any[]>([])
 // 每个导入任务只允许一个轮询链；页面卸载时清理所有待执行定时器。
 const activeImportPolls = new Set<string>()
+const importJobActions = ref(new Set<string>())
+function beginImportJobAction(jobId: string): boolean {
+  if (importPageUnmounted || importJobActions.value.has(jobId)) return false
+  importJobActions.value = new Set(importJobActions.value).add(jobId)
+  return true
+}
+function endImportJobAction(jobId: string) {
+  const next = new Set(importJobActions.value)
+  next.delete(jobId)
+  importJobActions.value = next
+}
 const importPollTimers = new Map<string, number>()
 let importPageUnmounted = false
 function scheduleImportPoll(jobId: string) {
@@ -420,9 +444,16 @@ function scheduleImportPoll(jobId: string) {
   }, 2000)
   importPollTimers.set(jobId, timer)
 }
+let groupListRequestId = 0
+let groupListController: AbortController | null = null
 onUnmounted(() => {
+  groupListController?.abort()
+  groupListController = null
+  // 使卸载前尚未返回的群库请求失效，避免旧页面继续写入状态。
+  groupListRequestId++
   if (keywordSearchTimer !== undefined) window.clearTimeout(keywordSearchTimer)
   importPageUnmounted = true
+  importFileReadRequestId++
   for (const timer of importPollTimers.values()) window.clearTimeout(timer)
   importPollTimers.clear()
 })
@@ -432,18 +463,34 @@ watch(importText, () => {
 })
 
 async function onImportFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  if (file.size > 20 * 1024 * 1024) {
-    toast({ type: 'error', title: '文件过大', message: '文件不能超过 20MB' })
-    ;(event.target as HTMLInputElement).value = ''
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || importPageUnmounted) return
+  const requestId = ++importFileReadRequestId
+  importFileReading.value = false
+  const validationError = validateGroupImportFile(file)
+  if (validationError) {
+    toast({ type: 'error', title: '文件不可用', message: validationError })
     return
   }
+  importFileReading.value = true
+  importJob.value = null
   try {
-    importText.value = await file.text()
-    importFileName.value = file.name
+    const content = await file.text()
+    if (importPageUnmounted || requestId !== importFileReadRequestId) return
+    if (!content.trim()) {
+      toast({ type: 'warning', title: '文件内容为空', message: '请检查文件后重新选择' })
+      return
+    }
+    importText.value = content
+    importFileName.value = file.name.trim()
   } catch {
-    toast({ type: 'error', title: '读取失败', message: '文件读取失败，请检查文件编码' })
+    if (!importPageUnmounted && requestId === importFileReadRequestId) {
+      toast({ type: 'error', title: '读取失败', message: '文件读取失败，请检查文件编码' })
+    }
+  } finally {
+    if (requestId === importFileReadRequestId) importFileReading.value = false
   }
 }
 
@@ -474,46 +521,60 @@ function resumeImportReview(job: any) {
 }
 
 async function retryFailedImportJob(jobId: string) {
+  if (!beginImportJobAction(jobId)) return
   try {
     const job = await retryFailedGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
     toast({ type: 'success', title: '失败链接已重新排队', message: '本次只重试 ' + job.total_count + ' 条失败链接' })
     void pollImportJob(job.job_id)
   } catch (err: any) {
-    toast({ type: 'error', title: '重试失败', message: err?.message || '无法创建失败链接重试任务' })
+    if (!importPageUnmounted) toast({ type: 'error', title: '重试失败', message: err?.message || '无法创建失败链接重试任务' })
+  } finally {
+    endImportJobAction(jobId)
   }
 }
 
 async function deleteImportJob(jobId: string) {
-  const confirmed = await ask('确定删除这条导入任务记录？', {
-    title: '删除导入记录',
-    detail: '只删除任务历史和失败明细，不影响已入库群组。',
-    danger: true,
-    confirmText: '删除',
-  })
-  if (!confirmed) return
-
+  if (!beginImportJobAction(jobId)) return
   try {
+    const confirmed = await ask('确定删除这条导入任务记录？', {
+      title: '删除导入记录',
+      detail: '只删除任务历史和失败明细，不影响已入库群组。',
+      danger: true,
+      confirmText: '删除',
+    })
+    if (!confirmed || importPageUnmounted) return
+
     await deleteGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     importJobs.value = importJobs.value.filter((item: any) => item.job_id !== jobId)
     if (importJob.value?.job_id === jobId) importJob.value = null
     toast({ type: 'success', title: '已删除导入记录', message: '仅删除任务历史，不影响已入库的群组' })
   } catch (err: any) {
-    toast({ type: 'error', title: '删除失败', message: err?.message || '任务仍在运行或暂时无法删除' })
-    void loadImportJobs()
+    if (!importPageUnmounted) {
+      toast({ type: 'error', title: '删除失败', message: err?.message || '任务仍在运行或暂时无法删除' })
+      void loadImportJobs()
+    }
+  } finally {
+    endImportJobAction(jobId)
   }
 }
 
 async function cancelImportJob(jobId: string) {
+  if (!beginImportJobAction(jobId)) return
   try {
     const job = await cancelGroupLibraryImportJob(jobId)
+    if (importPageUnmounted) return
     const index = importJobs.value.findIndex((item: any) => item.job_id === jobId)
     if (index >= 0) importJobs.value[index] = job
     if (importJob.value?.job_id === jobId) importJob.value = job
     if (job.status === 'cancelling') void pollImportJob(jobId)
     toast({ type: 'success', title: '已提交取消请求', message: job.status === 'cancelling' ? '正在停止当前解析，已完成的数据会保留' : '导入任务已取消' })
   } catch (err: any) {
-    toast({ type: 'error', title: '取消失败', message: err?.message || '无法取消该导入任务' })
+    if (!importPageUnmounted) toast({ type: 'error', title: '取消失败', message: err?.message || '无法取消该导入任务' })
+  } finally {
+    endImportJobAction(jobId)
   }
 }
 
@@ -562,18 +623,21 @@ async function confirmImportJob(jobId: string) {
 }
 
 async function doImport() {
-  if (importing.value) return
+  if (importing.value || importFileReading.value || importPageUnmounted) return
   if (importJob.value?.status === 'review') {
     importing.value = true
     try { await confirmImportJob(importJob.value.job_id) }
     finally { importing.value = false }
     return
   }
-  if (!importText.value.trim()) return
+  const contentSnapshot = importText.value.trim()
+  const fileNameSnapshot = importFileName.value.trim()
+  const accountIdSnapshot = importAccountId.value || undefined
+  if (!contentSnapshot) return
   importing.value = true
   importJob.value = null
   try {
-    const job = await importLibraryGroups(importText.value, importFileName.value, importAccountId.value || undefined)
+    const job = await importLibraryGroups(contentSnapshot, fileNameSnapshot, accountIdSnapshot)
     if (importPageUnmounted) return
     importJob.value = job
     importJobs.value = [job, ...importJobs.value.filter((item: any) => item.job_id !== job.job_id)].slice(0, 8)
@@ -590,17 +654,19 @@ async function selectAllLibrary() {
   if (allSelecting.value || total.value <= 0) return
   allSelecting.value = true
   try {
+    const filterSnapshot = { ...filters }
     const pageLimit = 100
-    const first = await getGroupLibrary({ ...filters, page: 1, page_size: pageLimit })
-    const totalRows = first.total || 0
+    const first = await getGroupLibrary({ ...filterSnapshot, page: 1, page_size: pageLimit })
+    const totalRows = normalizeGroupMemberCount(first.total)
     const pages = Math.ceil(totalRows / pageLimit)
     const rows = [...(first.list || [])]
     for (let p = 2; p <= pages; p++) {
-      const next = await getGroupLibrary({ ...filters, page: p, page_size: pageLimit })
+      const next = await getGroupLibrary({ ...filterSnapshot, page: p, page_size: pageLimit })
       rows.push(...(next.list || []))
     }
     const identities = new Set<string>()
     const ids: string[] = []
+    const seenGroupIds = new Set<string>()
     for (const group of rows) {
       if (group.status === 'invalid') continue
       const identity = group.telegram_chat_id
@@ -608,8 +674,9 @@ async function selectAllLibrary() {
         : group.username
           ? 'user:' + group.username.replace(/^@/, '').toLowerCase()
           : 'row:' + group.sg_id
-      if (identities.has(identity)) continue
+      if (identities.has(identity) || seenGroupIds.has(group.sg_id)) continue
       identities.add(identity)
+      seenGroupIds.add(group.sg_id)
       ids.push(group.sg_id)
     }
     selected.clear()
@@ -655,19 +722,21 @@ function statusLabel(s: string) {
 function sourceLabel(s: string) {
   return s === 'bio' ? '简介发现' : s === 'import' ? '手动/文件导入' : s === 'search' ? 'Telegram 搜索' : s === 'joined' ? '群组同步' : '链接采集'
 }
-function fmtTime(t: string) {
-  if (!t) return '—'
-  const d = new Date(t)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
+function fmtTime(t: string) { return formatGroupLibraryTime(t) }
 
 async function load() {
+  const requestId = ++groupListRequestId
+  groupListController?.abort()
+  const controller = new AbortController()
+  groupListController = controller
+  // 在发请求时固定筛选与页码；只允许最后一次请求更新当前列表和 loading。
+  const params = { ...filters, page: page.value, page_size: pageSize }
   loading.value = true
   try {
-    const res = await getGroupLibrary({ ...filters, page: page.value, page_size: pageSize })
-    list.value = res.list || []
-    total.value = res.total || 0
+    const res = await getGroupLibrary(params, { signal: controller.signal })
+    if (requestId !== groupListRequestId) return
+    list.value = Array.isArray(res.list) ? res.list : []
+    total.value = normalizeGroupMemberCount(res.total)
     // 跨页勾选保留: 翻页/加载不再清空已选(分批加群需要跨页凑量);
     // 已失效条目保留勾选无意义, 顺手清掉
     for (const id of [...selected]) {
@@ -675,9 +744,11 @@ async function load() {
       if (g && g.status === 'invalid') selected.delete(id)
     }
   } catch (err: any) {
+    if (controller.signal.aborted || requestId !== groupListRequestId) return
     toast({ type: 'error', title: '加载失败', message: err?.message || '加载群库失败' })
   } finally {
-    loading.value = false
+    if (requestId === groupListRequestId) loading.value = false
+    if (groupListController === controller) groupListController = null
   }
 }
 function search() {
@@ -705,19 +776,34 @@ function toggleJoinAccount(id: string) {
 
 async function doJoin() {
   if (joining.value) return
+  const targets = uniqueGroupIds([...selected])
+  const accountsSnapshot = uniqueGroupIds([...joinAccounts.value])
+  const optionsSnapshot = {
+    perAccountCount: joinBatchEnabled.value ? Number(joinPerAccount.value) : 0,
+    intervalMinMinutes: joinIntervalMin.value === null ? 0 : Number(joinIntervalMin.value),
+    intervalMaxMinutes: joinIntervalMax.value === null ? 0 : Number(joinIntervalMax.value),
+  }
+  const validationError = validateGroupJoinOptions({
+    accountIds: accountsSnapshot,
+    targetIds: targets,
+    batchEnabled: joinBatchEnabled.value,
+    perAccountCount: optionsSnapshot.perAccountCount,
+    intervalMin: optionsSnapshot.intervalMinMinutes,
+    intervalMax: optionsSnapshot.intervalMaxMinutes,
+    onlineAccountIds: joinableAccounts.value.map(account => account.account_id),
+  })
+  if (validationError) {
+    toast({ type: 'warning', title: '加群参数无效', message: validationError })
+    return
+  }
   joining.value = true
   try {
-    const targets = [...selected]
     let created = 0
     let links = 0
     const errors: string[] = []
     for (let offset = 0; offset < targets.length; offset += 100) {
       try {
-        const res = await joinLibraryGroups([...joinAccounts.value], targets.slice(offset, offset + 100), {
-          perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
-          intervalMinMinutes: joinIntervalMin.value || 0,
-          intervalMaxMinutes: joinIntervalMax.value || 0,
-        })
+        const res = await joinLibraryGroups(accountsSnapshot, targets.slice(offset, offset + 100), optionsSnapshot)
         created += res.created || 0
         links += res.links || 0
         if (res.failed_err) errors.push(res.failed_err)
@@ -726,9 +812,11 @@ async function doJoin() {
       }
     }
     toast({ type: errors.length ? 'warning' : 'success', title: errors.length ? '任务部分创建' : '任务已创建', message: `已创建 ${created} 个加群任务（${links} 个群）${errors.length ? '；失败信息: ' + errors.join('；') : ''}` })
-    if (created > 0) {
+    if (created > 0 && errors.length === 0) {
       joinModalVisible.value = false
       selected.clear()
+    } else if (created > 0) {
+      toast({ type: 'info', title: '已保留群组选择', message: '部分批次未成功，保留当前选择，便于检查后继续处理' })
     }
   } catch (err: any) {
     toast({ type: 'error', title: '创建失败', message: err?.message || '创建加群任务失败' })

@@ -51,8 +51,8 @@
             </div>
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
-            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
+            <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" @click.stop="retryFailed(t.task_id)" :disabled="taskActionsPending.has(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">重试失败 ({{ progOf(t).failed }})</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" @click.stop="stopTask(t.task_id)" :disabled="taskActionsPending.has(t.task_id)" class="ui-t-button ui-t-button--sm ui-t-button--danger">停止</t-button>
             <t-button @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)" class="ui-t-button ui-t-button--sm ui-t-button--secondary">查看详情</t-button>
           </div>
         </div>
@@ -124,8 +124,9 @@
                   class="ui-input !min-h-[144px] resize-none font-mono text-sm" aria-label="群链接或邀请链接" />
         <div class="flex items-center justify-between mt-2">
           <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
-            导入文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
+            导入文件<input type="file" accept=".txt,.csv,text/plain,text/csv" class="hidden" :disabled="linkFileReading || submitting" @change="onImportFile">
           </label>
+          <span v-if="linkFileReading" class="text-xs text-text-muted" role="status">正在读取文件…</span>
           <span class="text-xs text-text-muted">已识别 {{ validLinks.length }} 个有效链接</span>
           <!-- R128 无效链接可展开查看: 原只报数量, 用户不知哪行错了 -->
           <button type="button" v-if="invalidLinks.length > 0"
@@ -153,7 +154,7 @@
     <template #footer>
       <div class="flex items-center justify-end gap-3">
         <t-button type="button" class="ui-t-button ui-t-button--secondary" @click="showCreate = false">取消</t-button>
-        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting">
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="validLinks.length === 0 || submitting || linkFileReading">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : `创建加群任务 (${validLinks.length})` }}
         </t-button>
@@ -183,6 +184,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
+import { validateJoinLinkFile } from '@/utils/workspaceGuards'
 
 const route = useRoute()
 const router = useRouter()
@@ -206,13 +208,20 @@ const onlineAccounts = computed(() => (accountStore.accounts || []).filter((a: a
 const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
 const tasksError = ref('')
+const taskActionsPending = ref(new Set<string>())
+const linkFileReading = ref(false)
+let linkFileReader: FileReader | null = null
+let linkFileReadRequestId = 0
 
 let taskListRequestId = 0
 let joinPageActive = true
+let taskListController: AbortController | null = null
 
 async function fetchTasks() {
   const accountId = currentAccount.value?.account_id || ''
   const requestId = ++taskListRequestId
+  taskListController?.abort()
+  taskListController = null
   if (!accountId) {
     tasks.value = []
     tasksError.value = ''
@@ -220,21 +229,29 @@ async function fetchTasks() {
     return
   }
   tasksLoading.value = true
+  const controller = new AbortController()
+  taskListController = controller
   try {
-    const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any)
+    const res: any = await taskApi.list({ type: 'join_groups', page: 1, page_size: 50, hide_loops: 1 } as any, { signal: controller.signal })
     if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
-    if (!joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
+    if (controller.signal.aborted || !joinPageActive || requestId !== taskListRequestId || accountId !== (currentAccount.value?.account_id || '')) return
     tasksError.value = e?.message || '加载失败, 点击重试'
   } finally {
     if (joinPageActive && requestId === taskListRequestId) tasksLoading.value = false
+    if (taskListController === controller) taskListController = null
   }
 }
 onUnmounted(() => {
   joinPageActive = false
   taskListRequestId++
+  taskListController?.abort()
+  taskListController = null
+  linkFileReadRequestId++
+  linkFileReader?.abort()
+  linkFileReader = null
 })
 useAutoRefresh(fetchTasks, 15000)
 
@@ -321,17 +338,36 @@ function percentOf(t: any) {
 function formatTime(iso: string) { return iso ? new Date(iso).toLocaleString('zh-CN') : '' }
 const pullRefreshing = ref(false)
 async function onPullRefresh() {
-  await fetchTasks()
-  pullRefreshing.value = false
+  if (pullRefreshing.value) return
+  pullRefreshing.value = true
+  try {
+    await fetchTasks()
+  } finally {
+    pullRefreshing.value = false
+  }
 }
 
 async function retryFailed(id: string) {
-  try { await taskApi.retry(id, 'failed'); fetchTasks() }
+  if (taskActionsPending.value.has(id)) return
+  taskActionsPending.value = new Set(taskActionsPending.value).add(id)
+  try { await taskApi.retry(id, 'failed'); await fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
+  finally {
+    const next = new Set(taskActionsPending.value)
+    next.delete(id)
+    taskActionsPending.value = next
+  }
 }
 async function stopTask(id: string) {
-  try { await taskApi.cancel(id); fetchTasks() }
+  if (taskActionsPending.value.has(id)) return
+  taskActionsPending.value = new Set(taskActionsPending.value).add(id)
+  try { await taskApi.cancel(id); await fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
+  finally {
+    const next = new Set(taskActionsPending.value)
+    next.delete(id)
+    taskActionsPending.value = next
+  }
 }
 
 const linksInput = ref('')
@@ -344,15 +380,42 @@ const linksInput = ref('')
 const submitting = ref(false)
 
 function onImportFile(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (!f) return
-  const r = new FileReader()
-  r.onload = () => {
-    const items = parseTargets(String(r.result || ''), { keepTmeLinks: true })
-    linksInput.value = [...new Set([...linksInput.value.split('\n').filter(Boolean), ...items])].join('\n')
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !joinPageActive) return
+  const requestId = ++linkFileReadRequestId
+  linkFileReader?.abort()
+  linkFileReader = null
+  linkFileReading.value = false
+  const error = validateJoinLinkFile(file)
+  if (error) {
+    toast({ type: 'warning', title: '文件不可用', message: error })
+    return
   }
-  r.readAsText(f)
-  ;(e.target as HTMLInputElement).value = ''
+  const reader = new FileReader()
+  linkFileReader = reader
+  linkFileReading.value = true
+  reader.onload = () => {
+    if (!joinPageActive || requestId !== linkFileReadRequestId || reader !== linkFileReader) return
+    const content = typeof reader.result === 'string' ? reader.result : ''
+    if (!content.trim()) {
+      toast({ type: 'warning', title: '文件内容为空', message: '请检查文件后重新选择' })
+      return
+    }
+    const items = parseTargets(content, { keepTmeLinks: true })
+    linksInput.value = [...new Set([...linksInput.value.split('\n').map(x => x.trim()).filter(Boolean), ...items])].join('\n')
+  }
+  reader.onerror = () => {
+    if (joinPageActive && requestId === linkFileReadRequestId) toast({ type: 'error', title: '读取文件失败', message: '无法读取所选文件，请重新选择' })
+  }
+  reader.onloadend = () => {
+    if (requestId === linkFileReadRequestId) {
+      linkFileReading.value = false
+      if (linkFileReader === reader) linkFileReader = null
+    }
+  }
+  reader.readAsText(file)
 }
 
 // 2026-09-22 宽松识别+归一化：缺协议头的 t.me/telegram.me、@开头 都接受，
@@ -364,7 +427,7 @@ const invalidLinks = computed(() => findInvalidJoinLinks(linksInput.value))
 const showInvalidLinks = ref(false)
 
 async function submit() {
-  if (submitting.value) return
+  if (submitting.value || linkFileReading.value) return
   // R111: 协议协同死分支已删
   // ===== 邀请成员入群模式 =====
   if (joinMode.value === 'invite') {

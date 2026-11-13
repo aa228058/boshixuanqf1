@@ -9,8 +9,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-// P2-53: 补 Database/Server/Cpu/HardDrive——原 iconMap 缺这几个, 后端传对应 icon 名时全部回退 Activity
-import { Users, User, ListTodo, MessageSquare, AlertTriangle, Shield, Radio, TrendingUp, Activity, Key, KeyRound, DollarSign, Database, Server, Cpu, HardDrive } from 'lucide-vue-next'
 import CountUp from '@/components/ui/CountUp.vue'
 
 const props = defineProps<{
@@ -21,39 +19,10 @@ const props = defineProps<{
   trend?: string
 }>()
 
-// 图标名 → Lucide 组件(仪表盘传字符串名, 映射渲染; 未知名字回退 Activity)
-const iconMap: Record<string, any> = {
-  Users, User, ListTodo, MessageSquare, AlertTriangle, Shield, Radio, TrendingUp, Activity, Key, KeyRound, DollarSign,
-  Database, Server, Cpu, HardDrive,
-}
-const iconComp = computed(() => iconMap[props.icon] || Activity)
-
-const bgClass = computed(() => {
-  const m: Record<string, string> = {
-    cyan: 'bg-cyan-dim',
-    purple: 'bg-cyan/10',
-    amber: 'bg-amber/10',
-    rose: 'bg-rose/10',
-    emerald: 'bg-emerald/10',
-    indigo: 'bg-cyan/15',
-  }
-  return m[props.color] || 'bg-cyan-dim'
-})
-
-const textClass = computed(() => {
-  const m: Record<string, string> = {
-    cyan: 'text-cyan',
-    purple: 'text-cyan',
-    amber: 'text-amber',
-    rose: 'text-rose',
-    emerald: 'text-emerald',
-    indigo: 'text-cyan/80',
-  }
-  return m[props.color] || 'text-cyan'
-})
-
 const trendClass = computed(() => {
   if (!props.trend) return ''
-  return props.trend.startsWith('+') ? 'text-emerald' : 'text-text-muted'
+  // 只有明确的正增长才标绿；+0 / -0 / 非数值文案保持中性色。
+  const match = props.trend.match(/[+-]?\d+(?:\.\d+)?/)
+  return match && Number(match[0]) > 0 ? 'text-emerald' : 'text-text-muted'
 })
 </script>

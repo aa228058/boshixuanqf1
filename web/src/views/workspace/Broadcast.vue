@@ -103,9 +103,9 @@
           </div>
           <div class="flex items-center justify-end gap-2 mt-3">
             <t-button v-if="['failed','cancelled','completed'].includes(t.status) && progOf(t).failed > 0" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="retryFailed(t.task_id)">重试失败 ({{ progOf(t).failed }})</t-button>
-            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="pauseTask(t.task_id)">暂停</t-button>
-            <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click.stop="resumeTask(t.task_id)">继续</t-button>
-            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" variant="outline" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" @click.stop="stopTask(t.task_id)">停止</t-button>
+            <t-button v-if="['running','queued','pending'].includes(t.status)" theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" :disabled="taskActionsPending.has(t.task_id)" @click.stop="pauseTask(t.task_id)">暂停</t-button>
+            <t-button v-if="t.status === 'paused'" theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="taskActionsPending.has(t.task_id)" @click.stop="resumeTask(t.task_id)">继续</t-button>
+            <t-button v-if="['running','queued','pending','paused'].includes(t.status)" theme="danger" variant="outline" size="sm" class="ui-t-button ui-t-button--danger ui-t-button--sm" :disabled="taskActionsPending.has(t.task_id)" @click.stop="stopTask(t.task_id)">停止</t-button>
             <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click.stop="$router.push(`/workspace/${route.params.accountId}/tasks/${t.task_id}`)">查看详情</t-button>
           </div>
         </div>
@@ -455,16 +455,24 @@ const onlineAccounts = computed(() => (accountStore.accounts || []).filter((a: a
 // 提交前摊开: 可发/预计失败/完全无账号加入的群。
 const _allGroups = ref<any[]>([])
 let allGroupsRequestId = 0
+let allGroupsController: AbortController | null = null
+let textDictController: AbortController | null = null
+let broadcastTasksController: AbortController | null = null
 async function loadAllGroups() {
+  allGroupsController?.abort()
+  const controller = new AbortController()
+  allGroupsController = controller
   const requestId = ++allGroupsRequestId
   // R182.4: request.ts 已把列表响应统一包装为 {list,total} 对象(P0-35 审计修复), 不能当数组直用;
   // 直接 for...of 会抛 "not iterable" 导致群发页整页爆红。兼容数组/包装两种形态。
   try {
-    const res: any = await groupApi.list()
+    const res: any = await groupApi.list(undefined, undefined, { signal: controller.signal })
     if (requestId !== allGroupsRequestId || !showCreate.value) return
     _allGroups.value = Array.isArray(res) ? res : (res?.list ?? [])
   } catch {
-    if (requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
+    if (!controller.signal.aborted && requestId === allGroupsRequestId && showCreate.value) _allGroups.value = []
+  } finally {
+    if (allGroupsController === controller) allGroupsController = null
   }
 }
 function groupNameOf(t: string): string {
@@ -551,8 +559,12 @@ const selectedTextDict = computed(() => {
 })
 async function loadTextSnippets() {
   if (!authStore.tenant?.plan_features?.dict) return
-  try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] })) }
-  catch (e) { console.warn('加载文本素材失败', e) }
+  textDictController?.abort()
+  const controller = new AbortController()
+  textDictController = controller
+  try { const res = await settingsApi.getTextDicts({ signal: controller.signal }); if (!controller.signal.aborted) textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || [] })) }
+  catch (e) { if (!controller.signal.aborted) console.warn('加载文本素材失败', e) }
+  finally { if (textDictController === controller) textDictController = null }
 }
 function insertTextSnippet(item: string) {
   if (!item) return
@@ -610,6 +622,11 @@ watch([currentAccount, () => authStore.tenant?.tenant_id], ([account]) => {
 })
 onMounted(() => restoreDraft(activeDraftKey.value, true))
 onUnmounted(() => {
+  allGroupsRequestId++
+  allGroupsController?.abort()
+  textDictController?.abort()
+  broadcastTasksController?.abort()
+  tasksRequestId++
   if (draftTimer) clearTimeout(draftTimer)
   persistDraft(activeDraftKey.value, message.value)
 })
@@ -696,6 +713,9 @@ const tasksError = ref('')
 
 let tasksRequestId = 0
 async function fetchTasks() {
+  broadcastTasksController?.abort()
+  const controller = new AbortController()
+  broadcastTasksController = controller
   const requestId = ++tasksRequestId
   const accountId = currentAccount.value?.account_id
   if (!accountId) {
@@ -706,15 +726,16 @@ async function fetchTasks() {
   }
   tasksLoading.value = true
   try {
-    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any)
+    const res: any = await taskApi.list({ type: 'broadcast', account_id: accountId, page: 1, page_size: 20 } as any, { signal: controller.signal })
     if (requestId !== tasksRequestId || currentAccount.value?.account_id !== accountId) return
     tasks.value = res.list || []
     tasksError.value = ''
   } catch (e: any) {
-    if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
+    if (!controller.signal.aborted && requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
       tasksError.value = e?.message || '加载失败, 点击重试'
     }
   } finally {
+    if (broadcastTasksController === controller) broadcastTasksController = null
     if (requestId === tasksRequestId && currentAccount.value?.account_id === accountId) {
       tasksLoading.value = false
     }
@@ -730,7 +751,15 @@ useTaskEvents((evt: any) => {
     if (t) t.progress = evt.progress
   }
 })
-watch(currentAccount, fetchTasks)
+watch(currentAccount, () => {
+  // 顶栏账号切换后立即清空旧账号任务，并让尚未完成的旧请求失效。
+  tasksRequestId++
+  broadcastTasksController?.abort()
+  tasks.value = []
+  tasksError.value = ''
+  tasksLoading.value = true
+  fetchTasks()
+})
 
 const statusLabelMap: Record<string, string> = {
   pending: '等待调度', queued: '排队中', running: '运行中',
@@ -774,24 +803,31 @@ async function retryFailed(id: string) {
   try { await taskApi.retry(id, 'failed'); fetchTasks() }
   catch (e: any) { toast({ type: 'error', title: '重试失败', message: e?.message }) }
 }
-async function stopTask(id: string) {
-  try { await taskApi.cancel(id); fetchTasks() }
-  catch (e: any) { toast({ type: 'error', title: '停止失败', message: e?.message }) }
-}
-async function pauseTask(id: string) {
+const taskActionsPending = ref(new Set<string>())
+async function runTaskAction(id: string, action: 'stop' | 'pause' | 'resume' | 'retry') {
+  if (taskActionsPending.value.has(id)) return
+  taskActionsPending.value = new Set(taskActionsPending.value).add(id)
+  const labels = { stop: ['停止失败', '任务已停止'], pause: ['暂停失败', '任务已暂停'], resume: ['继续失败', '任务已继续'], retry: ['重试失败', '任务已重新排队'] } as const
   try {
-    await taskApi.pause(id)
-    toast({ type: 'success', title: '任务已暂停' })
+    if (action === 'stop') await taskApi.cancel(id)
+    else if (action === 'pause') await taskApi.pause(id)
+    else if (action === 'resume') await taskApi.resume(id)
+    else await taskApi.retry(id, 'failed')
+    toast({ type: 'success', title: labels[action][1] })
     await fetchTasks()
-  } catch (e: any) { toast({ type: 'error', title: '暂停失败', message: e?.message }) }
+  } catch (e: any) {
+    toast({ type: 'error', title: labels[action][0], message: e?.message || '请稍后重试' })
+  } finally {
+    const next = new Set(taskActionsPending.value)
+    next.delete(id)
+    taskActionsPending.value = next
+  }
 }
-async function resumeTask(id: string) {
-  try {
-    await taskApi.resume(id)
-    toast({ type: 'success', title: '任务已继续' })
-    await fetchTasks()
-  } catch (e: any) { toast({ type: 'error', title: '继续失败', message: e?.message }) }
-}
+async function stopTask(id: string) { return runTaskAction(id, 'stop') }
+async function pauseTask(id: string) { return runTaskAction(id, 'pause') }
+async function resumeTask(id: string) { return runTaskAction(id, 'resume') }
+async function retryTask(id: string) { return runTaskAction(id, 'retry') }
+/* legacy action handlers replaced by runTaskAction */
 const showTargetSelector = ref(false)
 // 响应式绑定 groupStore：后台同步完成后写缓存即自动刷新选择器
 // （原实现是快照赋值：页面加载后同步完成的群组永远不会出现，除非整页刷新）
@@ -858,7 +894,9 @@ function clearMedia() {
 // R110: 协议号协同死分支已删(view 为死常量, 该判断恒 false)。统一多号池校验。
 const canSubmit = computed(() => {
   if (!message.value.trim().length) return false
-  return selectedTargets.value.length > 0 && execAccounts.value.length > 0
+  if (selectedTargets.value.length === 0 || execAccounts.value.length === 0) return false
+  // 不允许创建只覆盖部分目标的任务，避免用户误以为所有选中群都会发送。
+  return coverage.value.unreachable.length === 0
 })
 
 const groupsLoading = ref(false)
@@ -904,6 +942,14 @@ async function submit() {
 
   if (!accountIds.length || !targetIds.length) {
     toast({ type: 'warning', title: '请至少选择一个执行账号和一个发送目标' })
+    return
+  }
+  if (coverage.value.unreachable.length > 0) {
+    toast({
+      type: 'warning',
+      title: '仍有目标群未覆盖',
+      message: `有 ${coverage.value.unreachable.length} 个目标群没有所选账号加入。请移除未覆盖目标，或先让执行账号加入这些群组。`,
+    })
     return
   }
   if (coverage.value.mappings.length === 0) {

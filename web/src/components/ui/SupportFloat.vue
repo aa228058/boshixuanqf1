@@ -15,7 +15,7 @@
             </div>
             <h4 class="font-medium text-sm">{{ config?.display_name || '联系客服' }}</h4>
           </div>
-          <button type="button" @click="expanded = false" class="w-6 h-6 rounded-md hover:bg-milk-01 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
+          <button type="button" aria-label="关闭客服面板" @click="expanded = false" class="w-6 h-6 rounded-md hover:bg-milk-01 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -50,7 +50,9 @@
       @mousedown="startDrag"
       @touchstart="startDrag"
       @click="toggle"
-      class="relative w-9 h-9 rounded-full flex items-center justify-center cursor-move select-none touch-none group"
+      :aria-expanded="expanded"
+      aria-label="联系客服"
+      class="relative w-11 h-11 rounded-full flex items-center justify-center cursor-move select-none touch-none group"
     >
       <!-- 脉冲光环 -->
       <span class="absolute inset-0 rounded-full bg-cyan/20 animate-ping-slow" />
@@ -75,6 +77,9 @@ const expanded = ref(false)
 const config = ref<SupportConfig | null>(null)
 const copied = ref(false)
 let copyTimer: ReturnType<typeof setTimeout> | null = null
+let dragResetTimer: ReturnType<typeof setTimeout> | null = null
+let disposed = false
+let supportController: AbortController | null = null
 const authStore = useAuthStore()
 
 const pos = ref({ right: 20, bottom: 20 })
@@ -85,6 +90,12 @@ const wrapper = ref<HTMLElement | null>(null)
 const dragBtn = ref<HTMLElement | null>(null)
 
 function startDrag(e: MouseEvent | TouchEvent) {
+  if ('touches' in e && e.touches.length !== 1) {
+    stopDrag()
+    return
+  }
+  if (dragResetTimer) clearTimeout(dragResetTimer)
+  dragResetTimer = null
   isDragging.value = false
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
   const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
@@ -99,11 +110,26 @@ function startDrag(e: MouseEvent | TouchEvent) {
   document.addEventListener('mouseup', stopDrag)
   document.addEventListener('touchmove', onDrag, { passive: false })
   document.addEventListener('touchend', stopDrag)
+  document.addEventListener('touchcancel', stopDrag)
 }
 
 function onDrag(e: MouseEvent | TouchEvent) {
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+  let clientX: number
+  let clientY: number
+  if ('touches' in e) {
+    // Some browsers dispatch a final touchmove with no active touches while
+    // a system gesture is being cancelled. Never index an empty TouchList.
+    const touch = e.touches[0] || e.changedTouches[0]
+    if (!touch) {
+      stopDrag()
+      return
+    }
+    clientX = touch.clientX
+    clientY = touch.clientY
+  } else {
+    clientX = e.clientX
+    clientY = e.clientY
+  }
   const dx = dragStart.value.x - clientX
   const dy = dragStart.value.y - clientY
 
@@ -123,7 +149,12 @@ function stopDrag() {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
-  setTimeout(() => { isDragging.value = false }, 50)
+  document.removeEventListener('touchcancel', stopDrag)
+  if (dragResetTimer) clearTimeout(dragResetTimer)
+  dragResetTimer = setTimeout(() => {
+    isDragging.value = false
+    dragResetTimer = null
+  }, 50)
 }
 
 function toggle() {
@@ -146,31 +177,57 @@ const hasContact = computed(() => !!config.value?.contact_value)
 
 // P1-32: 原 navigator.clipboard 无 ?.——非 HTTPS 环境 clipboard 为 undefined,
 // 直接抛 TypeError 触发全局红条。加 ?. + execCommand 兜底。
-function fallbackCopy(text: string) {
-  const ta = document.createElement('textarea')
-  ta.value = text
-  ta.style.position = 'fixed'
-  ta.style.opacity = '0'
-  document.body.appendChild(ta)
-  ta.select()
-  try { document.execCommand('copy') } catch { /* 尽力而为 */ }
-  document.body.removeChild(ta)
+function fallbackCopy(text: string): boolean {
+  let ta: HTMLTextAreaElement | null = null
+  let appended = false
+  try {
+    ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    appended = true
+    ta.select()
+    return document.execCommand('copy')
+  } catch {
+    // DOM 不可用、选择失败或浏览器禁用旧式复制接口时统一返回失败。
+    return false
+  } finally {
+    // 清理失败不能覆盖复制结果，也不能让回退链路抛出未处理异常。
+    if (appended && ta?.parentNode) {
+      try { ta.parentNode.removeChild(ta) } catch { /* 节点可能已被外部移除 */ }
+    }
+  }
 }
 
-function copyContact() {
-  if (!config.value?.contact_value) return
-  navigator.clipboard?.writeText(config.value.contact_value).then(() => {
-    copied.value = true
-    toast({ type: 'success', title: '已复制到剪贴板' })
-    if (copyTimer) clearTimeout(copyTimer)
-    copyTimer = setTimeout(() => { copied.value = false }, 2000)
-  }).catch(() => {
-    fallbackCopy(config.value!.contact_value)
-    copied.value = true
-    toast({ type: 'success', title: '已复制到剪贴板' })
-    if (copyTimer) clearTimeout(copyTimer)
-    copyTimer = setTimeout(() => { copied.value = false }, 2000)
+function showCopyResult(succeeded: boolean) {
+  if (disposed) return
+  if (copyTimer) clearTimeout(copyTimer)
+  copied.value = succeeded
+  toast({
+    type: succeeded ? 'success' : 'error',
+    title: succeeded ? '已复制到剪贴板' : '复制失败，请手动复制',
   })
+  if (succeeded) copyTimer = setTimeout(() => { copied.value = false }, 2000)
+}
+
+async function copyContact() {
+  const value = config.value?.contact_value
+  if (!value) return
+
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      if (disposed) return
+      showCopyResult(true)
+      return
+    }
+  } catch {
+    // 权限拒绝或非安全上下文时尝试兼容性回退。
+  }
+
+  if (!disposed) showCopyResult(fallbackCopy(value))
 }
 
 // P1-25: 原 safeQrUrl 只判 http 前缀——客服二维码存 base64(data:image/...)时
@@ -182,20 +239,29 @@ function safeQrUrl(url: string): string {
 }
 
 onMounted(async () => {
+  const controller = new AbortController()
+  supportController = controller
   try {
-    const res = await settingsApi.getSupport()
-    config.value = res
+    const res = await settingsApi.getSupport({ signal: controller.signal })
+    if (!disposed && !controller.signal.aborted) config.value = res
   } catch (e) {
     // ignore
+  } finally {
+    if (supportController === controller) supportController = null
   }
 })
 
 onUnmounted(() => {
+  disposed = true
+  supportController?.abort()
+  supportController = null
   if (copyTimer) clearTimeout(copyTimer)
+  if (dragResetTimer) clearTimeout(dragResetTimer)
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('touchmove', onDrag)
   document.removeEventListener('touchend', stopDrag)
+  document.removeEventListener('touchcancel', stopDrag)
 })
 </script>
 
@@ -221,5 +287,10 @@ onUnmounted(() => {
 }
 .delay-500 {
   animation-delay: 0.6s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping-slow { animation: none; }
+  .support-enter-active,
+  .support-leave-active { transition: none; }
 }
 </style>

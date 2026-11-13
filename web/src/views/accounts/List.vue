@@ -432,7 +432,7 @@
     <Modal v-model="showGroupModal" title="账号分组管理">
       <div class="space-y-3">
         <div v-for="g in accountGroups" :key="g.group_id" class="flex items-center gap-2 p-3 rounded-lg bg-bg-card">
-          <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'text-text-muted'}`" />
+          <div class="w-3 h-3 rounded-full" :style="`background-color:${g.color || 'var(--t-text-3)'}`" />
           <span class="flex-1 text-sm">{{ g.name }}</span>
           <span class="text-xs text-text-secondary">{{ (g.account_ids || []).length }} 个账号</span>
           <button type="button" @click="editGroup(g)" class="ui-icon-btn" aria-label="编辑">
@@ -763,21 +763,38 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import { getHealthBg } from '@/utils/health'
 
 // ===== 数字滚动(交互示例21): 统计卡数值从旧值缓动到新值 =====
+// 同一元素快速收到新值时取消旧动画，避免旧 RAF 覆盖新目标；卸载时释放帧回调。
+const countUpFrames = new WeakMap<HTMLElement, number>()
 function runCountUp(el: HTMLElement, to: number) {
+  const previousFrame = countUpFrames.get(el)
+  if (previousFrame !== undefined) cancelAnimationFrame(previousFrame)
   const from = Number(el.textContent) || 0
-  if (from === to) { el.textContent = String(to); return }
+  if (!Number.isFinite(to) || from === to) {
+    el.textContent = String(Number.isFinite(to) ? to : 0)
+    countUpFrames.delete(el)
+    return
+  }
   const start = performance.now(), dur = 600
   const tick = (now: number) => {
     const p = Math.min(1, (now - start) / dur)
     const eased = 1 - Math.pow(1 - p, 3)
     el.textContent = String(Math.round(from + (to - from) * eased))
-    if (p < 1) requestAnimationFrame(tick)
+    if (p < 1) {
+      countUpFrames.set(el, requestAnimationFrame(tick))
+    } else {
+      countUpFrames.delete(el)
+    }
   }
-  requestAnimationFrame(tick)
+  countUpFrames.set(el, requestAnimationFrame(tick))
 }
 const vCountup = {
   mounted(el: HTMLElement, b: any) { runCountUp(el, Number(b.value) || 0) },
-  updated(el: HTMLElement, b: any) { if (b.value !== b.oldValue) runCountUp(el, Number(b.value) || 0) }
+  updated(el: HTMLElement, b: any) { if (b.value !== b.oldValue) runCountUp(el, Number(b.value) || 0) },
+  beforeUnmount(el: HTMLElement) {
+    const frame = countUpFrames.get(el)
+    if (frame !== undefined) cancelAnimationFrame(frame)
+    countUpFrames.delete(el)
+  },
 }
 
 // 模板"受限"按钮的倒计时文案。此前模板(137行)调用了不存在的 cooldownText（白屏级）；
@@ -848,30 +865,56 @@ const probeResult = ref<{ items: any[]; verdict: string; checked_at: string } | 
 const probeRunning = ref(false)
 const probeCooldownText = ref('') // 冷却中提示(后端 429 返回)
 
+let probeRequestId = 0
+let probeController: AbortController | null = null
+watch(showProbe, (visible) => {
+  if (!visible) {
+    probeController?.abort()
+    probeController = null
+    probeRequestId++
+    probeRunning.value = false
+  }
+})
 async function openProbe(acc: any) {
+  probeController?.abort()
+  const controller = new AbortController()
+  probeController = controller
+  const requestId = ++probeRequestId
+  const accountId = acc?.account_id
   probeAccount.value = acc
   probeResult.value = null
   probeCooldownText.value = ''
   showProbe.value = true
-  // 先展示上次结果(不触发检测)
+  if (!accountId) return
+  // 先展示上次结果(不触发检测)；切换账号或关闭弹窗后丢弃过期响应。
   try {
-    const cached = await accountApi.getProbe(acc?.account_id)
-    probeResult.value = cached || null
+    const cached = await accountApi.getProbe(accountId, { signal: controller.signal })
+    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
+      probeResult.value = cached || null
+    }
   } catch { /* 无历史结果, 忽略 */ }
+  finally { if (probeController === controller) probeController = null }
 }
 
 async function runProbe() {
-  if (!probeAccount.value || probeRunning.value) return
+  const accountId = probeAccount.value?.account_id
+  if (!accountId || probeRunning.value) return
+  const requestId = probeRequestId
   probeRunning.value = true
   probeCooldownText.value = ''
   try {
-    probeResult.value = await accountApi.runProbe(probeAccount.value.account_id)
+    const result = await accountApi.runProbe(accountId)
+    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
+      probeResult.value = result
+    }
   } catch (e: any) {
     // 冷却中: 429 带文案; 其他错误拦截器已 toast
     const msg = e?.response?.data?.message || e?.message || ''
-    if (msg.includes('冷却')) probeCooldownText.value = msg
+    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId && msg.includes('冷却')) {
+      probeCooldownText.value = msg
+    }
   } finally {
-    probeRunning.value = false
+    if (requestId === probeRequestId) probeRunning.value = false
   }
 }
 function toggleMenu(id: string) {
@@ -1109,7 +1152,8 @@ async function batchSetPool(status: 'active' | 'standby') {
     } else {
       toast({ type: 'warning', message: `${label}: 成功 ${r.success}, 失败 ${r.failed}(额度不足或状态异常)` })
     }
-    selectedIds.value = new Set()
+    // 部分失败时保留所选集合，方便用户查看失败提示后重试；全部成功才清空。
+    if (r.failed === 0) selectedIds.value = new Set()
     accountStore.fetchAccounts(true)
   } catch (e: any) {
     toast({ type: 'error', message: e?.message || '批量操作失败' })

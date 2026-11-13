@@ -81,10 +81,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
+import { normalizePlanFeatures } from '@/utils/adminPageGuards'
 
 interface PlanRow {
   plan_id: string
@@ -131,57 +132,94 @@ function toggleFeature(p: PlanRow, key: string) {
 }
 
 const loadError = ref('')
+let plansPageActive = false
+let plansRequestId = 0
+let plansController: AbortController | null = null
 
 async function load() {
+  plansController?.abort()
+  const controller = new AbortController()
+  plansController = controller
+  const requestId = ++plansRequestId
   loadError.value = ''
   try {
-    const res = await adminApiMod.listPlans()
+    const res = await adminApiMod.listPlans({ signal: controller.signal })
+    if (!plansPageActive || requestId !== plansRequestId) return
     plans.value = (res.list || []).map((p: any) => ({
       ...p,
       // 兼容双格式(2026-10-20): 后端存储已从数组改为 map {"raffle":true,...},
       // 加载时统一转成数组供勾选框使用(旧数组数据原样, 新 map 数据取 keys)
-      features: Array.isArray(p.features)
-        ? p.features
-        : Object.keys(p.features || {}),
+      features: normalizePlanFeatures(p.features),
     }))
     if (!plans.value.length) {
       loadError.value = '套餐列表为空 —— 请检查迁移 051 是否已执行(plans 表结构是否含 daily_search_limit 列)'
     }
   } catch (e: any) {
+    if (controller.signal.aborted || !plansPageActive || requestId !== plansRequestId) return
     loadError.value = e?.message || '请求失败(401/500?)'
     toast({ type: 'error', message: '套餐加载失败: ' + loadError.value })
+  } finally {
+    if (plansController === controller) plansController = null
   }
 }
 
 // P2-47 审计修复: 原 4 档套餐 for+await 串行保存(每档一次 RTT, 全量保存 4 倍耗时)。
 // 改并行: 各档独立 then/catch, 失败仍逐档提示, 成功计数不变。
 async function saveAll() {
-  saving.value = true
-  let ok = 0
-  const jobs = plans.value.map((p) =>
-    adminApiMod.updatePlan(p.plan_id, {
-      name: p.name,
-      price_monthly: p.price_monthly,
-      max_accounts: p.max_accounts,
-      max_concurrent: p.max_concurrent,
-      max_daily_broadcasts: p.max_daily_broadcasts,
-      daily_search_limit: p.daily_search_limit,
-      // 保持数组格式(2026-10-20 回滚): Plan.Features 后端结构体就是 []string,
-      // 后端 FeatureMap() 会把数组转 map 供校验——数组才是全链路的原生格式。
-      // 此前误改 map 存储导致 Unmarshal 失败/勾选全丢/功能校验瘫痪, 已回滚+迁移 059 修复存量。
-      features: p.features,
-    }).then(() => { ok++ }).catch((e: any) => {
-      toast({ type: 'error', message: `${p.name} 保存失败: ${e?.message || '未知错误'}` })
-    })
+  if (saving.value) return
+  if (!plans.value.length) {
+    toast({ type: 'warning', message: '没有可保存的套餐，请先重新加载套餐列表' })
+    return
+  }
+  const invalidPlan = plans.value.find((p) =>
+    !Number.isFinite(Number(p.price_monthly)) || Number(p.price_monthly) < 0 ||
+    !Number.isInteger(Number(p.max_accounts)) || Number(p.max_accounts) < 1 ||
+    !Number.isInteger(Number(p.max_concurrent)) || Number(p.max_concurrent) < 1 ||
+    !Number.isInteger(Number(p.max_daily_broadcasts)) || Number(p.max_daily_broadcasts) < 0 ||
+    !Number.isInteger(Number(p.daily_search_limit)) || Number(p.daily_search_limit) < 0
   )
-  await Promise.all(jobs)
-  saving.value = false
-  if (ok === plans.value.length) {
-    toast({ type: 'success', message: '全部套餐已保存，即时生效' })
-  } else {
-    toast({ type: 'info', message: `已保存 ${ok}/${plans.value.length} 档` })
+  if (invalidPlan) {
+    toast({ type: 'warning', title: '套餐数值无效', message: `${invalidPlan.name} 的价格、账号数、并发或日限额不符合要求` })
+    return
+  }
+  saving.value = true
+  const snapshot = plans.value.map((p) => ({
+    plan_id: p.plan_id,
+    name: p.name,
+    price_monthly: Number(p.price_monthly),
+    max_accounts: Number(p.max_accounts),
+    max_concurrent: Number(p.max_concurrent),
+    max_daily_broadcasts: Number(p.max_daily_broadcasts),
+    daily_search_limit: Number(p.daily_search_limit),
+    features: [...(p.features || [])],
+  }))
+  let ok = 0
+  try {
+    const jobs = snapshot.map((p) =>
+      adminApiMod.updatePlan(p.plan_id, {
+        name: p.name,
+        price_monthly: p.price_monthly,
+        max_accounts: p.max_accounts,
+        max_concurrent: p.max_concurrent,
+        max_daily_broadcasts: p.max_daily_broadcasts,
+        daily_search_limit: p.daily_search_limit,
+        // 保持数组格式：Plan.Features 后端结构体为 []string。
+        features: p.features,
+      }).then(() => { ok++ }).catch((e: any) => {
+        toast({ type: 'error', message: `${p.name} 保存失败: ${e?.message || '未知错误'}` })
+      })
+    )
+    await Promise.all(jobs)
+    if (ok === snapshot.length) {
+      toast({ type: 'success', message: '全部套餐已保存，即时生效' })
+    } else {
+      toast({ type: 'info', message: `已保存 ${ok}/${snapshot.length} 档` })
+    }
+  } finally {
+    saving.value = false
   }
 }
 
-onMounted(load)
+onMounted(() => { plansPageActive = true; void load() })
+onUnmounted(() => { plansPageActive = false; plansRequestId++; plansController?.abort(); plansController = null })
 </script>

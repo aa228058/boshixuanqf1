@@ -7,19 +7,56 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
   let startY = 0
   let startScrollTop = 0
   let pulling = false
+  let resetTimer: ReturnType<typeof setTimeout> | null = null
+  let originalTransition = ''
+  let originalTransform = ''
+  let originalOverscrollBehavior = ''
+  let attachedEl: HTMLElement | null = null
+
+  const clearResetTimer = () => {
+    if (resetTimer) clearTimeout(resetTimer)
+    resetTimer = null
+  }
+
+  const restoreStyles = (el: HTMLElement) => {
+    el.style.transition = originalTransition
+    el.style.transform = originalTransform
+    el.style.overscrollBehavior = originalOverscrollBehavior
+    pulling = false
+  }
 
   const onTouchStart = (e: TouchEvent) => {
     const el = elRef.value
-    if (!el) return
-    startY = e.touches[0].clientY
+    if (!el || (attachedEl && el !== attachedEl)) return
+    const touch = e.touches[0]
+    if (!touch) return
+
+    // A new gesture can begin during the 400ms spring-back. Keep the
+    // pre-gesture styles rather than snapshotting the temporary spring transition.
+    const restoring = resetTimer !== null
+    clearResetTimer()
+    if (!pulling && !restoring) {
+      originalTransition = el.style.transition
+      originalTransform = el.style.transform
+      originalOverscrollBehavior = el.style.overscrollBehavior
+    }
+    startY = touch.clientY
     startScrollTop = el.scrollTop
     pulling = false
   }
 
   const onTouchMove = (e: TouchEvent) => {
     const el = elRef.value
-    if (!el) return
-    const deltaY = e.touches[0].clientY - startY
+    if (!el || (attachedEl && el !== attachedEl)) return
+    // Multi-touch streams are ambiguous; restore instead of indexing an absent touch.
+    if (e.touches.length !== 1) {
+      if (pulling) onTouchEnd()
+      else pulling = false
+      return
+    }
+    const touch = e.touches[0]
+    if (!touch) return
+    const deltaY = touch.clientY - startY
     const atTop = el.scrollTop <= 0 && deltaY > 0 && startScrollTop <= 0
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1 && deltaY < 0
     if (atTop || atBottom) {
@@ -30,31 +67,51 @@ export function useElasticScroll(elRef: Ref<HTMLElement | null>) {
       el.style.overscrollBehavior = 'none'
     } else if (pulling) {
       pulling = false
-      el.style.transform = ''
+      el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
+      el.style.transform = originalTransform
+      el.style.overscrollBehavior = originalOverscrollBehavior
+      clearResetTimer()
+      resetTimer = setTimeout(() => {
+        el.style.transition = originalTransition
+        resetTimer = null
+      }, 400)
     }
   }
 
   const onTouchEnd = () => {
     const el = elRef.value
-    if (!el || !pulling) return
+    if (!el || (attachedEl && el !== attachedEl) || !pulling) return
     pulling = false
     el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)'
-    el.style.transform = ''
-    setTimeout(() => { if (el) el.style.transition = '' }, 400)
+    el.style.transform = originalTransform
+    el.style.overscrollBehavior = originalOverscrollBehavior
+    clearResetTimer()
+    resetTimer = setTimeout(() => {
+      if (elRef.value === el) el.style.transition = originalTransition
+      resetTimer = null
+    }, 400)
   }
 
   onMounted(() => {
     const el = elRef.value
     if (!el) return
+    attachedEl = el
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
     el.addEventListener('touchend', onTouchEnd)
+    el.addEventListener('touchcancel', onTouchEnd)
   })
   onUnmounted(() => {
-    const el = elRef.value
+    // Template refs may already be null during unmount; retain the element
+    // that received listeners so teardown always removes them from the owner.
+    const el = attachedEl
+    attachedEl = null
     if (!el) return
     el.removeEventListener('touchstart', onTouchStart)
     el.removeEventListener('touchmove', onTouchMove)
     el.removeEventListener('touchend', onTouchEnd)
+    el.removeEventListener('touchcancel', onTouchEnd)
+    clearResetTimer()
+    restoreStyles(el)
   })
 }

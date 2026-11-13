@@ -1,5 +1,5 @@
 <template>
-  <div class="skeleton" :class="[rounded, 'bg-bg-hover/60']" :style="{ height, width }" />
+  <div aria-hidden="true" class="skeleton" :class="[rounded, 'bg-bg-hover/60']" :style="{ height, width }" />
 </template>
 
 <script setup lang="ts">
@@ -32,5 +32,13 @@ withDefaults(defineProps<{
 }
 @keyframes skeleton-shimmer {
   100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+    transform: none;
+    opacity: 0;
+  }
 }
 </style>

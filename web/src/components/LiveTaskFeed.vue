@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
         <span class="relative flex h-2.5 w-2.5">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-60" />
+          <span class="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-cyan opacity-60" />
           <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan" />
         </span>
         <span class="text-sm font-medium">{{ typeLabel }} · {{ statusText }}</span>
@@ -22,13 +22,13 @@
         <span class="font-semibold text-cyan">{{ percent }}%</span>
       </div>
       <div class="h-2.5 rounded-full bg-bg-hover overflow-hidden">
-        <div class="h-full rounded-full transition-all duration-500 bg-cyan" :style="{ width: percent + '%' }" />
+        <div class="h-full rounded-full transition-all duration-500 motion-reduce:transition-none bg-cyan" :style="{ width: percent + '%' }" />
       </div>
     </div>
 
     <!-- 当前动作: 单行实时步骤, 不再刷日志列表 -->
     <div class="flex items-center gap-2 text-xs text-text-secondary min-h-5">
-      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin text-cyan" />
+      <Loader2 class="w-3.5 h-3.5 shrink-0 animate-spin motion-reduce:animate-none text-cyan" />
       <span class="truncate">{{ currentAction }}</span>
       <span v-if="waitRemain > 0" class="ml-2 px-2 py-0.5 rounded-full bg-amber/15 text-amber text-xs shrink-0">
         下次发送 {{ waitRemain }}s
@@ -63,22 +63,23 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-vue-next'
 import { taskApi } from '@/api/task'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import confetti from 'canvas-confetti'
+import { mergeRecentTaskLogs, normalizeTaskProgress } from './taskProgress'
 
 const props = defineProps<{ accountId: string; taskType: string }>()
 const task = ref<any>(null)
 const lastDone = ref<any>(null)
 let timer: ReturnType<typeof setInterval> | null = null
 let completionRefreshTimer: ReturnType<typeof setTimeout> | null = null
+// Polls and prop changes can overlap; only the newest account/task-type response may update UI.
+let loadRequestId = 0
+let listController: AbortController | null = null
+let logsController: AbortController | null = null
 
 const isActive = computed(() => ['queued', 'running', 'pending'].includes(task.value?.status))
 
 // 后端 progress 可能是 JSON 字符串或对象, 统一解析
-function parseProgress(p: any): { total: number; done: number; failed: number } {
-  if (!p) return { total: 0, done: 0, failed: 0 }
-  if (typeof p === 'string') {
-    try { return { total: 0, done: 0, failed: 0, ...JSON.parse(p) } } catch { return { total: 0, done: 0, failed: 0 } }
-  }
-  return p
+function parseProgress(p: unknown): { total: number; done: number; failed: number } {
+  return normalizeTaskProgress(p)
 }
 const prog = computed(() => parseProgress(task.value?.progress))
 const lastDoneProg = computed(() => parseProgress(lastDone.value?.progress))
@@ -86,7 +87,7 @@ const lastDoneProg = computed(() => parseProgress(lastDone.value?.progress))
 const percent = computed(() => {
   const total = prog.value.total
   if (!total) return 0
-  return Math.min(100, Math.round((prog.value.done / total) * 100))
+  return Math.min(100, Math.max(0, Math.round((prog.value.done / total) * 100)))
 })
 
 const typeNames: Record<string, string> = {
@@ -162,9 +163,28 @@ function elapsed(iso: string): string {
 }
 
 async function load() {
-  if (!props.accountId || !props.taskType) return
+  listController?.abort()
+  logsController?.abort()
+  listController = null
+  logsController = null
+  const accountId = props.accountId
+  const taskType = props.taskType
+  if (!accountId || !taskType) {
+    loadRequestId++
+    task.value = null
+    lastDone.value = null
+    liveLogs.value = []
+    return
+  }
+  const requestId = ++loadRequestId
+  const controller = new AbortController()
+  listController = controller
+  const isCurrent = () => requestId === loadRequestId
+    && props.accountId === accountId && props.taskType === taskType
+    && !controller.signal.aborted
   try {
-    const res: any = await taskApi.list({ account_id: props.accountId, type: props.taskType, page: 1, page_size: 5 })
+    const res: any = await taskApi.list({ account_id: accountId, type: taskType, page: 1, page_size: 5 }, { signal: controller.signal })
+    if (!isCurrent()) return
     const arr = res.list || res.items || []
     const active = arr.find((t: any) => ['queued', 'running', 'pending'].includes(t.status))
     if (active) {
@@ -173,9 +193,12 @@ async function load() {
       task.value = active
       lastDone.value = null
       // 运行中才拉取最新一条日志作为当前动作
-      const lr: any = await taskApi.getLogs(active.task_id)
+      const logsAbort = new AbortController()
+      logsController = logsAbort
+      const lr: any = await taskApi.getLogs(active.task_id, 1, 50, undefined, undefined, { signal: logsAbort.signal })
+      if (!isCurrent() || task.value?.task_id !== active.task_id) return
       const logs = lr?.list || lr?.data || (Array.isArray(lr) ? lr : [])
-      if (logs.length) liveLogs.value = logs.slice(-6).reverse()
+      if (logs.length) liveLogs.value = mergeRecentTaskLogs(logs, liveLogs.value)
     } else {
       task.value = null
       liveLogs.value = []
@@ -184,6 +207,10 @@ async function load() {
       if (lastDone.value?.task_id !== done?.task_id) lastDone.value = done || null
     }
   } catch { /* 静默, 下轮再试 */ }
+  finally {
+    if (listController === controller) listController = null
+    if (controller.signal.aborted && logsController) { logsController.abort(); logsController = null }
+  }
 }
 
 // SSE 实时事件: 进度/日志亚秒级推送, 轮询降为兜底(10 秒)
@@ -200,8 +227,9 @@ useTaskEvents((evt: any) => {
   }
   // 实时进度: 后端每处理一个目标推送一次
   if (evt.progress) {
-    task.value = { ...task.value, progress: evt.progress }
-    if (evt.progress.done + (evt.progress.failed || 0) >= (evt.progress.total || 0) && evt.progress.total > 0) {
+    const progress = normalizeTaskProgress(evt.progress)
+    task.value = { ...task.value, progress }
+    if (progress.done + progress.failed >= progress.total && progress.total > 0) {
       if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
       completionRefreshTimer = setTimeout(() => {
         completionRefreshTimer = null
@@ -236,10 +264,36 @@ watch(liveLogs, (logs: any[]) => {
 })
 
 onUnmounted(() => {
+  loadRequestId++
+  listController?.abort()
+  logsController?.abort()
+  listController = null
+  logsController = null
   if (timer) clearInterval(timer)
   if (waitTimer) clearInterval(waitTimer)
   if (completionRefreshTimer) clearTimeout(completionRefreshTimer)
   completionRefreshTimer = null
 })
-watch(() => [props.accountId, props.taskType], load)
+watch(() => [props.accountId, props.taskType], () => {
+  // Do not keep the previous account/type's task visible while the new query is in flight.
+  // Invalidate any pending response before clearing the old task and its associated logs.
+  loadRequestId++
+  listController?.abort()
+  logsController?.abort()
+  listController = null
+  logsController = null
+  task.value = null
+  lastDone.value = null
+  liveLogs.value = []
+  waitRemain.value = 0
+  if (waitTimer) {
+    clearInterval(waitTimer)
+    waitTimer = null
+  }
+  if (completionRefreshTimer) {
+    clearTimeout(completionRefreshTimer)
+    completionRefreshTimer = null
+  }
+  void load()
+})
 </script>

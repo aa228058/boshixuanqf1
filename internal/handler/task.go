@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -934,6 +935,7 @@ func (h *TaskHandler) ToggleLinkScraping(c echo.Context) error {
 	var req struct {
 		AccountID string `json:"account_id"`
 		Enabled   bool   `json:"enabled"`
+		Mode      string `json:"mode"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid body")
@@ -942,8 +944,12 @@ func (h *TaskHandler) ToggleLinkScraping(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid account_id")
 	}
+	if req.Mode == "bio" {
+		h.svc.SetBioLinkScraping(accountID, req.Enabled)
+		return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.BioLinkScrapingEnabled(accountID), "mode": "bio"})
+	}
 	h.svc.SetLinkScraping(c.Request().Context(), tenantID, accountID, req.Enabled)
-	return c.JSON(http.StatusOK, map[string]any{"enabled": req.Enabled})
+	return c.JSON(http.StatusOK, map[string]any{"enabled": req.Enabled, "mode": "links"})
 }
 
 // LinkScrapingStatus handles GET /scrape-links/status?account_id=xxx
@@ -955,7 +961,10 @@ func (h *TaskHandler) LinkScrapingStatus(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid account_id")
 	}
-	return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.LinkScrapingEnabled(accountID)})
+	if c.QueryParam("mode") == "bio" {
+		return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.BioLinkScrapingEnabled(accountID), "mode": "bio"})
+	}
+	return c.JSON(http.StatusOK, map[string]any{"enabled": h.svc.LinkScrapingEnabled(accountID), "mode": "links"})
 }
 
 // ExportScrapedLinks handles GET /scrape-links/export?account_id=xxx&since=RFC3339
@@ -1009,9 +1018,18 @@ func (h *TaskHandler) ExportScrapedLinks(c echo.Context) error {
 	return c.String(http.StatusOK, b.String())
 }
 
-// csvField 包裹含逗号/引号的字段, 防止破坏 CSV 结构。
+// csvField 同时处理 CSV 结构转义与电子表格公式注入。
 func csvField(s string) string {
-	if strings.ContainsAny(s, ",\"\n") {
+	// Excel/LibreOffice 可能忽略公式前的空白和控制字符；检查首个有效字符。
+	trimmed := strings.TrimLeftFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
+	})
+	if len(trimmed) < len(s) && len(trimmed) > 0 && strings.ContainsRune("=+-@", rune(trimmed[0])) {
+		s = "\t" + s
+	} else if len(trimmed) == len(s) && len(s) > 0 && strings.ContainsRune("=+-@", rune(s[0])) {
+		s = "\t" + s
+	}
+	if strings.ContainsAny(s, ",\"\r\n") {
 		return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
 	}
 	return s

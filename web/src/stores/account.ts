@@ -1,10 +1,21 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onScopeDispose } from 'vue'
 import { accountApi } from '@/api/account'
 import type { Account, AccountGroup, AccountStatus } from '@/types'
 import { onMutation } from '@/utils/mutationBus'
+import type { RequestOptions } from '@/utils/request'
 
 const CURRENT_ACCOUNT_KEY = 'tg_current_account'
+
+function safeStorageGet(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+function safeStorageSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value) } catch { /* storage may be disabled */ }
+}
+function safeStorageRemove(key: string): void {
+  try { localStorage.removeItem(key) } catch { /* storage may be disabled */ }
+}
 
 export const useAccountStore = defineStore('account', () => {
   const accounts = ref<Account[]>([])
@@ -35,15 +46,23 @@ export const useAccountStore = defineStore('account', () => {
 
   // 60 秒新鲜期: 切页面/重复进入时不重复拉取, 避免每次进页面都等待
   let lastAccountsFetch = 0
-let lastAccountsSnapshot = ''
+  let lastAccountsSnapshot = ''
+  let accountsRequestId = 0
+  let loadingRequestId = 0
   // force=true 用于轮询：绕过 60s 新鲜期，否则状态轮询全部空转
-  async function fetchAccounts(force = false) {
+  async function fetchAccounts(force = false, options?: RequestOptions) {
     if (!force && Date.now() - lastAccountsFetch < 60_000 && accounts.value.length) return
-    lastAccountsFetch = Date.now()
-    // R155: 轮询刷新不置 loading —— 否则每 30s 列表被加载转圈整体替换, 界面持续闪烁
-    if (force || !accounts.value.length) loading.value = true
+    const requestId = ++accountsRequestId
+    // 已有列表的后台刷新不显示整页 loading，避免轮询时列表闪烁。
+    if (!accounts.value.length) {
+      loadingRequestId = requestId
+      loading.value = true
+    }
     try {
-      const res: any = await accountApi.list(!force) // 轮询(非force)走 silent: 不触发顶部进度条
+      const res: any = await accountApi.list(!force, options) // 轮询(非force)走 silent: 不触发顶部进度条
+      // 并发刷新时只允许最后发起的请求写入列表/选中账号，防止旧响应覆盖新数据。
+      if (requestId !== accountsRequestId) return
+      lastAccountsFetch = Date.now()
       // 后端 ListResponse 返回 data 字段, 兼容直返数组
       // 兼容 ListResponse 三种形态（res.data 可能是 {list,total} 对象）
       const raw = res.list || res.data?.list || (Array.isArray(res.data) ? res.data : []) || (Array.isArray(res) ? res : [])
@@ -59,7 +78,7 @@ let lastAccountsSnapshot = ''
         accounts.value = next
       }
       // 尝试从 localStorage 恢复选中账号
-      const savedId = localStorage.getItem(CURRENT_ACCOUNT_KEY)
+      const savedId = safeStorageGet(CURRENT_ACCOUNT_KEY)
       if (savedId) {
         const saved = accounts.value.find((a: Account) => a.account_id === savedId)
         if (saved) {
@@ -73,16 +92,16 @@ let lastAccountsSnapshot = ''
         currentAccount.value = online || accounts.value[0]
       }
     } finally {
-      loading.value = false
+      if (loadingRequestId === requestId) loading.value = false
     }
   }
 
   // 监听 currentAccount 变化，自动持久化
   watch(currentAccount, (acc) => {
     if (acc) {
-      localStorage.setItem(CURRENT_ACCOUNT_KEY, acc.account_id)
+      safeStorageSet(CURRENT_ACCOUNT_KEY, acc.account_id)
     } else {
-      localStorage.removeItem(CURRENT_ACCOUNT_KEY)
+      safeStorageRemove(CURRENT_ACCOUNT_KEY)
     }
   }, { immediate: true })
 
@@ -114,7 +133,8 @@ let lastAccountsSnapshot = ''
   // P2-70: 原 /\/accounts/ 过宽——/accounts/import、/accounts/profile-batch、
   // /accounts/clone-profile 等批量端点每处理完一个号就触发一次全量列表刷新,
   // 批量改 100 个号 = 100 次全量拉取。排除已知批量子路径, 只响应单号增删改。
-  onMutation(/\/accounts(?!\/(import|profile-batch|clone-profile)\b)/, () => fetchAccounts(true))
+  const stopAccountMutation = onMutation(/\/accounts(?!\/(import|profile-batch|clone-profile)\b)/, () => fetchAccounts(true))
+  onScopeDispose(stopAccountMutation)
 
   return { accounts, groups, loading, currentAccount, fetchAccounts, createAccount, deleteAccount,
     view, phoneAccounts, protocolAccounts, applyStatus }

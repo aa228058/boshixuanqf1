@@ -3,8 +3,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import lottie from 'lottie-web'
+import { shouldPlayLottie } from './lottiePlayback'
 
 // 构建时静态分析 src/assets/lottie/ 下全部 JSON(Vite 正确解析 @ 别名与哈希)
 // 禁止运行时 import(变量路径) 或 lottie path 模式(内置 XHR 在部分 WebView 读 responseText 抛 InvalidStateError)
@@ -20,10 +21,25 @@ const props = withDefaults(defineProps<{
 
 const el = ref<HTMLDivElement>()
 let anim: any = null
+let disposed = false
+let loadId = 0
+let controller: AbortController | null = null
+let motionPreference: MediaQueryList | null = null
 
-onMounted(async () => {
+function syncMotionPreference() {
+  if (!anim) return
+  if (shouldPlayLottie(props.autoplay, motionPreference?.matches ?? false)) anim.play()
+  else anim.goToAndStop(0, true)
+}
+
+async function loadAnimation() {
+  const id = ++loadId
+  controller?.abort()
+  controller = null
+  anim?.destroy()
+  anim = null
   const box = el.value
-  if (!box) return
+  if (!box || disposed) return
   try {
     let data: any = null
     if (props.src.startsWith('@/')) {
@@ -33,24 +49,47 @@ onMounted(async () => {
       if (loader) data = (await loader()).default
     } else {
       // public / 远程: fetch 拿对象再传给 lottie, 绕开其内置 XHR
-      const res = await fetch(props.src)
+      controller = new AbortController()
+      const res = await fetch(props.src, { signal: controller.signal })
       if (res.ok) data = await res.json()
     }
+    if (disposed || id !== loadId) return
     if (!data) { box.style.display = 'none'; return }
+    box.style.display = ''
     anim = lottie.loadAnimation({
       container: box,
       renderer: 'svg',
       loop: props.loop,
-      autoplay: props.autoplay,
+      autoplay: shouldPlayLottie(props.autoplay, motionPreference?.matches ?? false),
       animationData: data,
     })
+    if (!shouldPlayLottie(props.autoplay, motionPreference?.matches ?? false)) anim.goToAndStop(0, true)
   } catch (e) {
+    if (disposed || id !== loadId || (e instanceof Error && e.name === 'AbortError')) return
     console.warn('[LottieAnim] 加载失败:', e)
     box.style.display = 'none'
+  } finally {
+    if (id === loadId) controller = null
   }
+}
+
+onMounted(() => {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    motionPreference.addEventListener('change', syncMotionPreference)
+  }
+  void loadAnimation()
 })
+// Recreate the player when playback options change; otherwise prop updates are silently ignored.
+watch(() => [props.src, props.loop, props.autoplay], () => { void loadAnimation() })
 
 onUnmounted(() => {
+  disposed = true
+  motionPreference?.removeEventListener('change', syncMotionPreference)
+  motionPreference = null
+  loadId++
+  controller?.abort()
+  controller = null
   anim?.destroy()
   anim = null
 })

@@ -40,7 +40,7 @@
           <option value="failed">失败</option>
           <option value="cancelled">已取消</option>
         </select>
-        <button type="button" class="ui-icon-btn ui-icon-btn--danger" @click="clearFinished" title="清空已完成任务" aria-label="清空已完成任务">
+        <button type="button" class="ui-icon-btn ui-icon-btn--danger" @click="clearFinished" :disabled="clearingFinished" :aria-busy="clearingFinished" title="清空已完成任务" aria-label="清空已完成任务">
           <Trash2 class="w-4 h-4" />
         </button>
         <button type="button" @click="fetchTasks" class="ui-icon-btn" aria-label="刷新任务">
@@ -73,10 +73,10 @@
           <div class="h-full rounded-full bg-[var(--t-brand)] transition-all" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }"></div>
         </div>
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <t-button v-if="job.status === 'review'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)">确认筛选结果并开始解析</t-button>
-          <t-button v-if="['review', 'pending', 'processing'].includes(job.status)" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click="cancelGroupImport(job.job_id)">取消导入</t-button>
-          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
-          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="default" @click="clearGroupImportJob(job)">清除记录</t-button>
+          <t-button v-if="job.status === 'review'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click="confirmGroupImport(job.job_id)" :disabled="importJobActionsPending.has(job.job_id)">确认筛选结果并开始解析</t-button>
+          <t-button v-if="['review', 'pending', 'processing'].includes(job.status)" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click="cancelGroupImport(job.job_id)" :disabled="importJobActionsPending.has(job.job_id)">取消导入</t-button>
+          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)" :disabled="importJobActionsPending.has(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
+          <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="default" @click="clearGroupImportJob(job)" :disabled="importJobActionsPending.has(job.job_id)">清除记录</t-button>
         </div>
         <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
       </article>
@@ -144,10 +144,10 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)">停止</t-button>
-              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)">重试</t-button>
+              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">停止</t-button>
+              <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
-                         class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
+                         class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')" :disabled="taskActionIds.has(row.task_id)">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
               <!-- 每账号统计: 点击弹层查看该任务各账号成功/失败/跳过 -->
               <t-tooltip content="每账号统计" position="top">
                 <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(row)" title="每账号统计">
@@ -201,10 +201,10 @@
         </div>
         </RouterLink>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)">取消</t-button>
-          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)">重试</t-button>
+          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">取消</t-button>
+          <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
-                     size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
+                     size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')" :disabled="taskActionIds.has(task.task_id)">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
           <t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" variant="outline" @click.stop="showAccStats(task)">统计</t-button>
         </div>
       </div>
@@ -270,6 +270,7 @@ import { api } from '@/utils/request'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
 import { toast } from '@/utils/toast'
+import { uniqueTaskIds } from '@/utils/workspaceGuards'
 import { ask } from '@/utils/confirm'
 import { ListTodo, RefreshCw, Trash2, Search, X } from 'lucide-vue-next'
 
@@ -312,48 +313,63 @@ const statusFilter = ref(query.status || '')
 const typeFilter = ref(query.type || '')
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
+const clearingFinished = ref(false)
+const importJobActionsPending = ref(new Set<string>())
 
 // 清空已结束任务: 复用现有 batch/delete 接口, 零后端改动
 // 跨页拉全量(每状态最多 500 条), 避免只清当前页漏其他页
 // R109: 任务列表全租户化 —— 移除 account_id 过滤(原绑全局切换器, 已删除;
 // 页头文案已是"全部账号的任务汇总")
 async function clearFinished() {
-  const ids: string[] = []
-  for (const status of ['completed', 'failed', 'cancelled']) {
-    try {
-      const res: any = await taskApi.list({
-        status,
-        page: 1,
-        page_size: 500,
-        hide_loops: 1,
-        range: 'all',
-      } as any)
-      const list = Array.isArray(res) ? res : (res?.data ?? res?.list ?? [])
-      for (const t of list) if (t?.task_id) ids.push(t.task_id)
-    } catch { /* 单状态拉取失败不阻塞整体 */ }
-  }
-  if (!ids.length) {
-    toast({ type: 'info', title: '没有已结束的任务' })
-    return
-  }
-  const ok = await ask(`确定清空 ${ids.length} 条已结束任务？此操作不可恢复`,
-    { title: '清空任务', danger: true, confirmText: '清空' })
-  if (!ok) return
+  if (clearingFinished.value) return
+  clearingFinished.value = true
   try {
-    await taskApi.batchDelete(ids)
-    toast({ type: 'success', title: `已清空 ${ids.length} 条任务` })
+    const ids: string[] = []
+    for (const status of ['completed', 'failed', 'cancelled']) {
+      const res: any = await taskApi.list({
+        status, page: 1, page_size: 500, hide_loops: 1, range: 'all',
+      } as any)
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : Array.isArray(res?.list) ? res.list : [])
+      ids.push(...list.map((task: any) => task?.task_id))
+    }
+    const uniqueIds = uniqueTaskIds(ids)
+    if (!uniqueIds.length) {
+      toast({ type: 'info', title: '没有已结束的任务' })
+      return
+    }
+    const ok = await ask(`确定清空 ${uniqueIds.length} 条已结束任务？此操作不可恢复`,
+      { title: '清空任务', danger: true, confirmText: '清空' })
+    if (!ok) return
+    await taskApi.batchDelete(uniqueIds)
+    toast({ type: 'success', title: `已清空 ${uniqueIds.length} 条任务` })
     page.value = 1
-    fetchTasks()
+    await fetchTasks()
   } catch (e: any) {
-    toast({ type: 'error', title: '清空失败', message: e?.message || '请稍后重试' })
+    toast({ type: 'error', title: '清空失败', message: e?.message || '无法完整读取全部任务状态，请稍后重试' })
+  } finally {
+    clearingFinished.value = false
   }
 }
 
+let importJobsRequestId = 0
+let importJobsController: AbortController | null = null
+let taskListController: AbortController | null = null
 async function fetchImportJobs() {
+  importJobsController?.abort()
+  const controller = new AbortController()
+  importJobsController = controller
+  const requestId = ++importJobsRequestId
+  const taskNumber = activeNumberSearch.value
   try {
-    const res: any = await listGroupLibraryImportJobs(activeNumberSearch.value || undefined)
+    const res: any = await listGroupLibraryImportJobs(taskNumber || undefined, { signal: controller.signal })
+    // 5 秒轮询、自动刷新和编号搜索可能并发；只接受当前编号筛选对应的最新响应。
+    if (requestId !== importJobsRequestId || taskNumber !== activeNumberSearch.value) return
     importJobs.value = res.list || []
-  } catch { /* keep the last known task list during transient network errors */ }
+  } catch {
+    // keep the last known task list during transient network errors
+  } finally {
+    if (importJobsController === controller) importJobsController = null
+  }
 }
 
 function importStatusLabel(status: string) {
@@ -364,55 +380,75 @@ function importStatusLabel(status: string) {
   return labels[status] || status || '未知'
 }
 
-async function confirmGroupImport(jobId: string) {
+async function withImportJobLock(jobId: string, action: () => Promise<void>) {
+  if (!jobId || importJobActionsPending.value.has(jobId)) return
+  importJobActionsPending.value = new Set(importJobActionsPending.value).add(jobId)
   try {
-    await confirmImportLibraryGroups(jobId)
-    toast({ type: 'success', title: '已开始解析', message: '群组导入任务已进入任务中心队列' })
-    await fetchImportJobs()
-  } catch (e: any) {
-    toast({ type: 'error', title: '确认失败', message: e?.message || '无法确认导入任务' })
+    await action()
+  } finally {
+    const next = new Set(importJobActionsPending.value)
+    next.delete(jobId)
+    importJobActionsPending.value = next
   }
+}
+
+async function confirmGroupImport(jobId: string) {
+  await withImportJobLock(jobId, async () => {
+    try {
+      await confirmImportLibraryGroups(jobId)
+      await fetchImportJobs()
+      toast({ type: 'success', title: '已开始解析', message: '群组导入任务已进入任务中心队列' })
+    } catch (e: any) {
+      toast({ type: 'error', title: '确认失败', message: e?.message || '无法确认导入任务' })
+    }
+  })
 }
 
 async function cancelGroupImport(jobId: string) {
-  const ok = await ask('确定取消这条群组导入任务？已完成的链接不会回滚。', {
-    title: '取消导入任务', danger: true, confirmText: '取消任务',
+  await withImportJobLock(jobId, async () => {
+    try {
+      const ok = await ask('确定取消这条群组导入任务？已完成的链接不会回滚。', {
+        title: '取消导入任务', danger: true, confirmText: '取消任务',
+      })
+      if (!ok) return
+      await cancelGroupLibraryImportJob(jobId)
+      await fetchImportJobs()
+      toast({ type: 'success', title: '已提交取消请求' })
+    } catch (e: any) {
+      toast({ type: 'error', title: '取消失败', message: e?.message || '无法取消导入任务' })
+    }
   })
-  if (!ok) return
-  try {
-    await cancelGroupLibraryImportJob(jobId)
-    toast({ type: 'success', title: '已提交取消请求' })
-    await fetchImportJobs()
-  } catch (e: any) {
-    toast({ type: 'error', title: '取消失败', message: e?.message || '无法取消导入任务' })
-  }
 }
 
 async function retryGroupImport(jobId: string) {
-  try {
-    await retryFailedGroupLibraryImportJob(jobId)
-    toast({ type: 'success', title: '失败链接已重新排队' })
-    await fetchImportJobs()
-  } catch (e: any) {
-    toast({ type: 'error', title: '重试失败', message: e?.message || '无法重试失败链接' })
-  }
+  await withImportJobLock(jobId, async () => {
+    try {
+      await retryFailedGroupLibraryImportJob(jobId)
+      await fetchImportJobs()
+      toast({ type: 'success', title: '失败链接已重新排队' })
+    } catch (e: any) {
+      toast({ type: 'error', title: '重试失败', message: e?.message || '无法重试失败链接' })
+    }
+  })
 }
 
 async function clearGroupImportJob(job: any) {
-  const ok = await ask('确定清除这条已结束的导入任务记录？只删除任务记录及失败明细，不会删除已经入库的群组。', {
-    title: '清除导入记录', danger: true, confirmText: '清除记录',
+  const jobId = String(job?.job_id || '')
+  await withImportJobLock(jobId, async () => {
+    try {
+      const ok = await ask('确定清除这条已结束的导入任务记录？只删除任务记录及失败明细，不会删除已经入库的群组。', {
+        title: '清除导入记录', danger: true, confirmText: '清除记录',
+      })
+      if (!ok) return
+      await deleteGroupLibraryImportJob(jobId)
+      importJobs.value = importJobs.value.filter(item => item.job_id !== jobId)
+      await fetchImportJobs()
+      toast({ type: 'success', title: '导入任务记录已清除' })
+    } catch (e: any) {
+      toast({ type: 'error', title: '清除失败', message: e?.message || '任务可能仍在运行，请稍后重试' })
+      await fetchImportJobs()
+    }
   })
-  if (!ok) return
-  try {
-    await deleteGroupLibraryImportJob(job.job_id)
-    // Delete API 已确认成功后立即从当前列表移除，避免等待下一次列表请求造成“清不掉”的错觉。
-    importJobs.value = importJobs.value.filter(item => item.job_id !== job.job_id)
-    await fetchImportJobs()
-    toast({ type: 'success', title: '导入任务记录已清除' })
-  } catch (e: any) {
-    toast({ type: 'error', title: '清除失败', message: e?.message || '任务可能仍在运行，请稍后重试' })
-    await fetchImportJobs()
-  }
 }
 
 let taskListRequestId = 0
@@ -442,6 +478,9 @@ async function clearNumberSearch() {
 }
 
 async function fetchTasks() {
+  taskListController?.abort()
+  const controller = new AbortController()
+  taskListController = controller
   const requestId = ++taskListRequestId
   // 请求参数在发起时快照化，避免等待期间筛选/分页变化造成响应与当前视图错配。
   const params: any = { page: page.value, page_size: pageSize, hide_loops: 1 }
@@ -452,17 +491,18 @@ async function fetchTasks() {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await taskApi.list(params)
+    const res = await taskApi.list(params, { signal: controller.signal })
     if (requestId !== taskListRequestId) return
     const rawList = Array.isArray(res?.list) ? res.list : []
     // 按 task_id 去重，防止接口异常或重试造成重复行。
     tasks.value = [...new Map(rawList.filter((t: any) => t?.task_id).map((t: any) => [t.task_id, t])).values()]
     total.value = Number(res?.total) || 0
   } catch (e) {
-    if (requestId !== taskListRequestId) return
+    if (controller.signal.aborted || requestId !== taskListRequestId) return
     loadError.value = e instanceof Error ? e.message : '获取任务失败，请稍后重试'
     console.error('获取任务失败:', e)
   } finally {
+    if (taskListController === controller) taskListController = null
     if (requestId === taskListRequestId) loading.value = false
   }
 }
@@ -486,13 +526,20 @@ watch([page, range, statusFilter, typeFilter], () => {
   })
 })
 
+const taskActionIds = ref(new Set<string>())
 async function cancelTask(id: string) {
+  if (!id || taskActionIds.value.has(id)) return
+  taskActionIds.value = new Set(taskActionIds.value).add(id)
   try {
     await taskApi.cancel(id)
-    fetchTasks()
+    await fetchTasks()
     toast({ type: 'success', title: '任务已取消' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '取消失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    const next = new Set(taskActionIds.value)
+    next.delete(id)
+    taskActionIds.value = next
   }
 }
 
@@ -502,7 +549,9 @@ const accStatsLoading = ref(false)
 const accStatsData = ref<{ phone: string; success: number; failed: number; skipped: number }[]>([])
 const accStatsTaskName = ref('')
 
+let accStatsRequestId = 0
 async function showAccStats(row: any) {
+  const requestId = ++accStatsRequestId
   accStatsVisible.value = true
   accStatsLoading.value = true
   accStatsTaskName.value = row.name || row.task_id?.slice(0, 8) || ''
@@ -518,21 +567,28 @@ async function showAccStats(row: any) {
     for (const acc of accountStore.accounts) {
       if (idSet.has(String(acc.account_id))) phoneMap[String(acc.account_id)] = acc.phone
     }
+    if (requestId !== accStatsRequestId) return
     accStatsData.value = Object.entries(raw).map(([id, v]) => ({
       phone: phoneMap[id] || `账号 ${id.slice(0, 6)}…`,
       success: v.success, failed: v.failed, skipped: v.skipped,
     })).sort((a, b) => b.success - a.success)
   } catch { /* 请求层统一报错 */ }
-  finally { accStatsLoading.value = false }
+  finally { if (requestId === accStatsRequestId) accStatsLoading.value = false }
 }
 
 async function retryTask(id: string, scope?: 'failed') {
+  if (!id || taskActionIds.value.has(id)) return
+  taskActionIds.value = new Set(taskActionIds.value).add(id)
   try {
     await taskApi.retry(id, scope)
-    fetchTasks()
+    await fetchTasks()
     toast({ type: 'success', title: scope === 'failed' ? '已创建续发任务(仅失败目标)' : '任务已重试' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '重试失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    const next = new Set(taskActionIds.value)
+    next.delete(id)
+    taskActionIds.value = next
   }
 }
 
@@ -629,7 +685,17 @@ function elapsed(iso: string): string {
   return `${Math.floor(m / 60)} 小时 ${m % 60} 分`
 }
 
-watch(() => route.params.accountId, () => { page.value = 1; fetchTasks() }, { immediate: true })
+watch(() => route.params.accountId, () => {
+  // 切换执行账号路由时立即清除旧列表并使旧请求失效，避免切换期间短暂展示上一账号数据。
+  taskListRequestId++
+  taskListController?.abort()
+  tasks.value = []
+  total.value = 0
+  loading.value = false
+  loadError.value = ''
+  if (page.value !== 1) page.value = 1
+  else void fetchTasks()
+}, { immediate: true })
 
 // 15 秒轮询兜底 + SSE 亚秒级: 进度事件即时更新对应行, 状态事件即时刷新
 // R118: 等待倒计时 —— task_wait 帧(每秒)驱动"当前动作"显示
@@ -650,7 +716,13 @@ const accNameById = (id: string) => {
 useAutoRefresh(() => { void fetchTasks(); void fetchImportJobs() }, 15000)
 void fetchImportJobs()
 const importJobsTimer = window.setInterval(fetchImportJobs, 5000)
-onUnmounted(() => window.clearInterval(importJobsTimer))
+onUnmounted(() => {
+  window.clearInterval(importJobsTimer)
+  taskListRequestId++
+  importJobsRequestId++
+  importJobsController?.abort()
+  taskListController?.abort()
+})
 useTaskEvents((evt: any) => {
   if (evt.type === 'task_wait') {
     waitInfo.value = { ...waitInfo.value, [String(evt.task_id)]: { account_id: String(evt.account_id || ''), remaining: Number(evt.remaining || 0), next_index: Number(evt.next_index || 0), total: Number(evt.total || 0), _t: Date.now() } }

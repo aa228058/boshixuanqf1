@@ -1,8 +1,8 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 import type { MonitorRule, MonitorMessage, ListResponse } from '@/types'
 
 export const monitorApi = {
-  listRules: () => api.get<ListResponse<MonitorRule>>('/monitor/rules'),
+  listRules: (options?: RequestOptions) => api.get<ListResponse<MonitorRule>>('/monitor/rules', options),
   getRule: (id: string) => api.get<MonitorRule>(`/monitor/rules/${id}`),
   createRule: (data: Partial<MonitorRule>) => api.post<MonitorRule>('/monitor/rules', data),
   updateRule: (id: string, data: Partial<MonitorRule>) => api.put<MonitorRule>(`/monitor/rules/${id}`, data),

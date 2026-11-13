@@ -5,6 +5,7 @@ import { setSseStatus, bumpSseRetry } from '@/stores/sse'
 // ===== 任务实时事件(SSE) · 单连接常驻版 =====
 let es: EventSource | null = null
 let connecting: Promise<void> | null = null
+let ticketController: AbortController | null = null
 const listeners = new Set<(evt: any) => void>()
 let refs = 0
 let reconnects = 0
@@ -15,14 +16,16 @@ let connectionGeneration = 0
 const DISCONNECT_GRACE_MS = 30000
 const MAX_RETRIES = 8
 const WATCHDOG_TIMEOUT_MS = 45000
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1'
 
-async function fetchTicket(): Promise<string | null> {
+async function fetchTicket(baseUrl: string, signal: AbortSignal): Promise<string | null> {
   try {
     const token = useAuthStore().token
     if (!token) return null
-    const res = await fetch('/api/v1/events/ticket', {
+    const res = await fetch(`${baseUrl}/events/ticket`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
+      signal,
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -77,10 +80,11 @@ function ensureConnected(): Promise<void> {
   if (connecting) return connecting
 
   const generation = connectionGeneration
+  const controller = new AbortController()
+  ticketController = controller
   const pending = (async () => {
     try {
-      const base = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1'
-      const ticket = await fetchTicket()
+      const ticket = await fetchTicket(API_BASE_URL, controller.signal)
       // 页面已全部卸载或连接代次已变化时，丢弃迟到的换票结果。
       if (generation !== connectionGeneration || refs <= 0) return
       if (!ticket) {
@@ -88,7 +92,7 @@ function ensureConnected(): Promise<void> {
         return
       }
 
-      const source = new EventSource(`${base}/events?ticket=${encodeURIComponent(ticket)}`)
+      const source = new EventSource(`${API_BASE_URL}/events?ticket=${encodeURIComponent(ticket)}`)
       es = source
 
       source.onopen = () => {
@@ -109,7 +113,7 @@ function ensureConnected(): Promise<void> {
           const raw = JSON.parse(m.data)
           // 全局事件帧为 broker Event{topic,payload}；业务字段位于 payload。
           const evt = raw && raw.payload ? raw.payload : raw
-          listeners.forEach((fn) => {
+          ;[...listeners].forEach((fn) => {
             try { fn(evt) } catch { /* 单个回调异常不影响其他订阅者 */ }
           })
         } catch {
@@ -136,6 +140,7 @@ function ensureConnected(): Promise<void> {
   connecting = pending
   void pending.finally(() => {
     if (connecting === pending) connecting = null
+    if (ticketController === controller) ticketController = null
     // teardown 后若有新页面重新订阅，补建新代次的连接。
     if (generation !== connectionGeneration && refs > 0 && !es) {
       void ensureConnected()
@@ -146,6 +151,8 @@ function ensureConnected(): Promise<void> {
 
 function teardown() {
   connectionGeneration++
+  ticketController?.abort()
+  ticketController = null
   setSseStatus('disconnected')
   clearWatchdog()
   if (es) {
@@ -199,6 +206,8 @@ export function reconnectNow() {
   // Invalidate any in-flight ticket request so it cannot win this explicit reconnect.
   // Its finally handler will start the new generation after the old request settles.
   connectionGeneration++
+  ticketController?.abort()
+  ticketController = null
   clearWatchdog()
   if (es) {
     es.close()

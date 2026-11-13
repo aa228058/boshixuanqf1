@@ -63,6 +63,13 @@
             class="ui-input !w-28 !min-h-[36px] !px-3 !py-1.5 !text-sm" aria-label="扫描消息数上限" />
         </div>
       </div>
+      <label class="flex items-start gap-2 rounded-lg border border-border p-3 text-sm cursor-pointer">
+        <input type="checkbox" v-model="bioLinks" class="accent-[var(--t-brand)] mt-0.5" />
+        <span>
+          <span class="font-medium">解析用户简介中的 Telegram 群链接</span>
+          <span class="block text-xs text-text-muted mt-1">逐个读取用户 Bio，写入成员资料；群库聚合器后续归并。请求会限速，部分用户可能因隐私或 Telegram 限流无法读取。</span>
+        </span>
+      </label>
       <!-- 采集过滤: 死号/无头像不入库(仅普通模式) -->
       <div v-if="scrapeMode === 'members'" class="space-y-2 pt-1">
         <label class="flex items-center gap-2 text-sm cursor-pointer">
@@ -178,18 +185,12 @@
 </template>
 
 <script setup lang="ts">
-// 进度对象后端可能是 JSON 字符串或对象,统一解析
+// 进度对象可能是 JSON 字符串或对象；统一校验有限数值并限制进度范围。
 function progressOf(task: any): { total: number; done: number; failed: number } {
-  const p = task?.progress
-  if (!p) return { total: 0, done: 0, failed: 0 }
-  if (typeof p === 'string') {
-    try { return { total: 0, done: 0, failed: 0, ...JSON.parse(p) } } catch { return { total: 0, done: 0, failed: 0 } }
-  }
-  return p
+  return normalizeTaskProgress(task?.progress)
 }
 function progressPct(task: any): number {
-  const p = progressOf(task)
-  return p.total > 0 ? Math.round(p.done / p.total * 100) : 0
+  return safeProgressPercent(progressOf(task))
 }
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
@@ -208,6 +209,8 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import Modal from '@/components/ui/Modal.vue'
 import type { Group } from '@/types'
 import { ask } from '@/utils/confirm'
+import { downloadBlob, escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell } from '@/utils/export'
+import { normalizeTaskProgress, relativeTaskTime, safeProgressPercent, safeTaskDate, uniqueTaskIds } from '@/utils/workspaceGuards'
 
 const route = useRoute()
 const router = useRouter()
@@ -217,8 +220,13 @@ const currentAccount = computed(() => accountStore.currentAccount)
 const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.account_id || '').slice(0, 8)
 // R108: 执行账号下拉 —— 群列表/任务列表/提交全部跟随所选账号, 不依赖顶栏切换器
 const scrapeAccId = ref('')
+let taskListController: AbortController | null = null
+const memberControllers: Record<string, AbortController> = {}
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !scrapeAccId.value) scrapeAccId.value = acc.account_id }, { immediate: true })
 watch(scrapeAccId, () => {
+  taskListController?.abort()
+  taskListController = null
+  for (const controller of Object.values(memberControllers)) controller.abort()
   for (const taskId of Object.keys(memberRequestIds)) memberRequestIds[taskId]++
   members.value = {}
   memberLoading.value = {}
@@ -236,6 +244,8 @@ const maxMessages = ref(1000)
 const filterRecent = ref(false)
 const filterRecentDays = ref(7)
 const filterPhoto = ref(false)
+// Bio 链接解析为可选的逐用户资料读取，默认关闭以控制 Telegram RPC 消耗。
+const bioLinks = ref(false)
 const showGroupSelector = ref(false)
 const showCreate = ref(false)
 // 响应式绑定 groupStore（与 Broadcast.vue 同款修复，2026-09-22）：
@@ -248,13 +258,7 @@ const groups = computed<any[]>(() => {
 const submitting = ref(false)
 
 // 模板 149 行的相对时间调用此前无定义（渲染即崩）。
-function relTime(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return `${s}秒前`
-  if (s < 3600) return `${Math.floor(s / 60)}分钟前`
-  if (s < 86400) return `${Math.floor(s / 3600)}小时前`
-  return `${Math.floor(s / 86400)}天前`
-}
+function relTime(iso: string): string { return relativeTaskTime(iso) }
 
 const tasks = ref<any[]>([])
 let taskListRequestId = 0
@@ -268,7 +272,7 @@ const memberRequestIds: Record<string, number> = {}
 
 // 判断是否为机器人账号(is_bot 字段或 username 以 bot 结尾)
 function isBot(m: any): boolean {
-  return !!m.is_bot || (m.username || '').toLowerCase().endsWith('bot')
+  return !!m?.is_bot || (typeof m?.username === 'string' && m.username.toLowerCase().endsWith('bot'))
 }
 
 // 清空当前账号的全部采集任务记录(进行中的任务不会删除)
@@ -276,15 +280,16 @@ const clearing = ref(false)
 async function clearLogs() {
   if (clearing.value) return
   const accountId = scrapeAccId.value
-  const finished = tasks.value.filter(t => t.status !== 'running' && t.status !== 'queued')
-  const taskIds = finished.map(t => t.task_id)
+  const taskIds = uniqueTaskIds(tasks.value
+    .filter(t => ['completed', 'failed', 'cancelled'].includes(t.status))
+    .map(t => t.task_id))
   if (!accountId || !taskIds.length) return
-  if (!await ask(`确定清空 ${taskIds.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })) return
-  if (accountId !== scrapeAccId.value) return
   clearing.value = true
   try {
+    const confirmed = await ask(`确定清空 ${taskIds.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })
+    if (!confirmed || accountId !== scrapeAccId.value || !pageActive) return
     await taskApi.batchDelete(taskIds)
-    if (accountId !== scrapeAccId.value) return
+    if (accountId !== scrapeAccId.value || !pageActive) return
     expanded.value = {}
     members.value = {}
     skippedBots.value = {}
@@ -300,10 +305,7 @@ function statusText(s: string) {
   const map: Record<string, string> = { pending: '待执行', running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' }
   return map[s] || s
 }
-function formatDate(d: string) {
-  if (!d) return '-'
-  return new Date(d).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+function formatDate(d: string) { return safeTaskDate(d, '-') }
 
 function selectGroup(g: any) {
   selectedGroup.value = g
@@ -315,15 +317,24 @@ function onSelectGroup(selected: Group[]) {
 }
 
 function toggleExpand(taskId: string) {
-  expanded.value[taskId] = !expanded.value[taskId]
-  if (expanded.value[taskId] && !members.value[taskId]) {
-    loadMembers(taskId)
+  const nextExpanded = !expanded.value[taskId]
+  expanded.value[taskId] = nextExpanded
+  if (nextExpanded && !members.value[taskId]) {
+    void loadMembers(taskId)
+  } else if (!nextExpanded) {
+    memberRequestIds[taskId] = (memberRequestIds[taskId] || 0) + 1
+    memberControllers[taskId]?.abort()
+    delete memberControllers[taskId]
+    memberLoading.value[taskId] = false
   }
 }
 
 async function loadMembers(taskId: string) {
   const requestId = (memberRequestIds[taskId] || 0) + 1
   memberRequestIds[taskId] = requestId
+  memberControllers[taskId]?.abort()
+  const controller = new AbortController()
+  memberControllers[taskId] = controller
   const accountId = scrapeAccId.value
   const task = tasks.value.find(t => t.task_id === taskId)
   const groupId = (task?.payload as any)?.group_id || task?.target_ids?.[0]
@@ -335,16 +346,18 @@ async function loadMembers(taskId: string) {
       if (isCurrent()) members.value[taskId] = []
       return
     }
-    const res = await groupApi.getMembers(groupId)
+    const res = await groupApi.getMembers(groupId, undefined, { signal: controller.signal })
     if (!isCurrent()) return
-    const raw = (res as any).members || res.list || res || []
-    // 自动跳过机器人结果(源头已在采集时过滤, 这里兜底处理历史数据)
+    const candidate = (res as any)?.members ?? (res as any)?.list ?? res
+    const raw = Array.isArray(candidate) ? candidate : []
+    // 非数组/异常响应按空结果处理，避免对对象调用 filter 导致页面异常。
     skippedBots.value[taskId] = raw.filter(isBot).length
-    members.value[taskId] = raw.filter((m: any) => !isBot(m))
+    members.value[taskId] = raw.filter((m: any) => m && typeof m === 'object' && !isBot(m))
   } catch {
-    if (isCurrent()) members.value[taskId] = []
+    if (!controller.signal.aborted && isCurrent()) members.value[taskId] = []
   } finally {
     if (isCurrent()) memberLoading.value[taskId] = false
+    if (memberControllers[taskId] === controller) delete memberControllers[taskId]
   }
 }
 
@@ -357,44 +370,23 @@ function exportCSV(taskId: string) {
   // P0-15 审计修复: 原路径先过 sanitizeCell(HTML 转义, " 已变 &quot;) 再做 CSV
   // 引号翻倍——HTML 实体进了 CSV 文件, 引号双转义失效。CSV 路径只做公式注入
   // 防护 + CSV 标准引号翻倍, 不做 HTML 转义。
-  const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(csvCell).join(','))].join('\n')
+  const csv = [headers.join(','), ...rows.map((r: any[]) => r.map(escapeSpreadsheetCSVCell).join(','))].join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.csv`
-  link.click()
+  downloadBlob(`members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.csv`, blob)
 }
 
-// 导出单元格消毒：数据来自 TG 用户名/昵称等外部输入，恶意用户可设 =cmd|...!A1
-// 这类用户名，受害者导出后在 Excel 打开即执行（公式注入）；HTML 导出还需防
-// </td><script> 类标签注入。处理：公式前缀(= + - @)加 tab 强制按文本 + HTML 转义。
-// P0-15: CSV 单元格专用——公式前缀加 tab + CSV 引号翻倍(标准), 不做 HTML 转义
-function csvCell(v: any): string {
-  let s = String(v ?? '')
-  if (/^[=+\-@]/.test(s)) s = '\t' + s
-  return `"${s.replace(/"/g, '""')}"`
-}
-
-function sanitizeCell(v: any): string {
-  let s = String(v ?? '')
-  if (/^[=+\-@]/.test(s)) s = '\t' + s
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
-}
 
 function exportExcel(taskId: string) {
   const list = members.value[taskId] || []
   if (!list.length) return
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-    <head><meta charset="UTF-8"><style>td,th{border:1px solid var(--t-line);padding:var(--t-space-1-5)}</style></head>
+    <head><meta charset="UTF-8"><style>table{border-collapse:collapse}td,th{border:1px solid #d1d5db;padding:6px;text-align:left}</style></head>
     <body><table>
       <tr><th>User ID</th><th>Username</th><th>First Name</th><th>Last Name</th><th>Last Seen</th><th>Has Photo</th><th>Is Bot</th></tr>
-      ${list.map((m: any) => `<tr><td>${m.user_id}</td><td>${m.username || ''}</td><td>${m.first_name || ''}</td><td>${m.last_name || ''}</td><td>${m.last_seen || ''}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
+      ${list.map((m: any) => `<tr><td>${escapeSpreadsheetHTMLCell(m.user_id)}</td><td>${escapeSpreadsheetHTMLCell(m.username)}</td><td>${escapeSpreadsheetHTMLCell(m.first_name)}</td><td>${escapeSpreadsheetHTMLCell(m.last_name)}</td><td>${escapeSpreadsheetHTMLCell(m.last_seen)}</td><td>${m.has_photo ? 'Yes' : 'No'}</td><td>${m.is_bot ? 'Yes' : 'No'}</td></tr>`).join('')}
     </table></body></html>`
   const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.xls`
-  link.click()
+  downloadBlob(`members_${taskId.slice(-6)}_${new Date().toISOString().slice(0,10)}.xls`, blob)
 }
 
 // 群组走缓存 store: 有缓存零请求, 只有 GroupSelector 里点"同步"才调接口
@@ -408,27 +400,37 @@ async function fetchGroups() {
 
 const pullRefreshing = ref(false)
 async function onPullRefresh() {
-  await fetchTasks()
-  pullRefreshing.value = false
+  if (pullRefreshing.value) return
+  pullRefreshing.value = true
+  try {
+    await fetchTasks()
+  } finally {
+    pullRefreshing.value = false
+  }
 }
 
 async function fetchTasks() {
   const accountId = scrapeAccId.value
   const requestId = ++taskListRequestId
+  taskListController?.abort()
+  taskListController = null
   if (!accountId) {
     tasks.value = []
     taskLoading.value = false
     return
   }
   taskLoading.value = true
+  const controller = new AbortController()
+  taskListController = controller
   try {
-    const res = await taskApi.list({ type: 'scrape_members', account_id: accountId })
+    const res = await taskApi.list({ type: 'scrape_members', account_id: accountId }, { signal: controller.signal })
     if (!pageActive || requestId !== taskListRequestId || accountId !== scrapeAccId.value) return
     tasks.value = res.list || []
   } catch {
-    if (pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) tasks.value = []
+    if (!controller.signal.aborted && pageActive && requestId === taskListRequestId && accountId === scrapeAccId.value) tasks.value = []
   } finally {
     if (pageActive && requestId === taskListRequestId) taskLoading.value = false
+    if (taskListController === controller) taskListController = null
   }
 }
 
@@ -443,6 +445,7 @@ async function submit() {
   const recentEnabled = filterRecent.value
   const recentDays = filterRecentDays.value
   const photoEnabled = filterPhoto.value
+  const bioLinksSnapshot = bioLinks.value
   submitting.value = true
   try {
     await taskApi.create({
@@ -455,6 +458,7 @@ async function submit() {
       },
       payload: {
         mode,
+        ...(bioLinksSnapshot ? { bio_links: true } : {}),
         ...(mode === 'history' ? { max_messages: maxMessagesSnapshot } : {}),
         ...(mode === 'members' ? {
           filter: {
@@ -478,9 +482,10 @@ async function submit() {
 }
 
 watch(() => route.params.accountId, () => {
+  if (!pageActive) return
   fetchGroups()
   fetchTasks()
-}, { immediate: true })
+})
 
 onMounted(() => {
   pageActive = true
@@ -495,6 +500,11 @@ onMounted(() => {
 onUnmounted(() => {
   pageActive = false
   taskListRequestId++
+  taskListController?.abort()
+  taskListController = null
+  for (const taskId of Object.keys(memberRequestIds)) memberRequestIds[taskId]++
+  for (const controller of Object.values(memberControllers)) controller.abort()
+  for (const taskId of Object.keys(memberControllers)) delete memberControllers[taskId]
 })
 
 </script>

@@ -245,7 +245,7 @@
 
       <!-- 页面内容: overlay 路由以全屏模态形式展现(返回/关闭条 + 独立滚动区), 子弹层(群组选择器等)不受影响 -->
       <!-- R127: pb-24 给移动端底部 Tab 留足空间 —— 此前缺失导致 Tab 悬浮遮挡页面底部内容(按钮点不到) -->
-      <main id="main-content" ref="mainRef" class="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto p-3 sm:p-5 md:p-6 pb-[calc(5rem_+_env(safe-area-inset-bottom,0px))] md:pb-6 relative z-10">
+      <main id="main-content" ref="mainRef" class="flex-1 min-h-0 min-w-0 w-full max-w-full overflow-y-auto p-3 sm:p-5 md:p-6 pb-[calc(5.5rem_+_env(safe-area-inset-bottom,0px))] md:pb-6 relative z-10">
         <router-view v-slot="{ Component, route }">
           <!-- 统一内嵌布局(2026-10-20 重构): 功能页一律显示在顶部栏下方,
                不再 overlay 全屏覆盖, 去掉全屏❌按钮(返回用侧边栏导航) -->
@@ -441,6 +441,11 @@ const mainRef = ref<HTMLElement | null>(null)
 useElasticScroll(mainRef)
 let heartbeatInterval: number | null = null
 let usageES: EventSource | null = null
+let layoutActive = false
+let usageTicketController: AbortController | null = null
+let tenantRefreshController: AbortController | null = null
+let accountsLoadController: AbortController | null = null
+let announcementsController: AbortController | null = null
 
 // 安全获取错误消息
 function getErrorMessage(e: unknown, fallback = '请稍后重试'): string {
@@ -1045,7 +1050,20 @@ function onScroll() {
 
 // R113 已删 onGlobalClick(唯一职责是关闭已删除的账号切换器)
 
+
+async function refreshTenantForLayout() {
+  tenantRefreshController?.abort()
+  const controller = new AbortController()
+  tenantRefreshController = controller
+  try {
+    await authStore.refreshTenant({ signal: controller.signal })
+  } finally {
+    if (tenantRefreshController === controller) tenantRefreshController = null
+  }
+}
+
 onMounted(async () => {
+  layoutActive = true
   mainRef.value?.addEventListener('scroll', onScroll, { passive: true })
   onScroll()
   // 全局用量通知监听：每100条一次，只提示不限制
@@ -1057,14 +1075,25 @@ onMounted(async () => {
     // P2-04: 原硬编码 /api/v1——前端与 API 不同域名部署时 SSE 连错地址。
     // 与 request.ts 同源: 用 VITE_API_BASE_URL, 缺省回退 /api/v1。
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+    const ticketController = new AbortController()
+    usageTicketController = ticketController
     try {
-      const tres2 = await fetch(`${apiBase}/events/ticket`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      usageTicket = (await tres2.json()).ticket || ''
+      const tres2 = await fetch(`${apiBase}/events/ticket`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: ticketController.signal,
+      })
+      if (tres2.ok) usageTicket = (await tres2.json()).ticket || ''
     } catch { /* 静默 */ }
-    usageES = new EventSource(`${apiBase}/events?ticket=${encodeURIComponent(usageTicket)}`)
+    finally {
+      if (usageTicketController === ticketController) usageTicketController = null
+    }
+    // 异步换票期间 Layout 可能已卸载；不允许迟到响应创建孤儿 EventSource。
+    if (!layoutActive) return
+    if (usageTicket) usageES = new EventSource(`${apiBase}/events?ticket=${encodeURIComponent(usageTicket)}`)
     // P0-06 审计修复: 后端发的是命名事件 event: events, onmessage 只收无事件名
     // 默认消息——usage_milestone/内存告警等系统提示从未送达。改 addEventListener。
-    usageES.addEventListener('events', (ev: MessageEvent) => {
+    usageES?.addEventListener('events', (ev: MessageEvent) => {
       try {
         const d = JSON.parse(ev.data)
         // 系统资源告警与自适应档位（此前后端发进无人订阅的 topic，从未到达；
@@ -1107,23 +1136,32 @@ onMounted(async () => {
   }
   // 刷新租户信息 + 拉取账号列表: 两者无依赖, 并行发起省一次串行等待
   await Promise.all([
-    authStore.refreshTenant(),
+    refreshTenantForLayout(),
     (async () => {
+      const controller = new AbortController()
+      accountsLoadController = controller
       try {
-        await accountStore.fetchAccounts()
+        await accountStore.fetchAccounts(false, { signal: controller.signal })
         accountStore.accounts.length /* P2-48: 已由 computed 自动跟踪, 手动赋值删除 */
       } catch (e) {
-        console.error('获取账号数量失败:', e)
+        if (layoutActive && !(e instanceof Error && e.name === 'AbortError')) console.error('获取账号数量失败:', e)
+      } finally {
+        if (accountsLoadController === controller) accountsLoadController = null
       }
     })(),
     // 公告主动触达: 登录后检查是否有未提示过的公告, 有则自动弹出
     checkAnnouncements(),
   ])
+  if (!layoutActive) return
   // 定时状态轮询：每 60 秒检查租户状态，被停用或过期自动退出
   let hbCount = 0
+  let heartbeatPending = false
   heartbeatInterval = window.setInterval(async () => {
+    if (!layoutActive || heartbeatPending) return
+    heartbeatPending = true
     try {
-      await authStore.refreshTenant()
+      await refreshTenantForLayout()
+      if (!layoutActive) return
       // 精读修复: 必须 tenant 已加载且明确非 active 才踢 —— 原写法在 tenant
       // 未加载(undefined)瞬间误判为「已停用」把用户踢下线
       if (authStore.tenant && authStore.tenant.status !== 'active') {
@@ -1133,17 +1171,25 @@ onMounted(async () => {
       }
     } catch {
       // 网络错误忽略，下次轮询再试
+    } finally {
+      heartbeatPending = false
     }
+    if (!layoutActive) return
     // N-02: 公告在线触达。原实现仅登录时拉取一次，长会话收不到新公告；
     // 借心跳每 5 分钟轮询一次（公告低频，成本可忽略）
-    if (++hbCount % 5 === 0) checkAnnouncements()
+    if (++hbCount % 5 === 0) void checkAnnouncements()
   }, 60000)
 })
 
 // 登录后公告主动弹出: 有后端公告且本地未提示过(localStorage 按公告ID去重)则自动打开面板
 async function checkAnnouncements() {
+  if (!layoutActive) return
+  announcementsController?.abort()
+  const controller = new AbortController()
+  announcementsController = controller
   try {
-    const res = await settingsApi.getAnnouncements()
+    const res = await settingsApi.getAnnouncements({ signal: controller.signal })
+    if (!layoutActive) return
     const list: Array<{ announcement_id: string }> = Array.isArray(res) ? res : []
     if (!list.length) return
     let seen: string[] = []
@@ -1154,9 +1200,21 @@ async function checkAnnouncements() {
       localStorage.setItem('ann_seen', JSON.stringify([...seen, ...fresh.map(a => a.announcement_id)]))
     }
   } catch { /* 公告拉取失败静默, 不阻塞登录 */ }
+  finally {
+    if (announcementsController === controller) announcementsController = null
+  }
 }
 
 onUnmounted(() => {
+  layoutActive = false
+  usageTicketController?.abort()
+  usageTicketController = null
+  tenantRefreshController?.abort()
+  tenantRefreshController = null
+  accountsLoadController?.abort()
+  accountsLoadController = null
+  announcementsController?.abort()
+  announcementsController = null
   mainRef.value?.removeEventListener('scroll', onScroll)
   // R113: onGlobalClick 监听器随函数一并删除
   if (heartbeatInterval) clearInterval(heartbeatInterval)

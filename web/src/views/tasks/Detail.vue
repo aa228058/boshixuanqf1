@@ -261,8 +261,13 @@ function getActionLabel(action: string): string {
 const task = ref<Task | null>(null)
 const actionPending = ref<'pause' | 'resume' | 'cancel' | 'retry' | null>(null)
 let taskFetchRequestId = 0
+let taskFetchController: AbortController | null = null
 let pageActive = true
 let membersRequestId = 0
+let membersController: AbortController | null = null
+const logPageControllers = new Map<number, AbortController>()
+let accountLabelsController: AbortController | null = null
+let groupLabelsController: AbortController | null = null
 let completionRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const members = ref<any[]>([])
 const membersLoading = ref(false)
@@ -273,11 +278,14 @@ async function fetchMembers() {
   const groupId = t?.payload?.group_id || t?.target_ids?.[0]
   if (!pageActive) return
   if (!groupId) { membersError.value = '任务缺少群组信息'; return }
+  membersController?.abort()
+  const controller = new AbortController()
+  membersController = controller
   const requestId = ++membersRequestId
   membersLoading.value = true
   membersError.value = ''
   try {
-    const res: any = await groupApi.getMembers(groupId)
+    const res: any = await groupApi.getMembers(groupId, undefined, { signal: controller.signal })
     if (!pageActive || requestId !== membersRequestId) return
     members.value = res?.members || res?.data?.members || res?.list || res?.items || (Array.isArray(res) ? res : [])
     const entries: [string, string][] = []
@@ -296,6 +304,7 @@ async function fetchMembers() {
       membersError.value = e instanceof Error ? e.message : '加载成员失败'
     }
   } finally {
+    if (membersController === controller) membersController = null
     if (pageActive && requestId === membersRequestId) membersLoading.value = false
   }
 }
@@ -533,11 +542,14 @@ function formatTime(date: string | undefined | null) {
 }
 
 async function fetchTask(silent = false) {
+  taskFetchController?.abort()
+  const controller = new AbortController()
+  taskFetchController = controller
   const requestId = ++taskFetchRequestId
   pageLoading.value = true
   pageError.value = ''
   try {
-    const res = await taskApi.getById(taskId)
+    const res = await taskApi.getById(taskId, { signal: controller.signal })
     if (!pageActive || requestId !== taskFetchRequestId) return
     // 兼容: 直接对象 / {data: {...}}
     if (res && typeof res === 'object') {
@@ -550,6 +562,7 @@ async function fetchTask(silent = false) {
     pageError.value = e instanceof Error ? e.message : '请稍后重试'
     if (!silent) toast({ type: 'error', title: '获取任务失败', message: pageError.value })
   } finally {
+    if (taskFetchController === controller) taskFetchController = null
     if (pageActive && requestId === taskFetchRequestId) pageLoading.value = false
   }
 }
@@ -559,6 +572,8 @@ let nextLogPageRequestId = 0
 
 watch(selectedRound, () => {
   if (!pageActive) return
+  for (const controller of logPageControllers.values()) controller.abort()
+  logPageControllers.clear()
   for (const page of logPageRequestIds.keys()) logPageRequestIds.set(page, ++nextLogPageRequestId)
   logs.value = []
   logKeys.clear()
@@ -569,6 +584,10 @@ watch(selectedRound, () => {
 })
 
 async function fetchLogs(page = 1, beforeLogId?: string) {
+  if (!pageActive) return
+  logPageControllers.get(page)?.abort()
+  const controller = new AbortController()
+  logPageControllers.set(page, controller)
   const requestId = ++nextLogPageRequestId
   logPageRequestIds.set(page, requestId)
   const container = logContainer.value
@@ -576,7 +595,7 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
   const previousTop = container?.scrollTop || 0
   const wasAtBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
   try {
-    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE, beforeLogId, selectedRoundWindow.value)
+    const res = await taskApi.getLogs(taskId, page, LOG_PAGE_SIZE, beforeLogId, selectedRoundWindow.value, { signal: controller.signal })
     if (!pageActive || logPageRequestIds.get(page) !== requestId) return
     let data: TaskLog[] = []
     if (Array.isArray(res)) {
@@ -613,6 +632,8 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
     if (pageActive && logPageRequestIds.get(page) === requestId) {
       toast({ type: 'error', title: '获取日志失败', message: e instanceof Error ? e.message : '请稍后重试' })
     }
+  } finally {
+    if (logPageControllers.get(page) === controller) logPageControllers.delete(page)
   }
 }
 
@@ -816,19 +837,21 @@ onMounted(async () => {
 
   // These dictionaries are supplementary. Their latency must not delay SSE or
   // disconnect recovery, and each result is discarded after page unmount.
+  accountLabelsController = new AbortController()
   void (async () => {
     try {
-      const accs = await accountApi.list()
+      const accs = await accountApi.list(false, { signal: accountLabelsController!.signal })
       if (!pageActive) return
       const accData = (accs as any).data || accs || []
       accountMap.value = Object.fromEntries(accData.map((a: any) => [a.account_id, a.first_name || a.remark || a.username || a.phone || '未知账号']))
     } catch { /* optional labels */ }
   })()
 
+  groupLabelsController = new AbortController()
   void (async () => {
     try {
       // Group library is tenant-wide because a task may span multiple accounts.
-      const grps = await groupApi.list()
+      const grps = await groupApi.list(undefined, undefined, { signal: groupLabelsController!.signal })
       if (!pageActive) return
       const raw: any = grps
       const grpData = Array.isArray(raw) ? raw
@@ -850,7 +873,17 @@ onMounted(async () => {
 onUnmounted(() => {
   pageActive = false
   taskFetchRequestId++
+  taskFetchController?.abort()
+  taskFetchController = null
   membersRequestId++
+  membersController?.abort()
+  membersController = null
+  for (const controller of logPageControllers.values()) controller.abort()
+  logPageControllers.clear()
+  accountLabelsController?.abort()
+  accountLabelsController = null
+  groupLabelsController?.abort()
+  groupLabelsController = null
   if (completionRefreshTimer) { clearTimeout(completionRefreshTimer); completionRefreshTimer = null }
   eventSource?.close()
   eventSource = null

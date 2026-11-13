@@ -107,7 +107,9 @@ describe('useTaskEvents SSE lifecycle', () => {
     await flushPromises()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/events/ticket', expect.objectContaining({ method: 'POST' }))
     expect(MockEventSource.instances).toHaveLength(1)
+    expect(MockEventSource.instances[0].url).toContain('/api/v1/events?ticket=')
 
     unmount()
     await vi.advanceTimersByTimeAsync(30000)
@@ -134,18 +136,22 @@ describe('useTaskEvents SSE lifecycle', () => {
   })
 
 
-  it('手动重连会丢弃旧的换票请求并使用新代次', async () => {
-    let resolveFirst!: (response: { ok: boolean; json: () => Promise<{ ticket: string }> }) => void
-    fetchMock.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+  it('手动重连会主动取消旧换票请求并立即使用新代次', async () => {
+    let firstSignal: AbortSignal | undefined
+    fetchMock.mockImplementationOnce((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      firstSignal = options.signal as AbortSignal
+      firstSignal.addEventListener('abort', () => {
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        reject(error)
+      }, { once: true })
+    }))
     const unmount = mountSubscriptions()
     await flushPromises()
 
     reconnectNow()
     await flushPromises()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-
-    resolveFirst({ ok: true, json: async () => ({ ticket: 'stale-ticket' }) })
-    await flushPromises()
+    expect(firstSignal?.aborted).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(MockEventSource.instances).toHaveLength(1)
     expect(MockEventSource.instances[0].url).toContain('one-time-ticket')
@@ -172,17 +178,23 @@ describe('useTaskEvents SSE lifecycle', () => {
     await vi.advanceTimersByTimeAsync(30000)
   })
 
-  it('最后一个订阅者离开并完成宽限关闭后丢弃迟到的 ticket', async () => {
-    let resolveFetch!: (response: { ok: boolean; json: () => Promise<{ ticket: string }> }) => void
-    fetchMock.mockReturnValueOnce(new Promise((resolve) => { resolveFetch = resolve }))
+  it('最后一个订阅者离开并完成宽限关闭后会取消仍在进行的 ticket 请求', async () => {
+    let firstSignal: AbortSignal | undefined
+    fetchMock.mockImplementationOnce((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      firstSignal = options.signal as AbortSignal
+      firstSignal.addEventListener('abort', () => {
+        const error = new Error('aborted')
+        error.name = 'AbortError'
+        reject(error)
+      }, { once: true })
+    }))
 
     const unmount = mountSubscriptions()
     unmount()
     await vi.advanceTimersByTimeAsync(30000)
-
-    resolveFetch({ ok: true, json: async () => ({ ticket: 'late-ticket' }) })
     await flushPromises()
 
+    expect(firstSignal?.aborted).toBe(true)
     expect(MockEventSource.instances).toHaveLength(0)
   })
 })

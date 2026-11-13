@@ -3,7 +3,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { formatCountValue, parseCountValue } from './countUp'
 
 // 数字滚动组件: 数值变化时从旧值平滑滚到新值, 800ms 缓动
 const props = withDefaults(defineProps<{
@@ -12,29 +13,40 @@ const props = withDefaults(defineProps<{
 }>(), { duration: 800 })
 
 const display = ref('0')
+let currentValue = 0
 let raf = 0
 
 function animateTo(target: number) {
-  const start = parseFloat(String(display.value).replace(/[^\d.-]/g, '')) || 0
-  if (start === target) { display.value = String(target); return }
+  const start = currentValue
   cancelAnimationFrame(raf)
+  if (start === target) { currentValue = target; display.value = formatCountValue(props.value, target); return }
+  const duration = Number.isFinite(props.duration) ? Math.max(0, props.duration) : 800
+  // Reduced-motion users should receive the final value immediately; avoid scheduling animation frames.
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    currentValue = target
+    display.value = formatCountValue(props.value, target)
+    return
+  }
+  if (duration === 0) { currentValue = target; display.value = formatCountValue(props.value, target); return }
+  const precisionOf = (value: number) => {
+    const fraction = String(value).toLowerCase().split('e')[0].split('.')[1] || ''
+    return Math.min(6, fraction.length)
+  }
+  const precision = Math.max(precisionOf(start), precisionOf(target))
   const t0 = performance.now()
   const tick = (now: number) => {
-    const p = Math.min(1, (now - t0) / props.duration)
+    const p = Math.min(1, (now - t0) / duration)
     const eased = 1 - Math.pow(1 - p, 3) // easeOutCubic
-    display.value = String(Math.round(start + (target - start) * eased))
+    const current = start + (target - start) * eased
+    currentValue = current
+    display.value = formatCountValue(props.value, Number(current.toFixed(precision)))
     if (p < 1) raf = requestAnimationFrame(tick)
+    else { currentValue = target; display.value = formatCountValue(props.value, target) }
   }
   raf = requestAnimationFrame(tick)
 }
 
-// P1-27/P2-54: 原 Number('¥0')=NaN → 今日收入恒显示 0。统一剥掉货币前缀/
-// 千分位/单位后缀再 parseFloat, 任何带单位字符串都得数字。
-function parseCountValue(v: unknown): number {
-  const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, ''))
-  return Number.isNaN(n) ? 0 : n
-}
-
 onMounted(() => animateTo(parseCountValue(props.value)))
-watch(() => props.value, (v) => animateTo(parseCountValue(v)))
+watch(() => [props.value, props.duration], () => animateTo(parseCountValue(props.value)))
+onUnmounted(() => cancelAnimationFrame(raf))
 </script>

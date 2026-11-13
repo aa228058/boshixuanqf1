@@ -1,8 +1,8 @@
-import { api, adminApi } from '@/utils/request'
+import { api, adminApi, type RequestOptions } from '@/utils/request'
 import type { Tenant } from '@/types'
 
 export const authApi = {
-  me: () => api.get<Tenant>('/auth/me'),
+  me: (options?: RequestOptions) => api.get<Tenant>('/auth/me', options),
   register: (data: { username: string; name: string; password: string; code: string }) => api.post<{ tenant_id: string; username: string; name: string; api_key: string; message: string }>('/auth/register', data),
   login: (username: string, password: string) => api.post<{ token: string; refresh_token: string; tenant_id: string; tenant_name: string; plan_id: string; plan_features: Record<string, boolean>; max_accounts: number; max_concurrent_tasks: number }>('/auth/login', { username, password }),
   logout: () => api.post<{ message: string }>('/auth/logout'),

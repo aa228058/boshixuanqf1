@@ -1,7 +1,7 @@
 <template>
-  <span class="absolute top-2 right-2 text-xs text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] px-2 py-0.5 rounded-full z-10">演示数据</span>
-  <!-- R128 relative: 演示数据角标(第2行)绝对定位需要定位上下文 -->
+  <!-- R128: 角标必须放在 main 定位上下文内，避免相对整个管理端 Layout 定位 -->
   <main class="relative space-y-6">
+    <span class="absolute top-2 right-2 text-xs text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] px-2 py-0.5 rounded-full z-10">演示数据</span>
     <!-- 首页不显示面包屑 -->
     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard
@@ -43,6 +43,9 @@
           <template #plan_id="{ row }">
             <span class="text-xs">{{ planLabel(row.plan_id as string) }}</span>
           </template>
+          <template #created_at="{ row }">
+            <span class="text-xs">{{ row.created_at ? formatValidDate(row.created_at) : '—' }}</span>
+          </template>
         </t-table>
       </div>
       <!-- 移动端卡片 -->
@@ -60,7 +63,7 @@
           </div>
           <div class="flex items-center gap-3 text-xs text-text-secondary">
             <span>{{ planLabel(t.plan_id) }}</span>
-            <span>{{ new Date(t.created_at).toLocaleDateString('zh-CN') }}</span>
+            <span>{{ formatValidDate(t.created_at) }}</span>
           </div>
         </div>
         <EmptyState v-if="!recentTenants.length" icon="Users" title="暂无租户" description="还没有租户注册" />
@@ -70,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart } from 'echarts/charts'
@@ -80,7 +83,11 @@ import { useChartTheme } from '@/composables/useChartTheme'
 
 // Phase 6: 图表主题(见 useChartTheme)——切主题文字/轴/分割线自动跟随
 const chartTheme = useChartTheme()
-onMounted(() => chartTheme.start())
+let dashboardPageActive = false
+let dashboardRequestId = 0
+let dashboardController: AbortController | null = null
+onMounted(() => { dashboardPageActive = true; chartTheme.start() })
+onBeforeUnmount(() => { dashboardPageActive = false; dashboardRequestId++ })
 onBeforeUnmount(() => chartTheme.stop())
 import { adminApiMod } from '@/api/admin'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
@@ -88,6 +95,7 @@ import { toast } from '@/utils/toast'
 import StatCard from '@/components/charts/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import type { Tenant } from '@/types'
+import { finiteMetric, formatValidDate } from '@/utils/adminPageGuards'
 
 use([CanvasRenderer, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -149,21 +157,31 @@ function planLabel(p: string) {
 }
 
 onMounted(async () => {
+  const controller = new AbortController()
+  dashboardController = controller
+  const requestId = ++dashboardRequestId
   try {
-    const s = await adminApiMod.getStats()
-    stats.value[0].value = String(s.total_tenants || 0)
-    stats.value[1].value = String(s.active_tenants || 0)
-    stats.value[2].value = String(s.total_accounts || 0)
-    stats.value[3].value = String(s.total_codes || 0)
-    stats.value[4].value = String(s.unused_codes || 0)
-    stats.value[5].value = `¥${s.today_revenue || 0}`
+    const s = await adminApiMod.getStats({ signal: controller.signal })
+    if (!dashboardPageActive || requestId !== dashboardRequestId) return
+    stats.value[0].value = String(finiteMetric(s.total_tenants))
+    stats.value[1].value = String(finiteMetric(s.active_tenants))
+    stats.value[2].value = String(finiteMetric(s.total_accounts))
+    stats.value[3].value = String(finiteMetric(s.total_codes))
+    stats.value[4].value = String(finiteMetric(s.unused_codes))
+    stats.value[5].value = `¥${finiteMetric(s.today_revenue)}`
 
-    const res = await adminApiMod.listTenants({ limit: 5 })
+    const res = await adminApiMod.listTenants({ limit: 5 }, { signal: controller.signal })
+    if (!dashboardPageActive || requestId !== dashboardRequestId) return
     recentTenants.value = res.list || []
   } catch (e: unknown) {
+    if (controller.signal.aborted || !dashboardPageActive || requestId !== dashboardRequestId) return
     // P2-60: 原空 catch 静默——管理仪表盘首屏失败只显示全 0 数字, 管理员无感知
     console.error('[admin-dashboard] 加载失败:', e)
     toast({ type: 'error', title: '仪表盘加载失败', message: (e as Error)?.message || '请刷新重试' })
+  } finally {
+    if (dashboardController === controller) dashboardController = null
   }
 })
+
+onUnmounted(() => { dashboardPageActive = false; dashboardRequestId++; dashboardController?.abort(); dashboardController = null })
 </script>

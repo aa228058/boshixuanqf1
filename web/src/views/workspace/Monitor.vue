@@ -194,7 +194,7 @@
         </div>
         <div class="flex justify-end gap-3 mt-6">
           <t-button @click="showAddRule = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-          <t-button @click="saveRule" class="ui-t-button--primary ui-t-button">保存</t-button>
+          <t-button @click="saveRule" class="ui-t-button--primary ui-t-button" :loading="ruleSaving" :disabled="ruleSaving">保存</t-button>
         </div>
     </Modal>
 
@@ -221,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
 import { useAuthStore } from '@/stores/auth'
@@ -246,7 +246,15 @@ const accName = (a: any) => a?.first_name || a?.remark || a?.phone || (a?.accoun
 // R109: 监控按账号管理, 下拉选择管理哪个号
 const monAccId = ref('')
 watch(currentAccount, (acc: any) => { if (acc?.account_id && !monAccId.value) monAccId.value = acc.account_id }, { immediate: true })
-watch(monAccId, () => { fetchGroups(); fetchRules() })
+watch(monAccId, () => {
+  groupsController?.abort()
+  rulesController?.abort()
+  // 切换执行账号时先清除上一账号的群组，避免新请求返回前短暂展示旧账号数据。
+  groupsRequestId++
+  groups.value = []
+  fetchGroups()
+  fetchRules()
+})
 const groups = ref<Group[]>([])
 const showSourceSelector = ref(false)
 const showTargetSelector = ref(false)
@@ -256,11 +264,22 @@ const monitorAllMessages = ref(true)
 const selectedTargetGroups = ref<Group[]>([])
 
 async function fetchGroups() {
+  const accountId = monAccId.value
+  groupsController?.abort()
+  const controller = new AbortController()
+  groupsController = controller
+  const requestId = ++groupsRequestId
+  if (!accountId) { groups.value = []; groupsController = null; return }
   try {
-    const res = await groupApi.list(monAccId.value)
+    const res = await groupApi.list(accountId, undefined, { signal: controller.signal })
+    if (!monitorPageActive || requestId !== groupsRequestId || accountId !== monAccId.value) return
     const raw = res as any
     groups.value = Array.isArray(raw.list) ? raw.list : []
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    if (!controller.signal.aborted && monitorPageActive && requestId === groupsRequestId) groups.value = []
+  } finally {
+    if (groupsController === controller) groupsController = null
+  }
 }
 
 const rules = ref<any[]>([])
@@ -290,19 +309,36 @@ const contactPickAccount = ref('')
 const contactList = ref<Array<{ tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>([])
 const contactPick = ref<number | ''>('')
 const contactLoading = ref(false)
+let contactRequestId = 0
+let monitorPageActive = true
+const ruleActionsPending = ref(new Set<string>())
+const ruleSaving = ref(false)
+let groupsRequestId = 0
+let rulesRequestId = 0
+let groupsController: AbortController | null = null
+let rulesController: AbortController | null = null
+let contactsController: AbortController | null = null
 async function loadContacts() {
   if (!contactPickAccount.value) return
+  const accountId = contactPickAccount.value
+  contactsController?.abort()
+  const controller = new AbortController()
+  contactsController = controller
+  const requestId = ++contactRequestId
   contactLoading.value = true
   contactList.value = []
   contactPick.value = ''
   try {
-    const res: any = await accountApi.getContacts(contactPickAccount.value)
+    const res: any = await accountApi.getContacts(accountId, { signal: controller.signal })
+    if (!monitorPageActive || requestId !== contactRequestId || accountId !== contactPickAccount.value) return
     contactList.value = (res?.list || res || []).filter((c: any) => String(c.phone || '').trim())
     if (!contactList.value.length) toast({ type: 'info', title: '暂无可发送名片的联系人', message: 'Telegram 未向该账号返回带手机号的联系人；名片发送必须有手机号，可换账号获取或手动填写。' })
   } catch (err: any) {
+    if (!monitorPageActive || requestId !== contactRequestId || accountId !== contactPickAccount.value) return
     toast({ type: 'error', title: '获取联系人失败', message: err?.message || '请稍后重试' })
   } finally {
-    contactLoading.value = false
+    if (contactsController === controller) contactsController = null
+    if (monitorPageActive && requestId === contactRequestId) contactLoading.value = false
   }
 }
 function applyContact() {
@@ -315,32 +351,51 @@ function applyContact() {
 }
 
 async function fetchRules() {
+  rulesController?.abort()
+  const controller = new AbortController()
+  rulesController = controller
+  const requestId = ++rulesRequestId
   try {
-    const res = await monitorApi.listRules()
+    const res = await monitorApi.listRules({ signal: controller.signal })
+    if (!monitorPageActive || requestId !== rulesRequestId) return
     rules.value = res.list || []
   } catch (e: any) {
+    if (controller.signal.aborted || !monitorPageActive || requestId !== rulesRequestId) return
     toast({ type: 'error', title: '加载规则失败', message: e?.message || '请稍后重试' })
+  } finally {
+    if (rulesController === controller) rulesController = null
   }
 }
 
 
 async function toggleRule(id: string, val: boolean) {
+  if (ruleActionsPending.value.has(id)) return
+  ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.toggleRule(id, { is_active: val })
-    fetchRules()
+    await fetchRules()
   } catch {
     toast({ type: 'error', title: '操作失败', message: '规则状态更新失败，请重试' })
-    fetchRules() // 回滚本地乐观变更
+    await fetchRules() // 回滚本地乐观变更
+  } finally {
+    const next = new Set(ruleActionsPending.value)
+    next.delete(id)
+    ruleActionsPending.value = next
   }
 }
 
 async function deleteRule(id: string) {
-  if (!await ask('确定删除此规则吗？')) return
+  if (ruleActionsPending.value.has(id) || !await ask('确定删除此规则吗？')) return
+  ruleActionsPending.value = new Set(ruleActionsPending.value).add(id)
   try {
     await monitorApi.deleteRule(id)
-    fetchRules()
+    await fetchRules()
   } catch {
     toast({ type: 'error', title: '删除失败', message: '请稍后重试' })
+  } finally {
+    const next = new Set(ruleActionsPending.value)
+    next.delete(id)
+    ruleActionsPending.value = next
   }
 }
 
@@ -381,6 +436,11 @@ function openAddRule() {
 }
 
 async function saveRule() {
+  if (ruleSaving.value) return
+  if (ruleForm.value.type === 'forward' && !selectedTargetGroups.value.length) {
+    toast({ type: 'warning', title: '请选择转发目标', message: '转发规则至少需要一个目标群组' })
+    return
+  }
   if (!monitorAllMessages.value && !selectedSourceGroups.value.length) {
     toast({ type: 'warning', title: '请选择监控来源', message: '请至少选择一个源群组，或开启“监控全部消息”' })
     return
@@ -409,6 +469,7 @@ async function saveRule() {
     // R109: 规则归属下拉所选账号(原绑 currentAccount=全局切换器, 已删除)
     account_id: monAccId.value || '',
   }
+  ruleSaving.value = true
   try {
     if (editingRule.value) {
       await monitorApi.updateRule(editingRule.value.rule_id, data)
@@ -423,10 +484,12 @@ async function saveRule() {
     selectedSourceGroups.value = []
     monitorAllMessages.value = true
     selectedTargetGroups.value = []
+    await fetchRules()
     toast({ type: 'success', title: wasEditing ? '规则已更新' : '监控规则已创建', message: '规则即时生效' })
-    fetchRules()
   } catch (e: any) {
     toast({ type: 'error', title: '保存失败', message: e?.message || '请稍后重试' })
+  } finally {
+    ruleSaving.value = false
   }
 }
 
@@ -450,11 +513,21 @@ function dmSummary(rule: any): string {
 }
 
 onMounted(() => {
+  monitorPageActive = true
   if (!authStore.tenant?.plan_features?.monitor) {
     toast({ type: 'warning', title: '套餐限制', message: '当前套餐不支持消息监控，请联系客服升级' })
     router.push('/dashboard')
     return
   }
   fetchRules()
+})
+onUnmounted(() => {
+  monitorPageActive = false
+  contactsController?.abort()
+  groupsController?.abort()
+  rulesController?.abort()
+  contactRequestId++
+  groupsRequestId++
+  rulesRequestId++
 })
 </script>

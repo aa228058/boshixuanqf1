@@ -95,8 +95,8 @@
         </div>
       </div>
       <template #footer>
-        <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="showCreate = false">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement">
+        <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="closeEditor" :disabled="savingAnnouncement">取消</t-button>
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement" :loading="savingAnnouncement" :disabled="savingAnnouncement">
           {{ editing ? '保存' : '发布' }}
         </t-button>
       </template>
@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Plus, Pencil, Trash2, Megaphone } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { formatDate } from '@/utils/format'
@@ -114,26 +114,49 @@ import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import type { Announcement, Plan } from '@/types'
+import { validateAnnouncementInput } from '@/utils/adminPageGuards'
 
 const announcements = ref<Announcement[]>([])
 const plans = ref<Plan[]>([])
 const showCreate = ref(false)
+const savingAnnouncement = ref(false)
+const deletingAnnouncementBusy = ref(false)
 const editing = ref(false)
 const editId = ref('')
 const deleteConfirm = ref()
 const deletingAnnouncement = ref<Announcement | null>(null)
+let announcementsRequestId = 0
+let announcementsController: AbortController | null = null
+let plansController: AbortController | null = null
+let announcementsPageActive = false
 
 const form = ref<Partial<Announcement>>({
   title: '', content: '', priority: 'normal', target_type: 'all', target_plans: [],
 })
 
 async function fetchAnnouncements() {
+  announcementsController?.abort()
+  const controller = new AbortController()
+  announcementsController = controller
+  const requestId = ++announcementsRequestId
   try {
-    const res = await adminApiMod.listAnnouncements()
+    const res = await adminApiMod.listAnnouncements({ signal: controller.signal })
+    if (!announcementsPageActive || requestId !== announcementsRequestId) return
     announcements.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取公告失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!controller.signal.aborted && announcementsPageActive && requestId === announcementsRequestId) {
+      toast({ type: 'error', title: '获取公告失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    }
+  } finally {
+    if (announcementsController === controller) announcementsController = null
   }
+}
+
+function closeEditor() {
+  if (savingAnnouncement.value) return
+  showCreate.value = false
+  editing.value = false
+  editId.value = ''
 }
 
 function editAnnouncement(a: Announcement) {
@@ -146,20 +169,42 @@ function editAnnouncement(a: Announcement) {
 }
 
 async function saveAnnouncement() {
+  if (savingAnnouncement.value) return
+  const payload = {
+    ...form.value,
+    title: String(form.value.title || '').trim(),
+    content: String(form.value.content || '').trim(),
+    target_plans: form.value.target_type === 'specific_plan'
+      ? [...new Set((form.value.target_plans || []).filter(id => typeof id === 'string' && id.trim()))]
+      : [],
+  }
+  const validationError = validateAnnouncementInput({
+    title: payload.title || '', content: payload.content || '',
+    priority: String(payload.priority || ''), target_type: String(payload.target_type || ''),
+    target_plans: payload.target_plans,
+  })
+  if (validationError) {
+    toast({ type: 'warning', title: '公告内容无效', message: validationError })
+    return
+  }
+  savingAnnouncement.value = true
   try {
     if (editing.value) {
-      await adminApiMod.updateAnnouncement(editId.value, form.value)
+      await adminApiMod.updateAnnouncement(editId.value, payload)
       toast({ type: 'success', title: '公告已更新' })
     } else {
-      await adminApiMod.createAnnouncement(form.value)
+      await adminApiMod.createAnnouncement(payload)
       toast({ type: 'success', title: '公告已发布' })
     }
     showCreate.value = false
     editing.value = false
+    editId.value = ''
     form.value = { title: '', content: '', priority: 'normal', target_type: 'all', target_plans: [] }
     await fetchAnnouncements()
   } catch (e: unknown) {
     toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    savingAnnouncement.value = false
   }
 }
 
@@ -169,23 +214,38 @@ function deleteAnnouncement(a: Announcement) {
 }
 
 async function doDelete() {
-  if (!deletingAnnouncement.value) return
+  if (!deletingAnnouncement.value || deletingAnnouncementBusy.value) return
+  const announcementId = deletingAnnouncement.value.announcement_id
+  deletingAnnouncementBusy.value = true
   try {
-    await adminApiMod.deleteAnnouncement(deletingAnnouncement.value.announcement_id)
+    await adminApiMod.deleteAnnouncement(announcementId)
     await fetchAnnouncements()
     toast({ type: 'success', title: '公告已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    deletingAnnouncementBusy.value = false
+    deletingAnnouncement.value = null
   }
 }
 
 onMounted(async () => {
+  announcementsPageActive = true
   await fetchAnnouncements()
+  if (!announcementsPageActive) return
   try {
-    const res = await adminApiMod.listPlans()
+    plansController = new AbortController()
+    const res = await adminApiMod.listPlans({ signal: plansController.signal })
+    if (!announcementsPageActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (announcementsPageActive) toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
+})
+onUnmounted(() => {
+  announcementsPageActive = false
+  announcementsRequestId++
+  announcementsController?.abort()
+  plansController?.abort()
 })
 </script>

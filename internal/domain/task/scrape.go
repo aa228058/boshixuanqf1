@@ -46,6 +46,7 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 	var payloadGroupID string
 	// 采集过滤条件: recent_days=N (仅最近N天上线), has_photo=true (仅带头像)
 	filterRecentDays, filterHasPhoto := parseScrapeFilter(task.Payload)
+	bioLinksEnabled := task.Payload["bio_links"] == true
 
 	if v, ok := task.Payload["group_id"]; ok {
 		payloadGroupID = fmt.Sprint(v)
@@ -230,15 +231,24 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 				if filterHasPhoto && !hasPhoto {
 					continue
 				}
+				if bioLinksEnabled && user != nil && user.AccessHash != 0 {
+					bio, bioErr := fetchTelegramUserBio(ctx, client, user)
+					if bioErr != nil {
+						taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
+					} else {
+						memberBio = bio
+					}
+				}
 				allMembers = append(allMembers, domain.Member{
-					TenantID:  task.TenantID,
-					GroupID:   groupID,
-					TGUserID:  userID,
-					Username:  username,
-					Bio:       memberBio,
-					LastSeen:  lastSeen,
-					HasPhoto:  hasPhoto,
-					ScrapedAt: time.Now(),
+					TenantID:   task.TenantID,
+					GroupID:    groupID,
+					TGUserID:   userID,
+					Username:   username,
+					Bio:        memberBio,
+					AccessHash: userAccessHash(user),
+					LastSeen:   lastSeen,
+					HasPhoto:   hasPhoto,
+					ScrapedAt:  time.Now(),
 				})
 				totalScraped++
 				if len(allMembers) >= memberBatchSize {
@@ -336,15 +346,24 @@ func (e *Engine) executeScrapeMembers(ctx context.Context, task *domain.Task) {
 					if filterHasPhoto && !hasPhoto {
 						continue
 					}
+					if bioLinksEnabled && user != nil && user.AccessHash != 0 {
+						bio, bioErr := fetchTelegramUserBio(ctx, client, user)
+						if bioErr != nil {
+							taskLog.Printf("[scrape] 读取用户简介失败 user=%d: %v", user.ID, bioErr)
+						} else {
+							memberBio = bio
+						}
+					}
 					allMembers = append(allMembers, domain.Member{
-						TenantID:  task.TenantID,
-						GroupID:   groupID,
-						TGUserID:  userID,
-						Username:  username,
-						Bio:       memberBio,
-						LastSeen:  lastSeen,
-						HasPhoto:  hasPhoto,
-						ScrapedAt: time.Now(),
+						TenantID:   task.TenantID,
+						GroupID:    groupID,
+						TGUserID:   userID,
+						Username:   username,
+						Bio:        memberBio,
+						AccessHash: userAccessHash(user),
+						LastSeen:   lastSeen,
+						HasPhoto:   hasPhoto,
+						ScrapedAt:  time.Now(),
 					})
 					totalScraped++
 					if len(allMembers) >= memberBatchSize {
@@ -789,12 +808,52 @@ finish:
 
 // memberActivity 从用户资料提取 用户名/最近上线时间/是否有头像 (用于死号过滤)
 // memberActivity 提取用户名/最后上线/头像标记; bio 为成员简介(简介挖掘的数据源)。
+
+// fetchTelegramUserBio reads the Telegram profile About field. Calls are
+// deliberately serialized and rate-limited; callers must not fan this out.
+func fetchTelegramUserBio(ctx context.Context, client *telegram.Client, user *tg.User) (string, error) {
+	if client == nil || user == nil || user.ID == 0 || user.AccessHash == 0 {
+		return "", fmt.Errorf("user reference is incomplete")
+	}
+	timer := time.NewTimer(350 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return "", ctx.Err()
+	case <-timer.C:
+	}
+	request := &tg.UsersGetFullUserRequest{ID: &tg.InputUser{UserID: user.ID, AccessHash: user.AccessHash}}
+	result, err := client.Raw().UsersGetFullUser(ctx, request)
+	if err != nil && waitTelegramFloodWait(ctx, err) {
+		result, err = client.Raw().UsersGetFullUser(ctx, request)
+	}
+	if err != nil {
+		return "", err
+	}
+	fullResult, ok := result.(*tg.UsersUserFull)
+	if !ok || fullResult == nil {
+		return "", fmt.Errorf("unexpected getFullUser response: %T", result)
+	}
+	full, ok := fullResult.FullUser.(*tg.UserFull)
+	if !ok || full == nil {
+		return "", fmt.Errorf("unexpected full user payload: %T", fullResult.FullUser)
+	}
+	return full.About, nil
+}
+
+func userAccessHash(user *tg.User) int64 {
+	if user == nil {
+		return 0
+	}
+	return user.AccessHash
+}
+
 func memberActivity(user *tg.User) (string, *time.Time, bool, string) {
 	if user == nil {
 		return "", nil, false, ""
 	}
-	// v0.19 起 tg.User 不再携带 bio(需逐用户 GetFullUser, 采集场景成本过高)。
-	// 简介挖掘对空 bio 自动跳过, 这里恒空串优雅降级。
+	// tg.User 不携带 Bio；默认不额外请求。启用 bio_links 时由调用方
+	// 通过 fetchTelegramUserBio 逐用户读取并覆盖此空值。
 	bio := ""
 	var lastSeen *time.Time
 	now := time.Now()
@@ -955,6 +1014,14 @@ historyLoop:
 				continue
 			}
 			seen[user.ID] = true
+			bio := ""
+			if task.Payload["bio_links"] == true && user.AccessHash != 0 {
+				var bioErr error
+				bio, bioErr = fetchTelegramUserBio(ctx, client, user)
+				if bioErr != nil {
+					taskLog.Printf("[scrape] 读取历史发言用户简介失败 user=%d: %v", user.ID, bioErr)
+				}
+			}
 			collected = append(collected, &domain.Member{
 				TenantID:   task.TenantID,
 				GroupID:    groupID,
@@ -962,7 +1029,9 @@ historyLoop:
 				Username:   user.Username,
 				FirstName:  user.FirstName,
 				LastName:   user.LastName,
+				Bio:        bio,
 				AccessHash: user.AccessHash,
+				ScrapedAt:  time.Now(),
 			})
 		}
 		scanned += len(mm.Messages)

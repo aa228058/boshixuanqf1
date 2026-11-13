@@ -55,3 +55,22 @@ export function createSelectorTitleLookup<
   }
   return titles
 }
+
+
+/** Keep one selector row per Telegram ID, normalizing numeric and string forms. */
+export function uniqueByNormalizedId<T>(
+  items: readonly T[],
+  getId: (item: T) => string | number | null | undefined,
+): T[] {
+  const seen = new Set<string>()
+  const result: T[] = []
+  for (const item of items) {
+    const rawId = getId(item)
+    if (rawId === null || rawId === undefined) continue
+    const id = String(rawId).trim()
+    if (!id || id === '0' || id === 'undefined' || id === 'null' || seen.has(id)) continue
+    seen.add(id)
+    result.push(item)
+  }
+  return result
+}

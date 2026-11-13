@@ -1,4 +1,4 @@
-import { adminApi, doFetchWithRetry, ADMIN_BASE_URL } from '@/utils/request'
+import { adminApi, doFetchWithRetry, ADMIN_BASE_URL, type RequestOptions } from '@/utils/request'
 import { useAdminStore } from '@/stores/admin'
 import type { Tenant, Plan, ActivationCode, SupportConfig, ProbeConfig, Announcement, AdminStats, SystemMetrics, ListResponse } from '@/types'
 
@@ -19,19 +19,19 @@ export const adminApiMod = {
   logout: () => adminApi.post<{ revoked: boolean }>('/admin/auth/logout'),
 
   // 仪表盘
-  getStats: () => adminApi.get<AdminStats>('/admin/stats'),
-  getSystemMetrics: () => adminApi.get<SystemMetrics>('/admin/system'),
+  getStats: (options?: RequestOptions) => adminApi.get<AdminStats>('/admin/stats', options),
+  getSystemMetrics: (options?: RequestOptions) => adminApi.get<SystemMetrics>('/admin/system', options),
 
   // 租户管理
-  listTenants: (params?: Record<string, unknown>) => adminApi.get<ListResponse<Tenant>>(`/admin/tenants${toQueryString(params)}`),
-  getTenant: (id: string) => adminApi.get<Tenant>(`/admin/tenants/${id}`),
+  listTenants: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<Tenant>>(`/admin/tenants${toQueryString(params)}`, options),
+  getTenant: (id: string, options?: RequestOptions) => adminApi.get<Tenant>(`/admin/tenants/${id}`, options),
   createTenant: (data: Record<string, unknown>) => adminApi.post<Tenant>('/admin/tenants', data),
   updateTenant: (id: string, data: Record<string, unknown>) => adminApi.put<Tenant>(`/admin/tenants/${id}`, data),
   deleteTenant: (id: string) => adminApi.delete<void>(`/admin/tenants/${id}`),
   resetApiKey: (id: string) => adminApi.post<{ api_key: string }>(`/admin/tenants/${id}/reset-key`),
 
   // 卡密管理
-  listCodes: (params?: Record<string, unknown>) => adminApi.get<ListResponse<ActivationCode>>(`/admin/codes${toQueryString(params)}`),
+  listCodes: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<ActivationCode>>(`/admin/codes${toQueryString(params)}`, options),
   generateCodes: (data: { plan_id: string; count: number; timing_type: string; expires_days?: number }) => adminApi.post<ActivationCode[]>('/admin/codes', data),
   revokeCode: (id: string) => adminApi.delete<void>(`/admin/codes/${id}`),
   // P0-05: 导出接口返回纯文本(CSV), 通用 adminApi.get 内部一律 response.json(),
@@ -47,23 +47,23 @@ export const adminApiMod = {
   batchDeleteCodes: (data: { ids: string[] }) => adminApi.post<void>('/admin/codes/batch-delete', data),
 
   // 客服配置
-  getSupport: () => adminApi.get<SupportConfig>('/admin/support'),
+  getSupport: (options?: RequestOptions) => adminApi.get<SupportConfig>('/admin/support', options),
   updateSupport: (data: Partial<SupportConfig>) => adminApi.put<SupportConfig>('/admin/support', data),
 
   // R119: 账号能力探测配置(全局)
-  getProbe: () => adminApi.get<ProbeConfig>('/admin/probe'),
+  getProbe: (options?: RequestOptions) => adminApi.get<ProbeConfig>('/admin/probe', options),
   updateProbe: (data: Partial<ProbeConfig>) => adminApi.put<ProbeConfig>('/admin/probe', data),
 
   // 公告管理
-  listAnnouncements: () => adminApi.get<ListResponse<Announcement>>('/admin/announcements'),
+  listAnnouncements: (options?: RequestOptions) => adminApi.get<ListResponse<Announcement>>('/admin/announcements', options),
   createAnnouncement: (data: Partial<Announcement>) => adminApi.post<Announcement>('/admin/announcements', data),
   updateAnnouncement: (id: string, data: Partial<Announcement>) => adminApi.put<Announcement>(`/admin/announcements/${id}`, data),
   deleteAnnouncement: (id: string) => adminApi.delete<void>(`/admin/announcements/${id}`),
 
   // 套餐配置
-  listPlans: () => adminApi.get<ListResponse<Plan>>('/admin/plans'),
+  listPlans: (options?: RequestOptions) => adminApi.get<ListResponse<Plan>>('/admin/plans', options),
   updatePlan: (id: string, data: Partial<Plan>) => adminApi.put<Plan>(`/admin/plans/${id}`, data),
 
   // 审计日志
-  getAuditLogs: (params?: Record<string, unknown>) => adminApi.get<ListResponse<Record<string, unknown>>>(`/admin/audit-logs${toQueryString(params)}`),
+  getAuditLogs: (params?: Record<string, unknown>, options?: RequestOptions) => adminApi.get<ListResponse<Record<string, unknown>>>(`/admin/audit-logs${toQueryString(params)}`, options),
 }

@@ -135,7 +135,7 @@
       <div v-if="raffleEnabled" class="mt-4 pt-4 border-t border-border/50">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs text-text-muted">参与账号（关闭后该账号不再抢抽奖）</span>
-          <t-button class="ui-t-button--text ui-t-button" @click="toggleAll" variant="text">
+          <t-button class="ui-t-button--text ui-t-button" @click="toggleAll" :disabled="toggleAllPending" variant="text">
             {{ allSelected ? '全不选' : '全选' }}
           </t-button>
         </div>
@@ -148,6 +148,7 @@
             <input
               type="checkbox"
               :checked="acc.raffle_enabled !== false"
+              :disabled="accountTogglePending.has(acc.account_id) || toggleAllPending"
               class="accent-cyan w-4 h-4"
               @change="toggleAccount(acc)"
             />
@@ -235,13 +236,16 @@
 <!-- ACCOUNT_BLOCK_MOVED -->
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { accountApi } from '@/api/account'
 import { api as request } from '@/utils/request'  // request 是函数无 .post 方法, api 对象才有——修 f.post is not a function
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 
 const raffleEnabled = ref(false)
 const toggling = ref(false)
+const accountTogglePending = ref(new Set<string>())
+const toggleAllPending = ref(false)
 const accounts = ref<any[]>([])
 // 中奖回复设置(060)
 const replyEnabled = ref(false)
@@ -314,15 +318,24 @@ function statusLabel(s: string) {
   return map[s] || s
 }
 
+let rafflePageActive = true
+let raffleStatusController: AbortController | null = null
+let raffleAccountsController: AbortController | null = null
+let raffleResultsController: AbortController | null = null
 async function loadRaffleStatus() {
+  raffleStatusController?.abort()
+  const controller = new AbortController()
+  raffleStatusController = controller
   try {
-    const res = await request.get<{ enabled: boolean; reply_enabled?: boolean; reply_text?: string; ping_enabled?: boolean; ping_text?: string }>('/raffle/status')
+    const res = await request.get<{ enabled: boolean; reply_enabled?: boolean; reply_text?: string; ping_enabled?: boolean; ping_text?: string }>('/raffle/status', { signal: controller.signal })
+    if (!rafflePageActive) return
     raffleEnabled.value = !!res.enabled
     replyEnabled.value = !!res.reply_enabled
     if (res.reply_text) replyText.value = res.reply_text
     pingEnabled.value = !!res.ping_enabled
     if (res.ping_text) pingText.value = res.ping_text
   } catch (e: any) {
+    if (controller.signal.aborted || !rafflePageActive) return
     // 403 可见化: 套餐没勾抽奖时开关置灰的原因要说清楚。
     // P0-16: 原只判英文 'feature', 但 request.ts 的 translateError 已把后端
     // 403 消息翻成中文——提示从未触发。中英双判兜底。
@@ -333,10 +346,14 @@ async function loadRaffleStatus() {
 }
 
 async function loadAccounts() {
+  raffleAccountsController?.abort()
+  const controller = new AbortController()
+  raffleAccountsController = controller
   try {
-    const res = await accountApi.list()
-    accounts.value = res.list || []
+    const res = await accountApi.list(false, { signal: controller.signal })
+    if (rafflePageActive) accounts.value = res.list || []
   } catch { /* 列表加载失败不阻断 */ }
+  finally { if (raffleAccountsController === controller) raffleAccountsController = null }
 }
 
 // R128 清空全部参与记录: 确认 → 删除接口 → 重载 → toast
@@ -344,7 +361,12 @@ async function loadAccounts() {
 const clearing = ref(false)
 async function clearAllResults() {
   if (clearing.value) return
-  if (!confirm('确定清空全部参与记录？此操作不可恢复。')) return
+  const confirmed = await ask('确定清空全部参与记录？此操作不可恢复。', {
+    title: '清空参与记录',
+    confirmText: '确认清空',
+    danger: true,
+  })
+  if (!confirmed) return
   clearing.value = true
   try {
     const res: any = await request.delete('/raffle/results')
@@ -370,28 +392,55 @@ async function toggleMaster() {
 }
 
 async function toggleAccount(acc: any) {
+  const id = String(acc.account_id || '')
+  if (!id || accountTogglePending.value.has(id) || toggleAllPending.value) return
   const next = acc.raffle_enabled === false
+  accountTogglePending.value = new Set(accountTogglePending.value).add(id)
   try {
-    await accountApi.setRaffle(acc.account_id, next)
+    await accountApi.setRaffle(id, next)
     acc.raffle_enabled = next
     toast({ type: 'success', message: `${acc.remark || acc.phone} 抽奖已${next ? '开启' : '关闭'}` })
-  } catch { /* 请求层统一报错 */ }
+  } catch (e: any) {
+    toast({ type: 'error', message: e?.message || '账号抽奖状态更新失败' })
+  } finally {
+    const pending = new Set(accountTogglePending.value)
+    pending.delete(id)
+    accountTogglePending.value = pending
+  }
 }
 
 async function toggleAll() {
+  if (toggleAllPending.value || accountTogglePending.value.size) return
+  toggleAllPending.value = true
   const target = !allSelected.value
-  for (const acc of accounts.value) {
-    if ((acc.raffle_enabled !== false) !== target) await toggleAccount(acc)
+  try {
+    for (const acc of accounts.value) {
+      if ((acc.raffle_enabled !== false) !== target) {
+        const id = String(acc.account_id || '')
+        try {
+          await accountApi.setRaffle(id, target)
+          acc.raffle_enabled = target
+        } catch (e: any) {
+          toast({ type: 'error', message: `${acc.remark || acc.phone || id} 更新失败：${e?.message || '请重试'}` })
+        }
+      }
+    }
+  } finally {
+    toggleAllPending.value = false
   }
 }
 
 // ===== 参与记录(058) =====
 const results = ref<any[]>([])
 async function loadResults() {
+  raffleResultsController?.abort()
+  const controller = new AbortController()
+  raffleResultsController = controller
   try {
-    const res = await request.get<{ list: any[] }>('/raffle/results')
-    results.value = res.list || []
+    const res = await request.get<{ list: any[] }>('/raffle/results', { signal: controller.signal })
+    if (rafflePageActive) results.value = res.list || []
   } catch { /* 未开通套餐时 403, 静默 */ }
+  finally { if (raffleResultsController === controller) raffleResultsController = null }
 }
 // R148: 记录按活动分组(同一群+同一关键词=同一活动), 最新活动在前, 卡内账号按时间排序
 const groupedResults = computed(() => {
@@ -425,5 +474,14 @@ onMounted(() => {
   loadRaffleStatus()
   loadAccounts()
   loadResults()
+})
+onUnmounted(() => {
+  rafflePageActive = false
+  raffleStatusController?.abort()
+  raffleAccountsController?.abort()
+  raffleResultsController?.abort()
+  raffleStatusController = null
+  raffleAccountsController = null
+  raffleResultsController = null
 })
 </script>

@@ -25,7 +25,7 @@
         </div>
         <div class="flex items-center justify-between pt-1">
           <span class="text-[11px] text-text-muted">最后更新：{{ form.updated_at?.slice(0, 16).replace('T', ' ') || '—' }}</span>
-          <t-button class="ui-t-button ui-t-button--primary px-5 py-2.5 text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5" @click="save" :disabled="saving">
+          <t-button class="ui-t-button ui-t-button--primary px-5 py-2.5 text-sm font-medium active:scale-[0.97] transition-transform disabled:opacity-50 flex items-center gap-1.5" @click="save" :loading="saving" :disabled="saving">
             <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />{{ saving ? '保存中…' : '保存配置' }}
           </t-button>
         </div>
@@ -40,34 +40,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
 
 const form = ref<any>({ test_username: '', private_invite: '', public_link: '' })
 const saving = ref(false)
+let probePageActive = false
+let probeRequestId = 0
+let probeController: AbortController | null = null
 
 async function load() {
+  probeController?.abort()
+  const controller = new AbortController()
+  probeController = controller
+  const requestId = ++probeRequestId
   try {
-    const d: any = await adminApiMod.getProbe()
+    const d: any = await adminApiMod.getProbe({ signal: controller.signal })
+    if (!probePageActive || requestId !== probeRequestId) return
     form.value = { test_username: d.test_username || '', private_invite: d.private_invite || '', public_link: d.public_link || '', updated_at: d.updated_at }
-  } catch { /* 拦截器已提示 */ }
+  } catch (e: unknown) {
+    if (!controller.signal.aborted && probePageActive && requestId === probeRequestId) {
+      toast({ type: 'error', title: '探测配置加载失败', message: e instanceof Error ? e.message : '请稍后重试' })
+    }
+  } finally { if (probeController === controller) probeController = null }
 }
 
 async function save() {
+  if (saving.value) return
+  const testUsername = String(form.value.test_username || '').trim()
+  const privateInvite = String(form.value.private_invite || '').trim()
+  const publicLink = String(form.value.public_link || '').trim()
+  if (!testUsername || !privateInvite || !publicLink) {
+    toast({ type: 'warning', title: '配置不完整', message: '请填写测试账号、私有群邀请链接和公开群链接' })
+    return
+  }
   saving.value = true
   try {
     await adminApiMod.updateProbe({
-      test_username: form.value.test_username.trim(),
-      private_invite: form.value.private_invite.trim(),
-      public_link: form.value.public_link.trim(),
+      test_username: testUsername,
+      private_invite: privateInvite,
+      public_link: publicLink,
     })
+    await load()
     toast({ type: 'success', title: '探测配置已保存' })
-    load()
   } catch { /* 拦截器已提示 */ }
   finally { saving.value = false }
 }
 
-onMounted(load)
+onMounted(() => { probePageActive = true; void load() })
+onUnmounted(() => { probePageActive = false; probeRequestId++; probeController?.abort(); probeController = null })
 </script>

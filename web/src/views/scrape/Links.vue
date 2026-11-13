@@ -35,10 +35,11 @@
         <button
           type="button"
           @click="toggleListening"
+           :aria-busy="listeningSaving"
           class="relative w-12 h-7 rounded-full transition-colors shrink-0"
           role="switch"
           :aria-checked="listening"
-          :disabled="!linksAccId"
+           :disabled="listeningSaving || !linksAccId"
           :class="listening ? 'bg-cyan' : 'bg-bg-hover'"
           aria-label="链接监听开关"
         ><span class="absolute top-1 w-5 h-5 rounded-full bg-white transition-all" :class="listening ? 'left-6' : 'left-1'" /></button>
@@ -52,6 +53,23 @@
       </p>
     </div>
 
+
+    <div v-if="activeTab === 'create'" class="glass rounded-[var(--t-r-md)] p-5 space-y-3">
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="font-medium">用户简介链接实时解析</div>
+          <p class="text-xs text-text-muted mt-1 leading-relaxed">群内用户发言时读取发言者 Bio，提取简介中的 Telegram 链接并写入成员资料，供群库聚合器归并。与消息正文链接监听独立。</p>
+        </div>
+        <button type="button" @click="toggleBioListening" :disabled="bioSaving || !linksAccId"
+          :aria-busy="bioSaving" role="switch" :aria-checked="bioListening"
+          class="relative w-12 h-7 rounded-full transition-colors shrink-0"
+          :class="bioListening ? 'bg-cyan' : 'bg-bg-hover'" aria-label="用户简介链接实时解析开关">
+          <span class="absolute top-1 w-5 h-5 rounded-full bg-white transition-all" :class="bioListening ? 'left-6' : 'left-1'" />
+        </button>
+      </div>
+      <p v-if="bioListening" class="text-xs font-bold" style="color: var(--t-ok);">● 简介实时解析已开启</p>
+      <p v-else class="text-xs text-text-muted">关闭状态不会读取发言用户的个人简介。</p>
+    </div>
 
     <!-- ===== 采集结果 ===== -->
     <div v-else class="space-y-3">
@@ -189,11 +207,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
+import { downloadBlob } from '@/utils/export'
 // R111 已删 ProtocolPicker/campaignApi/CAMPAIGN_STATUS 导入(协议协同死代码)
 import { api } from '@/utils/request'
 
@@ -244,20 +263,59 @@ const linksLoading = ref<Record<string, boolean>>({})
 // R108: 视图级账号切换 —— 监听配置按账号独立, 下拉选择管理哪个号(不依赖顶栏切换器)
 const linksAccId = ref('')
 watch(accountStore.currentAccount, (acc: any) => { if (acc?.account_id && !linksAccId.value) linksAccId.value = acc.account_id }, { immediate: true })
-watch(linksAccId, () => { fetchTasks(); loadAllLinks() })
+let taskListRequestId = 0
+let allLinksRequestId = 0
+let taskListController: AbortController | null = null
+let allLinksController: AbortController | null = null
+const taskLinkRequestIds = new Map<string, number>()
+const taskLinkControllers = new Map<string, AbortController>()
+let messageStatusController: AbortController | null = null
+let bioStatusController: AbortController | null = null
+watch(linksAccId, () => {
+  // 切换账号时立即取消旧账号网络请求并清空旧数据。
+  messageStatusController?.abort()
+  bioStatusController?.abort()
+  taskListController?.abort()
+  allLinksController?.abort()
+  for (const controller of taskLinkControllers.values()) controller.abort()
+  taskLinkControllers.clear()
+  taskListRequestId++
+  allLinksRequestId++
+  taskLinkRequestIds.clear()
+  tasks.value = []
+  allLinks.value = []
+  taskLinks.value = {}
+  linksLoading.value = {}
+  expandedTaskId.value = null
+  fetchTasks()
+  loadAllLinks()
+})
 
 async function fetchTasks() {
   const accId = linksAccId.value
-  if (!accId) return
+  const requestId = ++taskListRequestId
+  taskListController?.abort()
+  taskListController = null
+  if (!accId) {
+    tasks.value = []
+    tasksLoading.value = false
+    return
+  }
   tasksLoading.value = true
+  const controller = new AbortController()
+  taskListController = controller
   try {
-    const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any)
+    const res = await taskApi.list({ type: 'scrape_links', account_id: accId, page: 1, page_size: 50 } as any, { signal: controller.signal })
+    if (requestId !== taskListRequestId || accId !== linksAccId.value) return
     const raw = res as any
     tasks.value = raw.list || raw.items || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!controller.signal.aborted && requestId === taskListRequestId && accId === linksAccId.value) {
+      toast({ type: 'error', title: '加载任务失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    }
   } finally {
-    tasksLoading.value = false
+    if (requestId === taskListRequestId) tasksLoading.value = false
+    if (taskListController === controller) taskListController = null
   }
 }
 
@@ -274,16 +332,29 @@ async function onPullRefresh() {
 
 async function loadAllLinks() {
   const accId = linksAccId.value
-  if (!accId) return
+  const requestId = ++allLinksRequestId
+  allLinksController?.abort()
+  allLinksController = null
+  if (!accId) {
+    allLinks.value = []
+    allLinksLoading.value = false
+    return
+  }
   allLinksLoading.value = true
+  const controller = new AbortController()
+  allLinksController = controller
   try {
-    const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 })
+    const res = await taskApi.listScrapedLinks({ account_id: accId, page: 1, page_size: 100 }, { signal: controller.signal })
+    if (requestId !== allLinksRequestId || accId !== linksAccId.value) return
     const raw = res as any
     allLinks.value = raw.list || raw.items || []
   } catch (e: any) {
-    toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
+    if (!controller.signal.aborted && requestId === allLinksRequestId && accId === linksAccId.value) {
+      toast({ type: 'error', title: '加载链接失败', message: e?.message || String(e) })
+    }
   } finally {
-    allLinksLoading.value = false
+    if (requestId === allLinksRequestId) allLinksLoading.value = false
+    if (allLinksController === controller) allLinksController = null
   }
 }
 
@@ -295,10 +366,27 @@ async function toggleAllLinks() {
 async function toggleTask(task: ScrapeTask) {
   if (expandedTaskId.value === task.task_id) {
     expandedTaskId.value = null
+    taskLinkControllers.get(task.task_id)?.abort()
+    taskLinkControllers.delete(task.task_id)
+    taskLinkRequestIds.set(task.task_id, (taskLinkRequestIds.get(task.task_id) || 0) + 1)
+    linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
     return
   }
   expandedTaskId.value = task.task_id
-  if (taskLinks.value[task.task_id]) return
+  for (const [taskId, pending] of taskLinkControllers) {
+    if (taskId === task.task_id) continue
+    pending.abort()
+    taskLinkControllers.delete(taskId)
+    taskLinkRequestIds.set(taskId, (taskLinkRequestIds.get(taskId) || 0) + 1)
+    linksLoading.value = { ...linksLoading.value, [taskId]: false }
+  }
+  if (taskLinks.value[task.task_id] || linksLoading.value[task.task_id]) return
+  const accId = linksAccId.value
+  const requestId = (taskLinkRequestIds.get(task.task_id) || 0) + 1
+  taskLinkRequestIds.set(task.task_id, requestId)
+  taskLinkControllers.get(task.task_id)?.abort()
+  const controller = new AbortController()
+  taskLinkControllers.set(task.task_id, controller)
   linksLoading.value = { ...linksLoading.value, [task.task_id]: true }
   try {
     // since=任务创建时间, 圈出该任务的采集窗口
@@ -307,49 +395,71 @@ async function toggleTask(task: ScrapeTask) {
       since: task.created_at,
       page: 1,
       page_size: 100,
-    })
+    }, { signal: controller.signal })
+    if (accId !== linksAccId.value || taskLinkRequestIds.get(task.task_id) !== requestId) return
     const raw = res as any
     taskLinks.value = { ...taskLinks.value, [task.task_id]: raw.list || raw.items || [] }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!controller.signal.aborted && accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+      toast({ type: 'error', title: '加载链接失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    }
   } finally {
-    linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
+    if (accId === linksAccId.value && taskLinkRequestIds.get(task.task_id) === requestId) {
+      linksLoading.value = { ...linksLoading.value, [task.task_id]: false }
+    }
+    if (taskLinkControllers.get(task.task_id) === controller) taskLinkControllers.delete(task.task_id)
   }
 }
 
 // 复制链接到剪贴板(clipboard API 不可用时降级)
 async function copyLink(url: string) {
   try {
-    await navigator.clipboard.writeText(url)
-    toast({ type: 'success', title: '已复制链接' })
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url)
+      toast({ type: 'success', title: '已复制链接' })
+      return
+    }
   } catch {
-    const ta = document.createElement('textarea')
-    ta.value = url
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
-    toast({ type: 'success', title: '已复制链接' })
+    // Clipboard API may be unavailable or denied; try the legacy browser command.
   }
+
+  const ta = document.createElement('textarea')
+  ta.value = url
+  ta.setAttribute('readonly', '')
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  let copied = false
+  try {
+    copied = document.execCommand('copy')
+  } catch {
+    copied = false
+  } finally {
+    ta.remove()
+  }
+  if (copied) toast({ type: 'success', title: '已复制链接' })
+  else toast({ type: 'error', title: '复制失败', message: '请手动选择并复制链接' })
 }
 
 // 导出纯文本(每行一个链接), 与"自动加群-导入链接"的格式一致
-async function exportTaskLinks(task: ScrapeTask, format = 'txt') {
+async function exportTaskLinks(task: ScrapeTask, format: 'txt' | 'csv' = 'txt') {
+  const accountId = task.account_ids?.[0]
+  if (!accountId) {
+    toast({ type: 'error', title: '导出失败', message: '该任务没有关联的账号，无法导出' })
+    return
+  }
   try {
     const base = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const params = new URLSearchParams({ account_id: task.account_ids[0], since: task.created_at, format })
+    const params = new URLSearchParams({ account_id: accountId, since: task.created_at, format })
     const resp = await fetch(`${base}/scrape-links/export?${params}`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `scrape-links-${task.task_id.slice(0, 8)}.${format}`
-    a.click()
-    URL.revokeObjectURL(url)
+    const mimeType = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'
+    const blob = new Blob([text], { type: mimeType })
+    downloadBlob(`scrape-links-${task.task_id.slice(0, 8)}.${format}`, blob)
   } catch (e: unknown) {
     toast({ type: 'error', title: '导出失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
@@ -367,13 +477,9 @@ async function exportAllLinks(format: 'txt' | 'csv') {
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const text = await resp.text()
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `scrape-links-all.${format}`
-    a.click()
-    URL.revokeObjectURL(url)
+    const mimeType = format === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'
+    const blob = new Blob([text], { type: mimeType })
+    downloadBlob(`scrape-links-all.${format}`, blob)
   } catch {
     toast({ type: 'error', title: '导出失败' })
   }
@@ -388,6 +494,18 @@ function statusLabel(s: string) {
 }
 
 
+onUnmounted(() => {
+  messageStatusController?.abort()
+  bioStatusController?.abort()
+  taskListController?.abort()
+  allLinksController?.abort()
+  for (const controller of taskLinkControllers.values()) controller.abort()
+  taskLinkControllers.clear()
+  taskListRequestId++
+  allLinksRequestId++
+  for (const [taskId, requestId] of taskLinkRequestIds) taskLinkRequestIds.set(taskId, requestId + 1)
+})
+
 onMounted(() => {
   if (!authStore.tenant?.plan_features?.scrape_links) {
     toast({ type: 'error', title: '当前套餐不支持链接采集，请联系客服升级套餐' })
@@ -397,24 +515,84 @@ onMounted(() => {
 
 // ===== 链接监听总开关 =====
 const listening = ref(false)
+const listeningSaving = ref(false)
+const bioListening = ref(false)
+const bioSaving = ref(false)
 
-onMounted(async () => {
-  const acc = accountStore.accounts.find((a: any) => a.account_id === linksAccId.value)
-  if (!acc) return
+async function loadBioListeningStatus(accountId: string) {
+  bioStatusController?.abort()
+  bioStatusController = null
+  if (!accountId) { bioListening.value = false; return }
+  const controller = new AbortController()
+  bioStatusController = controller
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(acc.account_id)}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}&mode=bio`, {
       headers: { Authorization: `Bearer ${authStore.token}` },
+      signal: controller.signal,
     })
-    if (res.ok) listening.value = (await res.json()).enabled
-  } catch {}
+    if (res.ok && linksAccId.value === accountId) bioListening.value = (await res.json()).enabled
+  } catch {} finally {
+    if (bioStatusController === controller) bioStatusController = null
+  }
+}
+
+async function toggleBioListening() {
+  if (bioSaving.value) return
+  const accountId = linksAccId.value
+  if (!accountId) return
+  const next = !bioListening.value
+  bioSaving.value = true
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+      body: JSON.stringify({ account_id: accountId, enabled: next, mode: 'bio' }),
+    })
+    if (!res.ok) throw new Error()
+    if (linksAccId.value === accountId) {
+      bioListening.value = next
+      toast({ type: 'success', title: next ? '简介实时解析已开启' : '简介实时解析已关闭' })
+    }
+  } catch {
+    if (linksAccId.value === accountId) toast({ type: 'error', title: '简介解析开关操作失败', message: '请稍后重试' })
+  } finally { bioSaving.value = false }
+}
+
+async function loadMessageListeningStatus(accountId: string) {
+  messageStatusController?.abort()
+  messageStatusController = null
+  if (!accountId) { listening.value = false; return }
+  const controller = new AbortController()
+  messageStatusController = controller
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}`, {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      signal: controller.signal,
+    })
+    if (res.ok && linksAccId.value === accountId) listening.value = (await res.json()).enabled
+  } catch {} finally {
+    if (messageStatusController === controller) messageStatusController = null
+  }
+}
+
+onMounted(() => {
+  loadMessageListeningStatus(linksAccId.value)
+  loadBioListeningStatus(linksAccId.value)
+})
+watch(linksAccId, accountId => {
+  loadMessageListeningStatus(accountId)
+  loadBioListeningStatus(accountId)
 })
 
 // ===== R111: 协议协同脚本已全部删除(loadCampaigns/submitProtocol/controlCampaign/exportLinks) =====
 
 async function toggleListening() {
-  const acc = accountStore.accounts.find((a: any) => a.account_id === linksAccId.value)
+  if (listeningSaving.value) return
+  const accountId = linksAccId.value
+  const acc = accountStore.accounts.find((a: any) => a.account_id === accountId)
   if (!acc) { toast({ type: 'error', title: '请先选择账号' }); return }
   const next = !listening.value
+  listeningSaving.value = true
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/toggle`, {
       method: 'POST',
@@ -422,11 +600,15 @@ async function toggleListening() {
       body: JSON.stringify({ account_id: acc.account_id, enabled: next }),
     })
     if (!res.ok) throw new Error()
-    listening.value = next
-    toast({ type: 'success', title: next ? '链接监听已开启' : '链接监听已关闭' })
-    if (next) switchTab('results')
+    if (linksAccId.value === accountId) {
+      listening.value = next
+      toast({ type: 'success', title: next ? '链接监听已开启' : '链接监听已关闭' })
+      if (next) switchTab('results')
+    }
   } catch {
-    toast({ type: 'error', title: '操作失败, 请重试' })
+    if (linksAccId.value === accountId) toast({ type: 'error', title: '操作失败, 请重试' })
+  } finally {
+    listeningSaving.value = false
   }
 }
 </script>

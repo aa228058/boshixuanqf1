@@ -54,8 +54,8 @@
 
       <div class="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border">
         <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
-        <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
+        <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey" :loading="resettingKey" :disabled="resettingKey || tenantActionPending">重置 API Key</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus" :loading="tenantActionPending" :disabled="tenantActionPending || resettingKey">
           {{ tenant.status === 'active' ? '停用租户' : '启用租户' }}
         </t-button>
       </div>
@@ -74,14 +74,14 @@
       </div>
       <template #footer>
         <t-button type="button" @click="showEdit = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit" :loading="savingTenant" :disabled="savingTenant">保存</t-button>
       </template>
     </Modal>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
@@ -91,6 +91,7 @@ import { ask } from '@/utils/confirm'
 import Modal from '@/components/ui/Modal.vue'
 import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import type { Tenant, Plan } from '@/types'
+import { isValidDateTimeLocal } from '@/utils/adminPageGuards'
 
 function isValidUUID(id: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -109,6 +110,10 @@ const invalidId = ref(!isValidUUID(tenantId))
 
 const tenant = ref<Tenant | null>(null)
 const plans = ref<Plan[]>([])
+let tenantDetailActive = true
+let tenantDetailRequestId = 0
+let tenantDetailController: AbortController | null = null
+let tenantPlansController: AbortController | null = null
 const showEdit = ref(false)
 const editForm = ref({ plan_id: '', expires_at: '' })
 
@@ -123,15 +128,37 @@ function toDateTimeLocal(v: string): string {
 }
 
 async function fetchTenant() {
+  tenantDetailController?.abort()
+  const controller = new AbortController()
+  tenantDetailController = controller
+  const requestId = ++tenantDetailRequestId
   try {
-    tenant.value = await adminApiMod.getTenant(tenantId)
+    const result = await adminApiMod.getTenant(tenantId, { signal: controller.signal })
+    if (!tenantDetailActive || requestId !== tenantDetailRequestId) return
+    tenant.value = result
     editForm.value = { plan_id: tenant.value?.plan_id || '', expires_at: toDateTimeLocal(tenant.value?.expires_at || '') }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!controller.signal.aborted && tenantDetailActive && requestId === tenantDetailRequestId) toast({ type: 'error', title: '获取租户失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    if (tenantDetailController === controller) tenantDetailController = null
   }
 }
 
+const savingTenant = ref(false)
+const resettingKey = ref(false)
+const tenantActionPending = ref(false)
+
 async function saveEdit() {
+  if (savingTenant.value) return
+  if (!editForm.value.plan_id) {
+    toast({ type: 'warning', title: '请选择套餐' })
+    return
+  }
+  if (editForm.value.expires_at && !isValidDateTimeLocal(editForm.value.expires_at)) {
+    toast({ type: 'warning', title: '到期时间无效', message: '请重新选择有效的日期和时间' })
+    return
+  }
+  savingTenant.value = true
   try {
     // P2-49: datetime-local 给的是无时区本地时间, 原样提交后端按 UTC 解析——
     // 东八区设 10:00 被存成 18:00。转 ISO(本地时区→UTC)后提交。
@@ -145,23 +172,31 @@ async function saveEdit() {
     toast({ type: 'success', title: '租户信息已更新' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '更新失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    savingTenant.value = false
   }
 }
 
 async function resetKey() {
+  if (resettingKey.value || tenantActionPending.value) return
   try {
     // 重置即作废旧 Key（明文只显示一次），误触代价高——加确认
     const ok = await ask('重置 API Key 后旧 Key 将立即失效，确定重置？')
     if (!ok) return
+    resettingKey.value = true
     await adminApiMod.resetApiKey(tenantId)
     await fetchTenant()
     toast({ type: 'success', title: 'API Key 已重置' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    resettingKey.value = false
   }
 }
 
 async function toggleStatus() {
+  if (tenantActionPending.value || resettingKey.value) return
+  tenantActionPending.value = true
   try {
     const newStatus = tenant.value?.status === 'active' ? 'suspended' : 'active'
     await adminApiMod.updateTenant(tenantId, { status: newStatus })
@@ -169,6 +204,8 @@ async function toggleStatus() {
     toast({ type: 'success', title: newStatus === 'active' ? '租户已启用' : '租户已停用' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '操作失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    tenantActionPending.value = false
   }
 }
 
@@ -183,12 +220,17 @@ function planLabel(p: string) {
 }
 
 onMounted(async () => {
+  tenantDetailActive = true
   await fetchTenant()
+  if (!tenantDetailActive) return
   try {
-    const res = await adminApiMod.listPlans()
+    tenantPlansController = new AbortController()
+    const res = await adminApiMod.listPlans({ signal: tenantPlansController.signal })
+    if (!tenantDetailActive) return
     plans.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantDetailActive) toast({ type: 'error', title: '获取套餐失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 })
+onUnmounted(() => { tenantDetailActive = false; tenantDetailRequestId++; tenantDetailController?.abort(); tenantPlansController?.abort() })
 </script>

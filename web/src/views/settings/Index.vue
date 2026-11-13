@@ -187,8 +187,8 @@
           v-model="activationCode"
           placeholder="输入卡密，如 TGS-PRO-XXXX-XXXX"
           class="ui-input !w-full sm:!flex-1 !px-4 !py-2.5 !text-sm font-mono uppercase"
-          @keyup.enter="activate" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
-        <t-button theme="primary" class="ui-t-button ui-t-button--primary" @click="activate">
+          @keyup.enter="activate" :disabled="activating" aria-label="输入卡密，如 TGS-PRO-XXXX-XXXX" />
+        <t-button theme="primary" class="ui-t-button ui-t-button--primary" :disabled="activating" :loading="activating" @click="activate">
           激活
         </t-button>
       </div>
@@ -233,7 +233,7 @@
           </div>
           <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2">
             <span class="text-xs text-text-muted">{{ d.entries.filter(x => x.word.trim()).length }} 条消息 · {{ d.entries.filter(x => x.word.trim() && x.enabled).length }} 条启用</span>
-            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除文本字典" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
+            <div class="flex flex-wrap gap-2"><t-button class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="copyDictItems(d.dict_id)">复制全部</t-button><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving" @click="saveTextDict(d)">保存</t-button><button type="button" class="ui-icon-btn" aria-label="删除字典" @click="deleteTextDict(d.dict_id)"><Trash2 class="w-4 h-4" /></button></div>
           </div>
         </div>
       </div>
@@ -329,10 +329,10 @@
               class="bg-transparent text-sm font-medium focus:outline-none flex-1 min-w-0" 
             />
             <div class="flex items-center gap-1 shrink-0">
-              <t-button @click="saveTemplate(t)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
+              <t-button @click="saveTemplate(t)" :disabled="templateSavingIds.has(t.template_id) || templateDeletingIds.has(t.template_id)" :loading="templateSavingIds.has(t.template_id)" class="ui-t-button ui-t-button--primary ui-t-button--sm">
                 保存
               </t-button>
-              <button type="button" @click="deleteTemplate(t.template_id)" class="ui-icon-btn" aria-label="删除消息模板">
+              <button type="button" @click="deleteTemplate(t.template_id)" :disabled="templateDeletingIds.has(t.template_id) || templateSavingIds.has(t.template_id)" class="ui-icon-btn disabled:opacity-40" aria-label="删除消息模板">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>
@@ -348,7 +348,7 @@
             <!-- R121: 删掉手写计数 —— tdesign textarea 的 maxlength 自带右下角计数器, 双份叠印成"重影" -->
           </div>
         </div>
-        <t-button @click="addTemplate" class="ui-t-button ui-t-button--secondary w-full">
+        <t-button @click="addTemplate" :disabled="templateCreating" :loading="templateCreating" class="ui-t-button ui-t-button--secondary w-full">
           + 添加模板
         </t-button>
       </div>
@@ -358,6 +358,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import type { RequestOptions } from '@/utils/request'
 import { useRoute, useRouter } from 'vue-router'
 
 // ===== Phase 4 设置页 Tab(手册信息架构): 5 Tab + URL ?tab= 双向同步 =====
@@ -370,7 +371,7 @@ const tabs = [
   { key: 'notify', label: '通知' },
   { key: 'data', label: '数据' },
   { key: 'templates', label: '模板' },
-  { key: 'textdicts', label: '文本分组' },
+  { key: 'textdicts', label: '字典' },
   { key: 'support', label: '客服' },
 ]
 // R119+R120: 通知中心状态(租户级 SMTP)
@@ -403,9 +404,9 @@ function pickProvider(key: string) {
   smtpForm.value.host = p.host
   smtpForm.value.port = p.port
 }
-async function loadMessageDecoration() {
+async function loadMessageDecoration(options?: RequestOptions) {
   try {
-    const result = await settingsApi.getMessageDecoration()
+    const result = await settingsApi.getMessageDecoration(options)
     messageDecorationEnabled.value = !!result.enabled
   } catch { /* toast 已由拦截器统一处理 */ }
 }
@@ -418,10 +419,10 @@ async function saveMessageDecoration() {
   } catch { /* 拦截器已提示 */ }
   finally { messageDecorationSaving.value = false }
 }
-async function loadNotify() {
+async function loadNotify(options?: RequestOptions) {
   notifyLoading.value = true
   try {
-    const d: any = await settingsApi.getNotify()
+    const d: any = await settingsApi.getNotify(options)
     notifyEmail.value = d.email || ''
     notifySettings.value = d.settings || {}
     notifyEvents.value = d.events || {}
@@ -435,28 +436,38 @@ async function loadNotify() {
     if (s.from) smtpForm.value.from = s.from
     smtpPassSet.value = !!s.pass_set
   } catch { /* toast 已由拦截器统一处理 */ }
-  finally { notifyLoading.value = false }
+  finally { if (!options?.signal?.aborted) notifyLoading.value = false }
 }
 async function saveNotify() {
+  if (notifySaving.value) return
+  notifySaving.value = true
+  const email = notifyEmail.value
+  const settings = { ...notifySettings.value }
+  const smtp = { ...smtpForm.value }
+  const provider = smtpProvider.value
   try {
-    await settingsApi.updateNotify(notifyEmail.value, notifySettings.value, {
-      provider: smtpProvider.value,
-      host: smtpForm.value.host,
-      port: Number(smtpForm.value.port) || 465,
-      user: smtpForm.value.user,
+    await settingsApi.updateNotify(email, settings, {
+      provider,
+      host: smtp.host,
+      port: Number(smtp.port) || 465,
+      user: smtp.user,
       // 未改密码时不传 pass, 后端自动保留旧授权码
-      ...(smtpForm.value.pass ? { pass: smtpForm.value.pass } : {}),
-      from: smtpForm.value.from || smtpForm.value.user,
+      ...(smtp.pass ? { pass: smtp.pass } : {}),
+      from: smtp.from || smtp.user,
     })
     toast({ type: 'success', title: '通知设置已保存' })
-    loadNotify()
+    await loadNotify()
   } catch { /* 拦截器已提示 */ }
+  finally { notifySaving.value = false }
 }
 async function testNotifyMail() {
+  if (notifyTesting.value) return
+  notifyTesting.value = true
   try {
     const res: any = await settingsApi.testNotify()
     toast({ type: 'success', title: res?.message || '测试邮件已发送, 请查收(含垃圾邮件文件夹)' })
   } catch { /* 拦截器已提示 */ }
+  finally { notifyTesting.value = false }
 }
 function toggleNotifyEvent(key: string) {
   notifySettings.value = { ...notifySettings.value, [key]: !notifySettings.value[key] }
@@ -482,6 +493,8 @@ import { useCopy } from '@/composables/useCopy'
 import { MessageCircle, Trash2, Loader2 } from 'lucide-vue-next'
 import { settingsApi } from '@/api/settings'
 import { toast } from '@/utils/toast'
+import { downloadBlob } from '@/utils/export'
+import { ask } from '@/utils/confirm'
 import { getAIConfig, saveAIConfig, testAIConfig, setVerifierEnabled } from '@/api/verifier'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -509,6 +522,8 @@ const ai = ref({ provider: 'glm', model: '', has_key: false, enabled: false })
 const aiForm = ref({ provider: 'glm', api_key: '', model: '' })
 const vfEnabled = ref(false)
 const aiSaving = ref(false)
+const notifySaving = ref(false)
+const notifyTesting = ref(false)
 const aiTesting = ref(false)
 const aiTestResult = ref<{ ok: boolean; answer?: string; error?: string } | null>(null)
 
@@ -521,6 +536,7 @@ async function loadAI() {
   } catch { /* 配置读取失败不阻断页面 */ }
 }
 async function saveAI() {
+  if (aiSaving.value) return
   aiSaving.value = true
   aiTestResult.value = null
   try {
@@ -568,12 +584,7 @@ async function exportMyData() {
     const res = await fetch('/api/v1/tenant/export', { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) throw new Error('导出失败: ' + res.status)
     const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'my-data-export.json'
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadBlob('my-data-export.json', blob)
     toast({ type: 'success', title: '导出成功', message: '已下载 my-data-export.json' })
   } catch (e) {
     toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
@@ -583,6 +594,7 @@ async function exportMyData() {
 }
 const selectedPlan = ref('')
 const activationCode = ref('')
+const activating = ref(false)
 const copied = ref(false)
 
 const planName = computed(() => {
@@ -598,7 +610,8 @@ const planPrice = computed(() => {
 })
 
 async function activate() {
-  if (!activationCode.value) return
+  if (activating.value || !activationCode.value.trim()) return
+  activating.value = true
   try {
     const res = await settingsApi.activateCode(activationCode.value.trim())
     activationCode.value = ''
@@ -614,6 +627,8 @@ async function activate() {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '请检查卡密是否正确'
     toast({ type: 'error', title: '激活失败', message: msg })
+  } finally {
+    activating.value = false
   }
 }
 
@@ -642,9 +657,9 @@ function fallbackCopy(text: string) {
   document.body.removeChild(ta)
 }
 
-async function fetchTextDicts() {
-  try { const res = await settingsApi.getTextDicts(); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
-  catch (e: unknown) { toast({ type: 'error', title: '文本分组加载失败', message: (e as Error)?.message || '请稍后重试' }) }
+async function fetchTextDicts(options?: RequestOptions) {
+  try { const res = await settingsApi.getTextDicts(options); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
+  catch (e: unknown) { if (options?.signal?.aborted) return; toast({ type: 'error', title: '字典加载失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
 async function createTextDict() {
@@ -657,12 +672,13 @@ async function createTextDict() {
     })
     newDictName.value = ''; newDictItems.value = ''
     await fetchTextDicts()
-    toast({ type: 'success', message: '文本字典已创建' })
+    toast({ type: 'success', message: '字典已创建' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '创建失败', message: (e as Error)?.message || '请稍后重试' })
   } finally { dictSaving.value = false }
 }
 async function saveTextDict(d: import('@/api/settings').TextDict) {
+  if (dictSaving.value) return
   dictSaving.value = true
   try {
     const entries = d.entries.filter(entry => entry.word.trim()).map(entry => ({ word: entry.word.trim(), enabled: !!entry.enabled }))
@@ -674,27 +690,51 @@ async function saveTextDict(d: import('@/api/settings').TextDict) {
   } finally { dictSaving.value = false }
 }
 async function deleteTextDict(id: string) {
-  if (!window.confirm('确定删除这个文本分组吗？')) return; try { await settingsApi.deleteTextDict(id); await fetchTextDicts(); toast({ type: 'success', message: '分组已删除' }) } catch (e: unknown) { toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' }) }
+  const confirmed = await ask('确定删除这个字典吗？', {
+    title: '删除字典',
+    detail: '删除后无法恢复，请确认字典内容已不再需要。',
+    danger: true,
+    confirmText: '删除',
+  })
+  if (!confirmed || dictSaving.value) return
+  dictSaving.value = true
+  try {
+    await settingsApi.deleteTextDict(id)
+    await fetchTextDicts()
+    toast({ type: 'success', message: '字典已删除' })
+  } catch (e: unknown) {
+    toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' })
+  } finally {
+    dictSaving.value = false
+  }
 }
 async function copyDictItems(id: string) {
   const value = (textDicts.value.find(d => d.dict_id === id)?.entries || []).map(entry => entry.word).filter(Boolean).join(String.fromCharCode(10)); if (!value) return; try { await navigator.clipboard.writeText(value); toast({ type: 'success', message: '已复制全部消息' }) } catch { toast({ type: 'error', message: '复制失败，请检查浏览器剪贴板权限' }) }
 }
-async function fetchTemplates() {
+async function fetchTemplates(options?: RequestOptions) {
   try {
-    const res = await settingsApi.getTemplates()
+    const res = await settingsApi.getTemplates(options)
     templates.value = res.list || []
   } catch (e: unknown) {
     // console.error("Settings error:", e)
   }
 }
 
+const templateCreating = ref(false)
+const templateSavingIds = ref(new Set<string>())
+const templateDeletingIds = ref(new Set<string>())
+
 async function addTemplate() {
+  if (templateCreating.value) return
+  templateCreating.value = true
   try {
-    const t = await settingsApi.createTemplate({ name: '新模板', content: '' })
-    templates.value.push(t)
+    const created = await settingsApi.createTemplate({ name: '新模板', content: '' })
+    templates.value.push(created)
   } catch (err: unknown) {
-    // P1-38: 模板创建失败原来静默吞掉——用户以为成功实际没有
+    // P1-38: 创建失败必须明确反馈，避免用户误以为已保存。
     toast({ type: 'error', title: '创建模板失败', message: (err as Error)?.message || '请稍后重试' })
+  } finally {
+    templateCreating.value = false
   }
 }
 
@@ -712,11 +752,17 @@ function featureLabel(key: string): string {
 }
 
 async function deleteTemplate(id: string) {
+  if (templateDeletingIds.value.has(id) || templateSavingIds.value.has(id)) return
+  templateDeletingIds.value = new Set(templateDeletingIds.value).add(id)
   try {
     await settingsApi.deleteTemplate(id)
     templates.value = templates.value.filter(t => t.template_id !== id)
   } catch (err: unknown) {
     toast({ type: 'error', title: '删除模板失败', message: (err as Error)?.message || '请稍后重试' })
+  } finally {
+    const next = new Set(templateDeletingIds.value)
+    next.delete(id)
+    templateDeletingIds.value = next
   }
 }
 
@@ -730,38 +776,58 @@ function updateTemplateContent(id: string, content: string) {
 }
 
 async function saveTemplate(t: MessageTemplate) {
+  const id = t.template_id
+  if (templateSavingIds.value.has(id) || templateDeletingIds.value.has(id)) return
+  const payload = { name: t.name, content: t.content }
+  templateSavingIds.value = new Set(templateSavingIds.value).add(id)
   try {
-    await settingsApi.updateTemplate(t.template_id, { name: t.name, content: t.content })
+    await settingsApi.updateTemplate(id, payload)
+    toast({ type: 'success', title: '模板已保存' })
   } catch (err: unknown) {
     toast({ type: 'error', title: '保存模板失败', message: (err as Error)?.message || '请稍后重试' })
+  } finally {
+    const next = new Set(templateSavingIds.value)
+    next.delete(id)
+    templateSavingIds.value = next
   }
 }
 
-async function fetchProfile() {
+async function fetchProfile(options?: RequestOptions) {
   try {
-    const res = await settingsApi.getProfile()
+    const res = await settingsApi.getProfile(options)
     tenant.value = res
   } catch (e: unknown) {
     // console.error("Settings error:", e)
   }
 }
 
+let settingsPageController: AbortController | null = null
+onUnmounted(() => {
+  settingsPageController?.abort()
+  settingsPageController = null
+})
 onMounted(async () => {
-  await fetchProfile()
-  await fetchTemplates()
-  if (authStore.tenant?.plan_features?.dict) await fetchTextDicts()
+  const controller = new AbortController()
+  settingsPageController = controller
+  const options = { signal: controller.signal }
+  await fetchProfile(options)
+  if (controller.signal.aborted) return
+  await fetchTemplates(options)
+  if (controller.signal.aborted) return
+  if (authStore.tenant?.plan_features?.dict) await fetchTextDicts(options)
+  if (controller.signal.aborted) return
   loadAI()
   // R142 修复: 通知设置(邮箱/SMTP/事件订阅)此前只在保存后回填, 刷新页面从不加载 —— 补挂载加载
-  loadNotify()
-  loadMessageDecoration()
+  loadNotify(options)
+  loadMessageDecoration(options)
   try {
-    const p = await settingsApi.getPlans()
+    const p = await settingsApi.getPlans(options)
     // R86 热修: 接口可能返回 {list:[...]} 等包装对象, p||[] 会把对象塞进数组变量
     // 导致 planPrice 里 plans.value.find 抛"find is not a function"
     plans.value = Array.isArray(p) ? p : (Array.isArray((p as any)?.data) ? (p as any).data : (Array.isArray((p as any)?.list) ? (p as any).list : []))
   } catch (e: unknown) { /* ignore */ }
   try {
-    const s = await settingsApi.getSupport()
+    const s = await settingsApi.getSupport(options)
     supportConfig.value = s || null
   } catch (e: unknown) {
     // console.error("Settings error:", e)

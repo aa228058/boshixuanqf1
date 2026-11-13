@@ -208,7 +208,7 @@ import { groupApi } from '@/api/group'
 import { contactApi } from '@/api/contact'
 import { syncLock } from '@/utils/syncLock'
 import { toast } from '@/utils/toast'
-import { areAllSelectorKeysSelected, createSelectorTitleLookup, filterSelectorItems, toggleAllSelectorKeys } from './selectorRuntime'
+import { areAllSelectorKeysSelected, createSelectorTitleLookup, filterSelectorItems, toggleAllSelectorKeys, uniqueByNormalizedId } from './selectorRuntime'
 import { useGroupStore } from '@/stores/group'
 
 const groupStore = useGroupStore()
@@ -380,7 +380,10 @@ function removeTarget(t: string) {
 
 async function fetchDialogs(requestId = ++selectorRequestId, accountId = props.accountId || '') {
   if (!accountId) {
-    dialogs.value = []
+    if (requestId === selectorRequestId) {
+      dialogs.value = []
+      loading.value = false
+    }
     return
   }
   loading.value = true
@@ -389,7 +392,7 @@ async function fetchDialogs(requestId = ++selectorRequestId, accountId = props.a
     const res: any = await contactApi.list(accountId)
     if (!isCurrentSelectorRequest(requestId, accountId)) return
     const data = res.data || res || []
-    dialogs.value = data.map((d: any) => ({
+    dialogs.value = uniqueByNormalizedId(data, (d: any) => d.tg_user_id).map((d: any) => ({
       id: String(d.tg_user_id),
       title: [d.first_name, d.last_name].filter(Boolean).join(' ') || d.username || String(d.tg_user_id),
       type: 'user',
@@ -426,12 +429,18 @@ async function onRefresh() {
   }
 
   // 同一账号的其他页面正在同步时，只等待后读取，不重复发起同步，也不释放别人的锁。
-  if (!syncLock.acquire(accountId)) {
+  const syncToken = syncLock.acquire(accountId)
+  if (syncToken === null) {
     loading.value = true
     syncStatus.value = 'syncing'
     try {
-      await waitForGlobalSync()
+      const syncFinished = await waitForGlobalSync(accountId, isCurrent)
       if (!isCurrent()) return
+      if (!syncFinished || syncLock.isSyncing(accountId)) {
+        syncStatus.value = 'timeout'
+        toast({ type: 'info', message: '该账号仍在同步，请稍后刷新群组列表' })
+        return
+      }
       const raw: any = await groupApi.list(accountId)
       if (!isCurrent()) return
       const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
@@ -452,27 +461,16 @@ async function onRefresh() {
   loading.value = true
   syncStatus.value = 'syncing'
   try {
+    // The backend resolves this request only after Telegram sync completes.
+    // Fetch exactly once: an empty group list is a successful, valid result.
     await groupApi.sync(accountId)
-    let delay = 1000
-    const startedAt = Date.now()
-    while (Date.now() - startedAt < 120000) {
-      if (!isCurrent()) break
-      const raw: any = await groupApi.list(accountId)
-      if (!isCurrent()) break
-      const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
-      if (list.length > 0) {
-        groupStore.setGroups(accountId, list)
-        syncStatus.value = 'done'
-        emit('refresh')
-        break
-      }
-      await new Promise(resolve => setTimeout(resolve, delay))
-      delay = Math.min(delay * 2, 8000)
-    }
-    if (isCurrent() && syncStatus.value !== 'done') {
-      syncStatus.value = 'timeout'
-      toast({ type: 'info', message: '同步仍在后台进行，完成后群组会自动出现，也可稍后重开选择器' })
-    }
+    if (!isCurrent()) return
+    const raw: any = await groupApi.list(accountId)
+    if (!isCurrent()) return
+    const list = raw.list || raw.data?.list || (Array.isArray(raw.data) ? raw.data : []) || (Array.isArray(raw) ? raw : [])
+    groupStore.setGroups(accountId, list)
+    syncStatus.value = 'done'
+    emit('refresh')
   } catch (e) {
     if (isCurrent()) {
       syncStatus.value = 'error'
@@ -480,22 +478,24 @@ async function onRefresh() {
     }
   } finally {
     // 只有本次成功 acquire 的调用可以释放锁；即使账号切换/弹窗关闭也必须释放。
-    syncLock.release()
+    if (syncToken !== null) syncLock.release(accountId, syncToken)
     if (isCurrent()) loading.value = false
   }
 }
 
 // Wait for another component to finish syncing, then return
-async function waitForGlobalSync(): Promise<void> {
+async function waitForGlobalSync(accountId: string, shouldContinue: () => boolean = () => true): Promise<boolean> {
   const checkInterval = 500
-  const maxWait = 30000
+  const maxWait = 120000
   const start = Date.now()
   while (Date.now() - start < maxWait) {
-    if (!syncLock.isSyncing()) {
-      return
+    if (!shouldContinue()) return false
+    if (!syncLock.isSyncing(accountId)) {
+      return true
     }
     await new Promise(r => setTimeout(r, checkInterval))
   }
+  return !syncLock.isSyncing(accountId)
 }
 
 function confirm() {
@@ -515,7 +515,13 @@ const lastSyncText = computed(() => {
 // 打开时缓存优先: 库里有数据先展示(秒开), 后台静默同步; 无缓存才走全量同步
 async function openSelector() {
   const accountId = props.accountId || ''
-  if (!accountId) { syncHint.value = '错误: 缺少 accountId'; dialogs.value = []; return }
+  if (!accountId) {
+    syncHint.value = '错误: 缺少 accountId'
+    dialogs.value = []
+    loading.value = false
+    syncStatus.value = 'idle'
+    return
+  }
   const requestId = ++selectorRequestId
   try {
     const cached: any = await groupApi.list(accountId)
@@ -536,12 +542,14 @@ async function openSelector() {
         // P0-21: parseResponse 归一后列表接口统一 {list,total}, 但纯数组直返时
         // cr.list 是 undefined——私聊列表曾因此恒空。数组兜底。
         const rows = Array.isArray(cr) ? cr : (cr.list || cr.data || [])
-        dialogs.value = rows.map((r: any) => ({
+        const contacts = uniqueByNormalizedId(rows, (r: any) => r.tg_user_id)
+        dialogs.value = contacts.map((r: any) => ({
           id: String(r.tg_user_id),
           title: r.username ? '@' + r.username : (r.first_name || String(r.tg_user_id)),
           type: 'user',
+          typeLabel: '私聊',
         }))
-        syncHint.value += `, 私聊缓存 ${rows.length} 人`
+        syncHint.value += `, 私聊缓存 ${contacts.length} 人`
       } catch { /* 私聊无缓存保持空, 切 tab 时才调接口 */ }
       return
     }
@@ -572,6 +580,8 @@ watch(() => props.accountId, (accountId, previousAccountId) => {
   // 账号上下文变化时，旧联系人结果失效；目标勾选保留，避免误删用户已选目标。
   selectorRequestId++
   dialogs.value = []
+  loading.value = false
+  syncStatus.value = 'idle'
   openSelector()
 })
 </script>

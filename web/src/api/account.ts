@@ -1,10 +1,10 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 // R115: PaginationParams 死类型导入已删(全项目零引用)
 import type { Account, ListResponse } from '@/types'
 
 export const accountApi = {
   // silent: 后台轮询传 true, 不触发顶部全局进度条(2026-10-22 审计修复)
-  list: (silent = false) => api.get<ListResponse<Account>>('/accounts', { silent }),
+  list: (silent = false, options?: RequestOptions) => api.get<ListResponse<Account>>('/accounts', { silent, ...options }),
   getById: (id: string) => api.get<Account>(`/accounts/${id}`),
   create: (phone: string, remark?: string) => api.post<Account>('/accounts', { phone, remark }),
   delete: (id: string) => api.delete<void>(`/accounts/${id}`),
@@ -18,7 +18,7 @@ export const accountApi = {
   // 资料运营(2026-10-21)
   // R119: 账号能力探测
   runProbe: (id: string) => api.post<any>(`/accounts/${id}/probe`),
-  getProbe: (id: string) => api.get<any>(`/accounts/${id}/probe`),
+  getProbe: (id: string, options?: RequestOptions) => api.get<any>(`/accounts/${id}/probe`, options),
   updateProfile: (id: string, p: { first_name?: string; last_name?: string; username?: string; about?: string }) =>
     api.put<{ ok: boolean }>(`/accounts/${id}/profile`, p),
   cloneProfile: (source: string, targetIds: string[]) =>
@@ -50,7 +50,7 @@ export const accountApi = {
   update: (id: string, data: Partial<Account>) => api.put<Account>(`/accounts/${id}`, data),
   getQuotas: (id: string) => api.get<{ level: string; broadcast_daily: number; join_daily: number; scrape_daily: number; min_interval: number }>(`/accounts/${id}/quotas`),
   getDialogs: (id: string) => api.get<Array<{ id: string; title: string; type: string }>>(`/accounts/${id}/telegram-dialogs`),
-  getContacts: (id: string) => api.get<Array<{ id: string; tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>(`/accounts/${id}/telegram-contacts`),
+  getContacts: (id: string, options?: RequestOptions) => api.get<Array<{ id: string; tg_user_id: number; first_name: string; last_name?: string; username?: string; phone?: string }>>(`/accounts/${id}/telegram-contacts`, options),
 }
 
 // ============ 协议号管理 ============

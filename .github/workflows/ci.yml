@@ -2,9 +2,12 @@ name: CI
 # Stage 1 gates: PostgreSQL failure-row load and 10k/30k/50k parser benchmarks.
 
 on:
+  # PR 自动门禁；保留现有 push 范围。
   push:
     branches: [main, master, integration-grouplib-import-worker-lease]
   pull_request:
+  # 允许维护者从 Actions 页面手动启动同一套完整门禁。
+  workflow_dispatch:
 
 jobs:
   # 字段覆盖审计：防「上层有值、底层丢字段」类 bug（accounts.source / plans 配额列教训）

@@ -1,4 +1,4 @@
-import { api } from '@/utils/request'
+import { api, type RequestOptions } from '@/utils/request'
 import type { SystemGroup } from '@/types/models'
 
 export interface GroupLibraryResult {
@@ -18,8 +18,8 @@ export interface GroupLibraryQuery {
 }
 
 // 平台级群组库(找群): 所有租户采集汇总, 登录即可见
-export function getGroupLibrary(params: GroupLibraryQuery): Promise<GroupLibraryResult> {
-  return api.get('/group-library', { params: { ...params } as Record<string, string | number | boolean | undefined> })
+export function getGroupLibrary(params: GroupLibraryQuery, options?: RequestOptions): Promise<GroupLibraryResult> {
+  return api.get('/group-library', { params: { ...params } as Record<string, string | number | boolean | undefined>, ...options })
 }
 
 // 勾选批量加入: 对每个账号创建一个加群任务。
@@ -68,9 +68,9 @@ export function confirmImportLibraryGroups(jobId: string): Promise<GroupLibraryI
   return api.post('/group-library/import-jobs/' + encodeURIComponent(jobId) + '/confirm')
 }
 
-export function listGroupLibraryImportJobs(taskNumber?: number | string): Promise<{ list: GroupLibraryImportJob[] }> {
+export function listGroupLibraryImportJobs(taskNumber?: number | string, options?: RequestOptions): Promise<{ list: GroupLibraryImportJob[] }> {
   const query = taskNumber === undefined || taskNumber === null || taskNumber === '' ? '' : '?task_number=' + encodeURIComponent(String(taskNumber).replace(/^#/, ''))
-  return api.get('/group-library/import-jobs' + query)
+  return api.get('/group-library/import-jobs' + query, options)
 }
 
 export function getGroupLibraryImportJob(jobId: string): Promise<GroupLibraryImportJob> {

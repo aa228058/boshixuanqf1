@@ -193,6 +193,7 @@ const joinPath = computed(() => {
   return accountId ? `/workspace/${accountId}/join` : '/accounts'
 })
 let dashboardRequestId = 0
+let dashboardController: AbortController | null = null
 watch(currentAccount, () => { loadDashboardData() })
 
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
@@ -281,7 +282,7 @@ const accountChartOption = computed(() => ({
     itemWidth: 8,
     itemHeight: 8,
     itemGap: 16,
-    textStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || 'text-text-muted', fontSize: 11 },
+    textStyle: { color: chartTheme.textMuted.value, fontSize: 11 },
   },
   series: [{
     type: 'pie',
@@ -310,11 +311,14 @@ function severityClass(s: string) {
 }
 
 async function loadDashboardData() {
+  dashboardController?.abort()
+  const controller = new AbortController()
+  dashboardController = controller
   const requestId = ++dashboardRequestId
   const accountId = currentAccount.value?.account_id
   try {
     loading.value = true
-    const s = await dashboardApi.getStats(accountId)
+    const s = await dashboardApi.getStats(accountId, { signal: controller.signal })
     if (requestId !== dashboardRequestId) return
     if (s) {
       stats.value[0].value = String(s.online_accounts ?? 0)
@@ -324,11 +328,11 @@ async function loadDashboardData() {
       taskData.value = s.task_trend || []
       accountData.value = s.account_distribution || []
     }
-    const re = await dashboardApi.getRiskEvents({ limit: 5 })
+    const re = await dashboardApi.getRiskEvents({ limit: 5 }, { signal: controller.signal })
     if (requestId !== dashboardRequestId) return
     riskEvents.value = (re as any)?.list || (Array.isArray(re) ? re : [])
     try {
-      const profile = await settingsApi.getProfile()
+      const profile = await settingsApi.getProfile({ signal: controller.signal })
       if (requestId !== dashboardRequestId) return
       if (profile.expires_at) {
         expiresAt.value = formatDate(profile.expires_at)
@@ -337,13 +341,15 @@ async function loadDashboardData() {
       }
     } catch (e) { /* ignore */ }
   } catch (e: unknown) {
-    if (requestId !== dashboardRequestId) return
+    if (controller.signal.aborted || requestId !== dashboardRequestId) return
     toast({ type: 'error', title: '仪表盘数据加载失败', message: (e instanceof Error ? e.message : '请检查网络或联系管理员') })
   } finally {
+    if (dashboardController === controller) dashboardController = null
     if (requestId === dashboardRequestId) loading.value = false
   }
 }
 
 onMounted(() => { loadDashboardData() })
-onUnmounted(() => {})
+// 页面离开时使未完成的账号/仪表盘请求失效，避免卸载后继续写入旧视图状态。
+onUnmounted(() => { dashboardRequestId++; dashboardController?.abort(); dashboardController = null })
 </script>

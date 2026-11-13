@@ -203,11 +203,26 @@ const total = computed(() => accounts.value.length)
 const onlineCount = computed(() => accounts.value.filter((a: any) => a.status === 'online').length)
 const restrictedCount = computed(() => accounts.value.filter((a: any) => a.status === 'restricted' || a.status === 'banned').length)
 
+let refreshController: AbortController | null = null
+let refreshRequestId = 0
+let pageActive = true
+
 async function refresh() {
+  if (!pageActive) return
+  refreshController?.abort()
+  const controller = new AbortController()
+  refreshController = controller
+  const requestId = ++refreshRequestId
+  const isCurrent = () => pageActive && requestId === refreshRequestId && !controller.signal.aborted
   loading.value = true
-  try { await accountStore.fetchAccounts() }
-  catch { toast({ type: 'error', title: '加载失败' }) }
-  finally { loading.value = false }
+  try {
+    await accountStore.fetchAccounts(false, { signal: controller.signal })
+  } catch (error: any) {
+    if (isCurrent()) toast({ type: 'error', title: '加载失败' })
+  } finally {
+    if (isCurrent()) loading.value = false
+    if (refreshController === controller) refreshController = null
+  }
 }
 
 const shortId = (id: string) => (id || '').slice(0, 8)
@@ -234,22 +249,33 @@ function toggleSelect(id: string) {
 }
 // P1-31 审计修复: 原 for+await 串行删除(每个约 5s, 10 个 = 50s 无进度), 失败仅
 // console.error 用户无从感知。改并行 + 汇总反馈。
+const deletingBatch = ref(false)
 async function batchDelete() {
-  if (!selected.value.size) return
+  if (!selected.value.size || deletingBatch.value) return
   const confirmed = await ask(`确定删除选中的 ${selected.value.size} 个协议号？`, {
     title: '批量删除协议号',
     danger: true,
     confirmText: '确认删除',
     cancelText: '取消',
   })
-  if (!confirmed) return
+  if (!confirmed || deletingBatch.value) return
   const ids = Array.from(selected.value)
-  const results = await Promise.allSettled(ids.map((id) => accountStore.deleteAccount(id)))
-  const failed = results.filter((r) => r.status === 'rejected').length
-  selected.value = new Set()
-  await refresh()
-  if (failed > 0) {
-    toast({ type: 'warning', title: `删除完成, ${failed} 个失败`, message: '失败的号可能正在执行任务, 请稍后重试' })
+  deletingBatch.value = true
+  try {
+    const results = await Promise.allSettled(ids.map((id) => accountStore.deleteAccount(id)))
+    const failedIds = ids.filter((_, index) => results[index].status === 'rejected')
+    // 仅移除成功项；失败账号保留勾选，便于用户重试而不是丢失操作上下文。
+    const remaining = new Set(selected.value)
+    ids.filter(id => !failedIds.includes(id)).forEach(id => remaining.delete(id))
+    selected.value = remaining
+    await refresh()
+    if (failedIds.length > 0) {
+      toast({ type: 'warning', title: `删除完成, ${failedIds.length} 个失败`, message: '失败账号仍保持选中，可稍后重试' })
+    } else {
+      toast({ type: 'success', title: `已删除 ${ids.length} 个协议号` })
+    }
+  } finally {
+    deletingBatch.value = false
   }
 }
 
@@ -286,6 +312,8 @@ const importLines = computed(() => importText.value.split('\n').map(s => s.trim(
 
 const sessionFileInput = ref<HTMLInputElement>()
 const sessionFiles = ref<File[]>([])
+let importRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let importCloseTimer: ReturnType<typeof setTimeout> | null = null
 
 function onSessionFilesPicked(e: Event) {
   const input = e.target as HTMLInputElement
@@ -307,10 +335,12 @@ async function doImport() {
     if (res.created > 0) {
       toast({ type: 'success', title: `成功导入 ${res.created} 个`, message: '正在后台连接验证…' })
       accountStore.fetchAccounts(true) // 立即刷新——行已在DB，无需等8秒
-      setTimeout(() => { refresh(); accountStore.fetchAccounts(true) }, 8000) // 8秒后二次刷新获取连接状态
+      if (importRefreshTimer) clearTimeout(importRefreshTimer)
+      importRefreshTimer = setTimeout(() => { importRefreshTimer = null; refresh(); accountStore.fetchAccounts(true) }, 8000) // 8秒后二次刷新获取连接状态
     }
     if (res.failed === 0) {
-      setTimeout(() => { showImport.value = false; importText.value = ''; sessionFiles.value = []; importResult.value = null }, 1500)
+      if (importCloseTimer) clearTimeout(importCloseTimer)
+      importCloseTimer = setTimeout(() => { importCloseTimer = null; showImport.value = false; importText.value = ''; sessionFiles.value = []; importResult.value = null }, 1500)
     }
   } catch (e: any) {
     toast({ type: 'error', title: '导入失败', message: e?.message })
@@ -341,16 +371,17 @@ function openEdit(acc: any) {
 }
 
 async function doSave() {
-  if (!editForm.value) return
+  if (!editForm.value || saving.value) return
+  const form = { ...editForm.value }
   saving.value = true
   try {
-    await updateProfile(editForm.value.account_id, {
-      first_name: editForm.value.first_name,
-      last_name: editForm.value.last_name,
-      about: editForm.value.about,
-      username: editForm.value.username.replace(/^@/, ''),
-      twofa: editForm.value.twofa,
-      remark: editForm.value.remark,
+    await updateProfile(form.account_id, {
+      first_name: form.first_name,
+      last_name: form.last_name,
+      about: form.about,
+      username: form.username.replace(/^@/, ''),
+      twofa: form.twofa,
+      remark: form.remark,
     })
     toast({ type: 'success', title: '资料已更新' })
     showEdit.value = false
@@ -396,7 +427,13 @@ onMounted(() => {
   statusPoll = setInterval(refresh, 15000)
 })
 onUnmounted(() => {
+  pageActive = false
+  refreshRequestId++
+  refreshController?.abort()
+  refreshController = null
   if (statusPoll) clearInterval(statusPoll)
+  if (importRefreshTimer) clearTimeout(importRefreshTimer)
+  if (importCloseTimer) clearTimeout(importCloseTimer)
 })
 </script>
 

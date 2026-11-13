@@ -2,6 +2,12 @@
      用法: <ProgressRing :percent="51" :size="44" :stroke="4" /> -->
 <script setup lang="ts">
 import { computed } from 'vue'
+import {
+  normalizeRingPercent,
+  normalizeRingSize,
+  normalizeRingStroke,
+  normalizeRingSuccess,
+} from './progressRing'
 
 const props = withDefaults(defineProps<{
   percent: number          // 0-100, 已处理口径(成功+失败)
@@ -10,28 +16,38 @@ const props = withDefaults(defineProps<{
   success?: number         // 成功占比 0-100(画绿色弧, 剩余为青)
 }>(), { size: 44, stroke: 4, success: 0 })
 
-const r = computed(() => (props.size - props.stroke) / 2)
+const safeSize = computed(() => normalizeRingSize(props.size))
+const safeStroke = computed(() => normalizeRingStroke(props.stroke, safeSize.value))
+const progress = computed(() => normalizeRingPercent(props.percent))
+const success = computed(() => normalizeRingSuccess(props.success, progress.value))
+const r = computed(() => Math.max(0, (safeSize.value - safeStroke.value) / 2))
 const circ = computed(() => 2 * Math.PI * r.value)
 // 总进度弧长
-const dashTotal = computed(() => circ.value * (1 - Math.min(100, props.percent) / 100))
+const dashTotal = computed(() => circ.value * (1 - progress.value / 100))
 // 成功段弧长(在总进度里切出绿色段)
-const successLen = computed(() => circ.value * (Math.min(props.success, props.percent) / 100))
+const successLen = computed(() => circ.value * (success.value / 100))
 </script>
 
 <template>
-  <div class="relative inline-grid place-items-center shrink-0" :style="{ width: size + 'px', height: size + 'px' }">
-    <svg :width="size" :height="size" class="-rotate-90">
-      <circle :cx="size/2" :cy="size/2" :r="r" fill="none" stroke-width="stroke"
+  <div class="relative inline-grid place-items-center shrink-0" :style="{ width: safeSize + 'px', height: safeSize + 'px' }">
+    <svg :width="safeSize" :height="safeSize" class="-rotate-90">
+      <circle :cx="safeSize/2" :cy="safeSize/2" :r="r" fill="none" :stroke-width="safeStroke"
               class="stroke-bg-primary" />
       <!-- 底进度(青/主色) -->
-      <circle :cx="size/2" :cy="size/2" :r="r" fill="none" stroke-width="stroke"
+      <circle :cx="safeSize/2" :cy="safeSize/2" :r="r" fill="none" :stroke-width="safeStroke"
               stroke-linecap="round" stroke="currentColor" class="text-cyan transition-all duration-500"
               :stroke-dasharray="circ" :stroke-dashoffset="dashTotal" />
       <!-- 成功段(绿, 从起点覆盖) -->
-      <circle v-if="success > 0" :cx="size/2" :cy="size/2" :r="r" fill="none" :stroke-width="stroke"
+      <circle v-if="success > 0" :cx="safeSize/2" :cy="safeSize/2" :r="r" fill="none" :stroke-width="safeStroke"
               stroke-linecap="round" :stroke="'var(--color-emerald, #4cb892)'" class="transition-all duration-500"
               :stroke-dasharray="`${successLen} ${circ}`" stroke-dashoffset="0" />
     </svg>
-    <span class="absolute text-[10px] font-bold tabular-nums text-text-primary">{{ Math.round(percent) }}%</span>
+    <span class="absolute text-[10px] font-bold tabular-nums text-text-primary">{{ Math.round(progress) }}%</span>
   </div>
 </template>
+
+<style scoped>
+@media (prefers-reduced-motion: reduce) {
+  svg circle { transition: none !important; }
+}
+</style>
