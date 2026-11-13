@@ -1380,7 +1380,7 @@ func (h *TaskHandler) Delete(c echo.Context) error {
 
 	if err := h.svc.Delete(c.Request().Context(), tenantID, taskID); err != nil {
 		log.Printf("[handler] 删除任务失败: %v", err)
-		if strings.Contains(err.Error(), "无法删除该状态的任务") {
+		if strings.Contains(err.Error(), "cannot delete task with status") {
 			return echo.NewHTTPError(http.StatusConflict, err.Error())
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "删除任务失败")
