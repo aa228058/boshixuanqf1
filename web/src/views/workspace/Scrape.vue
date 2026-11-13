@@ -185,18 +185,12 @@
 </template>
 
 <script setup lang="ts">
-// 进度对象后端可能是 JSON 字符串或对象,统一解析
+// 进度对象可能是 JSON 字符串或对象；统一校验有限数值并限制进度范围。
 function progressOf(task: any): { total: number; done: number; failed: number } {
-  const p = task?.progress
-  if (!p) return { total: 0, done: 0, failed: 0 }
-  if (typeof p === 'string') {
-    try { return { total: 0, done: 0, failed: 0, ...JSON.parse(p) } } catch { return { total: 0, done: 0, failed: 0 } }
-  }
-  return p
+  return normalizeTaskProgress(task?.progress)
 }
 function progressPct(task: any): number {
-  const p = progressOf(task)
-  return p.total > 0 ? Math.round(p.done / p.total * 100) : 0
+  return safeProgressPercent(progressOf(task))
 }
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
@@ -216,6 +210,7 @@ import Modal from '@/components/ui/Modal.vue'
 import type { Group } from '@/types'
 import { ask } from '@/utils/confirm'
 import { downloadBlob, escapeSpreadsheetCSVCell, escapeSpreadsheetHTMLCell } from '@/utils/export'
+import { normalizeTaskProgress, relativeTaskTime, safeProgressPercent, safeTaskDate, uniqueTaskIds } from '@/utils/workspaceGuards'
 
 const route = useRoute()
 const router = useRouter()
@@ -263,13 +258,7 @@ const groups = computed<any[]>(() => {
 const submitting = ref(false)
 
 // 模板 149 行的相对时间调用此前无定义（渲染即崩）。
-function relTime(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return `${s}秒前`
-  if (s < 3600) return `${Math.floor(s / 60)}分钟前`
-  if (s < 86400) return `${Math.floor(s / 3600)}小时前`
-  return `${Math.floor(s / 86400)}天前`
-}
+function relTime(iso: string): string { return relativeTaskTime(iso) }
 
 const tasks = ref<any[]>([])
 let taskListRequestId = 0
@@ -291,15 +280,16 @@ const clearing = ref(false)
 async function clearLogs() {
   if (clearing.value) return
   const accountId = scrapeAccId.value
-  const finished = tasks.value.filter(t => t.status !== 'running' && t.status !== 'queued')
-  const taskIds = finished.map(t => t.task_id)
+  const taskIds = uniqueTaskIds(tasks.value
+    .filter(t => t.status !== 'running' && t.status !== 'queued')
+    .map(t => t.task_id))
   if (!accountId || !taskIds.length) return
-  if (!await ask(`确定清空 ${taskIds.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })) return
-  if (accountId !== scrapeAccId.value) return
   clearing.value = true
   try {
+    const confirmed = await ask(`确定清空 ${taskIds.length} 条采集记录？此操作不可恢复`, { title: '清空采集记录', danger: true, confirmText: '清空记录' })
+    if (!confirmed || accountId !== scrapeAccId.value || !pageActive) return
     await taskApi.batchDelete(taskIds)
-    if (accountId !== scrapeAccId.value) return
+    if (accountId !== scrapeAccId.value || !pageActive) return
     expanded.value = {}
     members.value = {}
     skippedBots.value = {}
@@ -315,10 +305,7 @@ function statusText(s: string) {
   const map: Record<string, string> = { pending: '待执行', running: '执行中', completed: '已完成', failed: '失败', cancelled: '已取消' }
   return map[s] || s
 }
-function formatDate(d: string) {
-  if (!d) return '-'
-  return new Date(d).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+function formatDate(d: string) { return safeTaskDate(d, '-') }
 
 function selectGroup(g: any) {
   selectedGroup.value = g
@@ -330,9 +317,15 @@ function onSelectGroup(selected: Group[]) {
 }
 
 function toggleExpand(taskId: string) {
-  expanded.value[taskId] = !expanded.value[taskId]
-  if (expanded.value[taskId] && !members.value[taskId]) {
-    loadMembers(taskId)
+  const nextExpanded = !expanded.value[taskId]
+  expanded.value[taskId] = nextExpanded
+  if (nextExpanded && !members.value[taskId]) {
+    void loadMembers(taskId)
+  } else if (!nextExpanded) {
+    memberRequestIds[taskId] = (memberRequestIds[taskId] || 0) + 1
+    memberControllers[taskId]?.abort()
+    delete memberControllers[taskId]
+    memberLoading.value[taskId] = false
   }
 }
 
@@ -355,10 +348,11 @@ async function loadMembers(taskId: string) {
     }
     const res = await groupApi.getMembers(groupId, undefined, { signal: controller.signal })
     if (!isCurrent()) return
-    const raw = (res as any).members || res.list || res || []
-    // 自动跳过机器人结果(源头已在采集时过滤, 这里兜底处理历史数据)
+    const candidate = (res as any)?.members ?? (res as any)?.list ?? res
+    const raw = Array.isArray(candidate) ? candidate : []
+    // 非数组/异常响应按空结果处理，避免对对象调用 filter 导致页面异常。
     skippedBots.value[taskId] = raw.filter(isBot).length
-    members.value[taskId] = raw.filter((m: any) => !isBot(m))
+    members.value[taskId] = raw.filter((m: any) => m && typeof m === 'object' && !isBot(m))
   } catch {
     if (!controller.signal.aborted && isCurrent()) members.value[taskId] = []
   } finally {
@@ -508,7 +502,9 @@ onUnmounted(() => {
   taskListRequestId++
   taskListController?.abort()
   taskListController = null
+  for (const taskId of Object.keys(memberRequestIds)) memberRequestIds[taskId]++
   for (const controller of Object.values(memberControllers)) controller.abort()
+  for (const taskId of Object.keys(memberControllers)) delete memberControllers[taskId]
 })
 
 </script>
