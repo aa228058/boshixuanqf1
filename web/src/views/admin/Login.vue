@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { validateAdminLogin, type AdminLoginErrors } from '@/utils/adminPageGuards'
 // R87-M7: DynamicBackground 已移除
 import { useRouter } from 'vue-router'
@@ -82,6 +82,8 @@ const loading = ref(false)
 const errorMsg = ref('')
 const showPassword = ref(false)
 const errors = ref<AdminLoginErrors>({})
+let loginPageActive = true
+onUnmounted(() => { loginPageActive = false })
 
 function validateForm(): boolean {
   errors.value = validateAdminLogin(username.value, password.value)
@@ -110,11 +112,11 @@ async function handleLogin() {
   errorMsg.value = ''
   try {
     await adminStore.login(username.value.trim(), password.value)
-    router.push('/admin/dashboard')
+    if (loginPageActive) router.push('/admin/dashboard')
   } catch (e: unknown) {
-    errorMsg.value = (e instanceof Error ? e.message : '登录失败，请重试')
+    if (loginPageActive) errorMsg.value = (e instanceof Error ? e.message : '登录失败，请重试')
   } finally {
-    loading.value = false
+    if (loginPageActive) loading.value = false
   }
 }
 </script>
