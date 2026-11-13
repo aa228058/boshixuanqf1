@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampPercentage, isValidAuditDateRange, validateAdminLogin } from './adminPageGuards'
+import { clampPercentage, finiteMetric, isValidAuditDateRange, validateAdminLogin } from './adminPageGuards'
 
 describe('validateAdminLogin', () => {
   it('requires a username', () => expect(validateAdminLogin(' ', 'secret')).toEqual({ username: '请输入用户名' }))
