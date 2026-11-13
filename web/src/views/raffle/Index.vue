@@ -410,10 +410,11 @@ async function toggleAccount(acc: any) {
   } catch (e: any) {
     if (rafflePageActive) toast({ type: 'error', message: e?.message || '账号抽奖状态更新失败' })
   } finally {
-    if (!rafflePageActive) return
-    const pending = new Set(accountTogglePending.value)
-    pending.delete(id)
-    accountTogglePending.value = pending
+    if (rafflePageActive) {
+      const pending = new Set(accountTogglePending.value)
+      pending.delete(id)
+      accountTogglePending.value = pending
+    }
   }
 }
 
