@@ -42,15 +42,15 @@ func (h *DashboardHandler) Stats(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// account_id 传入时仪表盘只统计该账号的数据(跟随侧边栏账号切换)
-	if aid := c.QueryParam("account_id"); aid != "" {
-		if accountID, perr := uuid.Parse(aid); perr == nil {
-			stats, err := h.svc.StatsForAccount(ctx, tenantID, accountID)
-			if err != nil {
-				log.Printf("[dashboard] 账号统计失败 account=%s: %v", accountID, err)
-				return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			}
-			return c.JSON(http.StatusOK, stats)
+	if accountID, parseErr := parseOptionalUUIDParam(c.QueryParam("account_id"), "account_id"); parseErr != nil {
+		return parseErr
+	} else if accountID != nil {
+		stats, err := h.svc.StatsForAccount(ctx, tenantID, *accountID)
+		if err != nil {
+			log.Printf("[dashboard] 账号统计失败 account=%s: %v", *accountID, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
+		return c.JSON(http.StatusOK, stats)
 	}
 
 	// Use COUNT queries instead of loading all data
