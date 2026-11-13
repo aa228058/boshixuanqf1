@@ -1200,7 +1200,7 @@ async function refreshAvatar(acc: any) {
       void accountStore.fetchAccounts()
     }, 6000)
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '刷新失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '刷新失败' })
   } finally {
     if (accountsPageActive) avatarRefreshingId.value = ''
   }
@@ -1286,7 +1286,7 @@ async function reconnectAccount(acc: any) {
       void accountStore.fetchAccounts(true)
     }, 5000)
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '重连失败, 可能需重新登录' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '重连失败, 可能需重新登录' })
   } finally {
     if (accountsPageActive) reconnectingId.value = ''
   }
@@ -1297,6 +1297,7 @@ async function togglePool(acc: any) {
   const target = acc.pool_status === 'standby' ? 'active' : 'standby'
   try {
     await accountApi.setPool(acc?.account_id, target)
+    if (!accountsPageActive) return
     acc.pool_status = target
     toast({
       type: 'success',
@@ -1304,7 +1305,7 @@ async function togglePool(acc: any) {
     })
     accountStore.fetchAccounts(true)
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '操作失败' })
+    if (accountsPageActive) toast({ type: 'error', message: e?.message || '操作失败' })
   }
 }
 const router = useRouter()
@@ -1988,11 +1989,12 @@ async function doTestProxy() {
   proxyTesting.value = true
   proxyTestResult.value = null
   try {
-    proxyTestResult.value = await testAccountProxy(editingAccount.value.account_id)
+    const result = await testAccountProxy(editingAccount.value.account_id)
+    if (accountsPageActive) proxyTestResult.value = result
   } catch (e: unknown) {
-    proxyTestResult.value = { ok: false, error: (e instanceof Error ? e.message : '测试失败') }
+    if (accountsPageActive) proxyTestResult.value = { ok: false, error: (e instanceof Error ? e.message : '测试失败') }
   } finally {
-    proxyTesting.value = false
+    if (accountsPageActive) proxyTesting.value = false
   }
 }
 
@@ -2004,18 +2006,19 @@ async function saveRemark() {
   try {
     await accountApi.update(editingAccount.value.account_id, { remark: editRemarkText.value })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '备注保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '备注保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
     return
   }
   // 代理单独走专用接口(带格式校验+断线重连)
   try {
     await setAccountProxy(editingAccount.value.account_id, editProxyText.value.trim())
   } catch (e: unknown) {
-    toast({ type: 'warning', title: '备注已保存, 代理设置失败', message: (e instanceof Error ? e.message : '请检查代理格式后重试') })
+    if (accountsPageActive) toast({ type: 'warning', title: '备注已保存, 代理设置失败', message: (e instanceof Error ? e.message : '请检查代理格式后重试') })
   }
+  if (!accountsPageActive) return
   showEditRemark.value = false
   await accountStore.fetchAccounts()
-  toast({ type: 'success', title: '已保存' })
+  if (accountsPageActive) toast({ type: 'success', title: '已保存' })
 }
 
 // 删除
@@ -2032,10 +2035,11 @@ async function doDelete() {
   try {
     await accountStore.deleteAccount(deletingAccount.value.account_id)
     await accountStore.fetchAccounts()
+    if (!accountsPageActive) return
     showDeleteConfirm.value = false
     toast({ type: 'success', title: '账号已删除' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -2054,9 +2058,9 @@ const editGroupAccountIds = ref<string[]>([])
 async function fetchGroups() {
   try {
     const res = await settingsApi.getAccountGroups()
-    accountGroups.value = res.list || []
+    if (accountsPageActive) accountGroups.value = res.list || []
   } catch (e: unknown) {
-    toast({ type: 'error', title: '获取分组失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '获取分组失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -2068,11 +2072,12 @@ async function createGroup() {
       color: newGroupColor.value,
       account_ids: []
     })
+    if (!accountsPageActive) return
     newGroupName.value = ''
     await fetchGroups()
-    toast({ type: 'success', title: '分组已创建' })
+    if (accountsPageActive) toast({ type: 'success', title: '分组已创建' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '创建失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '创建失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -2093,11 +2098,12 @@ async function saveGroup() {
       // 传空数组会把组内账号全部清空 (BUG#4 修复)
       account_ids: editGroupAccountIds.value
     })
+    if (!accountsPageActive) return
     showEditGroup.value = false
     await fetchGroups()
-    toast({ type: 'success', title: '分组已更新' })
+    if (accountsPageActive) toast({ type: 'success', title: '分组已更新' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '更新失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '更新失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
@@ -2105,10 +2111,11 @@ async function deleteGroup(g: AccountGroup) {
   if (!await ask(`确定删除分组「${g.name}」吗？`)) return
   try {
     await settingsApi.deleteAccountGroup(g.group_id)
+    if (!accountsPageActive) return
     await fetchGroups()
-    toast({ type: 'success', title: '分组已删除' })
+    if (accountsPageActive) toast({ type: 'success', title: '分组已删除' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (accountsPageActive) toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
