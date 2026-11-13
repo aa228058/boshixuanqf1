@@ -898,3 +898,44 @@ func TestClaimTimeoutTasks_PreservesRecurringRoundCheckpoint(t *testing.T) {
 		t.Fatalf("worker after recovery=%q, want recovery-worker", workerID)
 	}
 }
+
+
+func TestDeleteOnlyAllowsTerminalTasks(t *testing.T) {
+	pool := connectTestDB(t)
+	ensureTasksTable(t, pool)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	repo := NewTaskRepository(pool)
+
+	// seedTask also creates the tenant row required by the foreign key.
+	activeID := seedTask(t, pool, tenantID, string(domain.TaskTypeBroadcast), 5)
+	if err := repo.Delete(ctx, tenantID, activeID); err == nil {
+		t.Fatal("queued task deletion unexpectedly succeeded")
+	}
+
+	for _, status := range []string{"pending", "scheduled", "paused", "running"} {
+		id := uuid.New()
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO tasks (task_id, tenant_id, type, status, priority)
+			VALUES ($1, $2, 'broadcast', $3, 5)
+		`, id, tenantID, status); err != nil {
+			t.Fatalf("insert %s task: %v", status, err)
+		}
+		if err := repo.Delete(ctx, tenantID, id); err == nil {
+			t.Errorf("%s task deletion unexpectedly succeeded", status)
+		}
+	}
+
+	for _, status := range []string{"completed", "failed", "cancelled"} {
+		id := uuid.New()
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO tasks (task_id, tenant_id, type, status, priority)
+			VALUES ($1, $2, 'broadcast', $3, 5)
+		`, id, tenantID, status); err != nil {
+			t.Fatalf("insert %s task: %v", status, err)
+		}
+		if err := repo.Delete(ctx, tenantID, id); err != nil {
+			t.Errorf("%s task deletion failed: %v", status, err)
+		}
+	}
+}
