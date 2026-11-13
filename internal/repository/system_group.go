@@ -109,12 +109,12 @@ func upsertSystemGroupTx(ctx context.Context, tx pgx.Tx, sg *domain.SystemGroup)
 			if err != nil {
 				return err
 			}
-			// ref_count represents distinct normalized links, not import attempts.
-			_, err = tx.Exec(ctx, "UPDATE system_groups SET ref_count=(SELECT COUNT(*) FROM system_group_links WHERE sg_id=$1) WHERE sg_id=$1", sgID)
+			_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source) SELECT $1,tenant_id,name,$2,$3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", sgID, link, sg.Source, sg.ContributorTenantID)
 			if err != nil {
 				return err
 			}
-			_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source) SELECT $1,tenant_id,name,$2,$3 FROM tenants WHERE tenant_id=$4 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", sgID, link, sg.Source, sg.ContributorTenantID)
+			// ref_count counts distinct tenant + submitted-link contributions, not import attempts.
+			_, err = tx.Exec(ctx, "UPDATE system_groups SET ref_count=GREATEST(1,(SELECT COUNT(DISTINCT (tenant_id,submitted_link)) FROM system_group_contributions WHERE sg_id=$1)) WHERE sg_id=$1", sgID)
 			if err != nil {
 				return err
 			}
@@ -186,6 +186,10 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 			return err
 		}
 		_, err = tx.Exec(ctx, "INSERT INTO system_group_contributions (sg_id,tenant_id,tenant_name_snapshot,submitted_link,source,created_at) SELECT $1,tenant_id,tenant_name_snapshot,submitted_link,source,created_at FROM system_group_contributions WHERE sg_id=$2 ON CONFLICT (sg_id,tenant_id,submitted_link) DO NOTHING", canonicalID, sgID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, "UPDATE system_groups SET ref_count=GREATEST(1,(SELECT COUNT(DISTINCT (tenant_id,submitted_link)) FROM system_group_contributions WHERE sg_id=$1)) WHERE sg_id=$1", canonicalID)
 		if err != nil {
 			return err
 		}
