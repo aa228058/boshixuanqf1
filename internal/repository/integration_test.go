@@ -344,7 +344,6 @@ func TestUpdateLinkValidityByLinkPreservesAlternateLinks(t *testing.T) {
 	}
 }
 
-
 func TestAccountCountAndCreateRespectsTenantLimitUnderConcurrency(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
