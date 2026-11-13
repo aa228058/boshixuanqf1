@@ -96,7 +96,7 @@
       </div>
       <template #footer>
         <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="sm" @click="showCreate = false">取消</t-button>
-        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement">
+        <t-button class="ui-t-button ui-t-button--primary ui-t-button--sm" size="sm" theme="primary" @click="saveAnnouncement" :loading="savingAnnouncement" :disabled="savingAnnouncement">
           {{ editing ? '保存' : '发布' }}
         </t-button>
       </template>
@@ -118,6 +118,8 @@ import type { Announcement, Plan } from '@/types'
 const announcements = ref<Announcement[]>([])
 const plans = ref<Plan[]>([])
 const showCreate = ref(false)
+const savingAnnouncement = ref(false)
+const deletingAnnouncementBusy = ref(false)
 const editing = ref(false)
 const editId = ref('')
 const deleteConfirm = ref()
@@ -159,6 +161,8 @@ function editAnnouncement(a: Announcement) {
 }
 
 async function saveAnnouncement() {
+  if (savingAnnouncement.value) return
+  savingAnnouncement.value = true
   try {
     if (editing.value) {
       await adminApiMod.updateAnnouncement(editId.value, form.value)
@@ -173,6 +177,8 @@ async function saveAnnouncement() {
     await fetchAnnouncements()
   } catch (e: unknown) {
     toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    savingAnnouncement.value = false
   }
 }
 
@@ -182,13 +188,16 @@ function deleteAnnouncement(a: Announcement) {
 }
 
 async function doDelete() {
-  if (!deletingAnnouncement.value) return
+  if (!deletingAnnouncement.value || deletingAnnouncementBusy.value) return
+  deletingAnnouncementBusy.value = true
   try {
     await adminApiMod.deleteAnnouncement(deletingAnnouncement.value.announcement_id)
     await fetchAnnouncements()
     toast({ type: 'success', title: '公告已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    deletingAnnouncementBusy.value = false
   }
 }
 
