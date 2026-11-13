@@ -272,7 +272,7 @@ const memberRequestIds: Record<string, number> = {}
 
 // 判断是否为机器人账号(is_bot 字段或 username 以 bot 结尾)
 function isBot(m: any): boolean {
-  return !!m.is_bot || (m.username || '').toLowerCase().endsWith('bot')
+  return !!m?.is_bot || (typeof m?.username === 'string' && m.username.toLowerCase().endsWith('bot'))
 }
 
 // 清空当前账号的全部采集任务记录(进行中的任务不会删除)
@@ -281,7 +281,7 @@ async function clearLogs() {
   if (clearing.value) return
   const accountId = scrapeAccId.value
   const taskIds = uniqueTaskIds(tasks.value
-    .filter(t => t.status !== 'running' && t.status !== 'queued')
+    .filter(t => ['completed', 'failed', 'cancelled'].includes(t.status))
     .map(t => t.task_id))
   if (!accountId || !taskIds.length) return
   clearing.value = true
