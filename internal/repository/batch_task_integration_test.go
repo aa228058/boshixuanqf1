@@ -62,7 +62,7 @@ func TestBatchTaskUpdateSubTaskIsIdempotentAndTenantScoped(t *testing.T) {
 }
 
 
-func TestCreateSplitBatchIsAtomicAndNotifiesOnlyCommittedRows(t *testing.T) {
+func TestCreateSplitBatchIsAtomic(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 	tenantID := uuid.New()
@@ -87,7 +87,7 @@ func TestCreateSplitBatchIsAtomicAndNotifiesOnlyCommittedRows(t *testing.T) {
 			Status: domain.TaskStatusQueued, Priority: 5,
 			AccountIDs: []uuid.UUID{}, TargetIDs: []string{"target"},
 			Payload: map[string]any{"batch_id": batch.BatchID.String()},
-			Progress: domain.TaskProgress{Total: 1},
+			Progress: domain.TaskProgress{Total: 1}, CreatedAt: now,
 		}
 	}
 	if err := repo.CreateSplitBatch(ctx, batch, []*domain.Task{makeTask(firstID), makeTask(secondID)}); err != nil {
