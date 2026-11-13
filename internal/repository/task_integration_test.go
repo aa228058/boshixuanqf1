@@ -1034,7 +1034,6 @@ func TestDeleteOnlyAllowsTerminalTasks(t *testing.T) {
 	}
 }
 
-
 func TestStaleWorkerCannotWriteAfterLeaseReclaimed(t *testing.T) {
 	pool := connectTestDB(t)
 	ensureTasksTable(t, pool)
