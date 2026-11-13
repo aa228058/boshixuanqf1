@@ -1558,7 +1558,7 @@ async function getVerificationCode() {
     } else if (result.phase === 'success' || result.phase === 'connected' || result.phase === 'online') {
       showAddModal.value = false
       await accountStore.fetchAccounts(true)
-      toast({ type: 'success', title: '账号已是登录状态', message: '会话有效，无需验证码' })
+      if (accountsPageActive) toast({ type: 'success', title: '账号已是登录状态', message: '会话有效，无需验证码' })
     } else {
       throw new Error(result.phase === 'timeout'
         ? '等待验证码超时：TG 未响应，请稍后重试'
@@ -1607,7 +1607,10 @@ async function isAccountOnline(accountId: string, signal: AbortSignal): Promise<
     throwIfAuthAborted(signal)
     const acc = (accountStore.phoneAccounts as any[]).find(a => a?.account_id === accountId)
     return !!acc && acc.status === 'online'
-  } catch { return false }
+  } catch (error) {
+    if (signal.aborted) throw error
+    return false
+  }
 }
 
 async function submitVerificationCode() {
@@ -1863,7 +1866,7 @@ async function showAuthModal(acc: Account) {
     } else if (ready === 'success') {
       showAuth.value = false
       await accountStore.fetchAccounts(true)
-      toast({ type: 'success', title: '账号已重新登录' })
+      if (accountsPageActive) toast({ type: 'success', title: '账号已重新登录' })
     } else {
       toast({ type: 'warning', title: '登录流程启动超时', message: '弹窗保持打开，请稍后重试或检查服务端日志' })
     }
@@ -1917,7 +1920,7 @@ async function submitOldCode() {
     if (result === 'success') {
       showAuth.value = false
       await accountStore.fetchAccounts(true)
-      toast({ type: 'success', title: '重新登录成功' })
+      if (accountsPageActive) toast({ type: 'success', title: '重新登录成功' })
     } else if (result === 'password') {
       need2FA.value = true
       oldTwoFAPassword.value = ''
