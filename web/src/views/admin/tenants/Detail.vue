@@ -54,8 +54,8 @@
 
       <div class="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-border">
         <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="showEdit = true">修改套餐</t-button>
-        <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey">重置 API Key</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus">
+        <t-button theme="primary" size="sm" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm shrink-0 whitespace-nowrap" @click="resetKey" :loading="resettingKey" :disabled="resettingKey || tenantActionPending">重置 API Key</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="toggleStatus" :loading="tenantActionPending" :disabled="tenantActionPending || resettingKey">
           {{ tenant.status === 'active' ? '停用租户' : '启用租户' }}
         </t-button>
       </div>
@@ -74,7 +74,7 @@
       </div>
       <template #footer>
         <t-button type="button" @click="showEdit = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit">保存</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveEdit" :loading="savingTenant" :disabled="savingTenant">保存</t-button>
       </template>
     </Modal>
   </main>
@@ -143,7 +143,13 @@ async function fetchTenant() {
   }
 }
 
+const savingTenant = ref(false)
+const resettingKey = ref(false)
+const tenantActionPending = ref(false)
+
 async function saveEdit() {
+  if (savingTenant.value) return
+  savingTenant.value = true
   try {
     // P2-49: datetime-local 给的是无时区本地时间, 原样提交后端按 UTC 解析——
     // 东八区设 10:00 被存成 18:00。转 ISO(本地时区→UTC)后提交。
@@ -157,23 +163,31 @@ async function saveEdit() {
     toast({ type: 'success', title: '租户信息已更新' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '更新失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    savingTenant.value = false
   }
 }
 
 async function resetKey() {
+  if (resettingKey.value || tenantActionPending.value) return
   try {
     // 重置即作废旧 Key（明文只显示一次），误触代价高——加确认
     const ok = await ask('重置 API Key 后旧 Key 将立即失效，确定重置？')
     if (!ok) return
+    resettingKey.value = true
     await adminApiMod.resetApiKey(tenantId)
     await fetchTenant()
     toast({ type: 'success', title: 'API Key 已重置' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    resettingKey.value = false
   }
 }
 
 async function toggleStatus() {
+  if (tenantActionPending.value || resettingKey.value) return
+  tenantActionPending.value = true
   try {
     const newStatus = tenant.value?.status === 'active' ? 'suspended' : 'active'
     await adminApiMod.updateTenant(tenantId, { status: newStatus })
@@ -181,6 +195,8 @@ async function toggleStatus() {
     toast({ type: 'success', title: newStatus === 'active' ? '租户已启用' : '租户已停用' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '操作失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally {
+    tenantActionPending.value = false
   }
 }
 
