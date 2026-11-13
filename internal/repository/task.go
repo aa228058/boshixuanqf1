@@ -251,8 +251,8 @@ func (r *TaskRepository) CreateSplitBatch(ctx context.Context, batch *domain.Bat
 			}
 			if err := tx.QueryRow(ctx, `
 				INSERT INTO tasks (task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress, scheduled_at,
-				                   is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				                   is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at, created_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 				RETURNING task_number`,
 				task.TaskID, task.TenantID, task.Type, task.Status, task.Priority, task.AccountIDs, task.TargetIDs, task.Payload, task.Progress, task.ScheduledAt,
 				task.IsLoop, task.LoopIntervalMinutes, task.MinIntervalSeconds, task.MaxIntervalSeconds, task.NextRunAt, task.CreatedAt).Scan(&task.TaskNumber); err != nil {
