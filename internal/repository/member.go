@@ -124,7 +124,6 @@ func (r *MemberRepository) BatchCreate(ctx context.Context, members []*domain.Me
 	})
 }
 
-
 // BatchCreateOwned persists monitor-scraped members only while the task lease is
 // still owned by workerID. The row lock serializes this write with cancellation
 // and lease reclamation: whichever transaction locks the task first wins.
