@@ -206,17 +206,18 @@ async function saveAll() {
         // 保持数组格式：Plan.Features 后端结构体为 []string。
         features: p.features,
       }).then(() => { ok++ }).catch((e: any) => {
-        toast({ type: 'error', message: `${p.name} 保存失败: ${e?.message || '未知错误'}` })
+        if (plansPageActive) toast({ type: 'error', message: `${p.name} 保存失败: ${e?.message || '未知错误'}` })
       })
     )
     await Promise.all(jobs)
+    if (!plansPageActive) return
     if (ok === snapshot.length) {
       toast({ type: 'success', message: '全部套餐已保存，即时生效' })
     } else {
       toast({ type: 'info', message: `已保存 ${ok}/${snapshot.length} 档` })
     }
   } finally {
-    saving.value = false
+    if (plansPageActive) saving.value = false
   }
 }
 
