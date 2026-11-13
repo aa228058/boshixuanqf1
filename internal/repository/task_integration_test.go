@@ -85,6 +85,25 @@ func ensureTasksTable(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("create tasks table: %v", err)
 	}
 	_, err = pool.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS groups (
+			group_id UUID PRIMARY KEY,
+			tenant_id UUID NOT NULL,
+			tg_chat_id BIGINT NOT NULL,
+			title VARCHAR(512),
+			username VARCHAR(255),
+			type VARCHAR(20) NOT NULL DEFAULT 'group',
+			member_count INT NOT NULL DEFAULT 0,
+			is_joined BOOLEAN NOT NULL DEFAULT FALSE,
+			joined_at TIMESTAMPTZ,
+			last_scraped_at TIMESTAMPTZ,
+			metadata JSONB NOT NULL DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(tenant_id, tg_chat_id)
+		)`)
+	if err != nil {
+		t.Fatalf("create groups table fixture: %v", err)
+	}
+	_, err = pool.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS members (
 			member_id UUID PRIMARY KEY,
 			tenant_id UUID NOT NULL,
@@ -1173,6 +1192,16 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 			TGUserID: userID, Username: username, ScrapedAt: time.Now().UTC(),
 		}
 	}
+	insertGroup := func(groupID uuid.UUID, tgChatID int64) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO groups (group_id, tenant_id, tg_chat_id, title)
+			VALUES ($1, $2, $3, 'lease-fencing-test')
+			ON CONFLICT (group_id) DO NOTHING
+		`, groupID, tenantID, tgChatID); err != nil {
+			t.Fatalf("insert group fixture %s: %v", groupID, err)
+		}
+	}
 	countMembers := func(groupID uuid.UUID) int {
 		t.Helper()
 		var count int
@@ -1187,6 +1216,7 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 	// An expired worker must not write after another worker reclaims the lease.
 	staleTaskID := seedTask(t, pool, tenantID, string(domain.TaskTypeMonitorScrape), 5)
 	staleGroupID := uuid.New()
+	insertGroup(staleGroupID, time.Now().UnixNano())
 	if _, err := pool.Exec(ctx, `
 		UPDATE tasks SET status='running', worker_id='stale-member-worker',
 			locked_at=NOW() - INTERVAL '10 minutes'
@@ -1233,6 +1263,7 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 
 	// A failure halfway through a batch must roll back earlier inserts.
 	rollbackGroupID := uuid.New()
+	insertGroup(rollbackGroupID, time.Now().UnixNano()+1)
 	sharedMemberID := uuid.New()
 	rollbackMembers := []*domain.Member{
 		{MemberID: sharedMemberID, TenantID: tenantID, GroupID: rollbackGroupID, TGUserID: 3001, ScrapedAt: time.Now().UTC()},
@@ -1248,6 +1279,7 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 	// Cancellation clears the worker lease; the former worker must be fenced out.
 	cancelledTaskID := seedTask(t, pool, tenantID, string(domain.TaskTypeMonitorScrape), 5)
 	cancelledGroupID := uuid.New()
+	insertGroup(cancelledGroupID, time.Now().UnixNano()+2)
 	if _, err := pool.Exec(ctx, `
 		UPDATE tasks SET status='running', worker_id='cancelled-member-worker', locked_at=NOW()
 		WHERE tenant_id=$1 AND task_id=$2
