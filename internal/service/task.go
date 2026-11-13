@@ -1117,14 +1117,20 @@ func (s *TaskService) Delete(ctx context.Context, tenantID, taskID uuid.UUID) er
 }
 
 // BatchCancel cancels multiple tasks.
-func (s *TaskService) BatchCancel(ctx context.Context, tenantID uuid.UUID, taskIDs []uuid.UUID) (int, error) {
-	cancelled := 0
+func (s *TaskService) BatchCancel(ctx context.Context, tenantID uuid.UUID, taskIDs []uuid.UUID) (cancelled, failed int, err error) {
+	seen := make(map[uuid.UUID]struct{}, len(taskIDs))
 	for _, taskID := range taskIDs {
-		if err := s.Cancel(ctx, tenantID, taskID); err == nil {
-			cancelled++
+		if _, duplicate := seen[taskID]; duplicate {
+			continue
 		}
+		seen[taskID] = struct{}{}
+		if cancelErr := s.Cancel(ctx, tenantID, taskID); cancelErr != nil {
+			failed++
+			continue
+		}
+		cancelled++
 	}
-	return cancelled, nil
+	return cancelled, failed, nil
 }
 
 // BatchDelete deletes multiple terminal tasks.
@@ -1143,14 +1149,20 @@ func (s *TaskService) TaskLogStatsByAccount(ctx context.Context, tenantID, taskI
 	return s.logRepo.StatsByAccountForTask(ctx, tenantID, taskID)
 }
 
-func (s *TaskService) BatchDelete(ctx context.Context, tenantID uuid.UUID, taskIDs []uuid.UUID) (int, error) {
-	deleted := 0
+func (s *TaskService) BatchDelete(ctx context.Context, tenantID uuid.UUID, taskIDs []uuid.UUID) (deleted, failed int, err error) {
+	seen := make(map[uuid.UUID]struct{}, len(taskIDs))
 	for _, taskID := range taskIDs {
-		if err := s.Delete(ctx, tenantID, taskID); err == nil {
-			deleted++
+		if _, duplicate := seen[taskID]; duplicate {
+			continue
 		}
+		seen[taskID] = struct{}{}
+		if deleteErr := s.Delete(ctx, tenantID, taskID); deleteErr != nil {
+			failed++
+			continue
+		}
+		deleted++
 	}
-	return deleted, nil
+	return deleted, failed, nil
 }
 
 // Count returns total tasks for a tenant with optional account/type filtering.
