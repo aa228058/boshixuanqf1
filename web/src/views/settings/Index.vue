@@ -415,10 +415,11 @@ async function saveMessageDecoration() {
   messageDecorationSaving.value = true
   try {
     const result = await settingsApi.updateMessageDecoration(messageDecorationEnabled.value)
+    if (!settingsPageActive) return
     messageDecorationEnabled.value = !!result.enabled
     toast({ type: 'success', title: '发送装饰设置已保存' })
   } catch { /* 拦截器已提示 */ }
-  finally { messageDecorationSaving.value = false }
+  finally { if (settingsPageActive) messageDecorationSaving.value = false }
 }
 async function loadNotify(options?: RequestOptions) {
   notifyLoading.value = true
@@ -668,7 +669,9 @@ function fallbackCopy(text: string) {
 }
 
 async function fetchTextDicts(options?: RequestOptions) {
-  try { const res = await settingsApi.getTextDicts(options); textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
+  try { const res = await settingsApi.getTextDicts(options)
+    if (!settingsPageActive || options?.signal?.aborted) return
+    textDicts.value = (res.list || []).map(d => ({ ...d, enabled: d.enabled !== false, entries: d.entries || (d.items || []).map((word, i) => ({ entry_id: 'legacy-' + i, dict_id: d.dict_id, word, weight: 1, enabled: true })) })) }
   catch (e: unknown) { if (options?.signal?.aborted) return; toast({ type: 'error', title: '字典加载失败', message: (e as Error)?.message || '请稍后重试' }) }
 }
 function parseDictItems(value: string) { return value.split(String.fromCharCode(10)).map(x => x.trim()).filter(Boolean) }
@@ -680,9 +683,10 @@ async function createTextDict() {
       name: newDictName.value.trim(), enabled: true,
       entries: parseDictItems(newDictItems.value).map(word => ({ word, enabled: true })),
     })
+    if (!settingsPageActive) return
     newDictName.value = ''; newDictItems.value = ''
     await fetchTextDicts()
-    toast({ type: 'success', message: '字典已创建' })
+    if (settingsPageActive) toast({ type: 'success', message: '字典已创建' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '创建失败', message: (e as Error)?.message || '请稍后重试' })
   } finally { dictSaving.value = false }
@@ -693,8 +697,9 @@ async function saveTextDict(d: import('@/api/settings').TextDict) {
   try {
     const entries = d.entries.filter(entry => entry.word.trim()).map(entry => ({ word: entry.word.trim(), enabled: !!entry.enabled }))
     await settingsApi.updateTextDict(d.dict_id, { name: d.name.trim(), enabled: !!d.enabled, entries })
+    if (!settingsPageActive) return
     await fetchTextDicts()
-    toast({ type: 'success', message: '字典已保存' })
+    if (settingsPageActive) toast({ type: 'success', message: '字典已保存' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '保存失败', message: (e as Error)?.message || '请稍后重试' })
   } finally { dictSaving.value = false }
@@ -706,12 +711,13 @@ async function deleteTextDict(id: string) {
     danger: true,
     confirmText: '删除',
   })
-  if (!confirmed || dictSaving.value) return
+  if (!settingsPageActive || !confirmed || dictSaving.value) return
   dictSaving.value = true
   try {
     await settingsApi.deleteTextDict(id)
+    if (!settingsPageActive) return
     await fetchTextDicts()
-    toast({ type: 'success', message: '字典已删除' })
+    if (settingsPageActive) toast({ type: 'success', message: '字典已删除' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '删除失败', message: (e as Error)?.message || '请稍后重试' })
   } finally {
@@ -724,6 +730,7 @@ async function copyDictItems(id: string) {
 async function fetchTemplates(options?: RequestOptions) {
   try {
     const res = await settingsApi.getTemplates(options)
+    if (!settingsPageActive || options?.signal?.aborted) return
     templates.value = res.list || []
   } catch (e: unknown) {
     // console.error("Settings error:", e)
@@ -739,6 +746,7 @@ async function addTemplate() {
   templateCreating.value = true
   try {
     const created = await settingsApi.createTemplate({ name: '新模板', content: '' })
+    if (!settingsPageActive) return
     templates.value.push(created)
   } catch (err: unknown) {
     // P1-38: 创建失败必须明确反馈，避免用户误以为已保存。
@@ -766,6 +774,7 @@ async function deleteTemplate(id: string) {
   templateDeletingIds.value = new Set(templateDeletingIds.value).add(id)
   try {
     await settingsApi.deleteTemplate(id)
+    if (!settingsPageActive) return
     templates.value = templates.value.filter(t => t.template_id !== id)
   } catch (err: unknown) {
     toast({ type: 'error', title: '删除模板失败', message: (err as Error)?.message || '请稍后重试' })
@@ -792,7 +801,7 @@ async function saveTemplate(t: MessageTemplate) {
   templateSavingIds.value = new Set(templateSavingIds.value).add(id)
   try {
     await settingsApi.updateTemplate(id, payload)
-    toast({ type: 'success', title: '模板已保存' })
+    if (settingsPageActive) toast({ type: 'success', title: '模板已保存' })
   } catch (err: unknown) {
     toast({ type: 'error', title: '保存模板失败', message: (err as Error)?.message || '请稍后重试' })
   } finally {
@@ -805,6 +814,7 @@ async function saveTemplate(t: MessageTemplate) {
 async function fetchProfile(options?: RequestOptions) {
   try {
     const res = await settingsApi.getProfile(options)
+    if (!settingsPageActive || options?.signal?.aborted) return
     tenant.value = res
   } catch (e: unknown) {
     // console.error("Settings error:", e)
@@ -835,12 +845,14 @@ onMounted(async () => {
   loadMessageDecoration(options)
   try {
     const p = await settingsApi.getPlans(options)
+    if (!settingsPageActive || controller.signal.aborted) return
     // R86 热修: 接口可能返回 {list:[...]} 等包装对象, p||[] 会把对象塞进数组变量
     // 导致 planPrice 里 plans.value.find 抛"find is not a function"
     plans.value = Array.isArray(p) ? p : (Array.isArray((p as any)?.data) ? (p as any).data : (Array.isArray((p as any)?.list) ? (p as any).list : []))
   } catch (e: unknown) { /* ignore */ }
   try {
     const s = await settingsApi.getSupport(options)
+    if (!settingsPageActive || controller.signal.aborted) return
     supportConfig.value = s || null
   } catch (e: unknown) {
     // console.error("Settings error:", e)
