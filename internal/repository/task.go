@@ -665,13 +665,13 @@ func (r *TaskRepository) Delete(ctx context.Context, tenantID, taskID uuid.UUID)
 	res, err := r.db.Exec(ctx, `
 		DELETE FROM tasks
 		WHERE tenant_id = $1 AND task_id = $2
-		  AND status IN ('pending', 'scheduled', 'paused', 'completed', 'failed', 'cancelled')
+		  AND status IN ('completed', 'failed', 'cancelled')
 	`, tenantID, taskID)
 	if err != nil {
 		return err
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("task is active or no longer exists")
+		return fmt.Errorf("task is not terminal or no longer exists")
 	}
 	return nil
 }
