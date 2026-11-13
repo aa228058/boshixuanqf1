@@ -1259,6 +1259,15 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 	if username != "updated" {
 		t.Fatalf("upserted username = %q, want updated", username)
 	}
+	var progressDone string
+	if err := pool.QueryRow(ctx, `
+		SELECT progress->>'done' FROM tasks WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, staleTaskID).Scan(&progressDone); err != nil {
+		t.Fatalf("read current worker progress: %v", err)
+	}
+	if progressDone != "2" {
+		t.Fatalf("current worker progress done = %q, want 2", progressDone)
+	}
 
 	// A failure halfway through a batch must roll back earlier inserts.
 	rollbackGroupID := uuid.New()
@@ -1273,6 +1282,14 @@ func TestBatchCreateOwnedRejectsStaleAndCancelledWorkers(t *testing.T) {
 	}
 	if got := countMembers(rollbackGroupID); got != 0 {
 		t.Fatalf("partially committed batch left %d members, want 0", got)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT progress->>'done' FROM tasks WHERE tenant_id=$1 AND task_id=$2
+	`, tenantID, staleTaskID).Scan(&progressDone); err != nil {
+		t.Fatalf("read progress after rolled-back batch: %v", err)
+	}
+	if progressDone != "2" {
+		t.Fatalf("progress after rolled-back batch = %q, want unchanged 2", progressDone)
 	}
 
 	// Cancellation clears the worker lease; the former worker must be fenced out.
