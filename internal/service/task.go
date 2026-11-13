@@ -1103,15 +1103,21 @@ func (s *TaskService) GetByID(ctx context.Context, tenantID, taskID uuid.UUID) (
 	return s.repo.GetByID(ctx, tenantID, taskID)
 }
 
+// isDeletableTaskStatus allows deletion only after a task reaches a terminal state.
+func isDeletableTaskStatus(status domain.TaskStatus) bool {
+	return status == domain.TaskStatusCompleted ||
+		status == domain.TaskStatusFailed ||
+		status == domain.TaskStatusCancelled
+}
+
 // Delete removes a task. Only terminal tasks (completed/failed/cancelled) can be deleted.
 func (s *TaskService) Delete(ctx context.Context, tenantID, taskID uuid.UUID) error {
 	task, err := s.repo.GetByID(ctx, tenantID, taskID)
 	if err != nil {
 		return fmt.Errorf("获取任务失败: %w", err)
 	}
-	// Prevent deletion of active tasks to avoid orphan worker processes
-	if task.Status == domain.TaskStatusRunning || task.Status == domain.TaskStatusQueued {
-		return fmt.Errorf("cannot delete task with status %s: stop or cancel first", task.Status)
+	if !isDeletableTaskStatus(task.Status) {
+		return fmt.Errorf("cannot delete task with status %s: only completed, failed, or cancelled tasks can be deleted", task.Status)
 	}
 	return s.repo.Delete(ctx, tenantID, taskID)
 }
