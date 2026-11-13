@@ -152,7 +152,7 @@ func (r *MemberRepository) BatchCreateOwned(ctx context.Context, tenantID, taskI
 			SELECT worker_id
 			FROM tasks
 			WHERE tenant_id = $1 AND task_id = $2 AND status = 'running'
-			FOR SHARE
+			FOR NO KEY UPDATE
 		`, tenantID, taskID).Scan(&currentWorkerID)
 		if err != nil {
 			if err == pgx.ErrNoRows {
@@ -177,6 +177,25 @@ func (r *MemberRepository) BatchCreateOwned(ctx context.Context, tenantID, taskI
 			if err != nil {
 				return fmt.Errorf("persist owned member %d: %w", m.TGUserID, err)
 			}
+		}
+
+		// Keep the member batch and its progress increment in one transaction.
+		// The task row is already locked against cancellation/reclaim above.
+		lastMember := members[len(members)-1]
+		progressResult, err := tx.Exec(ctx, `
+			UPDATE tasks
+			SET progress = jsonb_set(
+				jsonb_set(COALESCE(progress, '{}'::jsonb), '{done}',
+					to_jsonb(COALESCE((progress->>'done')::int, 0) + $3)),
+				'{current_target}', to_jsonb($4::text)
+			)
+			WHERE tenant_id = $1 AND task_id = $2 AND status = 'running' AND worker_id = $5
+		`, tenantID, taskID, len(members), fmt.Sprintf("user_%d", lastMember.TGUserID), workerID)
+		if err != nil {
+			return fmt.Errorf("persist owned member progress: %w", err)
+		}
+		if progressResult.RowsAffected() != 1 {
+			return fmt.Errorf("persist owned member progress: task lease lost")
 		}
 		return nil
 	})
