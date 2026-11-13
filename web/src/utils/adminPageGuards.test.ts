@@ -74,3 +74,41 @@ describe('isValidDateTimeLocal', () => {
 describe('formatValidDate', () => {
   it('returns a placeholder for invalid timestamps', () => expect(formatValidDate('not-a-date')).toBe('—'))
 })
+
+
+import { formatValidDateTime, normalizePlanFeatures, validateAnnouncementInput, validateCodeGenerationInput } from './adminPageGuards'
+
+describe('formatValidDateTime', () => {
+  it('returns a placeholder for invalid timestamps', () => expect(formatValidDateTime('bad-date')).toBe('—'))
+})
+
+describe('validateCodeGenerationInput', () => {
+  const valid = { plan_id: 'basic', count: 10, timing_type: 'immediate' }
+  it('validates the selected plan, integer quantity, timing and optional expiry', () => {
+    expect(validateCodeGenerationInput(valid, ['basic'])).toBeNull()
+    expect(validateCodeGenerationInput({ ...valid, plan_id: 'missing' }, ['basic'])).toBe('请选择有效套餐')
+    expect(validateCodeGenerationInput({ ...valid, count: 1.5 }, ['basic'])).toBe('生成数量必须是 1–100 的整数')
+    expect(validateCodeGenerationInput({ ...valid, count: 101 }, ['basic'])).toBe('生成数量必须是 1–100 的整数')
+    expect(validateCodeGenerationInput({ ...valid, timing_type: 'later' }, ['basic'])).toBe('请选择有效的生效方式')
+    expect(validateCodeGenerationInput({ ...valid, expires_days: 0 }, ['basic'])).toBe('有效期必须是正整数天数')
+    expect(validateCodeGenerationInput({ ...valid, expires_days: 1.2 }, ['basic'])).toBe('有效期必须是正整数天数')
+  })
+})
+
+describe('validateAnnouncementInput', () => {
+  const valid = { title: '标题', content: '内容', priority: 'normal', target_type: 'all', target_plans: [] as string[] }
+  it('requires meaningful content and valid targeting', () => {
+    expect(validateAnnouncementInput(valid)).toBeNull()
+    expect(validateAnnouncementInput({ ...valid, title: ' ' })).toBe('请输入公告标题')
+    expect(validateAnnouncementInput({ ...valid, content: ' ' })).toBe('请输入公告内容')
+    expect(validateAnnouncementInput({ ...valid, target_type: 'specific_plan' })).toBe('指定套餐公告至少选择一个套餐')
+    expect(validateAnnouncementInput({ ...valid, priority: 'unknown' })).toBe('请选择有效的公告优先级')
+  })
+})
+
+describe('normalizePlanFeatures', () => {
+  it('keeps only enabled object flags and valid array entries', () => {
+    expect(normalizePlanFeatures({ broadcast: true, raffle: false, api: 1 })).toEqual(['broadcast'])
+    expect(normalizePlanFeatures(['broadcast', '', 1, 'raffle'])).toEqual(['broadcast', 'raffle'])
+  })
+})
