@@ -520,7 +520,7 @@ func (s *TaskService) CreateBroadcastWithMapping(ctx context.Context, tenantID u
 	// Auto-split: if total messages exceed threshold, split into multiple sub-tasks
 	maxMsgsPerTask := s.cfg.MaxMsgsPerTask
 	if mode == domain.BroadcastModeMapping && totalMsgs > maxMsgsPerTask {
-		return s.createSplitBroadcast(ctx, tenantID, mappings, message, scheduledAt, totalMsgs, maxMsgsPerTask, intervalMin, intervalMax, extraPayload)
+		return s.createSplitBroadcast(ctx, tenantID, mappings, message, scheduledAt, totalMsgs, maxMsgsPerTask, intervalMin, intervalMax, extraPayload, quotaReserved)
 	}
 
 	// 优先级: 默认 5, 前端可传 1-10(8=优先插队, ClaimTasks 按 priority DESC 排序)
@@ -550,19 +550,27 @@ func (s *TaskService) CreateBroadcastWithMapping(ctx context.Context, tenantID u
 		if quotaReserved {
 			// 任务记录未落库时退还预留额度；使用独立短超时上下文，
 			// 避免原请求取消后导致额度永久被占用。
-			refundCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			if refundErr := s.planLimits.ReleaseDailyUsageAmount(refundCtx, tenantID, repository.KindBroadcastMsgs, totalMsgs); refundErr != nil {
-				log.Printf("[quota] failed to refund broadcast reservation tenant=%s amount=%d: %v", tenantID, totalMsgs, refundErr)
-			}
-			cancel()
+			s.refundBroadcastQuota(ctx, tenantID, totalMsgs)
 		}
 		return nil, fmt.Errorf("创建群发任务失败: %w", err)
 	}
 	return task, nil
 }
 
+// refundBroadcastQuota 退还未能创建对应任务记录的群发额度预留。
+func (s *TaskService) refundBroadcastQuota(ctx context.Context, tenantID uuid.UUID, amount int) {
+	if s.planLimits == nil || amount <= 0 {
+		return
+	}
+	refundCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := s.planLimits.ReleaseDailyUsageAmount(refundCtx, tenantID, repository.KindBroadcastMsgs, amount); err != nil {
+		log.Printf("[quota] failed to refund broadcast reservation tenant=%s amount=%d: %v", tenantID, amount, err)
+	}
+}
+
 // createSplitBroadcast splits a large broadcast into multiple sub-tasks.
-func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, message string, scheduledAt *time.Time, totalMsgs, maxMsgsPerTask, intervalMin, intervalMax int, extraPayload map[string]any) (*domain.Task, error) {
+func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, message string, scheduledAt *time.Time, totalMsgs, maxMsgsPerTask, intervalMin, intervalMax int, extraPayload map[string]any, quotaReserved bool) (*domain.Task, error) {
 	// 2026-10-22 审计修复: maxMsgsPerTask<=0 时 splitMappings 会死循环/除零——入口护栏
 	if maxMsgsPerTask < 1 {
 		maxMsgsPerTask = 1
@@ -582,11 +590,15 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 	// Create batch record
 	if s.batchRepo != nil {
 		if err := s.batchRepo.Create(ctx, batch); err != nil {
-			log.Printf("[batch] failed to create batch record: %v", err)
+			if quotaReserved {
+				s.refundBroadcastQuota(ctx, tenantID, totalMsgs)
+			}
+			return nil, fmt.Errorf("create batch record: %w", err)
 		}
 	}
 
 	// Create sub-tasks
+	createdMsgs := 0
 	for i, chunk := range chunks {
 		chunkMsgs := 0
 		for _, m := range chunk {
@@ -632,8 +644,13 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 			task.Status = domain.TaskStatusPending
 		}
 		if err := s.repo.Create(ctx, task); err != nil {
+			// 已落库的子任务仍会执行，只退还尚未创建部分对应的额度。
+			if quotaReserved {
+				s.refundBroadcastQuota(ctx, tenantID, totalMsgs-createdMsgs)
+			}
 			return nil, fmt.Errorf("create sub-task %d/%d: %w", i+1, len(chunks), err)
 		}
+		createdMsgs += chunkMsgs
 		batch.SubTasks = append(batch.SubTasks, task.TaskID)
 		if s.batchRepo != nil {
 			if err := s.batchRepo.UpdateSubTask(ctx, tenantID, batch.BatchID, task.TaskID); err != nil {
