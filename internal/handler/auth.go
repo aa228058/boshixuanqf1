@@ -489,6 +489,7 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 func (h *AuthHandler) Logout(c echo.Context) error {
 	// Always clear the browser cookie, including on revocation failures.
 	defer func() {
+		// #nosec G124 -- HttpOnly and Strict are enforced; Secure mirrors the request scheme used when the refresh cookie was issued.
 		c.SetCookie(&http.Cookie{
 			Name: "refresh_token", Value: "", Path: "/", HttpOnly: true,
 			Secure: c.Scheme() == "https", SameSite: http.SameSiteStrictMode, MaxAge: -1,
