@@ -144,7 +144,7 @@
           </template>
           <template #op="{ row }">
             <div class="flex items-center gap-1.5">
-              <t-button v-if="row.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">停止</t-button>
+              <t-button v-if="['queued', 'pending', 'scheduled', 'running', 'paused'].includes(row.status)" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">取消</t-button>
               <t-button v-if="row.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(row.task_id)" :disabled="taskActionIds.has(row.task_id)">重试</t-button>
               <t-button v-if="['failed','cancelled','completed'].includes(row.status) && progressOf(row.progress).failed > 0"
                          class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click.stop="retryTask(row.task_id, 'failed')" :disabled="taskActionIds.has(row.task_id)">重试失败 ({{ progressOf(row.progress).failed }})</t-button>
@@ -201,7 +201,7 @@
         </div>
         </RouterLink>
         <div class="mt-2 flex items-center gap-2">
-          <t-button v-if="task.status === 'running'" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">取消</t-button>
+          <t-button v-if="['queued', 'pending', 'scheduled', 'running', 'paused'].includes(task.status)" class="ui-t-button ui-t-button--danger ui-t-button--sm" size="small" theme="danger" @click.stop="cancelTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">取消</t-button>
           <t-button v-if="task.status === 'failed'" class="ui-t-button ui-t-button--primary ui-t-button--sm" size="small" theme="primary" @click.stop="retryTask(task.task_id)" :disabled="taskActionIds.has(task.task_id)">重试</t-button>
           <t-button v-if="['failed','cancelled','completed'].includes(task.status) && progressOf(task.progress).failed > 0"
                      size="small" theme="warning" class="ui-t-button ui-t-button--warning ui-t-button--sm" @click.stop="retryTask(task.task_id, 'failed')" :disabled="taskActionIds.has(task.task_id)">重试失败 ({{ progressOf(task.progress).failed }})</t-button>
