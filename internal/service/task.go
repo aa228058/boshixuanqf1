@@ -654,7 +654,12 @@ func (s *TaskService) createSplitBroadcast(ctx context.Context, tenantID uuid.UU
 		batch.SubTasks = append(batch.SubTasks, task.TaskID)
 		if s.batchRepo != nil {
 			if err := s.batchRepo.UpdateSubTask(ctx, tenantID, batch.BatchID, task.TaskID); err != nil {
-				log.Printf("[task] 更新子任务失败: %v", err)
+				// 当前子任务已经落库并计入 createdMsgs，不能退还其额度；
+				// 停止继续创建，并只退还剩余尚未创建的消息额度。
+				if quotaReserved {
+					s.refundBroadcastQuota(ctx, tenantID, totalMsgs-createdMsgs)
+				}
+				return nil, fmt.Errorf("link sub-task %d/%d to batch: %w", i+1, len(chunks), err)
 			}
 		}
 	}
