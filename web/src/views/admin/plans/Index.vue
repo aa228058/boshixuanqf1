@@ -85,6 +85,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
+import { normalizePlanFeatures } from '@/utils/adminPageGuards'
 
 interface PlanRow {
   plan_id: string
@@ -148,9 +149,7 @@ async function load() {
       ...p,
       // 兼容双格式(2026-10-20): 后端存储已从数组改为 map {"raffle":true,...},
       // 加载时统一转成数组供勾选框使用(旧数组数据原样, 新 map 数据取 keys)
-      features: Array.isArray(p.features)
-        ? p.features
-        : Object.keys(p.features || {}),
+      features: normalizePlanFeatures(p.features),
     }))
     if (!plans.value.length) {
       loadError.value = '套餐列表为空 —— 请检查迁移 051 是否已执行(plans 表结构是否含 daily_search_limit 列)'
