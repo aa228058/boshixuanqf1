@@ -779,8 +779,8 @@ async function doJoin() {
   const accountsSnapshot = uniqueGroupIds([...joinAccounts.value])
   const optionsSnapshot = {
     perAccountCount: joinBatchEnabled.value ? Number(joinPerAccount.value) : 0,
-    intervalMinMinutes: joinIntervalMin.value === null ? null : Number(joinIntervalMin.value),
-    intervalMaxMinutes: joinIntervalMax.value === null ? null : Number(joinIntervalMax.value),
+    intervalMinMinutes: joinIntervalMin.value === null ? 0 : Number(joinIntervalMin.value),
+    intervalMaxMinutes: joinIntervalMax.value === null ? 0 : Number(joinIntervalMax.value),
   }
   const validationError = validateGroupJoinOptions({
     accountIds: accountsSnapshot,
