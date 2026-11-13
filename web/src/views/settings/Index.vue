@@ -407,6 +407,7 @@ function pickProvider(key: string) {
 async function loadMessageDecoration(options?: RequestOptions) {
   try {
     const result = await settingsApi.getMessageDecoration(options)
+    if (!settingsPageActive || options?.signal?.aborted) return
     messageDecorationEnabled.value = !!result.enabled
   } catch { /* toast 已由拦截器统一处理 */ }
 }
@@ -423,6 +424,7 @@ async function loadNotify(options?: RequestOptions) {
   notifyLoading.value = true
   try {
     const d: any = await settingsApi.getNotify(options)
+    if (!settingsPageActive || options?.signal?.aborted) return
     notifyEmail.value = d.email || ''
     notifySettings.value = d.settings || {}
     notifyEvents.value = d.events || {}
@@ -436,7 +438,7 @@ async function loadNotify(options?: RequestOptions) {
     if (s.from) smtpForm.value.from = s.from
     smtpPassSet.value = !!s.pass_set
   } catch { /* toast 已由拦截器统一处理 */ }
-  finally { if (!options?.signal?.aborted) notifyLoading.value = false }
+  finally { if (settingsPageActive && !options?.signal?.aborted) notifyLoading.value = false }
 }
 async function saveNotify() {
   if (notifySaving.value) return
@@ -455,19 +457,20 @@ async function saveNotify() {
       ...(smtp.pass ? { pass: smtp.pass } : {}),
       from: smtp.from || smtp.user,
     })
+    if (!settingsPageActive) return
     toast({ type: 'success', title: '通知设置已保存' })
     await loadNotify()
   } catch { /* 拦截器已提示 */ }
-  finally { notifySaving.value = false }
+  finally { if (settingsPageActive) notifySaving.value = false }
 }
 async function testNotifyMail() {
   if (notifyTesting.value) return
   notifyTesting.value = true
   try {
     const res: any = await settingsApi.testNotify()
-    toast({ type: 'success', title: res?.message || '测试邮件已发送, 请查收(含垃圾邮件文件夹)' })
+    if (settingsPageActive) toast({ type: 'success', title: res?.message || '测试邮件已发送, 请查收(含垃圾邮件文件夹)' })
   } catch { /* 拦截器已提示 */ }
-  finally { notifyTesting.value = false }
+  finally { if (settingsPageActive) notifyTesting.value = false }
 }
 function toggleNotifyEvent(key: string) {
   notifySettings.value = { ...notifySettings.value, [key]: !notifySettings.value[key] }
@@ -530,6 +533,7 @@ const aiTestResult = ref<{ ok: boolean; answer?: string; error?: string } | null
 async function loadAI() {
   try {
     const res = await getAIConfig()
+    if (!settingsPageActive) return
     ai.value = res
     aiForm.value = { provider: res.provider || 'glm', api_key: '', model: res.model || '' }
     vfEnabled.value = !!res.enabled
@@ -541,31 +545,34 @@ async function saveAI() {
   aiTestResult.value = null
   try {
     await saveAIConfig({ provider: aiForm.value.provider, api_key: aiForm.value.api_key, model: aiForm.value.model })
+    if (!settingsPageActive) return
     aiForm.value.api_key = ''
     toast({ type: 'success', message: 'AI 配置已保存' })
     loadAI()
   } catch (e: any) {
-    toast({ type: 'error', message: e?.message || '保存失败' })
+    if (settingsPageActive) toast({ type: 'error', message: e?.message || '保存失败' })
   } finally {
-    aiSaving.value = false
+    if (settingsPageActive) aiSaving.value = false
   }
 }
 async function testAI() {
   aiTesting.value = true
   aiTestResult.value = null
   try {
-    aiTestResult.value = await testAIConfig()
+    const result = await testAIConfig()
+    if (settingsPageActive) aiTestResult.value = result
   } catch (e: any) {
-    aiTestResult.value = { ok: false, error: e?.message || '测试失败' }
+    if (settingsPageActive) aiTestResult.value = { ok: false, error: e?.message || '测试失败' }
   } finally {
-    aiTesting.value = false
+    if (settingsPageActive) aiTesting.value = false
   }
 }
 async function saveToggle() {
   try {
     await setVerifierEnabled(vfEnabled.value)
-    toast({ type: 'success', message: vfEnabled.value ? '入群验证已开启' : '入群验证已关闭' })
+    if (settingsPageActive) toast({ type: 'success', message: vfEnabled.value ? '入群验证已开启' : '入群验证已关闭' })
   } catch (e: any) {
+    if (!settingsPageActive) return
     vfEnabled.value = !vfEnabled.value
     toast({ type: 'error', message: e?.message || '操作失败' })
   }
@@ -584,12 +591,13 @@ async function exportMyData() {
     const res = await fetch('/api/v1/tenant/export', { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) throw new Error('导出失败: ' + res.status)
     const blob = await res.blob()
+    if (!settingsPageActive) return
     downloadBlob('my-data-export.json', blob)
     toast({ type: 'success', title: '导出成功', message: '已下载 my-data-export.json' })
   } catch (e) {
-    toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
+    if (settingsPageActive) toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
   } finally {
-    exporting.value = false
+    if (settingsPageActive) exporting.value = false
   }
 }
 const selectedPlan = ref('')
@@ -614,6 +622,7 @@ async function activate() {
   activating.value = true
   try {
     const res = await settingsApi.activateCode(activationCode.value.trim())
+    if (!settingsPageActive) return
     activationCode.value = ''
     await fetchProfile()
     // 同步更新 authStore，确保侧边栏等全局组件数据一致
@@ -625,10 +634,11 @@ async function activate() {
       toast({ type: 'success', title: '激活成功' })
     }
   } catch (e: unknown) {
+    if (!settingsPageActive) return
     const msg = e instanceof Error ? e.message : '请检查卡密是否正确'
     toast({ type: 'error', title: '激活失败', message: msg })
   } finally {
-    activating.value = false
+    if (settingsPageActive) activating.value = false
   }
 }
 
@@ -801,12 +811,15 @@ async function fetchProfile(options?: RequestOptions) {
   }
 }
 
+let settingsPageActive = true
 let settingsPageController: AbortController | null = null
 onUnmounted(() => {
+  settingsPageActive = false
   settingsPageController?.abort()
   settingsPageController = null
 })
 onMounted(async () => {
+  settingsPageActive = true
   const controller = new AbortController()
   settingsPageController = controller
   const options = { signal: controller.signal }
