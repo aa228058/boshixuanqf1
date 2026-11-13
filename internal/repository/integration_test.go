@@ -402,7 +402,6 @@ func TestAccountCountAndCreateRespectsTenantLimitUnderConcurrency(t *testing.T) 
 	}
 }
 
-
 func TestActivatePoolAccountRespectsTenantLimitUnderConcurrency(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
@@ -422,9 +421,13 @@ func TestActivatePoolAccountRespectsTenantLimitUnderConcurrency(t *testing.T) {
 		id := uuid.New()
 		ids[i] = id
 		account := &domain.Account{
-			AccountID: id, TenantID: tenantID, Phone: "+1" + id.String()[:10],
-			SessionName: "pool-" + id.String(), Status: domain.AccountStatusOffline,
-			Level: domain.AccountLevelNormal, DeviceProfile: map[string]any{},
+			AccountID:     id,
+			TenantID:      tenantID,
+			Phone:         "+1" + id.String()[:10],
+			SessionName:   "pool-" + id.String(),
+			Status:        domain.AccountStatusOffline,
+			Level:         domain.AccountLevelNormal,
+			DeviceProfile: map[string]any{},
 		}
 		if err := repo.Create(ctx, account); err != nil {
 			t.Fatalf("seed standby account: %v", err)
