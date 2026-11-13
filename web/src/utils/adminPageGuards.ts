@@ -51,7 +51,7 @@ export function isSupportedQrImage(type: string, size: number, maxSize = 512 * 1
 }
 
 export function isValidDateTimeLocal(value: string): boolean {
-  if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(value)) return false
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return false
   const [datePart, timePart] = value.split('T')
   if (!isValidCalendarDate(datePart)) return false
   const [hour, minute] = timePart.split(':').map(Number)
