@@ -406,8 +406,13 @@ async function fetchGroups() {
 
 const pullRefreshing = ref(false)
 async function onPullRefresh() {
-  await fetchTasks()
-  pullRefreshing.value = false
+  if (pullRefreshing.value) return
+  pullRefreshing.value = true
+  try {
+    await fetchTasks()
+  } finally {
+    pullRefreshing.value = false
+  }
 }
 
 async function fetchTasks() {
@@ -483,9 +488,10 @@ async function submit() {
 }
 
 watch(() => route.params.accountId, () => {
+  if (!pageActive) return
   fetchGroups()
   fetchTasks()
-}, { immediate: true })
+})
 
 onMounted(() => {
   pageActive = true
