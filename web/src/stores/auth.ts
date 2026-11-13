@@ -30,15 +30,19 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref('') // 纯内存，绝不落 localStorage
   const tenant = ref<Tenant | null>(null)
   const loading = ref(false)
+  // 登录/登出/续签可能交错返回；旧会话响应不得复活已退出的会话。
+  let sessionGeneration = 0
 
   const isLoggedIn = computed(() => !!token.value)
   // 是否存在可恢复会话：标志位在即可用 refresh Cookie 续签
   const hasSession = computed(() => !!safeGetItem(SESSION_KEY))
 
   async function login(username: string, password: string) {
+    const generation = ++sessionGeneration
     loading.value = true
     try {
       const res = await authApi.login(username, password)
+      if (generation !== sessionGeneration) return res
       token.value = res.token
       safeSetItem(SESSION_KEY, '1')
       clearLegacyTokenKeys()
@@ -46,12 +50,13 @@ export const useAuthStore = defineStore('auth', () => {
       // 避免同接口 60 秒内重复请求, 省一次串行 RTT
       return res
     } finally {
-      loading.value = false
+      if (generation === sessionGeneration) loading.value = false
     }
   }
 
   async function logout() {
-    // 本地状态同步先清: 路由守卫和界面立即感知, 不等待退出接口返回
+    // 立即使所有在途登录/续签/资料请求失效，防止迟到响应复活旧会话。
+    sessionGeneration++
     token.value = ''
     tenant.value = null
     safeRemoveItem(SESSION_KEY)
@@ -65,9 +70,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 刷新走 HttpOnly Cookie(credentials), refresh_token 不出现在前端任何存储
   async function refresh(): Promise<string> {
+    const generation = sessionGeneration
     const res = await authApi.refresh()
-    token.value = res.token
-    safeSetItem(SESSION_KEY, '1')
+    if (generation === sessionGeneration) {
+      token.value = res.token
+      safeSetItem(SESSION_KEY, '1')
+    }
     return res.token
   }
 
@@ -78,7 +86,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!hasSession.value) return false
     try {
       await refresh()
-      return true
+      return !!token.value
     } catch {
       // request() 已在明确的 401 / 账号级 403 时清除会话标志。
       // 若仍有标志，说明本次恢复可能只是网络/服务端临时故障，保留会话并允许后续请求重试。
@@ -88,8 +96,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshTenant(options?: RequestOptions) {
     if (!token.value) return
+    const generation = sessionGeneration
+    const currentToken = token.value
     try {
       const meRes = await authApi.me(options)
+      if (generation !== sessionGeneration || currentToken !== token.value) return
       // /auth/me 返回 tenant_name，而管理端租户模型使用 name；在 Store 入口统一字段。
       tenant.value = { ...meRes, name: meRes.tenant_name || meRes.name || '' }
     } catch (e) {
