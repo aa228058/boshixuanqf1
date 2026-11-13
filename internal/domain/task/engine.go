@@ -1081,6 +1081,7 @@ func (e *Engine) recordRiskEvent(ctx context.Context, tenantID, accountID uuid.U
 func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusRunning); err != nil {
 		taskLog.Printf("[task] failed to update status to running: %v", err)
+		return
 	}
 
 	payload := task.Payload
@@ -1298,7 +1299,17 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 			TGUserID:  msg.FromID,
 			ScrapedAt: time.Now(),
 		}
-		if err := e.memberRepo.BatchCreate(ctx, []*domain.Member{member}); err != nil {
+		ownedMemberRepo, ok := e.memberRepo.(interface {
+			BatchCreateOwned(context.Context, uuid.UUID, uuid.UUID, string, []*domain.Member) error
+		})
+		if !ok {
+			delete(scrapedUsers, key)
+			scrapedCount--
+			countMu.Unlock()
+			taskLog.Printf("[monitor_scrape] member repository does not support lease-fenced writes")
+			return
+		}
+		if err := ownedMemberRepo.BatchCreateOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), []*domain.Member{member}); err != nil {
 			delete(scrapedUsers, key)
 			scrapedCount--
 			countMu.Unlock()
@@ -1310,11 +1321,13 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 		}
 		countMu.Unlock()
 
-		// Update progress
+		// Member persistence and the database progress increment commit atomically
+		// inside BatchCreateOwned; only publish the committed snapshot to SSE.
+		currentTarget := fmt.Sprintf("user_%d", msg.FromID)
 		e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
 			Total:         int(maxResults),
 			Done:          currentCount,
-			CurrentTarget: fmt.Sprintf("user_%d", msg.FromID),
+			CurrentTarget: currentTarget,
 		})
 
 		if err := e.logRepo.Create(ctx, &domain.TaskLog{
@@ -1362,16 +1375,24 @@ func (e *Engine) executeMonitorScrape(ctx context.Context, task *domain.Task) {
 	finalCount := scrapedCount
 	countMu.Unlock()
 
+	finalized := reachedMax
 	if !reachedMax && ctx.Err() == nil {
 		if err := e.repo.UpdateStatusOwned(ctx, task.TenantID, task.TaskID, e.taskLeaseID(task), domain.TaskStatusCompleted); err != nil {
 			taskLog.Printf("[task] failed to update status to completed: %v", err)
+		} else {
+			finalized = true
 		}
 	}
 
-	e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
-		Total: int(maxResults),
-		Done:  finalCount,
-	})
+	if finalized {
+		e.publishProgress(task.TenantID, task.TaskID, domain.TaskProgress{
+			Total: int(maxResults),
+			Done:  finalCount,
+		})
+	} else {
+		taskLog.Printf("[monitor_scrape] skip final progress/log because task was cancelled or lease was lost")
+		return
+	}
 
 	if err := e.logRepo.Create(ctx, &domain.TaskLog{
 		TaskID:     task.TaskID,

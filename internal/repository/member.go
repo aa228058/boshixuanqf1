@@ -124,6 +124,83 @@ func (r *MemberRepository) BatchCreate(ctx context.Context, members []*domain.Me
 	})
 }
 
+// BatchCreateOwned persists monitor-scraped members and their progress only while
+// the task lease is still owned by workerID. The row lock serializes both writes
+// with cancellation and lease reclamation: whichever transaction locks first wins.
+func (r *MemberRepository) BatchCreateOwned(ctx context.Context, tenantID, taskID uuid.UUID, workerID string, members []*domain.Member) error {
+	if workerID == "" {
+		return fmt.Errorf("persist owned members: empty worker ID")
+	}
+	if len(members) == 0 {
+		return nil
+	}
+	for _, m := range members {
+		if m == nil {
+			return fmt.Errorf("persist owned members: nil member")
+		}
+		if m.TenantID != tenantID {
+			return fmt.Errorf("persist owned members: member tenant does not match task tenant")
+		}
+		if m.MemberID == uuid.Nil {
+			m.MemberID = uuid.New()
+		}
+	}
+
+	return pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		var currentWorkerID string
+		err := tx.QueryRow(ctx, `
+			SELECT worker_id
+			FROM tasks
+			WHERE tenant_id = $1 AND task_id = $2 AND status = 'running'
+			FOR NO KEY UPDATE
+		`, tenantID, taskID).Scan(&currentWorkerID)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return fmt.Errorf("persist owned members: task is not running or no longer exists")
+			}
+			return fmt.Errorf("persist owned members: verify task lease: %w", err)
+		}
+		if currentWorkerID != workerID {
+			return fmt.Errorf("persist owned members: task lease is owned by another worker")
+		}
+
+		for _, m := range members {
+			_, err := tx.Exec(ctx, `
+				INSERT INTO members (member_id, tenant_id, group_id, tg_user_id, username, first_name, last_name, phone, bio, last_seen, has_photo, scraped_at, access_hash)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+				ON CONFLICT ON CONSTRAINT members_tenant_id_group_id_tg_user_id_key DO UPDATE SET
+					username = EXCLUDED.username, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+					phone = EXCLUDED.phone, bio = EXCLUDED.bio, last_seen = EXCLUDED.last_seen,
+					has_photo = EXCLUDED.has_photo, scraped_at = EXCLUDED.scraped_at, access_hash = EXCLUDED.access_hash
+			`, m.MemberID, m.TenantID, m.GroupID, m.TGUserID, m.Username, m.FirstName, m.LastName,
+				m.Phone, m.Bio, m.LastSeen, m.HasPhoto, m.ScrapedAt, m.AccessHash)
+			if err != nil {
+				return fmt.Errorf("persist owned member %d: %w", m.TGUserID, err)
+			}
+		}
+
+		// Keep the member batch and its progress increment in one transaction.
+		// The task row is already locked against cancellation/reclaim above.
+		lastMember := members[len(members)-1]
+		progressResult, err := tx.Exec(ctx, `
+			UPDATE tasks
+			SET progress = jsonb_set(
+				jsonb_set(COALESCE(progress, '{}'::jsonb), '{done}',
+					to_jsonb(COALESCE((progress->>'done')::int, 0) + $3)),
+				'{current_target}', to_jsonb($4::text)
+			)
+			WHERE tenant_id = $1 AND task_id = $2 AND status = 'running' AND worker_id = $5
+		`, tenantID, taskID, len(members), fmt.Sprintf("user_%d", lastMember.TGUserID), workerID)
+		if err != nil {
+			return fmt.Errorf("persist owned member progress: %w", err)
+		}
+		if progressResult.RowsAffected() != 1 {
+			return fmt.Errorf("persist owned member progress: task lease lost")
+		}
+		return nil
+	})
+}
+
 // DeleteByGroup removes all members of a group.
 func (r *MemberRepository) DeleteByGroup(ctx context.Context, tenantID, groupID uuid.UUID) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM members WHERE tenant_id = $1 AND group_id = $2`, tenantID, groupID)
