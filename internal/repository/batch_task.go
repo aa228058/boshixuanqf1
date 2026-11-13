@@ -50,11 +50,28 @@ func (r *BatchTaskRepository) GetByID(ctx context.Context, tenantID, batchID uui
 // P2-39 审计修复: 原来裸 array_append 无幂等——重试/重复调用会把同一 subTaskID
 // 追加两次。条件更新: 数组已含该 ID 时不动。
 func (r *BatchTaskRepository) UpdateSubTask(ctx context.Context, tenantID, batchID uuid.UUID, subTaskID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, `
+	tag, err := r.db.Exec(ctx, `
 		UPDATE batch_tasks
 		SET sub_tasks = array_append(sub_tasks, $3)
 		WHERE tenant_id = $1 AND batch_id = $2
 		  AND NOT (sub_tasks @> ARRAY[$3]::uuid[])`,
 		tenantID, batchID, subTaskID)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		// Distinguish an idempotent retry from a missing/foreign-tenant batch.
+		var exists bool
+		if err := r.db.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM batch_tasks
+				WHERE tenant_id = $1 AND batch_id = $2
+			)`, tenantID, batchID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("batch task %s not found for tenant %s", batchID, tenantID)
+		}
+	}
+	return nil
 }
