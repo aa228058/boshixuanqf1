@@ -758,7 +758,11 @@ func (s *AccountService) SetPoolStatus(ctx context.Context, tenantID, accountID 
 		if err != nil {
 			return err
 		}
-		if err := s.repo.ActivatePoolAccount(ctx, tenantID, accountID, t.MaxAccounts); err != nil {
+		maxAccounts := t.MaxAccounts
+		if maxAccounts <= 0 {
+			maxAccounts = s.cfg.MaxAccounts
+		}
+		if err := s.repo.ActivatePoolAccount(ctx, tenantID, accountID, maxAccounts); err != nil {
 			if strings.Contains(err.Error(), "account limit reached") {
 				return fmt.Errorf("套餐账号额度已满，无法转正备用号; 可在管理端升级套餐或先转备用其他号: %w", err)
 			}
