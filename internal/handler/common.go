@@ -25,7 +25,6 @@ func handleBindError(c echo.Context, err error) error {
 	return echo.NewHTTPError(http.StatusBadRequest, "请求参数错误")
 }
 
-
 // parseOptionalUUIDParam parses an optional UUID query parameter without
 // silently dropping an invalid filter and broadening the requested result set.
 func parseOptionalUUIDParam(value, field string) (*uuid.UUID, error) {
