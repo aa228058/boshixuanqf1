@@ -267,14 +267,15 @@ async function doGenerate() {
   generatingCodes.value = true
   try {
     await adminApiMod.generateCodes(payload)
+    if (!codesPageActive) return
     showGenerate.value = false
     generateForm.value = { plan_id: 'basic', count: 10, timing_type: 'immediate', expires_days: undefined }
     await fetchCodes()
-    toast({ type: 'success', title: '卡密已生成' })
+    if (codesPageActive) toast({ type: 'success', title: '卡密已生成' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '生成失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (codesPageActive) toast({ type: 'error', title: '生成失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    generatingCodes.value = false
+    if (codesPageActive) generatingCodes.value = false
   }
 }
 
@@ -283,12 +284,13 @@ async function revokeCode(c: ActivationCode) {
   revokingCodeIds.value = [...revokingCodeIds.value, c.code_id]
   try {
     await adminApiMod.revokeCode(c.code_id)
+    if (!codesPageActive) return
     await fetchCodes()
-    toast({ type: 'success', title: '卡密已作废' })
+    if (codesPageActive) toast({ type: 'success', title: '卡密已作废' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '作废失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (codesPageActive) toast({ type: 'error', title: '作废失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    revokingCodeIds.value = revokingCodeIds.value.filter(id => id !== c.code_id)
+    if (codesPageActive) revokingCodeIds.value = revokingCodeIds.value.filter(id => id !== c.code_id)
   }
 }
 
@@ -299,6 +301,7 @@ async function exportCodes() {
   exportingCodes.value = true
   try {
     const text = await adminApiMod.exportCodes()
+    if (!codesPageActive) return
     if (!text) {
       toast({ type: 'info', title: '没有可导出的卡密' })
       return
@@ -306,9 +309,9 @@ async function exportCodes() {
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
     downloadBlob(`codes_export_${new Date().toISOString().slice(0, 10)}.txt`, blob)
   } catch (e: unknown) {
-    toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
+    if (codesPageActive) toast({ type: 'error', title: '导出失败', message: e instanceof Error ? e.message : '请稍后重试' })
   } finally {
-    exportingCodes.value = false
+    if (codesPageActive) exportingCodes.value = false
   }
 }
 
@@ -319,14 +322,15 @@ async function batchRevoke() {
   const ids = [...new Set(selectedIds.value)]
   batchRevoking.value = true
   try {
-    if (!await ask(`批量作废 ${ids.length} 张卡密？`)) return
+    if (!await ask(`批量作废 ${ids.length} 张卡密？`) || !codesPageActive) return
     await adminApiMod.batchRevokeCodes({ ids })
+    if (!codesPageActive) return
     selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
     await fetchCodes()
-    toast({ type: 'success', title: '已批量作废' })
+    if (codesPageActive) toast({ type: 'success', title: '已批量作废' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '批量作废失败', message: (e instanceof Error ? e.message : '请稍后重试') })
-  } finally { batchRevoking.value = false }
+    if (codesPageActive) toast({ type: 'error', title: '批量作废失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally { if (codesPageActive) batchRevoking.value = false }
 }
 
 async function batchDelete() {
@@ -334,29 +338,31 @@ async function batchDelete() {
   const ids = [...new Set(selectedIds.value)]
   batchDeleting.value = true
   try {
-    if (!await ask(`批量删除 ${ids.length} 张卡密？不可恢复！`)) return
+    if (!await ask(`批量删除 ${ids.length} 张卡密？不可恢复！`) || !codesPageActive) return
     await adminApiMod.batchDeleteCodes({ ids })
+    if (!codesPageActive) return
     selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
     await fetchCodes()
-    toast({ type: 'success', title: '已批量删除' })
+    if (codesPageActive) toast({ type: 'success', title: '已批量删除' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '批量删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
-  } finally { batchDeleting.value = false }
+    if (codesPageActive) toast({ type: 'error', title: '批量删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+  } finally { if (codesPageActive) batchDeleting.value = false }
 }
 
 async function delCode(c: ActivationCode) {
   if (batchRevoking.value || batchDeleting.value || deletingCodeIds.value.includes(c.code_id) || revokingCodeIds.value.includes(c.code_id)) return
   deletingCodeIds.value = [...deletingCodeIds.value, c.code_id]
   try {
-    if (!await ask(`确认删除卡密 ${c.code}？不可恢复！`)) return
+    if (!await ask(`确认删除卡密 ${c.code}？不可恢复！`) || !codesPageActive) return
     await adminApiMod.batchDeleteCodes({ ids: [c.code_id] })
+    if (!codesPageActive) return
     selectedIds.value = selectedIds.value.filter(id => id !== c.code_id)
     await fetchCodes()
-    toast({ type: 'success', title: '卡密已删除' })
+    if (codesPageActive) toast({ type: 'success', title: '卡密已删除' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (codesPageActive) toast({ type: 'error', title: '删除失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    deletingCodeIds.value = deletingCodeIds.value.filter(id => id !== c.code_id)
+    if (codesPageActive) deletingCodeIds.value = deletingCodeIds.value.filter(id => id !== c.code_id)
   }
 }
 
