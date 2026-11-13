@@ -630,13 +630,14 @@ async function selectAllLibrary() {
   if (allSelecting.value || total.value <= 0) return
   allSelecting.value = true
   try {
+    const filterSnapshot = { ...filters }
     const pageLimit = 100
-    const first = await getGroupLibrary({ ...filters, page: 1, page_size: pageLimit })
+    const first = await getGroupLibrary({ ...filterSnapshot, page: 1, page_size: pageLimit })
     const totalRows = first.total || 0
     const pages = Math.ceil(totalRows / pageLimit)
     const rows = [...(first.list || [])]
     for (let p = 2; p <= pages; p++) {
-      const next = await getGroupLibrary({ ...filters, page: p, page_size: pageLimit })
+      const next = await getGroupLibrary({ ...filterSnapshot, page: p, page_size: pageLimit })
       rows.push(...(next.list || []))
     }
     const identities = new Set<string>()
@@ -754,19 +755,25 @@ function toggleJoinAccount(id: string) {
 
 async function doJoin() {
   if (joining.value) return
+  const targets = [...selected]
+  const accountsSnapshot = [...joinAccounts.value]
+  if (!targets.length || !accountsSnapshot.length) {
+    toast({ type: 'warning', title: '请选择群组和执行账号' })
+    return
+  }
+  const optionsSnapshot = {
+    perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
+    intervalMinMinutes: joinIntervalMin.value || 0,
+    intervalMaxMinutes: joinIntervalMax.value || 0,
+  }
   joining.value = true
   try {
-    const targets = [...selected]
     let created = 0
     let links = 0
     const errors: string[] = []
     for (let offset = 0; offset < targets.length; offset += 100) {
       try {
-        const res = await joinLibraryGroups([...joinAccounts.value], targets.slice(offset, offset + 100), {
-          perAccountCount: joinBatchEnabled.value ? (joinPerAccount.value || 0) : 0,
-          intervalMinMinutes: joinIntervalMin.value || 0,
-          intervalMaxMinutes: joinIntervalMax.value || 0,
-        })
+        const res = await joinLibraryGroups(accountsSnapshot, targets.slice(offset, offset + 100), optionsSnapshot)
         created += res.created || 0
         links += res.links || 0
         if (res.failed_err) errors.push(res.failed_err)
