@@ -124,8 +124,9 @@
                   class="ui-input !min-h-[144px] resize-none font-mono text-sm" aria-label="群链接或邀请链接" />
         <div class="flex items-center justify-between mt-2">
           <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
-            导入文件<input type="file" accept=".txt,.csv" class="hidden" @change="onImportFile">
+            导入文件<input type="file" accept=".txt,.csv,text/plain,text/csv" class="hidden" :disabled="linkFileReading || submitting" @change="onImportFile">
           </label>
+          <span v-if="linkFileReading" class="text-xs text-text-muted" role="status">正在读取文件…</span>
           <span class="text-xs text-text-muted">已识别 {{ validLinks.length }} 个有效链接</span>
           <!-- R128 无效链接可展开查看: 原只报数量, 用户不知哪行错了 -->
           <button type="button" v-if="invalidLinks.length > 0"
@@ -183,6 +184,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 import { useTaskEvents } from '@/composables/useTaskEvents'
+import { validateJoinLinkFile } from '@/utils/workspaceGuards'
 
 const route = useRoute()
 const router = useRouter()
@@ -207,6 +209,9 @@ const tasks = ref<any[]>([])
 const tasksLoading = ref(true)
 const tasksError = ref('')
 const taskActionsPending = ref(new Set<string>())
+const linkFileReading = ref(false)
+let linkFileReader: FileReader | null = null
+let linkFileReadRequestId = 0
 
 let taskListRequestId = 0
 let joinPageActive = true
@@ -244,6 +249,9 @@ onUnmounted(() => {
   taskListRequestId++
   taskListController?.abort()
   taskListController = null
+  linkFileReadRequestId++
+  linkFileReader?.abort()
+  linkFileReader = null
 })
 useAutoRefresh(fetchTasks, 15000)
 
@@ -372,16 +380,42 @@ const linksInput = ref('')
 const submitting = ref(false)
 
 function onImportFile(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (!f) return
-  const r = new FileReader()
-  r.onload = () => {
-    const items = parseTargets(String(r.result || ''), { keepTmeLinks: true })
-    linksInput.value = [...new Set([...linksInput.value.split('\n').filter(Boolean), ...items])].join('\n')
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !joinPageActive) return
+  const requestId = ++linkFileReadRequestId
+  linkFileReader?.abort()
+  linkFileReader = null
+  linkFileReading.value = false
+  const error = validateJoinLinkFile(file)
+  if (error) {
+    toast({ type: 'warning', title: '文件不可用', message: error })
+    return
   }
-  r.onerror = () => toast({ type: 'error', title: '读取文件失败', message: '无法读取所选文件，请重新选择' })
-  r.readAsText(f)
-  ;(e.target as HTMLInputElement).value = ''
+  const reader = new FileReader()
+  linkFileReader = reader
+  linkFileReading.value = true
+  reader.onload = () => {
+    if (!joinPageActive || requestId !== linkFileReadRequestId || reader !== linkFileReader) return
+    const content = typeof reader.result === 'string' ? reader.result : ''
+    if (!content.trim()) {
+      toast({ type: 'warning', title: '文件内容为空', message: '请检查文件后重新选择' })
+      return
+    }
+    const items = parseTargets(content, { keepTmeLinks: true })
+    linksInput.value = [...new Set([...linksInput.value.split('\n').map(x => x.trim()).filter(Boolean), ...items])].join('\n')
+  }
+  reader.onerror = () => {
+    if (joinPageActive && requestId === linkFileReadRequestId) toast({ type: 'error', title: '读取文件失败', message: '无法读取所选文件，请重新选择' })
+  }
+  reader.onloadend = () => {
+    if (requestId === linkFileReadRequestId) {
+      linkFileReading.value = false
+      if (linkFileReader === reader) linkFileReader = null
+    }
+  }
+  reader.readAsText(file)
 }
 
 // 2026-09-22 宽松识别+归一化：缺协议头的 t.me/telegram.me、@开头 都接受，
@@ -393,7 +427,7 @@ const invalidLinks = computed(() => findInvalidJoinLinks(linksInput.value))
 const showInvalidLinks = ref(false)
 
 async function submit() {
-  if (submitting.value) return
+  if (submitting.value || linkFileReading.value) return
   // R111: 协议协同死分支已删
   // ===== 邀请成员入群模式 =====
   if (joinMode.value === 'invite') {
