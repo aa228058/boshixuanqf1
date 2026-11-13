@@ -1388,6 +1388,26 @@ func (h *TaskHandler) Delete(c echo.Context) error {
 	return NoContent(c)
 }
 
+
+// parseBatchTaskIDs validates and parses a bounded batch task ID list.
+func parseBatchTaskIDs(raw []string) ([]uuid.UUID, error) {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("task_ids must contain at least one task ID")
+	}
+	if len(raw) > 500 {
+		return nil, fmt.Errorf("task_ids must not contain more than 500 IDs")
+	}
+	ids := make([]uuid.UUID, 0, len(raw))
+	for _, id := range raw {
+		uid, err := uuid.Parse(id)
+		if err != nil {
+			return nil, fmt.Errorf("invalid task id: %s", id)
+		}
+		ids = append(ids, uid)
+	}
+	return ids, nil
+}
+
 // BatchCancel godoc
 // @Summary 批量取消任务
 // @Description 批量取消多个任务
@@ -1409,13 +1429,9 @@ func (h *TaskHandler) BatchCancel(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	taskIDs := make([]uuid.UUID, 0, len(req.TaskIDs))
-	for _, id := range req.TaskIDs {
-		uid, err := uuid.Parse(id)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid task id: "+id)
-		}
-		taskIDs = append(taskIDs, uid)
+	taskIDs, err := parseBatchTaskIDs(req.TaskIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	cancelled, failed, err := h.svc.BatchCancel(c.Request().Context(), tenantID, taskIDs)
 	if err != nil {
@@ -1427,7 +1443,7 @@ func (h *TaskHandler) BatchCancel(c echo.Context) error {
 	safego.Go(func() {
 		if err := h.auditRepo.Create(context.Background(), &domain.AuditLog{
 			TenantID: tenantID, UserID: "tenant", Action: "task_batch_cancel",
-			Target: fmt.Sprintf("count=%d", cancelled), IP: c.RealIP(),
+			Target: fmt.Sprintf("success=%d,failed=%d", cancelled, failed), IP: c.RealIP(),
 		}); err != nil {
 			log.Printf("[audit] write failed: %v", err)
 		}
@@ -1473,7 +1489,7 @@ func (h *TaskHandler) BatchDelete(c echo.Context) error {
 	safego.Go(func() {
 		if err := h.auditRepo.Create(context.Background(), &domain.AuditLog{
 			TenantID: tenantID, UserID: "tenant", Action: "task_batch_delete",
-			Target: fmt.Sprintf("count=%d", deleted), IP: c.RealIP(),
+			Target: fmt.Sprintf("success=%d,failed=%d", deleted, failed), IP: c.RealIP(),
 		}); err != nil {
 			log.Printf("[audit] write failed: %v", err)
 		}
