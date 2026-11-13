@@ -228,6 +228,49 @@ func (r *TaskRepository) Create(ctx context.Context, t *domain.Task) error {
 	return nil
 }
 
+// CreateSplitBatch atomically persists a split-broadcast parent and all child tasks.
+// Workers are notified only after the transaction commits, so they can never claim
+// a partially-created batch.
+func (r *TaskRepository) CreateSplitBatch(ctx context.Context, batch *domain.BatchTask, tasks []*domain.Task) error {
+	if batch == nil || len(tasks) == 0 {
+		return fmt.Errorf("create split batch: batch and at least one task are required")
+	}
+	if len(batch.SubTasks) != len(tasks) {
+		return fmt.Errorf("create split batch: %d child IDs for %d tasks", len(batch.SubTasks), len(tasks))
+	}
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO batch_tasks (batch_id, tenant_id, message, total_msgs, sub_tasks, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			batch.BatchID, batch.TenantID, batch.Message, batch.TotalMsgs, batch.SubTasks, batch.CreatedAt); err != nil {
+			return fmt.Errorf("insert batch record: %w", err)
+		}
+		for i, task := range tasks {
+			if task == nil || task.TaskID != batch.SubTasks[i] || task.TenantID != batch.TenantID {
+				return fmt.Errorf("create split batch: invalid child task at index %d", i)
+			}
+			if err := tx.QueryRow(ctx, `
+				INSERT INTO tasks (task_id, tenant_id, type, status, priority, account_ids, target_ids, payload, progress, scheduled_at,
+				                   is_loop, loop_interval_minutes, min_interval_seconds, max_interval_seconds, next_run_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+				RETURNING task_number`,
+				task.TaskID, task.TenantID, task.Type, task.Status, task.Priority, task.AccountIDs, task.TargetIDs, task.Payload, task.Progress, task.ScheduledAt,
+				task.IsLoop, task.LoopIntervalMinutes, task.MinIntervalSeconds, task.MaxIntervalSeconds, task.NextRunAt).Scan(&task.TaskNumber); err != nil {
+				return fmt.Errorf("insert child task %d/%d: %w", i+1, len(tasks), err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if _, notifyErr := r.db.Exec(ctx, "NOTIFY new_task"); notifyErr != nil {
+		// Workers poll even when PostgreSQL notification delivery fails.
+		log.Printf("[task] failed to notify split batch %s: %v", batch.BatchID, notifyErr)
+	}
+	return nil
+}
+
 // ClaimTasks atomically claims pending/queued tasks for a worker using row-level locking.
 // lockTimeoutMin 与 running 锁过期一致：超过该分钟数未更新的锁视为 worker 崩溃可回收。
 func (r *TaskRepository) ClaimTasks(ctx context.Context, workerID string, limit int, lockTimeoutMin int) ([]*domain.Task, error) {
