@@ -32,7 +32,11 @@ function mockFetchSequence(responses: Array<{ status: number; body: unknown }>) 
 describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    authMock.refresh.mockReset().mockResolvedValue('new-token')
+    authMock.token = 'test-token'
+    authMock.refresh.mockReset().mockImplementation(async () => {
+      authMock.token = 'new-token'
+      return 'new-token'
+    })
     authMock.logout.mockReset()
   })
   afterEach(() => {
@@ -170,6 +174,30 @@ describe('doFetchWithRetry 行为（经 request 导出验证）', () => {
     expect(error).toMatchObject({ name: 'AbortError', message: '请求已取消' })
     expect(signal?.aborted).toBe(true)
     expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+
+  it('会话切换后不使用新账号 token 重放旧请求', async () => {
+    let resolveRefresh!: (token: string) => void
+    authMock.refresh.mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve }))
+    const spy = mockFetchSequence([
+      { status: 401, body: { message: 'access token expired' } },
+      { status: 200, body: { code: 0, data: 'must-not-be-requested' } },
+    ])
+
+    const pending = request('/tenant/private').catch(error => error)
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // 模拟旧请求等待续签时，用户退出旧账号并登录了另一个账号。
+    authMock.token = 'different-account-token'
+    resolveRefresh('old-session-refreshed-token')
+    const error = await pending
+
+    expect(error).toMatchObject({ name: 'AbortError' })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][1].headers.Authorization).toBe('Bearer test-token')
   })
 
   it('调用前已取消的请求不会发出网络请求', async () => {
