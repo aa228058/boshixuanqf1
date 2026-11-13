@@ -814,6 +814,10 @@ const statusPoll = setInterval(() => {
 const onVisBack = () => { if (!document.hidden) accountStore.fetchAccounts(true) }
 document.addEventListener('visibilitychange', onVisBack)
 onUnmounted(() => {
+  abortAuthController(addAuthController)
+  addAuthController = null
+  abortAuthController(reauthController)
+  reauthController = null
   accountsPageActive = false
   if (pressTimer) { clearTimeout(pressTimer); pressTimer = null }
   statsRequestId++
@@ -1354,6 +1358,45 @@ function getGroupForAccount(accountId: string): AccountGroup | undefined {
 
 // 添加账号（步骤化）
 const showAddModal = ref(false)
+let addAuthController: AbortController | null = null
+let reauthController: AbortController | null = null
+
+function abortAuthController(controller: AbortController | null) {
+  controller?.abort()
+}
+
+function throwIfAuthAborted(signal: AbortSignal) {
+  if (signal.aborted) {
+    const error = new Error('Authentication polling cancelled')
+    error.name = 'AbortError'
+    throw error
+  }
+}
+
+function authDelay(ms: number, signal: AbortSignal): Promise<void> {
+  throwIfAuthAborted(signal)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      const error = new Error('Authentication polling cancelled')
+      error.name = 'AbortError'
+      reject(error)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+watch(showAddModal, (visible) => {
+  if (!visible) {
+    abortAuthController(addAuthController)
+    addAuthController = null
+  }
+})
 // 添加方式: phone=手机号验证码流程; protocol=协议号导入(原sessions页功能整合进来)
 const addMode = ref<'phone' | 'protocol'>('phone')
 const importText = ref('')
@@ -1427,6 +1470,8 @@ function openAddModal() {
   newAccountId.value = ''
 }
 function closeAddModal() {
+  abortAuthController(addAuthController)
+  addAuthController = null
   showAddModal.value = false
   addStep.value = 'phone'
 }
@@ -1434,13 +1479,15 @@ function closeAddModal() {
 // 轮询 TG 认证阶段。connect 接口只代表"认证流程已启动"，
 // 必须等后端 phase 真正进入 waiting_code(TG 已要求输入=码真的发了)
 // 才能显示"已发送"，否则 TG 风控/失败时用户会看到假"已发送"并永远卡住。
-async function waitForAuthPhase(accountId: string, timeoutMs: number): Promise<{ phase: string }> {
+async function waitForAuthPhase(accountId: string, timeoutMs: number, signal: AbortSignal): Promise<{ phase: string }> {
   const start = Date.now()
   const interval = 2000
   while (Date.now() - start < timeoutMs) {
-    await new Promise(r => setTimeout(r, interval))
+    await authDelay(interval, signal)
+    throwIfAuthAborted(signal)
     try {
-      const state = await accountApi.getAuthState(accountId)
+      const state = await accountApi.getAuthState(accountId, { signal })
+      throwIfAuthAborted(signal)
       const phase = (state as { phase?: string }).phase || ''
       // 初始空串和 connecting 都是中间态，继续等
       if (phase && phase !== 'connecting') return { phase }
@@ -1453,6 +1500,10 @@ async function waitForAuthPhase(accountId: string, timeoutMs: number): Promise<{
 }
 
 async function getVerificationCode() {
+  addAuthController?.abort()
+  const controller = new AbortController()
+  addAuthController = controller
+  const signal = controller.signal
   adding.value = true
   toast({ type: 'info', title: '正在连接 Telegram 服务器', message: '可能需要 30-60 秒，请耐心等待...' })
   try {
@@ -1460,10 +1511,12 @@ async function getVerificationCode() {
     const digits = newPhone.value.replace(/[\s+]/g, '')
     const phone = '+' + digits
     const acc = await accountStore.createAccount(phone, newRemark.value || undefined)
+    throwIfAuthAborted(signal)
     newAccountId.value = acc?.account_id
     await accountApi.connect(acc?.account_id)
+    throwIfAuthAborted(signal)
     // connect 仅启动异步认证；轮询确认 TG 真正进入等码阶段，防止"假已发送"
-    const result = await waitForAuthPhase(acc?.account_id, 75000)
+    const result = await waitForAuthPhase(acc?.account_id, 75000, signal)
     if (result.phase === 'waiting_code') {
       addStep.value = 'code'
       toast({ type: 'success', title: '验证码已发送', message: '请查收短信或 Telegram 消息' })
@@ -1471,7 +1524,8 @@ async function getVerificationCode() {
       addStep.value = '2fa'
     } else if (result.phase === 'success' || result.phase === 'connected' || result.phase === 'online') {
       showAddModal.value = false
-      await accountStore.fetchAccounts(true)
+      await accountStore.fetchAccounts(true, { signal })
+      throwIfAuthAborted(signal)
       toast({ type: 'success', title: '账号已是登录状态', message: '会话有效，无需验证码' })
     } else {
       throw new Error(result.phase === 'timeout'
@@ -1479,13 +1533,16 @@ async function getVerificationCode() {
         : 'TG 未发送验证码（号码可能被风控或 API 受限），请稍后重试')
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '发送失败', message: (e instanceof Error ? e.message : '请检查手机号格式') })
+    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '发送失败', message: (e instanceof Error ? e.message : '请检查手机号格式') })
   } finally {
-    adding.value = false
+    if (addAuthController === controller && !signal.aborted) adding.value = false
   }
 }
 async function resendCode() {
   if (!newAccountId.value) return
+  const controller = addAuthController ?? new AbortController()
+  addAuthController = controller
+  const signal = controller.signal
   try {
     try {
       await accountApi.connect(newAccountId.value)
@@ -1494,7 +1551,8 @@ async function resendCode() {
       const msg = e instanceof Error ? e.message : ''
       if (!msg.includes('already in progress')) throw e
     }
-    const result = await waitForAuthPhase(newAccountId.value, 75000)
+    throwIfAuthAborted(signal)
+    const result = await waitForAuthPhase(newAccountId.value, 75000, signal)
     if (result.phase === 'waiting_code') {
       toast({ type: 'success', title: '验证码已重新发送', message: '请查收短信或 Telegram 消息' })
     } else if (result.phase === 'waiting_password') {
@@ -1503,16 +1561,18 @@ async function resendCode() {
       toast({ type: 'error', title: '重新发送失败', message: 'TG 未响应，请稍后重试' })
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '重新发送失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '重新发送失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   }
 }
 
 // 登录成功的最终判据：账号状态变 online。
 // phase 可能因时序（认证成功→客户端清理→phase 变 none）或超时窗口太短而不可靠，
 // 以账号状态为准，避免"实际已登录但弹窗卡住、需手动刷新"的假失败。
-async function isAccountOnline(accountId: string): Promise<boolean> {
+async function isAccountOnline(accountId: string, signal: AbortSignal): Promise<boolean> {
+  throwIfAuthAborted(signal)
   try {
-    await accountStore.fetchAccounts(true)
+    await accountStore.fetchAccounts(true, { signal })
+    throwIfAuthAborted(signal)
     const acc = (accountStore.phoneAccounts as any[]).find(a => a?.account_id === accountId)
     return !!acc && acc.status === 'online'
   } catch { return false }
@@ -1520,18 +1580,22 @@ async function isAccountOnline(accountId: string): Promise<boolean> {
 
 async function submitVerificationCode() {
   if (!newAccountId.value || !authCode.value) return
+  const controller = addAuthController ?? new AbortController()
+  addAuthController = controller
+  const signal = controller.signal
   submitting.value = true
   codeError.value = ''
   try {
     await accountApi.submitCode(newAccountId.value, authCode.value)
+    throwIfAuthAborted(signal)
     let attempts = 0
     let codeRetrySeenAt: number | null = null
     const maxAttempts = 90 // R158: 90秒 —— 弱网+DC切换+密钥保存可能超60s
     while (attempts < maxAttempts) {
-      await new Promise(r => setTimeout(r, 1000))
+      await authDelay(1000, signal)
       attempts++ // 先计数: 宽限分支的 continue 依赖准确计数, 放尾部会被 continue 跳过
       // ① 账号已上线即成功（ground truth，不依赖 phase 时序）
-      if (await isAccountOnline(newAccountId.value)) {
+      if (await isAccountOnline(newAccountId.value, signal)) {
         showAddModal.value = false
         addStep.value = 'phone'
         newPhone.value = ''
@@ -1539,7 +1603,8 @@ async function submitVerificationCode() {
         submitting.value = false
         return
       }
-      const state = await accountApi.getAuthState(newAccountId.value)
+      const state = await accountApi.getAuthState(newAccountId.value, { signal })
+      throwIfAuthAborted(signal)
       if (state.phase === 'waiting_password') {
         // 需要 2FA 密码
         twoFAPassword.value = ''
@@ -1574,7 +1639,7 @@ async function submitVerificationCode() {
       // 继续等下一轮账号状态检查
     }
     // 超时前最后核实一次账号状态（可能刚上线而轮询已尽）
-    if (await isAccountOnline(newAccountId.value)) {
+    if (await isAccountOnline(newAccountId.value, signal)) {
       showAddModal.value = false
       addStep.value = 'phone'
       newPhone.value = ''
@@ -1584,26 +1649,30 @@ async function submitVerificationCode() {
     }
     codeError.value = '认证超时，请到账号列表确认状态'
   } catch (e: unknown) {
-    codeError.value = (e instanceof Error ? e.message : '验证码错误')
+    if (!(e instanceof Error && e.name === 'AbortError')) codeError.value = (e instanceof Error ? e.message : '验证码错误')
   } finally {
-    submitting.value = false
+    if (!signal.aborted) submitting.value = false
   }
 }
 
 async function submit2FA() {
   if (!newAccountId.value || !twoFAPassword.value) return
+  const controller = addAuthController ?? new AbortController()
+  addAuthController = controller
+  const signal = controller.signal
   submitting.value = true
   twoFAError.value = ''
   try {
     await accountApi.submit2FA(newAccountId.value, twoFAPassword.value)
+    throwIfAuthAborted(signal)
     let attempts = 0
     let pwdRetrySeenAt: number | null = null
     const maxAttempts = 60
     while (attempts < maxAttempts) {
-      await new Promise(r => setTimeout(r, 1000))
+      await authDelay(1000, signal)
       attempts++ // 先计数(同验证码步)
       // ① 账号已上线即成功（ground truth，同验证码逻辑）
-      if (await isAccountOnline(newAccountId.value)) {
+      if (await isAccountOnline(newAccountId.value, signal)) {
         showAddModal.value = false
         addStep.value = 'phone'
         newPhone.value = ''
@@ -1611,7 +1680,8 @@ async function submit2FA() {
         submitting.value = false
         return
       }
-      const state = await accountApi.getAuthState(newAccountId.value)
+      const state = await accountApi.getAuthState(newAccountId.value, { signal })
+      throwIfAuthAborted(signal)
       if (state.phase === 'success' || state.phase === 'connected' || state.phase === 'online') {
         showAddModal.value = false
         addStep.value = 'phone'
@@ -1638,7 +1708,7 @@ async function submit2FA() {
       }
       // phase=none/failed 不立刻判死，等下一轮账号状态核实
     }
-    if (await isAccountOnline(newAccountId.value)) {
+    if (await isAccountOnline(newAccountId.value, signal)) {
       showAddModal.value = false
       addStep.value = 'phone'
       newPhone.value = ''
@@ -1648,9 +1718,9 @@ async function submit2FA() {
     }
     twoFAError.value = '认证超时，请到账号列表确认状态'
   } catch (e: unknown) {
-    twoFAError.value = (e instanceof Error ? e.message : '密码错误')
+    if (!(e instanceof Error && e.name === 'AbortError')) twoFAError.value = (e instanceof Error ? e.message : '密码错误')
   } finally {
-    submitting.value = false
+    if (!signal.aborted) submitting.value = false
   }
 }
 
@@ -1698,12 +1768,19 @@ const need2FA = ref(false)
 const oldTwoFAPassword = ref('')
 const oldAuthStarting = ref(false)
 const oldAuthSubmitting = ref(false)
+watch(showAuth, (visible) => {
+  if (!visible) {
+    abortAuthController(reauthController)
+    reauthController = null
+  }
+})
 
-async function waitOldAuthReady(accountId: string): Promise<'code' | 'password' | 'success' | 'timeout'> {
+async function waitOldAuthReady(accountId: string, signal: AbortSignal): Promise<'code' | 'password' | 'success' | 'timeout'> {
   const deadline = Date.now() + 45000
   while (Date.now() < deadline) {
     try {
-      const state = await accountApi.getAuthState(accountId)
+      const state = await accountApi.getAuthState(accountId, { signal })
+      throwIfAuthAborted(signal)
       if (state.phase === 'waiting_code') return 'code'
       if (state.phase === 'waiting_password') return 'password'
       if (state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
@@ -1711,19 +1788,24 @@ async function waitOldAuthReady(accountId: string): Promise<'code' | 'password' 
       // 刚启动时状态接口可能短暂尚未可读，继续等待。
     }
     try {
-      await accountStore.fetchAccounts(true)
+      await accountStore.fetchAccounts(true, { signal })
+      throwIfAuthAborted(signal)
       const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
       if (latest?.status === 'online') return 'success'
     } catch {
       // 列表刷新失败不应中断认证状态轮询。
     }
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await authDelay(1000, signal)
   }
   return 'timeout'
 }
 
 async function showAuthModal(acc: Account) {
   if (oldAuthStarting.value) return
+  reauthController?.abort()
+  const controller = new AbortController()
+  reauthController = controller
+  const signal = controller.signal
   authAccount.value = acc
   showAuth.value = true
   oldAuthCode.value = ''
@@ -1732,7 +1814,9 @@ async function showAuthModal(acc: Account) {
   oldAuthStarting.value = true
   try {
     await accountApi.reauthenticate(acc.account_id)
-    const ready = await waitOldAuthReady(acc.account_id)
+    throwIfAuthAborted(signal)
+    const ready = await waitOldAuthReady(acc.account_id, signal)
+    throwIfAuthAborted(signal)
     if (ready === 'code') {
       toast({ type: 'success', title: '验证码已发送', message: `请查看 Telegram 并输入发送到 ${acc.phone} 的验证码` })
     } else if (ready === 'password') {
@@ -1746,14 +1830,14 @@ async function showAuthModal(acc: Account) {
       toast({ type: 'warning', title: '登录流程启动超时', message: '弹窗保持打开，请稍后重试或检查服务端日志' })
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '无法启动重新登录', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '无法启动重新登录', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    oldAuthStarting.value = false
+    if (!signal.aborted) oldAuthStarting.value = false
   }
 }
 
 // 提交凭据后必须等待 Telegram 最终认证状态；短暂接口错误不应误判为认证失败。
-async function waitOldAuthResult(accountId: string, expected: 'code' | 'password'): Promise<'success' | 'password' | 'code' | 'timeout'> {
+async function waitOldAuthResult(accountId: string, expected: 'code' | 'password', signal: AbortSignal): Promise<'success' | 'password' | 'code' | 'timeout'> {
   const deadline = Date.now() + 90000
   while (Date.now() < deadline) {
     try {
@@ -1762,7 +1846,8 @@ async function waitOldAuthResult(accountId: string, expected: 'code' | 'password
       // 轮询刷新失败时继续查询认证状态。
     }
     try {
-      const state = await accountApi.getAuthState(accountId)
+      const state = await accountApi.getAuthState(accountId, { signal })
+      throwIfAuthAborted(signal)
       const latest = (accountStore.accounts || []).find((a: any) => a?.account_id === accountId)
       if (latest?.status === 'online' || state.phase === 'connected' || state.phase === 'success' || state.phase === 'online') return 'success'
       if (state.phase === 'waiting_password') {
@@ -1772,7 +1857,7 @@ async function waitOldAuthResult(accountId: string, expected: 'code' | 'password
     } catch {
       // 状态接口短暂失败时保留弹窗并继续等待。
     }
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await authDelay(1000, signal)
   }
   return 'timeout'
 }
@@ -1780,10 +1865,14 @@ async function waitOldAuthResult(accountId: string, expected: 'code' | 'password
 async function submitOldCode() {
   if (!authAccount.value || !oldAuthCode.value.trim() || oldAuthSubmitting.value) return
   const accountId = authAccount.value.account_id
+  const controller = reauthController ?? new AbortController()
+  reauthController = controller
+  const signal = controller.signal
   oldAuthSubmitting.value = true
   try {
     await accountApi.submitCode(accountId, oldAuthCode.value.trim())
-    const result = await waitOldAuthResult(accountId, 'code')
+    throwIfAuthAborted(signal)
+    const result = await waitOldAuthResult(accountId, 'code', signal)
     if (result === 'success') {
       showAuth.value = false
       await accountStore.fetchAccounts(true)
@@ -1799,19 +1888,23 @@ async function submitOldCode() {
       toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后查看账号状态' })
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '验证码提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '验证码提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    oldAuthSubmitting.value = false
+    if (!signal.aborted) oldAuthSubmitting.value = false
   }
 }
 
 async function submitOld2FA() {
   if (!authAccount.value || !oldTwoFAPassword.value || oldAuthSubmitting.value) return
   const accountId = authAccount.value.account_id
+  const controller = reauthController ?? new AbortController()
+  reauthController = controller
+  const signal = controller.signal
   oldAuthSubmitting.value = true
   try {
     await accountApi.submit2FA(accountId, oldTwoFAPassword.value)
-    const result = await waitOldAuthResult(accountId, 'password')
+    throwIfAuthAborted(signal)
+    const result = await waitOldAuthResult(accountId, 'password', signal)
     if (result === 'success') {
       showAuth.value = false
       await accountStore.fetchAccounts(true)
@@ -1823,9 +1916,9 @@ async function submitOld2FA() {
       toast({ type: 'warning', title: '仍在验证中', message: '弹窗保持打开，请稍后确认账号状态' })
     }
   } catch (e: unknown) {
-    toast({ type: 'error', title: '二级验证提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (!(e instanceof Error && e.name === 'AbortError')) toast({ type: 'error', title: '二级验证提交失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    oldAuthSubmitting.value = false
+    if (!signal.aborted) oldAuthSubmitting.value = false
   }
 }
 
