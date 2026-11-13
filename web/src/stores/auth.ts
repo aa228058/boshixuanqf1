@@ -72,10 +72,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function refresh(): Promise<string> {
     const generation = sessionGeneration
     const res = await authApi.refresh()
-    if (generation === sessionGeneration) {
-      token.value = res.token
-      safeSetItem(SESSION_KEY, '1')
+    if (generation !== sessionGeneration) {
+      // 续签期间若发生登出或重新登录，迟到的旧续签结果不能交给调用方重放请求。
+      throw Object.assign(new Error('会话已切换，请重新登录'), { name: 'AbortError' })
     }
+    token.value = res.token
+    safeSetItem(SESSION_KEY, '1')
     return res.token
   }
 
