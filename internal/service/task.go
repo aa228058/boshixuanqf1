@@ -497,11 +497,20 @@ func (s *TaskService) CreateBroadcastWithMapping(ctx context.Context, tenantID u
 		payload["mappings"] = mappingsData
 	}
 
-	// 套餐日额度(051): 免费体验版限 50 条/天, 原子计数防并发超发; 付费档 0=不限
+	// 套餐日额度(051): 免费体验版限 50 条/天, 必须原子预留整批消息数。
+	// 查询或扣减失败均 fail-closed，避免数据库故障时绕过额度；超限不留下脏计数。
 	if s.planLimits != nil {
-		if dailyCap, _, err := s.planLimits.GetPlanLimits(ctx, tenantID); err == nil && dailyCap > 0 {
-			if used, err := s.planLimits.AddDailyUsage(ctx, tenantID, repository.KindBroadcastMsgs, totalMsgs); err == nil && used > dailyCap {
-				return nil, fmt.Errorf("今日群发额度已用完(体验版 %d 条/天, 已用 %d), 升级套餐不限量", dailyCap, used)
+		dailyCap, _, err := s.planLimits.GetPlanLimits(ctx, tenantID)
+		if err != nil {
+			return nil, fmt.Errorf("读取群发额度失败，请稍后重试: %w", err)
+		}
+		if dailyCap > 0 {
+			allowed, err := s.planLimits.TryAddDailyUsageAmount(ctx, tenantID, repository.KindBroadcastMsgs, totalMsgs, dailyCap)
+			if err != nil {
+				return nil, fmt.Errorf("预留群发额度失败，请稍后重试: %w", err)
+			}
+			if !allowed {
+				return nil, fmt.Errorf("今日群发额度不足(体验版 %d 条/天), 本次需要 %d 条，升级套餐不限量", dailyCap, totalMsgs)
 			}
 		}
 	}
