@@ -39,6 +39,29 @@ func (r *PlanLimitRepository) AddDailyUsage(ctx context.Context, tenantID uuid.U
 	return used, err
 }
 
+// TryAddDailyUsageAmount 原子预留指定数量的额度；单次任务超出上限或并发累计超限均不会写入。
+func (r *PlanLimitRepository) TryAddDailyUsageAmount(ctx context.Context, tenantID uuid.UUID, kind string, amount, limit int) (bool, error) {
+	if amount <= 0 || limit <= 0 || amount > limit {
+		return false, nil
+	}
+	var used int
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO plan_daily_counters (tenant_id, day, kind, used)
+		SELECT $1, CURRENT_DATE, $2, $3
+		WHERE $3 <= $4
+		ON CONFLICT (tenant_id, day, kind) DO UPDATE
+		SET used = plan_daily_counters.used + EXCLUDED.used
+		WHERE plan_daily_counters.used + EXCLUDED.used <= $4
+		RETURNING used`, tenantID, kind, amount, limit).Scan(&used)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // TryAddDailyUsage 在数据库内原子执行“未达上限才加一”，并发请求也无法突破日额度。
 func (r *PlanLimitRepository) TryAddDailyUsage(ctx context.Context, tenantID uuid.UUID, kind string, limit int) (bool, error) {
 	var used int
