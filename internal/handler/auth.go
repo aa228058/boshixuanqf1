@@ -520,9 +520,20 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	if accessClaims != nil {
 		tenantID, _ = uuid.Parse(accessClaims.TenantID)
 	} else if cookie, err := c.Cookie("refresh_token"); err == nil && cookie.Value != "" {
-		refreshTenantID, _, parseErr := middleware.ParseRefreshToken(h.cfg, cookie.Value)
+		refreshTenant, refreshJTI, parseErr := middleware.ParseRefreshToken(h.cfg, cookie.Value)
 		if parseErr == nil {
-			tenantID, _ = uuid.Parse(refreshTenantID)
+			parsedTenantID, tenantErr := uuid.Parse(refreshTenant)
+			parsedJTI, jtiErr := uuid.Parse(refreshJTI)
+			if tenantErr == nil && jtiErr == nil {
+				active, activeErr := h.refreshRepo.IsActive(c.Request().Context(), parsedJTI, parsedTenantID)
+				if activeErr != nil {
+					log.Printf("[handler] check refresh token before logout failed: %v", activeErr)
+					return echo.NewHTTPError(http.StatusInternalServerError, "failed to revoke session tokens")
+				}
+				if active {
+					tenantID = parsedTenantID
+				}
+			}
 		}
 	}
 
