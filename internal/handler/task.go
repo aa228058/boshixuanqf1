@@ -1417,7 +1417,7 @@ func (h *TaskHandler) BatchCancel(c echo.Context) error {
 		}
 		taskIDs = append(taskIDs, uid)
 	}
-	cancelled, err := h.svc.BatchCancel(c.Request().Context(), tenantID, taskIDs)
+	cancelled, failed, err := h.svc.BatchCancel(c.Request().Context(), tenantID, taskIDs)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "批量取消失败")
 	}
@@ -1432,7 +1432,7 @@ func (h *TaskHandler) BatchCancel(c echo.Context) error {
 			log.Printf("[audit] write failed: %v", err)
 		}
 	})
-	return Success(c, map[string]int{"cancelled": cancelled})
+	return Success(c, map[string]int{"cancelled": cancelled, "failed": failed})
 }
 
 // BatchDelete godoc
@@ -1464,7 +1464,7 @@ func (h *TaskHandler) BatchDelete(c echo.Context) error {
 		}
 		taskIDs = append(taskIDs, uid)
 	}
-	deleted, err := h.svc.BatchDelete(c.Request().Context(), tenantID, taskIDs)
+	deleted, failed, err := h.svc.BatchDelete(c.Request().Context(), tenantID, taskIDs)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "批量删除失败")
 	}
@@ -1478,7 +1478,7 @@ func (h *TaskHandler) BatchDelete(c echo.Context) error {
 			log.Printf("[audit] write failed: %v", err)
 		}
 	})
-	return Success(c, map[string]int{"deleted": deleted})
+	return Success(c, map[string]int{"deleted": deleted, "failed": failed})
 }
 
 // GetProgress godoc
