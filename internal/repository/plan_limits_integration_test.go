@@ -119,3 +119,30 @@ func TestTryAddDailyUsageAmountReservesWholeBatchAtomically(t *testing.T) {
 		t.Fatalf("usage after rejected oversized batch = (%d, %v), want (4, nil)", used, err)
 	}
 }
+
+
+func TestReleaseDailyUsageAmountRefundsReservation(t *testing.T) {
+	pool := setupTestDB(t)
+	ctx := context.Background()
+	tenantID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
+		VALUES ($1, $2, 'x', 'quota refund test', $3, 'free')`,
+		tenantID, "quota-refund-"+tenantID.String(), "quota-refund-key-"+tenantID.String())
+	if err != nil {
+		t.Fatalf("seed tenant: %v", err)
+	}
+
+	repo := NewPlanLimitRepository(pool)
+	ok, err := repo.TryAddDailyUsageAmount(ctx, tenantID, KindBroadcastMsgs, 4, 10)
+	if err != nil || !ok {
+		t.Fatalf("reserve = (%v, %v), want (true, nil)", ok, err)
+	}
+	if err := repo.ReleaseDailyUsageAmount(ctx, tenantID, KindBroadcastMsgs, 3); err != nil {
+		t.Fatalf("refund reservation: %v", err)
+	}
+	used, err := repo.GetDailyUsage(ctx, tenantID, KindBroadcastMsgs)
+	if err != nil || used != 1 {
+		t.Fatalf("usage after refund = (%d, %v), want (1, nil)", used, err)
+	}
+}
