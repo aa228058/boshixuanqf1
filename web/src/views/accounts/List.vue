@@ -815,6 +815,7 @@ const onVisBack = () => { if (!document.hidden) accountStore.fetchAccounts(true)
 document.addEventListener('visibilitychange', onVisBack)
 onUnmounted(() => {
   accountsPageActive = false
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null }
   statsRequestId++
   statsController?.abort()
   statsController = null
