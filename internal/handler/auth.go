@@ -487,48 +487,55 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 
 // Logout revokes the current access token and clears the refresh token cookie.
 func (h *AuthHandler) Logout(c echo.Context) error {
-	// F-02: 无论请求是否携带合法 token，都必须清掉 refresh cookie，
-	// 否则前端调用 logout 后浏览器仍保留有效 refresh token。
+	// Always clear the browser cookie, including on revocation failures.
 	defer func() {
-		// #nosec G124 -- Clearing cookie mirrors the Secure policy used when it was issued.
+		// #nosec G124 -- HttpOnly and Strict are enforced; Secure mirrors the request scheme used when the refresh cookie was issued.
 		c.SetCookie(&http.Cookie{
-			Name:     "refresh_token",
-			Value:    "",
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   c.Scheme() == "https",
-			SameSite: http.SameSiteStrictMode,
-			MaxAge:   -1,
+			Name: "refresh_token", Value: "", Path: "/", HttpOnly: true,
+			Secure: c.Scheme() == "https", SameSite: http.SameSiteStrictMode, MaxAge: -1,
 		})
 	}()
 
+	var accessClaims *middleware.JWTClaims
 	auth := c.Request().Header.Get("Authorization")
-	if auth == "" {
-		return Success(c, map[string]string{"message": "logged out"})
+	if auth != "" {
+		parts := strings.SplitN(auth, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "bearer") {
+			token, err := jwt.ParseWithClaims(parts[1], &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(h.cfg.JWTSecret), nil
+			}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer(middleware.TokenIssuer), jwt.WithAudience(middleware.TokenAudience))
+			if err == nil && token.Valid {
+				if claims, ok := token.Claims.(*middleware.JWTClaims); ok && claims.TokenType != "refresh" && claims.ID != "" {
+					accessClaims = claims
+				}
+			}
+		}
 	}
-	parts := strings.SplitN(auth, " ", 2)
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+
+	// A browser may call logout after its access token expired. In that case
+	// the HttpOnly refresh cookie is the remaining credential; use it to find
+	// the tenant and revoke server-side refresh sessions instead of merely
+	// clearing this browser's cookie.
+	var tenantID uuid.UUID
+	if accessClaims != nil {
+		tenantID, _ = uuid.Parse(accessClaims.TenantID)
+	} else if cookie, err := c.Cookie("refresh_token"); err == nil && cookie.Value != "" {
+		refreshTenantID, _, parseErr := middleware.ParseRefreshToken(h.cfg, cookie.Value)
+		if parseErr == nil {
+			tenantID, _ = uuid.Parse(refreshTenantID)
+		}
+	}
+
+	// No valid session credential was supplied; cookie clearing above is still
+	// useful and there is no server-side session identity to revoke.
+	if tenantID == uuid.Nil {
 		return Success(c, map[string]string{"message": "logged out"})
 	}
 
-	token, err := jwt.ParseWithClaims(parts[1], &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(h.cfg.JWTSecret), nil
-	}, jwt.WithValidMethods([]string{"HS256"}),
-		jwt.WithIssuer(middleware.TokenIssuer), jwt.WithAudience(middleware.TokenAudience)) // F-03
-	if err != nil || !token.Valid {
-		return Success(c, map[string]string{"message": "logged out"})
+	var accessErr error
+	if accessClaims != nil {
+		accessErr = middleware.RevokeToken(h.db, accessClaims.ID, tenantID, accessClaims.ExpiresAt.Time)
 	}
-
-	claims, ok := token.Claims.(*middleware.JWTClaims)
-	if !ok || claims.ID == "" {
-		return Success(c, map[string]string{"message": "logged out"})
-	}
-
-	tenantID, _ := uuid.Parse(claims.TenantID)
-	accessErr := middleware.RevokeToken(h.db, claims.ID, tenantID, claims.ExpiresAt.Time)
-
-	// F-02: 登出必须同时撤销该租户全部 refresh token，否则 refresh 接口
-	// 可在"登出"后继续签发 access token，登出形同虚设。
 	refreshErr := h.refreshRepo.RevokeAllForTenant(c.Request().Context(), tenantID)
 	if accessErr != nil || refreshErr != nil {
 		if accessErr != nil {
@@ -537,11 +544,8 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 		if refreshErr != nil {
 			log.Printf("[handler] revoke refresh tokens failed: %v", refreshErr)
 		}
-		// The refresh cookie is still cleared by the deferred handler above,
-		// but never claim logout succeeded unless both revocations persisted.
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to revoke session tokens")
 	}
-
 	return Success(c, map[string]string{"message": "logged out"})
 }
 
