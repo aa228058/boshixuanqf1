@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"github.com/google/uuid"
 	"log"
 	"net/http"
 	"strconv"
