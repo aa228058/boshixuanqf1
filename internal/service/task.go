@@ -499,6 +499,7 @@ func (s *TaskService) CreateBroadcastWithMapping(ctx context.Context, tenantID u
 
 	// 套餐日额度(051): 免费体验版限 50 条/天, 必须原子预留整批消息数。
 	// 查询或扣减失败均 fail-closed，避免数据库故障时绕过额度；超限不留下脏计数。
+	quotaReserved := false
 	if s.planLimits != nil {
 		dailyCap, _, err := s.planLimits.GetPlanLimits(ctx, tenantID)
 		if err != nil {
@@ -512,6 +513,7 @@ func (s *TaskService) CreateBroadcastWithMapping(ctx context.Context, tenantID u
 			if !allowed {
 				return nil, fmt.Errorf("今日群发额度不足(体验版 %d 条/天), 本次需要 %d 条，升级套餐不限量", dailyCap, totalMsgs)
 			}
+			quotaReserved = true
 		}
 	}
 
@@ -545,6 +547,15 @@ func (s *TaskService) CreateBroadcastWithMapping(ctx context.Context, tenantID u
 		task.Status = domain.TaskStatusPending
 	}
 	if err := s.repo.Create(ctx, task); err != nil {
+		if quotaReserved {
+			// 任务记录未落库时退还预留额度；使用独立短超时上下文，
+			// 避免原请求取消后导致额度永久被占用。
+			refundCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			if refundErr := s.planLimits.ReleaseDailyUsageAmount(refundCtx, tenantID, repository.KindBroadcastMsgs, totalMsgs); refundErr != nil {
+				log.Printf("[quota] failed to refund broadcast reservation tenant=%s amount=%d: %v", tenantID, totalMsgs, refundErr)
+			}
+			cancel()
+		}
 		return nil, fmt.Errorf("创建群发任务失败: %w", err)
 	}
 	return task, nil
