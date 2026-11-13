@@ -68,3 +68,47 @@ export function formatValidDate(value: string, locale = 'zh-CN'): string {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(locale)
 }
+
+
+export function formatValidDateTime(value: string, locale = 'zh-CN'): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(locale)
+}
+
+export interface CodeGenerationInput {
+  plan_id: string
+  count: number
+  timing_type: string
+  expires_days?: number
+}
+
+export function validateCodeGenerationInput(input: CodeGenerationInput, availablePlanIds: string[]): string | null {
+  if (!input.plan_id || !availablePlanIds.includes(input.plan_id)) return '请选择有效套餐'
+  if (!Number.isInteger(input.count) || input.count < 1 || input.count > 100) return '生成数量必须是 1–100 的整数'
+  if (input.timing_type !== 'immediate' && input.timing_type !== 'on_use') return '请选择有效的生效方式'
+  if (input.expires_days !== undefined && (!Number.isInteger(input.expires_days) || input.expires_days < 1)) return '有效期必须是正整数天数'
+  return null
+}
+
+export function validateAnnouncementInput(input: {
+  title: string
+  content: string
+  priority: string
+  target_type: string
+  target_plans?: string[]
+}): string | null {
+  if (!input.title.trim()) return '请输入公告标题'
+  if (!input.content.trim()) return '请输入公告内容'
+  if (input.priority !== 'normal' && input.priority !== 'urgent') return '请选择有效的公告优先级'
+  if (input.target_type !== 'all' && input.target_type !== 'specific_plan') return '请选择有效的公告目标'
+  if (input.target_type === 'specific_plan' && !(input.target_plans || []).some(id => id.trim())) return '指定套餐公告至少选择一个套餐'
+  return null
+}
+
+export function normalizePlanFeatures(features: unknown): string[] {
+  if (Array.isArray(features)) return features.filter((value): value is string => typeof value === 'string' && value.length > 0)
+  if (!features || typeof features !== 'object') return []
+  return Object.entries(features as Record<string, unknown>)
+    .filter(([key, enabled]) => key.length > 0 && enabled === true)
+    .map(([key]) => key)
+}
