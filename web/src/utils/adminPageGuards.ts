@@ -46,7 +46,7 @@ export function validateTenantCreateInput(input: { name: string; username: strin
   return null
 }
 
-export function isSupportedQrImage(type: string, size: number, maxSize = 512 * 1024): boolean {
+export function isSupportedQrImage(type: string, size: number, maxSize = 500 * 1024): boolean {
   return (type === 'image/png' || type === 'image/jpeg') && Number.isFinite(size) && size > 0 && size <= maxSize
 }
 
