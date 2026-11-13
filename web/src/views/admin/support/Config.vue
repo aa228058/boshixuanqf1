@@ -6,7 +6,7 @@
       <div class="space-y-4">
         <div>
           <label for="support-type" class="block text-sm text-text-secondary mb-1.5">联系方式类型</label>
-          <div class="ui-segmented w-full" role="group" aria-label="联系方式类型">
+          <div class="ui-segmented w-full" id="support-type" role="group" aria-label="联系方式类型">
             <button
               v-for="type in contactTypes"
               :key="type.value"
@@ -39,9 +39,10 @@
           <div class="flex items-center gap-3">
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)]/40 transition-colors">
               选择图片
-              <input type="file" accept="image/*" class="hidden" @change="onQrFileChange" />
+              <input type="file" accept="image/png,image/jpeg" class="hidden" @change="onQrFileChange" />
             </label>
-            <span class="text-xs text-text-muted">支持 JPG、PNG 格式</span>
+            <span class="text-xs text-text-muted">仅支持 JPG、PNG，且小于 500KB</span>
+            <span v-if="qrReading" class="text-xs text-text-secondary" role="status">正在读取二维码…</span>
             <img v-if="form.qr_code_url" :src="form.qr_code_url" class="w-16 h-16 rounded-lg object-cover" alt="二维码" loading="lazy">
             <t-button v-if="form.qr_code_url" type="button" @click="clearQr" class="ui-t-button--danger ui-t-button" aria-label="清除二维码图片">
               清除图片
@@ -50,8 +51,8 @@
         </div>
       </div>
       <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-border">
-        <t-button type="button" @click="fetchConfig" class="ui-t-button--secondary ui-t-button">重置</t-button>
-        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveConfig" :loading="savingSupport" :disabled="savingSupport">保存配置</t-button>
+        <t-button type="button" @click="resetConfig" :disabled="savingSupport" class="ui-t-button--secondary ui-t-button">重置</t-button>
+        <t-button theme="primary" size="sm" class="ui-t-button ui-t-button--primary ui-t-button--sm" @click="saveConfig" :loading="savingSupport" :disabled="savingSupport || qrReading">保存配置</t-button>
       </div>
     </div>
 
@@ -81,6 +82,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { MessageCircle } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import type { SupportConfig } from '@/types'
+import { isSupportedQrImage } from '@/utils/adminPageGuards'
 
 const contactTypes = [
   { label: '微信', value: 'wechat' },
@@ -90,7 +92,8 @@ const contactTypes = [
   { label: '自定义', value: 'custom' },
 ]
 
-const qrFile = ref<File | null>(null)
+const qrReading = ref(false)
+let qrReader: FileReader | null = null
 const savingSupport = ref(false)
 let supportPageActive = false
 let supportRequestId = 0
@@ -117,7 +120,7 @@ async function fetchConfig() {
     const EMPTY = { id: 0, contact_type: 'wechat', contact_value: '', display_name: '', qr_code_url: '', is_active: true }
     const config = await adminApiMod.getSupport({ signal: controller.signal })
     if (!supportPageActive || requestId !== supportRequestId) return
-    form.value = { ...EMPTY, ...(config || {}) }
+    form.value = { ...EMPTY, ...(config || {}), qr_code_file: undefined }
   } catch (e: unknown) {
     if (!supportPageActive || requestId !== supportRequestId) return
     if (controller.signal.aborted) return
@@ -129,13 +132,21 @@ async function fetchConfig() {
 }
 
 async function saveConfig() {
-  if (savingSupport.value) return
+  if (savingSupport.value || qrReading.value) return
+  if (!form.value.contact_value.trim()) {
+    toast({ type: 'warning', title: '请填写联系方式', message: '联系账号或链接不能为空' })
+    return
+  }
   savingSupport.value = true
   try {
-    // qr_code_file 是 File 对象（仅本地预览用），JSON 序列化为空对象{}；
-    // 剥离后提交，二维码内容走 qr_code_url（base64 data URL 或外链）。
-    const { qr_code_file, ...payload } = form.value as any
-    await adminApiMod.updateSupport(payload as any)
+    // File 只用于本地预览，不进入 JSON 请求；文本字段统一去除首尾空格。
+    const { qr_code_file: _localFile, ...payload } = form.value
+    await adminApiMod.updateSupport({
+      ...payload,
+      contact_value: payload.contact_value.trim(),
+      display_name: payload.display_name.trim(),
+    })
+    await fetchConfig()
     toast({ type: 'success', title: '配置已保存' })
   } catch (e: unknown) {
     toast({ type: 'error', title: '保存失败', message: (e instanceof Error ? e.message : '请稍后重试') })
@@ -144,37 +155,72 @@ async function saveConfig() {
   }
 }
 
-// 清除已上传的二维码图片
+// 清除二维码时使未完成的读取失效，防止异步 onload 把图片重新写回来。
 function clearQr() {
+  qrReadRequestId++
+  if (qrReader?.readyState === FileReader.LOADING) qrReader.abort()
+  qrReader = null
+  qrReading.value = false
   form.value.qr_code_url = ''
-  form.value.qr_code_file = null as any
+  form.value.qr_code_file = undefined
+}
+
+function resetConfig() {
+  clearQr()
+  void fetchConfig()
 }
 
 function onQrFileChange(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (f) handleQrUpload(f)
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  // 允许再次选择同一个文件。
+  input.value = ''
+  if (file) handleQrUpload(file)
 }
 
 function handleQrUpload(file: File) {
-  if (file.size > 512 * 1024) {
-    toast({ type: 'warning', title: '图片过大', message: '二维码图片请小于 500KB' })
+  if (!isSupportedQrImage(file.type, file.size)) {
+    toast({ type: 'warning', title: '二维码图片无效', message: '仅支持非空 JPG、PNG 图片，且文件需小于 500KB' })
     return
   }
-  // 半成品警示：这里只做 base64 预览并直接塞进 qr_code_url 提交——
-  // File 本体从未上传到媒体服务，大图的 base64 会让保存报文臃肿；
-  // 且 qr_code_file 字段（File 对象）JSON 序列化后为空对象，后端拿不到文件。
-  // TODO: 走 mediaApi.upload 上传拿 URL，或后端支持 base64 落库并限制大小。
+  if (qrReader?.readyState === FileReader.LOADING) qrReader.abort()
   const reader = new FileReader()
+  qrReader = reader
   const requestId = ++qrReadRequestId
+  qrReading.value = true
   reader.onload = () => {
-    if (supportPageActive && requestId === qrReadRequestId) form.value.qr_code_url = reader.result as string
+    if (!supportPageActive || requestId !== qrReadRequestId) return
+    if (typeof reader.result !== 'string') {
+      qrReading.value = false
+      qrReader = null
+      toast({ type: 'error', title: '二维码读取失败', message: '请重新选择图片' })
+      return
+    }
+    form.value.qr_code_url = reader.result
+    form.value.qr_code_file = file
+    qrReading.value = false
+    qrReader = null
   }
   reader.onerror = () => {
-    if (supportPageActive && requestId === qrReadRequestId) toast({ type: 'error', title: '二维码读取失败', message: '请重新选择图片' })
+    if (!supportPageActive || requestId !== qrReadRequestId) return
+    qrReading.value = false
+    qrReader = null
+    toast({ type: 'error', title: '二维码读取失败', message: '请重新选择图片' })
+  }
+  reader.onabort = () => {
+    if (requestId === qrReadRequestId) qrReading.value = false
   }
   reader.readAsDataURL(file)
 }
 
 onMounted(() => { supportPageActive = true; void fetchConfig() })
-onUnmounted(() => { supportPageActive = false; supportRequestId++; qrReadRequestId++; supportController?.abort(); supportController = null })
+onUnmounted(() => {
+  supportPageActive = false
+  supportRequestId++
+  qrReadRequestId++
+  if (qrReader?.readyState === FileReader.LOADING) qrReader.abort()
+  qrReader = null
+  supportController?.abort()
+  supportController = null
+})
 </script>
