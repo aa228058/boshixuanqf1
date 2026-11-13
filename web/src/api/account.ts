@@ -23,7 +23,7 @@ export const accountApi = {
     api.put<{ ok: boolean }>(`/accounts/${id}/profile`, p),
   cloneProfile: (source: string, targetIds: string[]) =>
     api.post<{ ok: boolean; applied: number; failed: number }>('/accounts/clone-profile', { source, target_ids: targetIds }),
-  stats: () => api.get<Record<string, { success: number; failed: number; skipped: number }>>('/accounts/stats'),
+  stats: (options?: RequestOptions) => api.get<Record<string, { success: number; failed: number; skipped: number }>>('/accounts/stats', options),
   leaveAllGroups: (id: string) => api.post<{ left: number; skipped: number; failed: number; errors?: string[] }>(`/accounts/${id}/leave-all-groups`),
   // R181 群转移: 源号导出邀请链接 → 目标号创建 join_groups 任务(间隔租户可调, 分钟)
   transferGroups: (id: string, targetAccountId: string, intervalMinMinutes = 2, intervalMaxMinutes = 3) =>
