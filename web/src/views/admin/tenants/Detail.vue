@@ -167,13 +167,14 @@ async function saveEdit() {
       expires_at: editForm.value.expires_at ? new Date(editForm.value.expires_at).toISOString() : '',
     }
     await adminApiMod.updateTenant(tenantId, payload)
+    if (!tenantDetailActive) return
     showEdit.value = false
     await fetchTenant()
-    toast({ type: 'success', title: '租户信息已更新' })
+    if (tenantDetailActive) toast({ type: 'success', title: '租户信息已更新' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '更新失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantDetailActive) toast({ type: 'error', title: '更新失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    savingTenant.value = false
+    if (tenantDetailActive) savingTenant.value = false
   }
 }
 
@@ -182,15 +183,16 @@ async function resetKey() {
   try {
     // 重置即作废旧 Key（明文只显示一次），误触代价高——加确认
     const ok = await ask('重置 API Key 后旧 Key 将立即失效，确定重置？')
-    if (!ok) return
+    if (!ok || !tenantDetailActive) return
     resettingKey.value = true
     await adminApiMod.resetApiKey(tenantId)
+    if (!tenantDetailActive) return
     await fetchTenant()
-    toast({ type: 'success', title: 'API Key 已重置' })
+    if (tenantDetailActive) toast({ type: 'success', title: 'API Key 已重置' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantDetailActive) toast({ type: 'error', title: '重置失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    resettingKey.value = false
+    if (tenantDetailActive) resettingKey.value = false
   }
 }
 
@@ -200,12 +202,13 @@ async function toggleStatus() {
   try {
     const newStatus = tenant.value?.status === 'active' ? 'suspended' : 'active'
     await adminApiMod.updateTenant(tenantId, { status: newStatus })
+    if (!tenantDetailActive) return
     await fetchTenant()
-    toast({ type: 'success', title: newStatus === 'active' ? '租户已启用' : '租户已停用' })
+    if (tenantDetailActive) toast({ type: 'success', title: newStatus === 'active' ? '租户已启用' : '租户已停用' })
   } catch (e: unknown) {
-    toast({ type: 'error', title: '操作失败', message: (e instanceof Error ? e.message : '请稍后重试') })
+    if (tenantDetailActive) toast({ type: 'error', title: '操作失败', message: (e instanceof Error ? e.message : '请稍后重试') })
   } finally {
-    tenantActionPending.value = false
+    if (tenantDetailActive) tenantActionPending.value = false
   }
 }
 
