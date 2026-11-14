@@ -1492,7 +1492,8 @@ func (e *Engine) rescheduleLoopTask(ctx context.Context, task *domain.Task) {
 	if fresh.Status == domain.TaskStatusPaused || fresh.Status == domain.TaskStatusCancelled {
 		return
 	}
-	next, scheduleErr := NextBroadcastRun(task.Payload, time.Now(), task.LoopIntervalMinutes)
+	// 对齐"上一轮计划时刻 + 间隔"，避免执行耗时累积成漂移；落后超过一个周期则跳过补跑。
+	next, scheduleErr := NextLoopRun(task.Payload, time.Now(), fresh.NextRunAt, task.LoopIntervalMinutes)
 	if scheduleErr != nil {
 		taskLog.Printf("[task] invalid recurring broadcast schedule task=%s: %v; disabling loop", task.TaskID, scheduleErr)
 		if stopErr := e.repo.StopLoop(ctx, task.TenantID, task.TaskID); stopErr != nil {

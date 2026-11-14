@@ -701,6 +701,9 @@ func (c *Container) initHandlers() {
 }
 
 // reconcileRaffleWatch 全租户对账: 总开关开启的租户, 其勾选账号必须在线监听。
+// raffleBackfillOnce 保证每个账号每个进程只补拉一次（对账循环会反复调用本函数）。
+var raffleBackfillOnce sync.Map
+
 func (c *Container) reconcileRaffleWatch(ctx context.Context) {
 	// P2-67 审计修复: 原来硬编码 List(1,1000)——超 1000 租户时漏对账。
 	// 改为大页循环(99万上限=实际无上限, 分页接口要求 int 传参)。
@@ -736,7 +739,20 @@ func (c *Container) reconcileRaffleWatchForTenant(ctx context.Context, tenantID 
 			continue
 		}
 		// 会话已在线则 EnsureSession 直接跳过
-		_ = c.MonitorEngine.EnsureSession(ctx, tenantID, acc.AccountID, active)
+		if err := c.MonitorEngine.EnsureSession(ctx, tenantID, acc.AccountID, active); err != nil {
+			continue
+		}
+		// 重启后补收 12 小时内漏掉的开奖/中奖事件（每账号每进程一次）。
+		if _, loaded := raffleBackfillOnce.LoadOrStore(acc.AccountID, struct{}{}); loaded {
+			continue
+		}
+		backfillTenant := tenantID
+		backfillAccount := acc.AccountID
+		safego.Go(func() {
+			bctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			c.MonitorEngine.BackfillRaffleHistory(bctx, backfillTenant, backfillAccount)
+		})
 	}
 }
 

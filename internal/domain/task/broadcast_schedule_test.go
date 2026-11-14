@@ -128,3 +128,46 @@ func TestParseLocalDateTimeUsesFirstDSTFoldOccurrence(t *testing.T) {
 		t.Fatalf("got %s, want first DST-fold occurrence %s", got, want)
 	}
 }
+
+func TestNextIntervalRunAlignsToPlan(t *testing.T) {
+	planned := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	// 10:50 跑完、间隔 60 分钟 → 下一轮仍是 11:00（对齐计划，不累积漂移）
+	now := planned.Add(50 * time.Minute)
+	if got := NextIntervalRun(&planned, now, 60); !got.Equal(planned.Add(60 * time.Minute)) {
+		t.Fatalf("got %v, want 11:00", got)
+	}
+}
+
+func TestNextIntervalRunSkipsCatchUpBeyondOneCycle(t *testing.T) {
+	planned := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	// 11:30 才跑完：对齐点 11:00 已过去一整轮，跳到 now+60m，而不是立刻补跑
+	now := planned.Add(90 * time.Minute)
+	want := now.Add(60 * time.Minute)
+	if got := NextIntervalRun(&planned, now, 60); !got.Equal(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestNextIntervalRunWithoutPlanUsesNow(t *testing.T) {
+	now := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	if got := NextIntervalRun(nil, now, 30); !got.Equal(now.Add(30 * time.Minute)) {
+		t.Fatalf("got %v, want now+30m", got)
+	}
+	var zero time.Time
+	if got := NextIntervalRun(&zero, now, 30); !got.Equal(now.Add(30 * time.Minute)) {
+		t.Fatalf("零值计划时间应退回 now+interval, got %v", got)
+	}
+}
+
+func TestNextLoopRunKeepsCalendarMode(t *testing.T) {
+	payload := map[string]any{"schedule_mode": "daily", "timezone": "Asia/Shanghai", "local_time": "09:00"}
+	planned := time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC)
+	got, err := NextLoopRun(payload, now, &planned, 60)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !got.After(now) {
+		t.Fatalf("日历模式应给出未来时间, got %v", got)
+	}
+}
