@@ -86,7 +86,7 @@ func checkAdminLoginRateLimit(ip string) error {
 
 // AdminHandler handles admin routes.
 type AdminHandler struct {
-	adminService *service.AdminService
+	adminService adminPlaneService
 }
 
 // NewAdminHandler creates a new admin handler.
@@ -268,7 +268,11 @@ func (h *AdminHandler) DeleteTenant(c echo.Context) error {
 
 // GenerateCodes generates activation codes.
 func (h *AdminHandler) GenerateCodes(c echo.Context) error {
-	adminID := c.Get("admin_id").(uuid.UUID)
+	// 用 comma-ok：漏挂 AdminAuth 时应返回 401，而不是类型断言 panic 成 500。
+	adminID, ok := c.Get("admin_id").(uuid.UUID)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "未授权")
+	}
 	var req struct {
 		PlanID      string `json:"plan_id" validate:"required"`
 		Count       int    `json:"count" validate:"required,min=1,max=100"`

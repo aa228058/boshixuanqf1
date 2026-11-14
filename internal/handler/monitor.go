@@ -20,7 +20,7 @@ import (
 
 // MonitorHandler handles monitor rule APIs.
 type MonitorHandler struct {
-	svc        *service.MonitorService
+	svc        monitorRuleService
 	engine     *monitor.Engine
 	accountSvc *service.AccountService
 }

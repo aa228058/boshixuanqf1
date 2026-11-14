@@ -14,7 +14,7 @@ import (
 
 // DashboardHandler handles dashboard APIs.
 type DashboardHandler struct {
-	svc *service.DashboardService
+	svc dashboardService
 }
 
 // NewDashboardHandler creates a new dashboard handler.
