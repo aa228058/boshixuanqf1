@@ -28,17 +28,6 @@ func (r *PlanLimitRepository) GetPlanLimits(ctx context.Context, tenantID uuid.U
 	return
 }
 
-// AddDailyUsage 原子累加当日用量并返回最新值(INSERT ... ON CONFLICT 天然防并发超发)
-func (r *PlanLimitRepository) AddDailyUsage(ctx context.Context, tenantID uuid.UUID, kind string, n int) (int, error) {
-	var used int
-	err := r.db.QueryRow(ctx, `
-		INSERT INTO plan_daily_counters (tenant_id, day, kind, used)
-		VALUES ($1, CURRENT_DATE, $2, $3)
-		ON CONFLICT (tenant_id, day, kind) DO UPDATE SET used = plan_daily_counters.used + $3
-		RETURNING used`, tenantID, kind, n).Scan(&used)
-	return used, err
-}
-
 // TryAddDailyUsageAmount 原子预留指定数量的额度；单次任务超出上限或并发累计超限均不会写入。
 func (r *PlanLimitRepository) TryAddDailyUsageAmount(ctx context.Context, tenantID uuid.UUID, kind string, amount, limit int) (bool, error) {
 	if amount <= 0 || limit <= 0 || amount > limit {
@@ -93,7 +82,8 @@ func (r *PlanLimitRepository) TryAddDailyUsage(ctx context.Context, tenantID uui
 	return true, nil
 }
 
-// GetDailyUsage 查当日已用量(P2-47 审计修复配套: 超限判断要先查后扣, 不能先扣后判)
+// GetDailyUsage 返回某租户今天某类用量的当前值（0 表示今天还没用过）。
+// 集成测试用它断言配额扣减，线上也可用于展示"今日已用"。
 func (r *PlanLimitRepository) GetDailyUsage(ctx context.Context, tenantID uuid.UUID, kind string) (int, error) {
 	var used int
 	err := r.db.QueryRow(ctx, `

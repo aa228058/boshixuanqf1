@@ -19,14 +19,28 @@ func NewAnnouncementRepository(db *pgxpool.Pool) *AnnouncementRepository {
 	return &AnnouncementRepository{db: db}
 }
 
+// MarkRead 记录某租户已读某公告(幂等)。
+func (r *AnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO announcement_reads (tenant_id, announcement_id)
+		VALUES ($1, $2) ON CONFLICT (tenant_id, announcement_id) DO NOTHING`, tenantID, announcementID)
+	if err != nil {
+		return fmt.Errorf("mark announcement read: %w", err)
+	}
+	return nil
+}
+
 // List returns active announcements for a tenant's plan.
-func (r *AnnouncementRepository) List(ctx context.Context, planID string) ([]domain.Announcement, error) {
+func (r *AnnouncementRepository) List(ctx context.Context, planID string, tenantID uuid.UUID) ([]domain.Announcement, error) {
 	rows, err := r.db.Query(ctx, `
-	    SELECT announcement_id, title, content, priority, target_type, target_plans, start_at, end_at, is_active, created_at
+	    SELECT a.announcement_id, a.title, a.content, a.priority, a.target_type, a.target_plans,
+	           a.start_at, a.end_at, a.is_active, a.created_at,
+	           EXISTS (SELECT 1 FROM announcement_reads ar
+	                   WHERE ar.announcement_id = a.announcement_id AND ar.tenant_id = $1) AS read
 	    -- P2-63 审计修复: 原来无 LIMIT——公告多了全量拉, 响应无界
-	    FROM announcements
-	    WHERE is_active = TRUE AND start_at <= NOW() AND (end_at ISNULL OR end_at > NOW())
-	    ORDER BY priority DESC, created_at DESC LIMIT 100`)
+	    FROM announcements a
+	    WHERE a.is_active = TRUE AND a.start_at <= NOW() AND (a.end_at ISNULL OR a.end_at > NOW())
+	    ORDER BY a.priority DESC, a.created_at DESC LIMIT 100`, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list announcements: %w", err)
 	}
@@ -35,7 +49,7 @@ func (r *AnnouncementRepository) List(ctx context.Context, planID string) ([]dom
 	var list []domain.Announcement
 	for rows.Next() {
 		var a domain.Announcement
-		if err := rows.Scan(&a.AnnouncementID, &a.Title, &a.Content, &a.Priority, &a.TargetType, &a.TargetPlans, &a.StartAt, &a.EndAt, &a.IsActive, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.AnnouncementID, &a.Title, &a.Content, &a.Priority, &a.TargetType, &a.TargetPlans, &a.StartAt, &a.EndAt, &a.IsActive, &a.CreatedAt, &a.Read); err != nil {
 			continue
 		}
 		list = append(list, a)

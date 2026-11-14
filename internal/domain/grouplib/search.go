@@ -12,7 +12,6 @@ import (
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/domain"
-	"tg-sender/internal/safego"
 )
 
 // accountEngine 抽象: grouplib 需要借一个在线账号调用 TG 搜索(避免反向依赖)
@@ -93,15 +92,4 @@ func (e *Engine) SearchAndIngest(ctx context.Context, tenantID, accountID uuid.U
 		return out, errors.Join(upsertErrors...)
 	}
 	return out, nil
-}
-
-// SearchAsync 后台执行搜索(前端点了就跑, 结果轮询列表即可看到)
-func (e *Engine) SearchAsync(tenantID, accountID uuid.UUID, keyword string) {
-	safego.Go(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		if _, err := e.SearchAndIngest(ctx, tenantID, accountID, keyword); err != nil {
-			log.Printf("[grouplib] 关键词搜索失败: %v", err)
-		}
-	})
 }

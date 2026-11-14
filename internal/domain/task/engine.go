@@ -800,6 +800,38 @@ func (e *Engine) claimAndExecute(ctx context.Context) {
 
 // runTask executes a task with idempotency, concurrency limit, and per-task cancellation support.
 
+// keepLeaseAlive 周期性刷新 locked_at, 直到任务结束(done 关闭)或引擎停止。
+func (e *Engine) keepLeaseAlive(task *domain.Task, done <-chan struct{}) {
+	ticker := time.NewTicker(leaseHeartbeatInterval(e.cfg.TaskLockTimeoutMin))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-e.stopCh:
+			return
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := e.repo.TouchLease(ctx, task.TaskID, e.taskLeaseID(task)); err != nil {
+				taskLog.Printf("[task] 续租失败 %s: %v", task.TaskID, err)
+			}
+			cancel()
+		}
+	}
+}
+
+// leaseHeartbeatInterval 取锁超时的三分之一作为心跳间隔, 夹在 [30s, 5min]。
+func leaseHeartbeatInterval(lockTimeoutMin int) time.Duration {
+	interval := time.Duration(lockTimeoutMin) * time.Minute / 3
+	if interval < 30*time.Second {
+		return 30 * time.Second
+	}
+	if interval > 5*time.Minute {
+		return 5 * time.Minute
+	}
+	return interval
+}
+
 func (e *Engine) taskLeaseID(task *domain.Task) string {
 	if task != nil && task.WorkerID != nil && *task.WorkerID != "" {
 		return *task.WorkerID
@@ -811,12 +843,20 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 	// P1-01: 全局并发原子锁(count+claim非原子会突破上限; 信号量保证任何时刻running<=上限)
 	select {
 	case e.globalSem <- struct{}{}:
-		defer func() { <-e.globalSem }()
 	case <-ctx.Done():
 		return
 	case <-e.stopCh:
 		return
 	}
+	// 释放责任默认在本函数: 之前的写法是 `defer <-globalSem`, 但任务真正执行在下面
+	// 派发的 goroutine 里, runTask 立刻返回 → 闸门瞬间释放, 并发上限形同虚设。
+	// 只在任务被交给执行 goroutine 后才转移释放责任(semReleased=true)。
+	semReleased := false
+	defer func() {
+		if !semReleased {
+			<-e.globalSem
+		}
+	}()
 	// Idempotency: skip if already running (memory + DB)
 	taskKey := task.TaskID.String()
 	if _, loaded := e.runningTasks.LoadOrStore(taskKey, true); loaded {
@@ -848,9 +888,28 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		return
 	}
 
+	// 租约心跳: 认领只在开始时写一次 locked_at, 而 ClaimTimeoutTasks 按 locked_at
+	// 判定过期(TaskLockTimeoutMin, 默认 40 分钟)。没有续租时, 任何跑超时的长任务
+	// 都会被另一个 worker 当成"超时任务"重新认领, 两边并发发同一批目标。
+	leaseDone := make(chan struct{})
+	safego.Go(func() { e.keepLeaseAlive(task, leaseDone) })
+
+	// wg.Add 与 Stop 里的 wg.Wait 必须由 lifecycleMu 串行化, 否则停机时
+	// "Add called concurrently with Wait" 会让任务被漏等或触发运行时 panic。
+	e.lifecycleMu.Lock()
+	if e.stopped {
+		e.lifecycleMu.Unlock()
+		close(leaseDone)
+		return
+	}
 	e.wg.Add(1)
+	e.lifecycleMu.Unlock()
+
+	semReleased = true
 	safego.Go(func() {
 		defer e.wg.Done()
+		defer close(leaseDone) // 心跳只在任务真正结束时停
+		defer func() { <-e.globalSem }()
 		// 任务结束(完成/失败/取消)时广播状态事件, 前端列表实时刷新
 		defer func() {
 			if e.sseBroker != nil {
@@ -1433,7 +1492,8 @@ func (e *Engine) rescheduleLoopTask(ctx context.Context, task *domain.Task) {
 	if fresh.Status == domain.TaskStatusPaused || fresh.Status == domain.TaskStatusCancelled {
 		return
 	}
-	next, scheduleErr := NextBroadcastRun(task.Payload, time.Now(), task.LoopIntervalMinutes)
+	// 对齐"上一轮计划时刻 + 间隔"，避免执行耗时累积成漂移；落后超过一个周期则跳过补跑。
+	next, scheduleErr := NextLoopRun(task.Payload, time.Now(), fresh.NextRunAt, task.LoopIntervalMinutes)
 	if scheduleErr != nil {
 		taskLog.Printf("[task] invalid recurring broadcast schedule task=%s: %v; disabling loop", task.TaskID, scheduleErr)
 		if stopErr := e.repo.StopLoop(ctx, task.TenantID, task.TaskID); stopErr != nil {

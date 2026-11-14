@@ -19,3 +19,6 @@ web/dist/
 logs/
 tmp/
 .DS_Store
+
+# 自签名/正式证书（不入库）
+certs/

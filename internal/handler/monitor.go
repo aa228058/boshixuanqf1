@@ -8,13 +8,14 @@ import (
 	"strconv"
 	"tg-sender/internal/safego"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/labstack/echo/v4"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/domain/monitor"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/service"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/labstack/echo/v4"
 )
 
 // MonitorHandler handles monitor rule APIs.

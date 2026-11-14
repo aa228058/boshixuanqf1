@@ -12,16 +12,17 @@ import (
 	"tg-sender/internal/safego"
 	"time"
 
+	"tg-sender/internal/config"
+	"tg-sender/internal/domain"
+	"tg-sender/internal/middleware"
+	"tg-sender/internal/repository"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
-	"tg-sender/internal/config"
-	"tg-sender/internal/domain"
-	"tg-sender/internal/middleware"
-	"tg-sender/internal/repository"
 )
 
 type RegisterRequest struct {
@@ -422,6 +423,12 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 		log.Printf("[handler] 租户ID格式无效: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
+	// 防御纵深: 刷新令牌库里的 tenant_id 必须与 JWT 载荷一致。
+	// 不一致意味着令牌记录被篡改或迁移出错，直接拒绝而不是按 JWT 租户继续换发。
+	if parsedTenantID != parsedUUID {
+		log.Printf("[handler] refresh token 租户不匹配 jti=%s token=%s jwt=%s", parsedJTI, parsedTenantID, parsedUUID)
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
+	}
 	tenant, err := h.tenantRepo.GetByID(c.Request().Context(), parsedUUID)
 	if err != nil {
 		log.Printf("[handler] 刷新时查询租户失败: %v", err)
@@ -721,6 +728,12 @@ func (h *AuthHandler) Renew(c echo.Context) error {
 		}
 		log.Printf("[auth] 续费更新租户失败: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "续费失败，请稍后重试")
+	}
+	// 续费/升级后必须立刻失效鉴权缓存, 否则 JWTAuth 的 60s 租户缓存仍按旧状态
+	// 判定"已过期", 用户付完钱还要被 403 挡一分钟。
+	middleware.InvalidateTenantCache(tenant.TenantID)
+	if h.taskEngine != nil {
+		h.taskEngine.RegisterTenantQuota(tenant.TenantID, plan.MaxConcurrent)
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{

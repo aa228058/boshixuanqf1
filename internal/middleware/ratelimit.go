@@ -11,12 +11,10 @@ import (
 
 // RateLimiter implements a simple in-memory rate limiter with periodic cleanup.
 type RateLimiter struct {
-	mu       sync.RWMutex
-	clients  map[string]*clientLimit
-	limit    int
-	window   time.Duration
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	mu      sync.RWMutex
+	clients map[string]*clientLimit
+	limit   int
+	window  time.Duration
 }
 
 type clientLimit struct {
@@ -30,15 +28,9 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 		clients: make(map[string]*clientLimit),
 		limit:   limit,
 		window:  window,
-		stopCh:  make(chan struct{}),
 	}
 	safego.Go(func() { rl.cleanup() })
 	return rl
-}
-
-// Stop stops the cleanup goroutine safely.
-func (rl *RateLimiter) Stop() {
-	rl.stopOnce.Do(func() { close(rl.stopCh) })
 }
 
 // Middleware returns the rate limiting middleware keyed by tenant ID.
@@ -79,20 +71,15 @@ func (rl *RateLimiter) Middleware() echo.MiddlewareFunc {
 func (rl *RateLimiter) cleanup() {
 	ticker := time.NewTicker(rl.window)
 	defer ticker.Stop()
-	for {
-		select {
-		case <-rl.stopCh:
-			return
-		case <-ticker.C:
-			rl.mu.Lock()
-			now := time.Now()
-			for k, v := range rl.clients {
-				if now.After(v.resetAt) {
-					delete(rl.clients, k)
-				}
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		for k, v := range rl.clients {
+			if now.After(v.resetAt) {
+				delete(rl.clients, k)
 			}
-			rl.mu.Unlock()
 		}
+		rl.mu.Unlock()
 	}
 }
 

@@ -24,11 +24,6 @@ import (
 	"tg-sender/internal/safego"
 )
 
-// GroupSyncer syncs joined Telegram groups for an account.
-type GroupSyncer interface {
-	SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.UUID) error
-}
-
 // AccountService handles account business logic.
 type AccountService struct {
 	cfg         *config.Config
@@ -37,7 +32,6 @@ type AccountService struct {
 	quota       *repository.QuotaRepository
 	risk        *repository.RiskRepository
 	engine      AccountEngine
-	groupSyncer GroupSyncer
 	tenantRepo  domain.TenantRepository
 	taskLogRepo *repository.TaskLogRepository
 }
@@ -829,17 +823,6 @@ func (s *AccountService) SetProxy(ctx context.Context, tenantID, accountID uuid.
 		log.Printf("[account] proxy updated for %s but disconnecting the old connection failed: %v", accountID, err)
 	}
 	return nil
-}
-
-// TestProxy 代理连通性检测(经代理连 TG DC, 返回耗时)。
-// UpdateRemark 更新备注(批量资料功能附带)
-func (s *AccountService) UpdateRemark(ctx context.Context, tenantID, accountID uuid.UUID, remark string) error {
-	return s.repo.UpdateRemark(ctx, tenantID, accountID, remark)
-}
-
-// UpdateProfile 修改账号 TG 资料(名字/姓/签名/用户名)——复用引擎既有实现(import.go)
-func (s *AccountService) UpdateProfile(ctx context.Context, tenantID, accountID uuid.UUID, firstName, lastName, about, username string) error {
-	return s.engine.UpdateProfile(ctx, tenantID, accountID, firstName, lastName, about, username)
 }
 
 // CloneProfile 批量克隆他人资料: sourceUsername=@对方用户名, 应用到 targetIDs 所有勾选号

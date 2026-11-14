@@ -8,6 +8,39 @@ import (
 	_ "time/tzdata"
 )
 
+// NextIntervalRun 计算"interval 模式"循环任务的下一轮时间。
+//
+// 原实现用「本轮完成时刻 + 间隔」，每轮都会把执行耗时累加进去，跑几十轮后
+// 实际开跑时间能漂出几十分钟。这里改成对齐「上一轮计划时刻 + 间隔」。
+//
+// 但如果对齐后的时间已经过去超过一个完整周期（任务被暂停后恢复、队列长时间
+// 拥塞、进程停机很久），说明已经落下若干轮：此时直接跳到 now+间隔，跳过补跑，
+// 否则会连续多轮连着发，把目标群刷爆。
+func NextIntervalRun(planned *time.Time, now time.Time, intervalMinutes int) time.Time {
+	if intervalMinutes <= 0 {
+		intervalMinutes = 60
+	}
+	interval := time.Duration(intervalMinutes) * time.Minute
+	if planned == nil || planned.IsZero() {
+		return now.Add(interval)
+	}
+	next := planned.Add(interval)
+	if !next.After(now) {
+		return now.Add(interval)
+	}
+	return next
+}
+
+// NextLoopRun 是循环任务重排的入口：interval 模式走对齐逻辑，日历模式沿用
+// 原有的按本地墙钟计算。
+func NextLoopRun(payload map[string]any, now time.Time, planned *time.Time, intervalMinutes int) (time.Time, error) {
+	mode, _ := payload["schedule_mode"].(string)
+	if mode == "" || mode == "interval" {
+		return NextIntervalRun(planned, now, intervalMinutes), nil
+	}
+	return NextBroadcastRun(payload, now, intervalMinutes)
+}
+
 // NextBroadcastRun calculates the next recurring run. Calendar modes use the
 // tenant-selected IANA timezone and local wall-clock time; interval mode remains
 // backward-compatible with existing tasks.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/repository"
@@ -103,17 +102,4 @@ func (s *GroupService) Update(ctx context.Context, tenantID, groupID uuid.UUID, 
 		g.Username = *username
 	}
 	return s.repo.Update(ctx, g)
-}
-
-// Delete removes a group and its members atomically.
-func (s *GroupService) Delete(ctx context.Context, tenantID, groupID uuid.UUID) error {
-	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `DELETE FROM members WHERE tenant_id = $1 AND group_id = $2`, tenantID, groupID); err != nil {
-			return fmt.Errorf("delete members: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM groups WHERE tenant_id = $1 AND group_id = $2`, tenantID, groupID); err != nil {
-			return fmt.Errorf("delete group: %w", err)
-		}
-		return nil
-	})
 }

@@ -120,7 +120,7 @@ func (h *GroupHandler) List(c echo.Context) error {
 		if err != nil || ps < 1 {
 			return echo.NewHTTPError(http.StatusBadRequest, "每页数量参数错误")
 		}
-		pageSize = ps
+		pageSize = clampPageSize(ps)
 	} else if accountIDStr != "" {
 		// 按账号查询群组时（GroupSelector），默认返回全部
 		pageSize = 10000
@@ -331,6 +331,7 @@ func (h *GroupHandler) GetMembers(c echo.Context) error {
 		}
 		pageSize = ps
 	}
+	pageSize = clampPageSize(pageSize)
 
 	members, total, err := h.svc.GetMembers(c.Request().Context(), tenantID, groupID, page, pageSize)
 	if err != nil {
@@ -397,37 +398,6 @@ func (h *GroupHandler) ScrapeMembers(c echo.Context) error {
 		"task_id":  task.TaskID,
 		"group_id": groupID,
 	})
-}
-
-// Delete godoc
-// @Summary 删除群组
-// @Description 删除指定群组
-// @Tags 群组
-// @Accept json
-// @Produce json
-// @Param id path string true "群组ID"
-// @Success 204
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security BearerAuth
-// @Router /groups/{id} [delete]
-// Delete removes a group.
-func (h *GroupHandler) Delete(c echo.Context) error {
-	tenantID, err := middleware.GetTenantID(c)
-	if err != nil {
-		return err
-	}
-
-	groupID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "群组ID格式错误")
-	}
-
-	if err := h.svc.Delete(c.Request().Context(), tenantID, groupID); err != nil {
-		log.Printf("[handler] 删除群组失败: %v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "删除群组失败")
-	}
-	return NoContent(c)
 }
 
 // SyncGroupsRequest represents sync groups request.

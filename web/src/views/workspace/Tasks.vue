@@ -325,8 +325,11 @@ async function clearFinished() {
   try {
     const ids: string[] = []
     const pageSize = 100
+    // 上限保护：原来无上限逐页枚举三种状态的全部历史任务，大租户会打几百次请求，
+    // 后端一旦忽略 page 参数就是死循环。500 页 = 5 万条，足够覆盖正常清理场景。
+    const maxPages = 500
     for (const status of ['completed', 'failed', 'cancelled']) {
-      for (let page = 1; ; page++) {
+      for (let page = 1; page <= maxPages; page++) {
         const res: any = await taskApi.list({
           status, page, page_size: pageSize, hide_loops: 1, range: 'all',
         })

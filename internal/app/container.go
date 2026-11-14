@@ -11,10 +11,6 @@ import (
 	"tg-sender/internal/safego"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
-	"golang.org/x/crypto/bcrypt"
 	"tg-sender/internal/adaptive"
 	"tg-sender/internal/backup"
 	"tg-sender/internal/config"
@@ -23,6 +19,12 @@ import (
 	"tg-sender/internal/domain"
 	"tg-sender/internal/domain/account"
 	"tg-sender/internal/domain/grouplib"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+	"golang.org/x/crypto/bcrypt"
+
 	// R114: domain/campaign 导入已删(协议协同旧系统整包移除)
 	"tg-sender/internal/domain/monitor"
 	"tg-sender/internal/domain/task"
@@ -171,12 +173,25 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		log.Printf("初始化数据警告: %v", err)
 	}
 
+	c.startMaintenanceLoop()
+
 	return c, nil
 }
 
 func runMigrations(db *database.DB) error {
-	sqlDB := stdlib.OpenDBFromPool(db.Pool)
+	// 迁移必须用独立连接并关掉 statement_timeout：连接池统一设了 15s 上限(见
+	// database.New)，而 84 个迁移里有大量非 CONCURRENTLY 的建索引和 CHECK 约束重建，
+	// 表一大就会在 DDL 阶段被超时打断 —— 表现为"部署后启动即 Fatal"，且库停在半路。
+	migCfg := db.Pool.Config().ConnConfig.Copy()
+	if migCfg.RuntimeParams == nil {
+		migCfg.RuntimeParams = map[string]string{}
+	}
+	migCfg.RuntimeParams["statement_timeout"] = "0"
+	migCfg.RuntimeParams["idle_in_transaction_session_timeout"] = "0"
+
+	sqlDB := stdlib.OpenDB(*migCfg)
 	defer sqlDB.Close()
+	sqlDB.SetMaxOpenConns(1)
 	// R86 修复: goose v3 全局 dialect 默认 sqlite3, 会按分号朴素切分 SQL。
 	// 065_groups_updated_at.sql 含 $$...$$ dollar-quoted 函数体(内部有分号),
 	// 被切断后报 "unterminated dollar-quoted string"(2026-10-23 运行时实证)。
@@ -224,8 +239,12 @@ func (c *Container) initEngines() error {
 	accEngine.StartSessionBackup()
 	backup.StartDBBackup(c.Cfg)
 	// R114: Campaign 子系统整建制删除(引擎/服务/处理器/仓库/路由——前端零调用;
-	// campaigns 表的定期清理 SQL 由 account engine 内联保留, 不依赖任何 campaign 代码)
+	// campaigns 相关表已由迁移 101 删除)
 	c.AccountEngine = accEngine
+
+	// 群库仓库必须在使用前创建: 原实现把它放在下面第 383 行才赋值, 这里注入的是
+	// nil。nil 短路让"加群失败回写已失效"和"入群后写入群库"两条逻辑静默失效。
+	c.SystemGroupRepo = repository.NewSystemGroupRepository(c.DB.Pool)
 
 	taskEngine := task.NewEngine(c.Cfg, c.DB, c.TaskRepo, c.TaskLogRepo, c.QuotaRepo, c.RiskRepo)
 	taskEngine.SetAccountEngine(accEngine)
@@ -246,13 +265,13 @@ func (c *Container) initEngines() error {
 	// M-03: 引擎根 ctx 原本传 Background（ctx.Done 分支是死代码，停止全靠 stopCh）。
 	// 改为随 stopCh 取消的 ctx，使引擎内 DB/RPC 操作在停机时能被真正取消。
 	engineCtx, cancelEngines := context.WithCancel(context.Background())
-	go func() {
+	safego.Go(func() {
 		select {
 		case <-c.stopCh:
 			cancelEngines()
 		case <-engineCtx.Done():
 		}
-	}()
+	})
 	if err := taskEngine.Start(engineCtx); err != nil {
 		return fmt.Errorf("task engine: %w", err)
 	}
@@ -378,7 +397,6 @@ func (c *Container) initServices() {
 	c.TaskService = service.NewTaskService(c.Cfg, c.TaskRepo, c.TaskLogRepo, c.QuotaRepo, c.AccountRepo, c.TenantRepo, c.GroupRepo, c.MemberRepo, c.BatchTaskRepo, c.SSEBroker, c.TaskEngine, c.ScrapedLinkRepo, c.RaffleResultRepo)
 	c.TaskService.SetLinkScraper(c.LinkScraper)
 	// 群组库(找群): 平台级聚合器 + 接口
-	c.SystemGroupRepo = repository.NewSystemGroupRepository(c.DB.Pool)
 	c.GroupLibEngine = grouplib.NewEngine(c.DB.Pool, c.SystemGroupRepo, c.AccountEngine)
 	c.GroupLibEngine.Start()
 	// P0-6 审计修复(2026-10-22): 此处的 LinkScraper.Start 已删——原来 container 和
@@ -609,6 +627,7 @@ func (c *Container) initServices() {
 	c.DashboardService = service.NewDashboardService(c.AccountRepo, c.TaskRepo, c.GroupRepo, c.RiskRepo, c.AuditRepo, c.TaskLogRepo)
 	c.SettingsService = service.NewSettingsService(c.TenantRepo, c.PlanRepo, c.CodeRepo, c.SupportRepo, c.AnnounceRepo, c.TemplateRepo, c.AccountGroupRepo, c.MemberRepo)
 	c.AdminService = service.NewAdminService(c.AdminRepo, c.TenantRepo, c.PlanRepo, c.CodeRepo, c.SupportRepo, c.AnnounceRepo, c.AuditRepo, c.ProbeRepo, c.Cfg, c.DB.Pool)
+	c.AdminService.SetQuotaSyncer(c.TaskEngine)
 }
 
 func (c *Container) initHandlers() {
@@ -682,6 +701,9 @@ func (c *Container) initHandlers() {
 }
 
 // reconcileRaffleWatch 全租户对账: 总开关开启的租户, 其勾选账号必须在线监听。
+// raffleBackfillOnce 保证每个账号每个进程只补拉一次（对账循环会反复调用本函数）。
+var raffleBackfillOnce sync.Map
+
 func (c *Container) reconcileRaffleWatch(ctx context.Context) {
 	// P2-67 审计修复: 原来硬编码 List(1,1000)——超 1000 租户时漏对账。
 	// 改为大页循环(99万上限=实际无上限, 分页接口要求 int 传参)。
@@ -717,7 +739,20 @@ func (c *Container) reconcileRaffleWatchForTenant(ctx context.Context, tenantID 
 			continue
 		}
 		// 会话已在线则 EnsureSession 直接跳过
-		_ = c.MonitorEngine.EnsureSession(ctx, tenantID, acc.AccountID, active)
+		if err := c.MonitorEngine.EnsureSession(ctx, tenantID, acc.AccountID, active); err != nil {
+			continue
+		}
+		// 重启后补收 12 小时内漏掉的开奖/中奖事件（每账号每进程一次）。
+		if _, loaded := raffleBackfillOnce.LoadOrStore(acc.AccountID, struct{}{}); loaded {
+			continue
+		}
+		backfillTenant := tenantID
+		backfillAccount := acc.AccountID
+		safego.Go(func() {
+			bctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			c.MonitorEngine.BackfillRaffleHistory(bctx, backfillTenant, backfillAccount)
+		})
 	}
 }
 
@@ -820,6 +855,35 @@ func upgradeSoleAdminToSuper(ctx context.Context, db *database.DB) {
 }
 
 // Shutdown performs graceful shutdown of all components.
+// startMaintenanceLoop 周期性执行"过期卡密置 expired"和"账号日配额重置"。
+// 这两件事原本都有实现但没有任何调度入口：卡密过期只在兑换时用 expires_at 兜底，
+// 管理端列表里的 status 永远停在 unused；account_quotas.reset_at 也从不推进。
+func (c *Container) startMaintenanceLoop() {
+	interval := c.Cfg.QuotaResetInterval
+	if interval <= 0 {
+		interval = time.Hour
+	}
+	safego.Go(func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.stopCh:
+				return
+			case <-ticker.C:
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				if err := c.CodeRepo.ExpireOldCodes(ctx); err != nil {
+					log.Printf("[maintenance] 过期卡密置位失败: %v", err)
+				}
+				if err := c.QuotaRepo.ResetDaily(ctx); err != nil {
+					log.Printf("[maintenance] 账号日配额重置失败: %v", err)
+				}
+				cancel()
+			}
+		}
+	})
+}
+
 func (c *Container) Shutdown() {
 	close(c.stopCh)
 	if c.GroupLibEngine != nil {

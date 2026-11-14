@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/service"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 // Admin login rate limiter
@@ -176,12 +177,10 @@ func (h *AdminHandler) ListTenants(c echo.Context) error {
 		page = 1
 	}
 	pageSize, err := strconv.Atoi(c.QueryParam("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
+	if err != nil {
+		pageSize = defaultPageSize
 	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
+	pageSize = clampPageSize(pageSize)
 	tenants, total, err := h.adminService.ListTenants(c.Request().Context(), page, pageSize, status, planID, strings.TrimSpace(c.QueryParam("search")))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -299,12 +298,10 @@ func (h *AdminHandler) ListCodes(c echo.Context) error {
 		page = 1
 	}
 	pageSize, err := strconv.Atoi(c.QueryParam("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
+	if err != nil {
+		pageSize = defaultPageSize
 	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
+	pageSize = clampPageSize(pageSize)
 	codes, total, err := h.adminService.ListCodes(c.Request().Context(), status, planID, page, pageSize)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -546,12 +543,10 @@ func (h *AdminHandler) GetAuditLogs(c echo.Context) error {
 		page = 1
 	}
 	pageSize, err := strconv.Atoi(c.QueryParam("page_size"))
-	if err != nil || pageSize < 1 {
-		pageSize = 20
+	if err != nil {
+		pageSize = defaultPageSize
 	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
+	pageSize = clampPageSize(pageSize)
 	startTime := c.QueryParam("start_time")
 	endTime := c.QueryParam("end_time")
 

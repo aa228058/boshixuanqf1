@@ -69,9 +69,8 @@ type Config struct {
 	// P1-01: 全局同时执行任务数硬上限(原子信号量, 默认20)
 	GlobalTaskConcurrency int
 	// P2-05: 数据保留天数(可配置, 默认 7 天——见下方 getIntFallback 实际值)
-	RiskRetentionDays     int
-	AuditRetentionDays    int
-	CampaignRetentionDays int
+	RiskRetentionDays  int
+	AuditRetentionDays int
 
 	// App
 	Env           string // development | production
@@ -325,7 +324,9 @@ func Load() *Config {
 		ReadTimeout:    getDuration("READ_TIMEOUT", 30*time.Second),
 		WriteTimeout:   getDuration("WRITE_TIMEOUT", 30*time.Second),
 		MaxHeaderBytes: getInt("MAX_HEADER_BYTES", 1<<20),
-		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
+		// 默认不放开跨域: SPA 由 nginx 同源提供, 不需要 CORS。旧的默认值 "*"
+		// 与 AllowCredentials 组合等于对任意站点放开带凭证请求。
+		AllowedOrigins: getEnv("ALLOWED_ORIGINS", ""),
 
 		DBHost:        dbHost,
 		DBPort:        dbPort,
@@ -369,7 +370,6 @@ func Load() *Config {
 		// G-01: 审计保留期默认 90 天（原 7 天不足以支撑安全事件调查与合规要求）
 		AuditRetentionDays: getIntFallback("AUDIT_RETENTION_DAYS", "", 90),
 		// G-02: 活动记录保留期默认 90 天（原 7 天静默硬删租户历史活动数据）
-		CampaignRetentionDays: getIntFallback("CAMPAIGN_RETENTION_DAYS", "", 90),
 
 		Env:           getEnv("ENV", "development"),
 		LogLevel:      getEnv("LOG_LEVEL", "info"),

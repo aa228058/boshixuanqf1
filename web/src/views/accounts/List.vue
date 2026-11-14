@@ -818,9 +818,7 @@ onUnmounted(() => {
   addAuthController = null
   abortAuthController(reauthController)
   reauthController = null
-  probeController?.abort()
-  probeController = null
-  probeRequestId++
+  disposeProbe()
   accountsPageActive = false
   if (avatarRefreshTimer) { clearTimeout(avatarRefreshTimer); avatarRefreshTimer = null }
   if (reconnectRefreshTimer) { clearTimeout(reconnectRefreshTimer); reconnectRefreshTimer = null }
@@ -835,37 +833,15 @@ onUnmounted(() => {
   clearInterval(statusPoll)
   document.removeEventListener('visibilitychange', onVisBack)
 })
-function cooldownText(acc: Account): string {
-  const until = acc.blocked_until
-  if (!until) return ''
-  const untilTs = new Date(until).getTime()
-  if (!Number.isFinite(untilTs)) return ''
-  const ms = untilTs - nowTs.value
-  if (ms <= 0) return ''
-  const seconds = Math.ceil(ms / 1000)
-  if (seconds < 60) return `${seconds}秒`
-  const minutes = Math.ceil(ms / 60000)
-  return minutes >= 60 ? `${Math.floor(minutes / 60)}小时${minutes % 60 ? (minutes % 60) + '分' : ''}` : `${minutes}分钟`
-}
+const cooldownText = (acc: Account) => cooldownTextOf(acc.blocked_until, nowTs.value)
 import { toast } from '@/utils/toast'
 import type { Account, AccountGroup } from '@/types'
 // R115: accountStatusClass 死导入已删(状态显示用自绘 statusDotClass)
 import { accountStatusLabel } from '@/utils/format'
 
-// R87-M8: 状态圆点配色(在线=绿点, 其余按状态色)
-// R124: 入参判空兜底 —— 上游传 undefined 时不再让 switch 炸渲染
-function statusDotClass(status?: string) {
-  switch (status) {
-    case 'online': return 'bg-[var(--t-ok)]'
-    case 'offline': return 'bg-text-muted'
-    case 'banned': return 'bg-[var(--t-err)]'
-    case 'session_revoked': return 'bg-[var(--t-err)] animate-pulse'
-    case 'restricted': return 'bg-[var(--t-warn)]'
-    case 'pending_auth': return 'bg-[var(--t-warn)] animate-pulse'
-    default: return 'bg-text-muted'
-  }
-}
 import { ask } from '@/utils/confirm'
+import { cooldownText as cooldownTextOf, statusDotClass } from '@/utils/accountDisplay'
+import { useAccountProbe } from '@/composables/useAccountProbe'
 
 const accountStore = useAccountStore()
 const { avatarOf, invalidate: invalidateAvatar } = useAccountAvatar()
@@ -878,64 +854,8 @@ const leavingAllId = ref('')
 // R87-M4: 卡片次要操作收纳进"更多"菜单, 只留主操作(状态切换/资料)
 const openMenuId = ref('')
 // R119: 能力检测 —— 弹窗状态与执行
-const showProbe = ref(false)
-const probeAccount = ref<any>(null)
-const probeResult = ref<{ items: any[]; verdict: string; checked_at: string } | null>(null)
-const probeRunning = ref(false)
-const probeCooldownText = ref('') // 冷却中提示(后端 429 返回)
+const { showProbe, probeAccount, probeResult, probeRunning, probeCooldownText, openProbe, runProbe, disposeProbe } = useAccountProbe()
 
-let probeRequestId = 0
-let probeController: AbortController | null = null
-watch(showProbe, (visible) => {
-  if (!visible) {
-    probeController?.abort()
-    probeController = null
-    probeRequestId++
-    probeRunning.value = false
-  }
-})
-async function openProbe(acc: any) {
-  probeController?.abort()
-  const controller = new AbortController()
-  probeController = controller
-  const requestId = ++probeRequestId
-  const accountId = acc?.account_id
-  probeAccount.value = acc
-  probeResult.value = null
-  probeCooldownText.value = ''
-  showProbe.value = true
-  if (!accountId) return
-  // 先展示上次结果(不触发检测)；切换账号或关闭弹窗后丢弃过期响应。
-  try {
-    const cached = await accountApi.getProbe(accountId, { signal: controller.signal })
-    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
-      probeResult.value = cached || null
-    }
-  } catch { /* 无历史结果, 忽略 */ }
-  finally { if (probeController === controller) probeController = null }
-}
-
-async function runProbe() {
-  const accountId = probeAccount.value?.account_id
-  if (!accountId || probeRunning.value) return
-  const requestId = probeRequestId
-  probeRunning.value = true
-  probeCooldownText.value = ''
-  try {
-    const result = await accountApi.runProbe(accountId)
-    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId) {
-      probeResult.value = result
-    }
-  } catch (e: any) {
-    // 冷却中: 429 带文案; 其他错误拦截器已 toast
-    const msg = e?.response?.data?.message || e?.message || ''
-    if (requestId === probeRequestId && showProbe.value && probeAccount.value?.account_id === accountId && msg.includes('冷却')) {
-      probeCooldownText.value = msg
-    }
-  } finally {
-    if (requestId === probeRequestId) probeRunning.value = false
-  }
-}
 function toggleMenu(id: string) {
   openMenuId.value = openMenuId.value === id ? '' : id
 }

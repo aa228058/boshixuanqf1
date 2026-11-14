@@ -33,6 +33,19 @@ type AdminService struct {
 	auditRepo    *repository.AuditRepository // F-12: admin 平面审计
 	cfg          *config.Config
 	db           *pgxpool.Pool
+	quotaSyncer  TenantQuotaSyncer
+}
+
+// TenantQuotaSyncer 把租户并发配额同步进任务调度器。
+// 管理端建号/改套餐此前只改库, 调度器在首次 TryAcquire 时按 MaxConcurrent=1
+// 兜底注册 → 付费租户被压到 1 并发, 且 GlobalLimit 被低估, 重启前不会纠正。
+type TenantQuotaSyncer interface {
+	RegisterTenantQuota(tenantID [16]byte, maxConcurrent int)
+}
+
+// SetQuotaSyncer 注入调度器配额同步器(由 container 在装配阶段调用)。
+func (s *AdminService) SetQuotaSyncer(q TenantQuotaSyncer) {
+	s.quotaSyncer = q
 }
 
 // NewAdminService creates a new admin service.
@@ -313,6 +326,9 @@ func (s *AdminService) CreateTenant(ctx context.Context, name, username, passwor
 	if err := s.tenantRepo.Create(ctx, t, apiKey); err != nil {
 		return nil, "", err
 	}
+	if s.quotaSyncer != nil {
+		s.quotaSyncer.RegisterTenantQuota(t.TenantID, t.MaxConcurrentTasks)
+	}
 	return t, apiKey, nil
 }
 
@@ -365,6 +381,12 @@ func (s *AdminService) UpdateTenant(ctx context.Context, tenantID uuid.UUID, pla
 	// F-04: 封禁/改期/改套餐后立即失效租户状态缓存（原最长 60s 窗口）。
 	// 注：API key 认证原语已随 F-29 移除，无对应缓存可失效。
 	middleware.InvalidateTenantCache(tenantID)
+	// 改套餐/单独调并发上限后立刻同步调度器, 否则新配额要等重启才生效。
+	if s.quotaSyncer != nil && (planID != "" || maxConcurrent != nil) {
+		if updated, err := s.tenantRepo.GetByID(ctx, tenantID); err == nil && updated != nil {
+			s.quotaSyncer.RegisterTenantQuota(updated.TenantID, updated.MaxConcurrentTasks)
+		}
+	}
 	s.writeAudit(ctx, tenantID, "admin_tenant_update", fmt.Sprintf("plan_id=%q status=%q", planID, status))
 	return nil
 }
@@ -472,41 +494,25 @@ func (s *AdminService) PurgeTenant(ctx context.Context, tenantID uuid.UUID) erro
 			return fmt.Errorf("delete account_quotas: %w", err)
 		}
 
-		// F-05: 以下关联表无 tenant_id 列（或仅有 NOT VALID 外键），必须经
-		// accounts/campaigns 子查询删除，否则删租户后残留孤儿数据（含 PII）。
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM squad_members
-			WHERE account_id IN (SELECT account_id FROM accounts WHERE tenant_id = $1)
-		`, tenantID); err != nil {
-			return fmt.Errorf("delete squad_members: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM campaign_accounts
-			WHERE campaign_id IN (SELECT id FROM campaigns WHERE tenant_id = $1)
-		`, tenantID); err != nil {
-			return fmt.Errorf("delete campaign_accounts: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM campaign_targets
-			WHERE campaign_id IN (SELECT id FROM campaigns WHERE tenant_id = $1)
-		`, tenantID); err != nil {
-			return fmt.Errorf("delete campaign_targets: %w", err)
-		}
+		// campaigns / squads 整套业务在 R114 已删除，相关表由迁移 101 一并清掉，
+		// 这里不能再引用——否则清理事务会因 "relation does not exist" 整体回滚。
 
 		// batch_tasks/contacts/tenant_subscriptions/refresh_tokens/audit_logs/ai_configs/
 		// raffle_results/text_dicts/account_group_categories 已带 ON DELETE CASCADE 外键，
 		// 删 tenants 时自动清理；此处仅补无级联外键的表。
-		// P1-14: announcements/plan_daily_counters/verification_logs 有 tenant_id 列
-		// 但无外键, 删租户后残留——补进显式清单。
+		// P1-14: plan_daily_counters/verification_logs 有 tenant_id 列但无外键，
+		// 删租户后会残留——补进显式清单。
+		// 注意: announcements 是平台级表(007 迁移里没有 tenant_id 列)，不要放进本
+		// 列表——`DELETE FROM announcements WHERE tenant_id = $1` 会因列不存在报错，
+		// 整个清理事务随之回滚，表现为"清理过期租户"永远失败。
 		tables := []string{
 			"risk_events", "task_logs", "pending_approvals",
 			"scraped_links", "tasks",
 			"accounts", "monitor_rules",
-			"members", "groups", "message_templates",
-			"squads", "campaigns", "token_blacklist",
-			"announcements", "plan_daily_counters", "verification_logs",
+			"members", "groups", "message_templates", "token_blacklist",
+			"plan_daily_counters", "verification_logs",
 		}
-		allowedTables := map[string]bool{"risk_events": true, "task_logs": true, "pending_approvals": true, "scraped_links": true, "tasks": true, "accounts": true, "monitor_rules": true, "members": true, "groups": true, "message_templates": true, "squads": true, "campaigns": true, "token_blacklist": true, "announcements": true, "plan_daily_counters": true, "verification_logs": true}
+		allowedTables := map[string]bool{"risk_events": true, "task_logs": true, "pending_approvals": true, "scraped_links": true, "tasks": true, "accounts": true, "monitor_rules": true, "members": true, "groups": true, "message_templates": true, "token_blacklist": true, "plan_daily_counters": true, "verification_logs": true}
 		for _, table := range tables {
 			if !allowedTables[table] {
 				return fmt.Errorf("invalid table: %s", table)
@@ -723,11 +729,6 @@ func (s *AdminService) GetAuditLogs(ctx context.Context, page, pageSize int, sta
 // GetCode returns a single activation code by ID (admin only, no tenant filter needed for global codes table).
 func (s *AdminService) GetCode(ctx context.Context, codeID uuid.UUID) (*domain.ActivationCode, error) {
 	return s.codeRepo.GetByID(ctx, codeID)
-}
-
-// DeleteCode hard-deletes an activation code.
-func (s *AdminService) DeleteCode(ctx context.Context, codeID uuid.UUID) error {
-	return s.codeRepo.Delete(ctx, codeID)
 }
 
 // BatchRevokeCodes revokes multiple codes.

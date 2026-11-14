@@ -347,6 +347,25 @@ function parseResponse<T>(data: unknown): T {
   return data as T
 }
 
+/**
+ * fetchWithAuth 用于"不能用 JSON 信封"的请求：文件下载、轮询状态接口等。
+ * 统一处理 base URL 与 Authorization，避免各页面自己拼 ${VITE_API_BASE_URL}、
+ * 自己判断 401（裸 fetch 一旦绕过这里，401 续签和错误文案全部失效）。
+ */
+export async function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Response> {
+  const authStore = useAuthStore()
+  const headers = new Headers(init.headers || {})
+  if (authStore.token) headers.set('Authorization', `Bearer ${authStore.token}`)
+  const url = path.startsWith('http') ? path : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
+  const res = await fetch(url, { ...init, headers })
+  if (!res.ok) {
+    const err: any = new Error(`请求失败: ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return res
+}
+
 export async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const authStore = useAuthStore()
   const url = `${BASE_URL}${endpoint}`
@@ -368,8 +387,13 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
       // R168: refresh 接口自身的 401 = refresh token 也过期。原逻辑会走"等待刷新"分支,
       // await 的是同一个进行中的 promise → 自等待死锁 → 全站 API 挂起, 页面永久空白。
       // 这里直接登出并踢回登录页。
-      if (endpoint === '/auth/refresh') {
-        authStore.logout()
+      // /auth/logout 与 /auth/refresh 同属"会话终结"路径：它们的 401 不能再触发一次
+      // 登出，否则"登出请求 401 → 登出 → 登出请求 401"会无限递归。本地凭据已清空时
+      // 直接收尾，不再重复清理。
+      if (endpoint === '/auth/refresh' || endpoint === '/auth/logout') {
+        if (authStore.token) {
+          authStore.logout()
+        }
         const publicPaths = ['/login', '/register', '/admin/login']
         if (!publicPaths.includes(window.location.pathname)) {
           router.push('/login')
@@ -482,13 +506,20 @@ export async function adminRequest<T>(endpoint: string, options: RequestOptions 
       if (endpoint === '/admin/auth/login') {
         throw new Error(translateError(errData.message) || '用户名或密码错误')
       }
-      adminStore.logout()
+      // 登出流程中 token 已清空，此时再调一次 logout 会重复发起注销请求（401 → logout → 401）。
+      if (adminStore.token) {
+        adminStore.logout()
+      }
       const publicPaths = ['/login', '/register', '/admin/login']
       if (!publicPaths.includes(window.location.pathname)) {
         router.push('/admin/login')
       }
       if (publicPaths.includes(window.location.pathname)) {
-        return {} as T
+        // 停在公开页时，原实现返回 {} 冒充成功：调用方拿到空对象当数据用，
+        // 错误被彻底吞掉。这里显式抛出，让调用方按失败处理。
+        const err: any = new Error('登录已过期，请重新登录')
+        err.status = 401
+        throw err
       }
       throw new Error('登录已过期，请重新登录')
     }

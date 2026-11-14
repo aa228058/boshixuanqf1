@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
 	// #nosec G108 -- pprof is registered on DefaultServeMux but served only by an opt-in loopback-only listener below.
 	_ "net/http/pprof"
 	"os"
@@ -17,14 +18,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/labstack/echo/v4"
-	echomiddleware "github.com/labstack/echo/v4/middleware"
-	echoSwagger "github.com/swaggo/echo-swagger"
 	_ "tg-sender/docs"
 	"tg-sender/internal/app"
 	"tg-sender/internal/config"
+	"tg-sender/internal/handler"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/safego"
+
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 // getStaticPath returns the absolute path to web/dist based on the executable location
@@ -164,6 +167,8 @@ func main() {
 
 func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 	e := echo.New()
+	// 统一错误出口: 5xx 只回通用文案, 内部错误(SQL/DSN/路径)只进服务端日志。
+	e.HTTPErrorHandler = handler.APIErrorHandler
 	// 访问日志（自实现，替代 Echo 默认 Logger）：
 	// 原实现 ${uri} 含完整查询串，会把 ?phone=、?keyword= 等 PII 与 SSE ticket
 	// 写进日志。这里只记 path，查询串一律不落盘；SSE 端点整体跳过。
@@ -511,8 +516,10 @@ func newEchoServer(cfg *config.Config, c *app.Container) *echo.Echo {
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Second)
 		defer cancel()
 		if err := dbPool.Ping(ctx); err != nil {
+			// 健康检查是未鉴权端点, 只暴露状态不复述底层错误(DSN/主机名等)。
+			log.Printf("[health] db ping failed: %v", err)
 			return c.JSON(http.StatusServiceUnavailable, map[string]any{
-				"status": "db_unavailable", "error": err.Error(),
+				"status":  "db_unavailable",
 				"version": version, "time": time.Now().UTC(),
 			})
 		}

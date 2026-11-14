@@ -103,16 +103,12 @@ func TestTenantSoftDeleteAndPurgeQueries(t *testing.T) {
 	pool := setupTestDB(t)
 	ctx := context.Background()
 
-	// 种子：租户+账号+活动+活动账号（验证 campaign 子查询的 id 列名）
+	// 种子：租户+账号（campaigns/squads 相关表已由迁移 101 删除，不再参与本用例）
 	_, err := pool.Exec(ctx, `
 		INSERT INTO tenants (tenant_id, username, password_hash, name, api_key_hash, plan_id)
 		VALUES ('11111111-1111-1111-1111-111111111111', 'integtest', 'x', 'Integ', 'integ-test-key-hash', 'free');
 		INSERT INTO accounts (account_id, tenant_id, phone, session_name, status)
 		VALUES ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', '+10000000000', 'integration-session', 'offline');
-		INSERT INTO campaigns (id, tenant_id, name, status, objective)  -- 注意：主键是 id（D-00 教训）
-		VALUES ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'c1', 'running', '{}'::jsonb);
-		INSERT INTO campaign_accounts (campaign_id, account_id, role)
-		VALUES ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 'adder');
 	`)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
@@ -137,23 +133,11 @@ func TestTenantSoftDeleteAndPurgeQueries(t *testing.T) {
 		t.Fatalf("GetByID filter broken: n=%d err=%v", n, err)
 	}
 
-	// 模拟 PurgeTenant 的三个子查询（与 admin.go 中的裸 SQL 保持同构）
-	if _, err := pool.Exec(ctx, `DELETE FROM campaign_accounts WHERE campaign_id IN (SELECT id FROM campaigns WHERE tenant_id = $1)`,
+	// 模拟 PurgeTenant 的子查询（与 admin.go 中的裸 SQL 保持同构）。
+	// campaigns/squads 相关表已由迁移 101 删除，对应断言一并移除。
+	if _, err := pool.Exec(ctx, `DELETE FROM account_quotas WHERE account_id IN (SELECT account_id FROM accounts WHERE tenant_id = $1)`,
 		"11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("campaign_accounts subquery (D-00 regression): %v", err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM campaigns WHERE tenant_id = $1`,
-		"11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("campaigns delete: %v", err)
-	}
-
-	// ListRunning / GetPendingAll 的 JOIN 查询（G-03）在真实 Schema 上成立
-	if _, err := pool.Exec(ctx, `
-		SELECT campaigns.id FROM campaigns
-		JOIN tenants t ON t.tenant_id = campaigns.tenant_id
-		WHERE campaigns.status='running' AND t.status='active'
-		  AND (t.expires_at IS NULL OR t.expires_at > NOW())`); err != nil {
-		t.Fatalf("ListRunning join query (G-03): %v", err)
+		t.Fatalf("account_quotas subquery: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		SELECT pa.id FROM pending_approvals pa

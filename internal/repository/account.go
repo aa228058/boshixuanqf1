@@ -316,10 +316,8 @@ func (r *AccountRepository) Delete(ctx context.Context, tenantID, accountID uuid
 			{"pending_approvals", `DELETE FROM pending_approvals WHERE tenant_id = $1 AND account_id = $2`, []any{tenantID, accountID}},
 			{"scraped_links", `DELETE FROM scraped_links WHERE tenant_id = $1 AND account_id = $2`, []any{tenantID, accountID}},
 			{"account_groups", `DELETE FROM account_groups WHERE account_id = $1`, []any{accountID}},
-			// 039 迁移新增的 NOT VALID 外键（删除时仍强制）：039 之前账号删除依赖它们为空，
-			// 参与过活动/编队的账号会残留引用行，必须先清——这是日志里 fk_campaign_accounts_account 报错的根因
-			{"campaign_accounts", `DELETE FROM campaign_accounts WHERE account_id = $1`, []any{accountID}},
-			{"squad_members", `DELETE FROM squad_members WHERE account_id = $1`, []any{accountID}},
+			// campaigns/squads 相关表已由迁移 101 删除（含 039 加的那两个 NOT VALID 外键），
+			// 不再需要在这里清理——保留会因 relation does not exist 让整个删号事务失败。
 		}
 		for _, t := range tables {
 			_, err := tx.Exec(ctx, t.sql, t.args...)

@@ -37,8 +37,13 @@ psql -h 127.0.0.1 -U postgres -c "DROP DATABASE IF EXISTS tg_sender;" -c "CREATE
 echo "→ 恢复数据 ($BACKUP_FILE)..."
 # Z4 修复: -c(clean) 在空库/对象缺失时会刷大量 NOTICE; --if-exists 让 DROP 语句
 # 带 IF EXISTS 前缀, NOTICE 消除, 日志干净
-gunzip -c "$BACKUP_FILE" | pg_restore -h 127.0.0.1 -U postgres -d tg_sender --no-owner --no-privileges -c --if-exists || true
-# 注: -c 清理已存在对象, 目标库已为空所以冲突告警可忽略; || true 容忍非致命告警
+set -o pipefail
+if ! gunzip -c "$BACKUP_FILE" | pg_restore -h 127.0.0.1 -U postgres -d tg_sender --no-owner --no-privileges -c --if-exists; then
+    # 原先是 `|| true`：恢复失败也打印"✅ 恢复完成"，等于把没恢复当成恢复好了。
+    echo "❌ pg_restore 失败, 数据库可能处于不完整状态, 请检查 $BACKUP_FILE 后重试" >&2
+    exit 1
+fi
+set +o pipefail
 
 echo "→ 重启 tg-sender (migration 自动补齐)..."
 nohup ./tg-sender > tg-sender.log 2>&1 &

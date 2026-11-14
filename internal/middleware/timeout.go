@@ -7,13 +7,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Timeout returns an echo middleware that sets a request-level context timeout.
-// Streaming/long-poll endpoints (e.g. /progress/stream) must be excluded via
-// TimeoutWithSkip, otherwise the deadline kills long-lived responses.
-func Timeout(d time.Duration) echo.MiddlewareFunc {
-	return TimeoutWithSkip(d)
-}
-
 // TimeoutWithSkip returns a Timeout middleware that does not apply the deadline
 // to paths in skipPaths (matched by suffix, e.g. "/progress/stream").
 func TimeoutWithSkip(d time.Duration, skipPaths ...string) echo.MiddlewareFunc {

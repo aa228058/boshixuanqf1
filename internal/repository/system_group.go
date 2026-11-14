@@ -211,19 +211,6 @@ func (r *SystemGroupRepository) UpdateResolvedInfo(ctx context.Context, sgID uui
 	return tx.Commit(ctx)
 }
 
-// MarkInvalidByDedupKey is a compatibility wrapper that invalidates only
-// the URL represented by the legacy dedup key, never every alias of the group.
-func (r *SystemGroupRepository) MarkInvalidByDedupKey(ctx context.Context, key string) error {
-	switch {
-	case strings.HasPrefix(key, "u:"):
-		return r.UpdateLinkValidityByLink(ctx, "https://t.me/"+strings.TrimPrefix(key, "u:"), "invalid")
-	case strings.HasPrefix(key, "l:"):
-		return r.UpdateLinkValidityByLink(ctx, strings.TrimPrefix(key, "l:"), "invalid")
-	default:
-		return nil
-	}
-}
-
 // GetByIDs 按主键批量取(批量加入用), 保持传入顺序无要求。
 func (r *SystemGroupRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.SystemGroup, error) {
 	if len(ids) == 0 {

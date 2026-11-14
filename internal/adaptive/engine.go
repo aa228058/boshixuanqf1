@@ -114,31 +114,6 @@ func NewEngine(cfg *config.Config, broker *sse.Broker) *Engine {
 	}
 }
 
-// Current returns the current operating mode.
-func (e *Engine) Current() Mode {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.current
-}
-
-// Profile returns the current profile parameters.
-func (e *Engine) Profile() Profile {
-	p, _ := GetProfile(e.Current())
-	return p
-}
-
-// RecordOutcome records a task success (false) or failure (true).
-func (e *Engine) RecordOutcome(failed bool) {
-	e.recentMu.Lock()
-	defer e.recentMu.Unlock()
-	// Shift window
-	copy(e.recentFailures, e.recentFailures[1:])
-	e.recentFailures[len(e.recentFailures)-1] = failed
-	if e.writeCount < len(e.recentFailures) {
-		e.writeCount++
-	}
-}
-
 // failRate returns the percentage of recent failures.
 func (e *Engine) failRate() float64 {
 	e.recentMu.Lock()

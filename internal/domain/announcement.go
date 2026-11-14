@@ -17,5 +17,6 @@ type Announcement struct {
 	StartAt        time.Time  `json:"start_at"`
 	EndAt          *time.Time `json:"end_at"`
 	IsActive       bool       `json:"is_active"`
+	Read           bool       `json:"read"` // 当前租户是否已读(未登录上下文时恒为 false)
 	CreatedAt      time.Time  `json:"created_at"`
 }

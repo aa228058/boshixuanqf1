@@ -8,18 +8,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"tg-sender/internal/safego"
 	"time"
+
+	"tg-sender/internal/domain"
+	"tg-sender/internal/middleware"
+	"tg-sender/internal/repository"
+	"tg-sender/internal/service"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
-	"tg-sender/internal/domain"
-	"tg-sender/internal/middleware"
-	"tg-sender/internal/repository"
-	"tg-sender/internal/service"
 
 	"io"
 	"os"
@@ -487,6 +489,9 @@ func (h *AccountHandler) Update(c echo.Context) error {
 // @Security BearerAuth
 // @Router /accounts/{id}/quotas [get]
 // GetQuotas returns account quotas.
+// GetQuotas 返回账号的日配额行。
+// 注意: 日限额 enforcement 已按产品决策关闭（额度恒为 0，见 domain/models.go:471），
+// 这里只做展示/兼容外部调用；要恢复拦截需在任务执行侧重新接 AddUsage。
 func (h *AccountHandler) GetQuotas(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
 	if err != nil {
@@ -845,20 +850,102 @@ func readArchiveSidecar(root *os.Root, sessionPath string) ([]byte, error) {
 	return data, nil
 }
 
+// 解压上限: 上传包本身已限 50MB, 但压缩比可以做到 1:1000 以上, 只限上传体积
+// 挡不住压缩炸弹(50MB 包能解出十几 GB 把 /tmp 撑爆)。因此在解压前先读清单,
+// 按条目数与声明的解压后总大小预检。
+const (
+	maxArchiveEntries      = 200
+	maxArchiveUncompressed = 200 << 20 // 200MB
+)
+
+// listArchiveCLI 只用 7z l 读清单, 不解压任何内容。
+// 返回普通文件条目数与声明的解压后总字节数。
+func listArchiveCLI(archivePath string) (int, int64, error) {
+	// #nosec G204 -- 固定 7z 可执行文件和参数数组；archivePath 是服务端生成的临时文件路径，不经 shell 解释。
+	out, err := exec.Command("7z", "l", "-slt", "-sccUTF-8", archivePath).Output()
+	if err != nil {
+		return 0, 0, fmt.Errorf("读取压缩包清单失败: %w", err)
+	}
+	entries, total := parseArchiveListing(string(out))
+	return entries, total, nil
+}
+
+// parseArchiveListing 解析 7z l -slt 的输出, 统计普通文件条目数与解压后总字节数。
+// 目录条目(Attributes 以 D 开头)不计入。
+func parseArchiveListing(listing string) (int, int64) {
+	var (
+		entries  int
+		total    int64
+		curSize  int64
+		curDir   bool
+		curOpen  bool
+		curAttrs bool
+	)
+	flush := func() {
+		// 清单开头还有一段"压缩包自身"的头部信息(Path/Type/Physical Size),
+		// 它没有 Attributes 行, 不能算作条目。
+		if !curOpen || !curAttrs || curDir {
+			return
+		}
+		entries++
+		total += curSize
+	}
+	for _, raw := range strings.Split(listing, "\n") {
+		line := strings.TrimSpace(raw)
+		switch {
+		case strings.HasPrefix(line, "Path = "):
+			flush()
+			curOpen, curSize, curDir, curAttrs = true, 0, false, false
+		case strings.HasPrefix(line, "Size = "):
+			if curDir {
+				continue
+			}
+			if n, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(line, "Size = ")), 10, 64); err == nil && n > 0 {
+				curSize = n
+			}
+		case strings.HasPrefix(line, "Attributes = "):
+			curAttrs = true
+			attrs := strings.TrimSpace(strings.TrimPrefix(line, "Attributes = "))
+			if attrs != "" && (attrs[0] == 'D' || attrs[0] == 'd') {
+				curDir = true
+			}
+		}
+	}
+	flush()
+	return entries, total
+}
+
 // extractArchiveCLI 用系统 7z 解压 rar/7z(p7zip 的 7z 内置 RAR 解码, 两种格式一条命令, Dockerfile 已装 p7zip)。
+// 解压前先按清单预检, 且只解出导入需要的 .session 与其 .json sidecar, 包内其它内容不落盘。
 func extractArchiveCLI(archivePath, ext string) (string, error) {
+	entries, total, err := listArchiveCLI(archivePath)
+	if err != nil {
+		return "", err
+	}
+	if entries > maxArchiveEntries {
+		return "", fmt.Errorf("压缩包内文件过多(%d 个, 上限 %d)", entries, maxArchiveEntries)
+	}
+	if total > maxArchiveUncompressed {
+		return "", fmt.Errorf("解压后体积过大(%.1f MB, 上限 %d MB)",
+			float64(total)/(1<<20), maxArchiveUncompressed>>20)
+	}
+
 	dir, err := os.MkdirTemp("", "archive-out-")
 	if err != nil {
 		return "", err
 	}
+	cleanupAndErr := func(cause error) (string, error) {
+		if cleanupErr := os.RemoveAll(dir); cleanupErr != nil {
+			return "", fmt.Errorf("%v; 清理临时目录失败: %w", cause, cleanupErr)
+		}
+		return "", cause
+	}
 	// #nosec G204 -- 固定 7z 可执行文件和参数数组；archivePath 是服务端生成的临时文件路径，不经 shell 解释。
-	cmd := exec.Command("7z", "x", "-y", "-o"+dir, archivePath)
+	cmd := exec.Command("7z", "x", "-y", "-o"+dir, archivePath,
+		"-r", "*.session", "*.SESSION", "*.json", "*.JSON")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		if cleanupErr := os.RemoveAll(dir); cleanupErr != nil {
-			return "", fmt.Errorf("解压失败: %v; 清理临时目录失败: %w", err, cleanupErr)
-		}
-		return "", fmt.Errorf("%v: %s", err, out)
+		return cleanupAndErr(fmt.Errorf("%v: %s", err, out))
 	}
 	return dir, nil
 }
@@ -1044,7 +1131,14 @@ func (h *AccountHandler) ImportSessionFiles(c echo.Context) error {
 				if werr != nil {
 					return werr
 				}
-				if info == nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".session") {
+				if info == nil || info.IsDir() {
+					return nil
+				}
+				// 符号链接可以指向解压目录之外的路径(后续读取会跟随链接), 一律拒绝。
+				if info.Mode()&os.ModeSymlink != 0 {
+					return fmt.Errorf("压缩包内含符号链接, 已拒绝: %q", p)
+				}
+				if !strings.HasSuffix(strings.ToLower(info.Name()), ".session") {
 					return nil
 				}
 				if len(paths) >= 50 {

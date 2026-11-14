@@ -5,7 +5,6 @@ import (
 	"log"
 	"regexp"
 	"strconv"
-	"time"
 
 	"tg-sender/internal/domain"
 
@@ -40,19 +39,4 @@ func extractFloodSeconds(errStr string) int {
 		}
 	}
 	return 0
-}
-
-func (e *Engine) markAccountRestricted(ctx context.Context, tenantID, accountID uuid.UUID, reason string, detail string) {
-	e.recordRiskEvent(ctx, tenantID, accountID, "account_restricted", "high", reason+": "+detail)
-	// P1-20 审计修复: 状态+封禁截止时间必须同一条 UPDATE 原子完成。
-	// 原来分两次写, 第二步失败时账号已 restricted 但无 blocked_until——
-	// unblockExpiredLoop 依赖 blocked_until 恢复, 缺失即永久封禁。
-	// SSE 广播(notifyAccountStatus)放在写库成功后, 与 updateStatus 的分层一致:
-	// 广播可重试可丢失, 状态数据不允许中间态。
-	blockedUntil := time.Now().UTC().Add(24 * time.Hour)
-	if err := e.repo.UpdateStatusAndBlockedUntil(ctx, tenantID, accountID, domain.AccountStatusRestricted, blockedUntil); err != nil {
-		log.Printf("[risk] 标记账号受限时原子更新状态+封禁时间错误: %v", err)
-		return
-	}
-	e.notifyAccountStatus(tenantID, accountID, domain.AccountStatusRestricted)
 }

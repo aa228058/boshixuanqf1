@@ -7,13 +7,15 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"tg-sender/internal/crypto"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/notify"
 	"tg-sender/internal/repository"
 	"tg-sender/internal/service"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 // SettingsHandler handles settings, activation, templates, groups, exports, and notification center.
@@ -124,6 +126,19 @@ func (h *SettingsHandler) UpdateNotify(c echo.Context) error {
 			}
 		}
 	}
+	// 授权码加密后再落库（与 AI Key 同口径）：此前是明文存 tenants.notify_smtp，
+	// 库或备份一泄漏就等于把客户的邮箱发件权限交出去。
+	if req.SMTP != nil {
+		if pass, ok := req.SMTP["pass"].(string); ok && pass != "" &&
+			!strings.HasPrefix(pass, domain.NotifySMTPPassPrefix) {
+			enc, encErr := crypto.Encrypt([]byte(pass))
+			if encErr != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "保存 SMTP 授权码失败")
+			}
+			req.SMTP["pass"] = domain.NotifySMTPPassPrefix + enc
+			smtpRaw, _ = json.Marshal(req.SMTP)
+		}
+	}
 	if err := h.svc.UpdateNotify(c.Request().Context(), tenantID, req.Email, raw, smtpRaw); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -223,7 +238,7 @@ func (h *SettingsHandler) GetAnnouncements(c echo.Context) error {
 	if tenant.PlanID != "" {
 		planID = tenant.PlanID
 	}
-	announcements, err := h.svc.GetAnnouncements(c.Request().Context(), planID)
+	announcements, err := h.svc.GetAnnouncements(c.Request().Context(), tenantID, planID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -563,6 +578,16 @@ func (h *SettingsHandler) ExportScrape(c echo.Context) error {
 
 // MarkAnnouncementRead marks an announcement as read for the tenant.
 func (h *SettingsHandler) MarkAnnouncementRead(c echo.Context) error {
-	// No-op or store read status if needed; for now just return 200
+	tenantID, err := middleware.GetTenantID(c)
+	if err != nil {
+		return err
+	}
+	announcementID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "公告 ID 格式错误")
+	}
+	if err := h.svc.MarkAnnouncementRead(c.Request().Context(), tenantID, announcementID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "标记已读失败")
+	}
 	return NoContent(c)
 }
