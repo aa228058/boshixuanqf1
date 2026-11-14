@@ -47,7 +47,7 @@
             <div class="h-full rounded-full bg-[var(--t-brand)]" :style="{ width: (job.total_count ? Math.min(100, (job.processed_count || 0) / job.total_count * 100) : 0) + '%' }"></div>
           </div>
           <div class="text-[11px] text-text-muted mt-1">入库 {{ job.imported_count || 0 }} · 失败 {{ job.failed_count || 0 }} · 跳过 {{ job.skipped_count || 0 }}</div>
-          <div v-if="job.last_error" class="text-[11px] text-[var(--t-err)] mt-1 break-words">{{ job.last_error }}</div>
+          <div v-if="job.last_error" role="alert" class="text-[11px] text-[var(--t-err)] mt-1 break-words">{{ job.last_error }}</div>
         </div>
         <t-button v-if="job.status === 'review'" size="small" class="ui-t-button ui-t-button--secondary" @click="resumeImportReview(job)">继续确认</t-button>
         <span v-if="job.status === 'cancelling'" class="text-xs text-text-muted">正在停止…</span>
@@ -261,7 +261,7 @@
           </div>
           <div v-if="importJob.status === 'review'" class="text-text-muted">原始 {{ importJob.raw_count }} 条 · 格式有效 {{ importJob.valid_count }} 条 · 重复 {{ importJob.duplicate_count }} 条 · 无效 {{ importJob.invalid_count }} 条</div>
           <div v-else class="text-text-muted">入库 {{ importJob.imported_count }} · 失败 {{ importJob.failed_count }} · 跳过 {{ importJob.skipped_count }}</div>
-          <div v-if="importJob.last_error" class="text-[var(--t-err)] break-words">{{ importJob.last_error }}</div>
+          <div v-if="importJob.last_error" role="alert" class="text-[var(--t-err)] break-words">{{ importJob.last_error }}</div>
         </div>
       </div>
       <template #footer>

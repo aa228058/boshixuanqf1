@@ -78,7 +78,7 @@
           <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status) && job.failed_count > 0" class="ui-t-button ui-t-button--warning ui-t-button--sm" size="small" theme="warning" @click="retryGroupImport(job.job_id)" :disabled="importJobActionsPending.has(job.job_id)">重试失败链接 ({{ job.failed_count }})</t-button>
           <t-button v-if="['completed', 'failed', 'cancelled'].includes(job.status)" class="ui-t-button ui-t-button--secondary ui-t-button--sm" size="small" theme="default" @click="clearGroupImportJob(job)" :disabled="importJobActionsPending.has(job.job_id)">清除记录</t-button>
         </div>
-        <p v-if="job.last_error" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
+        <p v-if="job.last_error" role="alert" class="text-xs text-[var(--t-err)] break-words">{{ job.last_error }}</p>
       </article>
     </section>
 

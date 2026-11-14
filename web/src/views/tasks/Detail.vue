@@ -2,7 +2,7 @@
   <main class="w-full min-w-0 max-w-4xl mx-auto space-y-3 sm:space-y-4 md:space-y-6">
     <Breadcrumb :items="[{ path: `/workspace/${route.params.accountId}/tasks`, label: '任务列表' }, { path: '', label: '任务详情' }]" />
     <!-- 页面级错误态: 加载失败可重试 -->
-    <EmptyState v-if="pageError && !task" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
+    <EmptyState v-if="pageError && !task" role="alert" icon="ListTodo" :title="pageError" description="任务详情暂时无法显示">
       <t-button @click="fetchTask" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3">重新加载</t-button>
     </EmptyState>
     <div v-else-if="pageLoading && !task" class="glass rounded-[var(--t-r-lg)] p-6 sm:p-12 text-center text-sm text-text-muted lift">加载中...</div>
@@ -183,7 +183,7 @@
             <div v-if="log.tg_message_id" class="mt-1 text-text-muted text-[11px] font-mono">
               Telegram 消息 ID：{{ log.tg_message_id }}
             </div>
-            <div v-if="log.error_code" class="mt-1 text-xs rounded px-2 py-1 inline-block"
+            <div v-if="log.error_code" role="alert" class="mt-1 text-xs rounded px-2 py-1 inline-block"
                  :class="log.error_code === 'checkpoint_persist_failed' ? 'text-[var(--t-warning)] bg-[var(--t-warning)]/10' : 'text-[var(--t-err)] bg-[var(--t-err)]/5'">
               {{ log.error_code === 'checkpoint_persist_failed' ? '发送结果待核实：请先到 Telegram 检查目标消息，禁止自动续发' : statusLabel(log.error_code) }}
             </div>

@@ -367,7 +367,7 @@
           aria-label="验证码"
           @keyup.enter="submitVerificationCode"
         />
-        <p v-if="codeError" class="text-sm text-[var(--t-err)]">{{ codeError }}</p>
+        <p v-if="codeError" role="alert" class="text-sm text-[var(--t-err)]">{{ codeError }}</p>
         <t-button theme="primary" variant="text" size="sm" @click="resendCode" class="ui-t-button ui-t-button--text ui-t-button--sm">
           没收到？重新获取
         </t-button>
@@ -387,7 +387,7 @@
           aria-label="两步验证密码"
           @keyup.enter="submit2FA"
         />
-        <p v-if="twoFAError" class="text-sm text-[var(--t-err)]">{{ twoFAError }}</p>
+        <p v-if="twoFAError" role="alert" class="text-sm text-[var(--t-err)]">{{ twoFAError }}</p>
       </div>
       <template #footer>
         <div class="flex gap-3">

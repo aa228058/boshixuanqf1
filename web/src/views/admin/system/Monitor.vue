@@ -3,7 +3,7 @@
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '系统监控' }]" />
 
     <!-- 首次拉取失败必须说清楚，否则整页 0.0% 会被误读成"系统完全空闲" -->
-    <div v-if="metricsError" class="glass rounded-[var(--t-r-md)] p-4 border border-[color:var(--t-err)]/30 text-sm text-[var(--t-err)] lift flex items-center justify-between gap-3">
+    <div v-if="metricsError" role="alert" class="glass rounded-[var(--t-r-md)] p-4 border border-[color:var(--t-err)]/30 text-sm text-[var(--t-err)] lift flex items-center justify-between gap-3">
       <span>系统指标加载失败：{{ metricsError }}</span>
       <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary" @click="fetchMetrics()">重试</t-button>
     </div>

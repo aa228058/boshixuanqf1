@@ -24,7 +24,7 @@
       </div>
     </div>
     <template v-else>
-      <EmptyState v-if="tasksError" icon="Users" :title="tasksError" description="点击重试">
+      <EmptyState v-if="tasksError" role="alert" icon="Users" :title="tasksError" description="点击重试">
         <t-button @click="fetchTasks" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="Users" title="暂无加群任务" description="点击右上角「新建加群任务」批量加入群组" />
