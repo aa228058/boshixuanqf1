@@ -218,7 +218,8 @@ import Breadcrumb from '@/components/ui/Breadcrumb.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import type { Task, TaskLog } from '@/types'
 import { getTaskLogPageState, mergeTaskLogs, taskLogKey } from './taskLogRuntime'
-import { createTaskSseRuntime } from './taskSseRuntime'
+import { reconnectNow, useTaskEvents } from '@/composables/useTaskEvents'
+import { sseStatus } from '@/stores/sse'
 
 const route = useRoute()
 const router = useRouter()
@@ -468,9 +469,13 @@ async function clearLogs() {
     toast({ type: 'error', title: '清除日志失败', message: e?.message || '请稍后重试' })
   }
 }
-// 2026-09-23 修复: 初始态是"连接中"而非"已断开"——换ticket+建连要1-2秒,
-// 原实现初始 false 直接显示"已断开", 用户每次打开详情都看到一次假断线
-const connState = ref<'connecting' | 'connected' | 'disconnected'>('connecting')
+// 连接状态直接读全局 SSE 单例(useTaskEvents)。原来每个任务详情页自建一条
+// /tasks/:id/progress/stream，与全局 /events 各写一套重连/看门狗逻辑。
+const connState = computed<'connecting' | 'connected' | 'disconnected'>(() => {
+  if (sseStatus.value === 'connected') return 'connected'
+  if (sseStatus.value === 'reconnecting') return 'connecting'
+  return 'disconnected'
+})
 const isConnected = computed(() => connState.value === 'connected')
 const logContainer = ref<HTMLDivElement>()
 const accountMap = ref<Record<string, string>>({})
@@ -497,20 +502,8 @@ function targetDisplayName(targetId: any, explicitName?: any): string {
   if (username) return '@' + username
   return raw ? '未匹配名称' : '未知目标'
 }
-let eventSource: EventSource | null = null
 let refreshTimer: ReturnType<typeof setInterval>
-let sseConnecting = false
-let sseTicketController: AbortController | null = null
 let onVisCleanup: (() => void) | null = null
-
-const sseRuntime = createTaskSseRuntime({
-  isActive: () => pageActive,
-  getSource: () => eventSource,
-  setSource: source => { eventSource = source },
-  setConnectionState: state => { connState.value = state },
-  connect: () => { void connectSSE() },
-  onWatchdogTimeout: () => console.warn('[task-detail] SSE 45s 无消息, 判定假活, 强制重连'),
-})
 
 const // 2026-10-21 修正: 进度按"已处理"(成功+失败)计算——失败也是处理结果, 不应让进度条永远卡住
 progressPercent = computed(() => {
@@ -638,120 +631,64 @@ async function fetchLogs(page = 1, beforeLogId?: string) {
   }
 }
 
-async function connectSSE() {
-  if (sseConnecting || (eventSource && eventSource.readyState !== EventSource.CLOSED)) return
-  sseConnecting = true
-  try {
-    const authStore = useAuthStore()
-    const token = authStore.token
-    if (!token) {
-      connState.value = 'disconnected'
-      sseRuntime.scheduleReconnect()
-      return
-    }
+// 实时事件统一走全局 SSE(useTaskEvents)：本页只做"按任务 ID 过滤 + 应用"，
+// 不再自建 EventSource、不再自己换 ticket、不再自己处理重连与假活看门狗。
+function applyRealtimeEvent(data: any) {
+  if (!pageActive || !data || !task.value) return
 
-    // Short-lived ticket replaces the JWT in the EventSource URL.
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-    const ticketController = new AbortController()
-    sseTicketController = ticketController
-    const ticketTimeout = setTimeout(() => ticketController.abort(), 15000)
-    let ticketResponse: Response
-    let ticket = ''
-    try {
-      ticketResponse = await fetch(`${apiBase}/events/ticket`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        signal: ticketController.signal,
-      })
-      if (!pageActive) return
-      if (!ticketResponse.ok) {
-        connState.value = 'disconnected'
-        sseRuntime.scheduleReconnect()
-        return
+  if (data.type === 'resync_required') {
+    // 服务端慢客户端队列溢出时会发此标记；从持久化接口补齐日志和状态。
+    void fetchTask(true)
+    void fetchLogs()
+    return
+  }
+  if (data.type === 'task_wait') {
+    const remaining = Number(data.remaining || 0)
+    waitState.value = remaining > 0 ? {
+      account_id: String(data.account_id || ''),
+      target_id: String(data.target_id || ''),
+      remaining,
+      next_index: Number(data.next_index || 0),
+      total: Number(data.total || 0),
+    } : null
+    return
+  }
+  if (data.type === 'task_log' && data.log) {
+    const key = taskLogKey(data.log)
+    if (!logKeys.has(key)) {
+      logKeys.add(key)
+      const container = logContainer.value
+      const shouldFollow = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
+      logs.value.push(data.log)
+      if (shouldFollow) {
+        void nextTick(() => {
+          if (pageActive && logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
+        })
       }
-      ticket = (await ticketResponse.json()).ticket || ''
-    } finally {
-      clearTimeout(ticketTimeout)
     }
-    if (!pageActive) return
-    if (!ticket) {
-      connState.value = 'disconnected'
-      sseRuntime.scheduleReconnect()
-      return
-    }
-
-    const source = new EventSource(`${apiBase}/tasks/${taskId}/progress/stream?ticket=${encodeURIComponent(ticket)}`)
-    eventSource = source
-    source.onopen = () => {
-      if (!sseRuntime.handleOpen(source)) return
-      // This stream has no replay cursor; reconcile persisted rows after every reconnect.
-      void fetchLogs()
-    }
-    source.onmessage = (e) => {
-      if (!sseRuntime.handleMessage(source)) return
-      try {
-        const data = JSON.parse(e.data)
-        if (!data || !task.value) return
-
-        if (data.type === 'resync_required') {
-          // 服务端慢客户端队列溢出时会发送此标记；从持久化接口补齐日志和状态。
-          void fetchTask(true)
-          void fetchLogs()
-          return
-        }
-        if (data.type === 'task_wait') {
-          const remaining = Number(data.remaining || 0)
-          waitState.value = remaining > 0 ? {
-            account_id: String(data.account_id || ''),
-            target_id: String(data.target_id || ''),
-            remaining,
-            next_index: Number(data.next_index || 0),
-            total: Number(data.total || 0),
-          } : null
-          return
-        }
-        if (data.type === 'task_log' && data.log) {
-          const key = taskLogKey(data.log)
-          if (!logKeys.has(key)) {
-            logKeys.add(key)
-            const container = logContainer.value
-            const shouldFollow = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 48
-            logs.value.push(data.log)
-            if (shouldFollow) {
-              void nextTick(() => {
-                if (pageActive && logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
-              })
-            }
-          }
-          return
-        }
-        if (data.type === 'task_status') {
-          void fetchTask(true)
-          return
-        }
-        const tp = task.value.progress || {}
-        task.value.progress = {
-          total: data.total ?? data.progress?.total ?? tp.total ?? 0,
-          done: data.done ?? data.progress?.done ?? tp.done ?? 0,
-          failed: data.failed ?? data.progress?.failed ?? tp.failed ?? 0,
-          current_target: data.current_target ?? data.progress?.current_target ?? tp.current_target ?? '',
-          account_progress: data.account_progress ?? data.progress?.account_progress ?? tp.account_progress ?? []
-        }
-      } catch (err) { /* ignore malformed SSE data */ }
-    }
-    source.onerror = () => {
-      sseRuntime.handleError(source)
-    }
-  } catch {
-    if (pageActive) {
-      connState.value = 'disconnected'
-      sseRuntime.scheduleReconnect()
-    }
-  } finally {
-    sseTicketController = null
-    sseConnecting = false
+    return
+  }
+  if (data.type === 'task_status') {
+    void fetchTask(true)
+    return
+  }
+  const tp = task.value.progress || {}
+  task.value.progress = {
+    total: data.total ?? data.progress?.total ?? tp.total ?? 0,
+    done: data.done ?? data.progress?.done ?? tp.done ?? 0,
+    failed: data.failed ?? data.progress?.failed ?? tp.failed ?? 0,
+    current_target: data.current_target ?? data.progress?.current_target ?? tp.current_target ?? '',
+    account_progress: data.account_progress ?? data.progress?.account_progress ?? tp.account_progress ?? []
   }
 }
+
+useTaskEvents((evt) => {
+  if (!evt || !pageActive) return
+  const evtTaskId = String(evt.task_id || evt.taskId || '')
+  // 全局通道会把本租户所有任务的事件都推过来，只处理当前任务。
+  if (evtTaskId && taskId && evtTaskId !== taskId) return
+  applyRealtimeEvent(evt)
+})
 
 async function performTaskAction(
   kind: 'pause' | 'resume' | 'cancel',
@@ -815,27 +752,27 @@ onMounted(async () => {
 
   if ((task.value as any).type === 'scrape_members') void fetchMembers()
 
-  // Start the task-scoped stream before loading optional display-name dictionaries.
-  connectSSE()
+  // 全局 SSE 已在 setup 阶段通过 useTaskEvents 订阅；这里只在断连时补一次手动重连。
+  if (sseStatus.value !== 'connected') reconnectNow()
 
   const onVis = () => {
     if (!pageActive || document.visibilityState !== 'visible') return
     void fetchLogs()
-    if (connState.value !== 'connected') void connectSSE()
+    // 切回前台时若全局 SSE 已断开，主动触发重连（用户手势后立即生效）。
+    if (sseStatus.value === 'disconnected') reconnectNow()
   }
   document.addEventListener('visibilitychange', onVis)
   onVisCleanup = () => document.removeEventListener('visibilitychange', onVis)
 
   refreshTimer = setInterval(() => {
     if (!pageActive) return
-    // SSE 是实时通道，但队列满/短暂断线时可能丢掉终态事件；对未结束任务做轻量状态对账。
+    // SSE 正常时不再轮询（原来两套通道并存，SSE 好好的也每 5 秒多打一轮请求）。
+    // 断开/重连期间才做兜底对账。
+    if (isConnected.value) return
     if (task.value && !['completed', 'failed', 'cancelled'].includes(task.value.status)) {
       void fetchTask(true)
     }
-    if (!isConnected.value) {
-      void fetchLogs()
-      if (connState.value === 'disconnected') void connectSSE()
-    }
+    void fetchLogs()
   }, 5000)
 
   // These dictionaries are supplementary. Their latency must not delay SSE or
@@ -883,17 +820,12 @@ onUnmounted(() => {
   membersController = null
   for (const controller of logPageControllers.values()) controller.abort()
   logPageControllers.clear()
-  sseTicketController?.abort()
-  sseTicketController = null
   accountLabelsController?.abort()
   accountLabelsController = null
   groupLabelsController?.abort()
   groupLabelsController = null
   if (completionRefreshTimer) { clearTimeout(completionRefreshTimer); completionRefreshTimer = null }
-  eventSource?.close()
-  eventSource = null
   clearInterval(refreshTimer)
-  sseRuntime.dispose()
   if (onVisCleanup) onVisCleanup()
 })
 </script>
