@@ -370,6 +370,7 @@ import { mediaApi } from '@/api/media'
 import { Loader2, MessageSquare, Plus } from 'lucide-vue-next'
 import TargetSelector from '@/components/selectors/TargetSelector.vue'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 // LiveTaskFeed 实时卡片已移除(与列表重复), 保留组件文件供其他页面使用
 import Modal from '@/components/ui/Modal.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
@@ -822,6 +823,17 @@ async function retryFailed(id: string) {
 const taskActionsPending = ref(new Set<string>())
 async function runTaskAction(id: string, action: 'stop' | 'pause' | 'resume' | 'retry') {
   if (taskActionsPending.value.has(id)) return
+  // 停止是不可逆的：已经发出去的消息不会撤回，剩下的目标直接放弃。
+  // 暂停/继续/重试都是可恢复动作，不需要多一次确认。
+  if (action === 'stop') {
+    const ok = await ask('确定停止这个任务吗？', {
+      title: '停止任务',
+      detail: '已发送的消息不会撤回，剩余目标将不再执行。',
+      danger: true,
+      confirmText: '停止',
+    })
+    if (!broadcastPageActive || !ok) return
+  }
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
   const accountId = currentAccount.value?.account_id
   const isCurrent = () => broadcastPageActive && currentAccount.value?.account_id === accountId

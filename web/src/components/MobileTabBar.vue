@@ -3,6 +3,7 @@
   <nav class="md:hidden fixed left-3 right-3 z-40 h-[68px] px-1.5 flex justify-around items-center"
        style="background: color-mix(in srgb, var(--t-surface-1) 88%, transparent); border: 1px solid var(--t-line); border-radius: 26px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
     <router-link v-for="t in tabs" :key="t.path" :to="t.path"
+                 :aria-current="isActive(t) ? 'page' : undefined"
                  class="flex flex-col items-center gap-[3px] min-w-[56px] py-1.5 px-2.5"
                  :style="{ color: isActive(t) ? 'var(--t-brand)' : 'var(--t-text-3)' }">
       <component :is="t.icon" class="w-[21px] h-[21px]" :stroke-width="isActive(t) ? 2.3 : 1.8" />

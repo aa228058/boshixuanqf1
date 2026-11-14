@@ -169,6 +169,7 @@
 import { parseTargets } from '@/utils/importTargets'
 import { findInvalidJoinLinks, normalizeJoinLinks } from '@/utils/joinLinks'
 import { toast } from '@/utils/toast'
+import { ask } from '@/utils/confirm'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAccountStore } from '@/stores/account'
@@ -366,6 +367,13 @@ async function retryFailed(id: string) {
 }
 async function stopTask(id: string) {
   if (taskActionsPending.value.has(id)) return
+  const ok = await ask('确定停止这个加群任务吗？', {
+    title: '停止任务',
+    detail: '已经加入的群不会退出，剩余目标将不再执行。',
+    danger: true,
+    confirmText: '停止',
+  })
+  if (!joinPageActive || !ok) return
   taskActionsPending.value = new Set(taskActionsPending.value).add(id)
   try {
     await taskApi.cancel(id)
