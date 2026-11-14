@@ -131,7 +131,7 @@
                   <a v-if="e.tme_link" :href="e.tme_link" target="_blank" rel="noopener noreferrer" class="min-w-0 flex-1 truncate text-[var(--t-brand)]">{{ e.tme_link }}</a>
                   <span v-else class="min-w-0 flex-1 truncate text-text-muted">{{ '@' + (e.username || '') }}</span>
                   <span class="shrink-0 text-text-muted">{{ sourceLabel(e.source) }}</span>
-                  <button type="button" class="ui-icon-btn shrink-0" title="复制入口链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))" >⧉</button>
+                  <button type="button" class="ui-icon-btn shrink-0" title="复制入口链接" aria-label="复制入口链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))" >⧉</button>
                 </div>
               </div>
             </div>
@@ -163,7 +163,7 @@
                   <span v-else class="text-text-muted truncate">{{ '@' + (e.username || '') }}</span>
                   <span class="px-1 rounded bg-[color:var(--t-brand-dim)] text-[var(--t-brand)] text-[10px] whitespace-nowrap">{{ sourceLabel(e.source) }}</span>
                   <span :class="e.status === 'invalid' ? 'text-text-muted line-through' : 'text-[var(--t-brand)]'" class="whitespace-nowrap">{{ statusLabel(e.status) }}</span>
-                  <button type="button" class="ui-icon-btn" title="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
+                  <button type="button" class="ui-icon-btn" title="复制链接" aria-label="复制链接" @click.stop="copyLink(e.tme_link || ('https://t.me/' + (e.username || '')))">⧉</button>
                 </div>
               </div>
             </div>
