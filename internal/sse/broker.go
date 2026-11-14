@@ -3,6 +3,7 @@ package sse
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -108,9 +109,8 @@ func (b *Broker) Broadcast(topic string, payload any) {
 	for _, ch := range clients {
 		func() {
 			defer func() {
-				if r := recover(); r != nil {
-					// Channel was closed during shutdown, ignore
-				}
+				// Channel closed during shutdown: swallow the send panic.
+				_ = recover()
 			}()
 			select {
 			case ch <- event:
@@ -141,8 +141,8 @@ func (b *Broker) Broadcast(topic string, payload any) {
 		}()
 	}
 	if dropped > 0 {
-		// Log dropped events at debug level (avoid flooding logs)
-		// dropped message, available for metrics if needed
+		// Slow clients had their queue drained; they will resync from durable state.
+		log.Printf("[sse] topic %s: %d slow client(s) evicted and resync-flagged", topic, dropped)
 	}
 }
 

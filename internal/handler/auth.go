@@ -422,6 +422,12 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 		log.Printf("[handler] 租户ID格式无效: %v", err)
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
+	// 防御纵深: 刷新令牌库里的 tenant_id 必须与 JWT 载荷一致。
+	// 不一致意味着令牌记录被篡改或迁移出错，直接拒绝而不是按 JWT 租户继续换发。
+	if parsedTenantID != parsedUUID {
+		log.Printf("[handler] refresh token 租户不匹配 jti=%s token=%s jwt=%s", parsedJTI, parsedTenantID, parsedUUID)
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
+	}
 	tenant, err := h.tenantRepo.GetByID(c.Request().Context(), parsedUUID)
 	if err != nil {
 		log.Printf("[handler] 刷新时查询租户失败: %v", err)

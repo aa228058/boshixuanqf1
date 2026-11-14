@@ -396,7 +396,6 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 			}
 		}
 	}
-	successSet := map[string]bool{}
 	var roundStartedAt *time.Time
 	if raw, ok := task.Payload["round_started_at"].(string); ok && raw != "" {
 		if parsed, parseErr := time.Parse(time.RFC3339Nano, raw); parseErr == nil {
@@ -423,7 +422,7 @@ func (e *Engine) executeBroadcast(ctx context.Context, task *domain.Task) {
 		}
 		return
 	}
-	successSet = ss
+	successSet := ss
 	// Rebuild the completed counter from durable (account,target) success records.
 	// Old failures are deliberately retried and are not carried into the new attempt.
 	for accID, targets := range accountTargets {

@@ -329,10 +329,8 @@ func (e *Engine) watchRaffleMessage(ctx context.Context, tenantID, accountID uui
 			delete(w.pendingAck, hitKey)
 		}
 		w.mu.Unlock()
-		if hitKey != "" {
-			// R154: joined 事件已改为"发送成功即触发"(raffle.go), 回执不再触发, 防重复邮件。
-			// 回执只清除 pendingAck 记录(确认到达, 避免后续误判)。
-		}
+		// R154: joined 事件已改为"发送成功即触发"(raffle.go), 回执不再触发, 防重复邮件。
+		// 回执只清除 pendingAck 记录(确认到达, 避免后续误判)。
 	}
 }
 

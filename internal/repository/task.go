@@ -799,7 +799,6 @@ func (r *TaskRepository) Count(ctx context.Context, tenantID uuid.UUID, status *
 	if since != nil {
 		query += fmt.Sprintf(" AND created_at >= $%d", idx)
 		args = append(args, *since)
-		idx++
 	}
 	var count int
 	if err := r.db.QueryRow(ctx, query, args...).Scan(&count); err != nil {
