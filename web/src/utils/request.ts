@@ -347,6 +347,25 @@ function parseResponse<T>(data: unknown): T {
   return data as T
 }
 
+/**
+ * fetchWithAuth 用于"不能用 JSON 信封"的请求：文件下载、轮询状态接口等。
+ * 统一处理 base URL 与 Authorization，避免各页面自己拼 ${VITE_API_BASE_URL}、
+ * 自己判断 401（裸 fetch 一旦绕过这里，401 续签和错误文案全部失效）。
+ */
+export async function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Response> {
+  const authStore = useAuthStore()
+  const headers = new Headers(init.headers || {})
+  if (authStore.token) headers.set('Authorization', `Bearer ${authStore.token}`)
+  const url = path.startsWith('http') ? path : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
+  const res = await fetch(url, { ...init, headers })
+  if (!res.ok) {
+    const err: any = new Error(`请求失败: ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return res
+}
+
 export async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const authStore = useAuthStore()
   const url = `${BASE_URL}${endpoint}`
@@ -496,7 +515,11 @@ export async function adminRequest<T>(endpoint: string, options: RequestOptions 
         router.push('/admin/login')
       }
       if (publicPaths.includes(window.location.pathname)) {
-        return {} as T
+        // 停在公开页时，原实现返回 {} 冒充成功：调用方拿到空对象当数据用，
+        // 错误被彻底吞掉。这里显式抛出，让调用方按失败处理。
+        const err: any = new Error('登录已过期，请重新登录')
+        err.status = 401
+        throw err
       }
       throw new Error('登录已过期，请重新登录')
     }

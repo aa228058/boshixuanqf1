@@ -214,7 +214,7 @@ import { useAccountStore } from '@/stores/account'
 import { toast } from '@/utils/toast'
 import { downloadBlob } from '@/utils/export'
 // R111 已删 ProtocolPicker/campaignApi/CAMPAIGN_STATUS 导入(协议协同死代码)
-import { api } from '@/utils/request'
+import { api, fetchWithAuth } from '@/utils/request'
 
 import { useRouter } from 'vue-router'
 import { taskApi } from '@/api/task'
@@ -541,11 +541,10 @@ async function loadBioListeningStatus(accountId: string) {
   const controller = new AbortController()
   bioStatusController = controller
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}&mode=bio`, {
-      headers: { Authorization: `Bearer ${authStore.token}` },
+    const res = await fetchWithAuth(`/scrape-links/status?account_id=${encodeURIComponent(accountId)}&mode=bio`, {
       signal: controller.signal,
     })
-    if (res.ok) {
+    {
       const data = await res.json()
       if (linksPageActive && linksAccId.value === accountId && !controller.signal.aborted) bioListening.value = data.enabled
     }
@@ -584,11 +583,10 @@ async function loadMessageListeningStatus(accountId: string) {
   const controller = new AbortController()
   messageStatusController = controller
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/scrape-links/status?account_id=${encodeURIComponent(accountId)}`, {
-      headers: { Authorization: `Bearer ${authStore.token}` },
+    const res = await fetchWithAuth(`/scrape-links/status?account_id=${encodeURIComponent(accountId)}`, {
       signal: controller.signal,
     })
-    if (res.ok) {
+    {
       const data = await res.json()
       if (linksPageActive && linksAccId.value === accountId && !controller.signal.aborted) listening.value = data.enabled
     }

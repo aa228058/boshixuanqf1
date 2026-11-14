@@ -358,6 +358,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { fetchWithAuth } from '@/utils/request'
 import type { RequestOptions } from '@/utils/request'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -418,8 +419,9 @@ async function saveMessageDecoration() {
     if (!settingsPageActive) return
     messageDecorationEnabled.value = !!result.enabled
     toast({ type: 'success', title: '发送装饰设置已保存' })
-  } catch { /* 拦截器已提示 */ }
-  finally { if (settingsPageActive) messageDecorationSaving.value = false }
+  } catch (e) {
+    if (settingsPageActive) toast({ type: 'error', title: '保存装饰设置失败', message: (e as Error)?.message || '请稍后重试' })
+  } finally { if (settingsPageActive) messageDecorationSaving.value = false }
 }
 async function loadNotify(options?: RequestOptions) {
   notifyLoading.value = true
@@ -461,8 +463,9 @@ async function saveNotify() {
     if (!settingsPageActive) return
     toast({ type: 'success', title: '通知设置已保存' })
     await loadNotify()
-  } catch { /* 拦截器已提示 */ }
-  finally { if (settingsPageActive) notifySaving.value = false }
+  } catch (e) {
+    if (settingsPageActive) toast({ type: 'error', title: '通知设置保存失败', message: (e as Error)?.message || 'SMTP 配置未生效，请检查后重试' })
+  } finally { if (settingsPageActive) notifySaving.value = false }
 }
 async function testNotifyMail() {
   if (notifyTesting.value) return
@@ -470,8 +473,9 @@ async function testNotifyMail() {
   try {
     const res: any = await settingsApi.testNotify()
     if (settingsPageActive) toast({ type: 'success', title: res?.message || '测试邮件已发送, 请查收(含垃圾邮件文件夹)' })
-  } catch { /* 拦截器已提示 */ }
-  finally { if (settingsPageActive) notifyTesting.value = false }
+  } catch (e) {
+    if (settingsPageActive) toast({ type: 'error', title: '测试邮件发送失败', message: (e as Error)?.message || '请检查 SMTP 配置' })
+  } finally { if (settingsPageActive) notifyTesting.value = false }
 }
 function toggleNotifyEvent(key: string) {
   notifySettings.value = { ...notifySettings.value, [key]: !notifySettings.value[key] }
@@ -588,9 +592,7 @@ async function exportMyData() {
   if (exporting.value) return
   exporting.value = true
   try {
-    const token = useAuthStore().token
-    const res = await fetch('/api/v1/tenant/export', { headers: { Authorization: `Bearer ${token}` } })
-    if (!res.ok) throw new Error('导出失败: ' + res.status)
+    const res = await fetchWithAuth('/tenant/export')
     const blob = await res.blob()
     if (!settingsPageActive) return
     downloadBlob('my-data-export.json', blob)

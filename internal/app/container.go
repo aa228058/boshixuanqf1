@@ -173,6 +173,8 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		log.Printf("初始化数据警告: %v", err)
 	}
 
+	c.startMaintenanceLoop()
+
 	return c, nil
 }
 
@@ -837,6 +839,35 @@ func upgradeSoleAdminToSuper(ctx context.Context, db *database.DB) {
 }
 
 // Shutdown performs graceful shutdown of all components.
+// startMaintenanceLoop 周期性执行"过期卡密置 expired"和"账号日配额重置"。
+// 这两件事原本都有实现但没有任何调度入口：卡密过期只在兑换时用 expires_at 兜底，
+// 管理端列表里的 status 永远停在 unused；account_quotas.reset_at 也从不推进。
+func (c *Container) startMaintenanceLoop() {
+	interval := c.Cfg.QuotaResetInterval
+	if interval <= 0 {
+		interval = time.Hour
+	}
+	safego.Go(func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.stopCh:
+				return
+			case <-ticker.C:
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				if err := c.CodeRepo.ExpireOldCodes(ctx); err != nil {
+					log.Printf("[maintenance] 过期卡密置位失败: %v", err)
+				}
+				if err := c.QuotaRepo.ResetDaily(ctx); err != nil {
+					log.Printf("[maintenance] 账号日配额重置失败: %v", err)
+				}
+				cancel()
+			}
+		}
+	})
+}
+
 func (c *Container) Shutdown() {
 	close(c.stopCh)
 	if c.GroupLibEngine != nil {

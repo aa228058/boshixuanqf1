@@ -202,16 +202,27 @@ var taskTypeFeature = map[domain.TaskType]string{
 
 // checkPlanFeature 校验租户套餐是否含指定功能(FeatureMap 单一数据源, ≤60s 缓存)
 func (s *TaskService) checkPlanFeature(ctx context.Context, tenantID uuid.UUID, feature string) error {
-	if s.planRepo == nil || feature == "" {
+	if feature == "" {
 		return nil
+	}
+	// 门禁必须 fail-closed：原来"取不到租户/套餐就放行"，一次 DB 抖动等于把付费墙
+	// 全部打开（与 middleware.PlanContext 的 fail-closed 语义相反）。
+	if s.planRepo == nil || s.tenantRepo == nil {
+		return fmt.Errorf("套餐校验组件未就绪, 请稍后重试")
 	}
 	t, err := s.tenantRepo.GetByID(ctx, tenantID)
-	if err != nil || t == nil {
-		return nil // 取不到租户不阻断(保守)
+	if err != nil {
+		return fmt.Errorf("读取租户套餐失败: %w", err)
+	}
+	if t == nil {
+		return fmt.Errorf("租户不存在")
 	}
 	plan, err := s.planRepo.GetByID(ctx, t.PlanID)
-	if err != nil || plan == nil {
-		return nil
+	if err != nil {
+		return fmt.Errorf("读取套餐失败: %w", err)
+	}
+	if plan == nil {
+		return fmt.Errorf("租户套餐不存在, 请联系管理员")
 	}
 	if v, ok := plan.FeatureMap()[feature]; !ok || v == false {
 		return fmt.Errorf("当前套餐不含此功能(%s), 升级套餐后可用", feature)

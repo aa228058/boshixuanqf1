@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/repository"
+
+	"github.com/google/uuid"
 )
 
 // SettingsService handles tenant settings, activation, templates, groups, and exports.
@@ -139,8 +140,13 @@ func (s *SettingsService) GetSupport(ctx context.Context) (*domain.SupportConfig
 }
 
 // GetAnnouncements returns active announcements for tenant.
-func (s *SettingsService) GetAnnouncements(ctx context.Context, planID string) ([]domain.Announcement, error) {
-	return s.announceRepo.List(ctx, planID)
+func (s *SettingsService) GetAnnouncements(ctx context.Context, tenantID uuid.UUID, planID string) ([]domain.Announcement, error) {
+	return s.announceRepo.List(ctx, planID, tenantID)
+}
+
+// MarkAnnouncementRead 记录租户已读（此前是空实现，未读红点永远消不掉）。
+func (s *SettingsService) MarkAnnouncementRead(ctx context.Context, tenantID, announcementID uuid.UUID) error {
+	return s.announceRepo.MarkRead(ctx, tenantID, announcementID)
 }
 
 // === Message Templates ===
@@ -149,7 +155,22 @@ func (s *SettingsService) ListTemplates(ctx context.Context, tenantID uuid.UUID)
 	return s.templateRepo.List(ctx, tenantID)
 }
 
+// validateTemplateVariables 拒绝已退役的内置变量。
+// 执行器只替换 {{词典名}}，退役变量命中原样保留，会在发送时把 "{{first_name}}"
+// 直接发给群成员——保存时就报错，比发出去再解释合理。
+func validateTemplateVariables(content string) error {
+	for _, v := range extractVariables(content) {
+		if domain.IsLegacyMessageVariable(v) {
+			return fmt.Errorf("变量 {{%s}} 已停用, 请改用自定义文案变量词典", v)
+		}
+	}
+	return nil
+}
+
 func (s *SettingsService) CreateTemplate(ctx context.Context, tenantID uuid.UUID, name, content string) (*domain.MessageTemplate, error) {
+	if err := validateTemplateVariables(content); err != nil {
+		return nil, err
+	}
 	vars := extractVariables(content)
 	// R87-M3 修复: 内容无 {变量} 时 extractVariables 返回 nil → pgx 存 NULL
 	// 而 message_templates.variables 是 NOT NULL → 创建模板 500。
@@ -172,6 +193,9 @@ func (s *SettingsService) CreateTemplate(ctx context.Context, tenantID uuid.UUID
 }
 
 func (s *SettingsService) UpdateTemplate(ctx context.Context, tenantID, templateID uuid.UUID, name, content string) error {
+	if err := validateTemplateVariables(content); err != nil {
+		return err
+	}
 	vars := extractVariables(content)
 	return s.templateRepo.Update(ctx, tenantID, templateID, name, content, vars)
 }

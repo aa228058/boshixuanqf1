@@ -249,7 +249,8 @@
         <router-view v-slot="{ Component, route }">
           <!-- 统一内嵌布局(2026-10-20 重构): 功能页一律显示在顶部栏下方,
                不再 overlay 全屏覆盖, 去掉全屏❌按钮(返回用侧边栏导航) -->
-          <component :is="Component" :key="route.fullPath" />
+          <!-- 用 path 而不是 fullPath：query 变化(翻页/切 Tab/筛选)不该销毁重建整个页面，否则表单被清空、滚动位置丢失、多打一轮请求 -->
+          <component :is="Component" :key="route.path" />
         </router-view>
       </main>
     </div>

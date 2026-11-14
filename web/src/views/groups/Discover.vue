@@ -122,7 +122,7 @@
                 <span>收录于 {{ fmtTime(row.last_seen_at) }}</span>
               </div>
               <div class="flex items-center gap-2 min-w-0 mt-1">
-                <a v-if="row.tme_link" :href="row.tme_link" target="_blank" rel="noopener noreferrer" class="text-xs text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
+                <a v-if="safeLink(row.tme_link)" :href="safeLink(row.tme_link)" target="_blank" rel="noopener noreferrer" class="text-xs text-[var(--t-brand)] truncate min-w-0">{{ row.tme_link }}</a>
                 <span v-else class="text-xs text-text-muted truncate min-w-0">{{ row.username ? '@' + row.username : '暂无链接' }}</span>
                 <button v-if="row.tme_link || row.username" type="button" class="ui-icon-btn shrink-0" title="复制链接" aria-label="复制群组链接" @click.stop="copyLink(row.tme_link || ('https://t.me/' + row.username))">⧉</button>
               </div>
@@ -313,6 +313,11 @@
 </template>
 
 <script setup lang="ts">
+// 只允许 http(s) 链接进 href，挡 javascript: 等伪协议。
+function safeLink(link?: string): string {
+  if (!link) return ''
+  return /^https?:\/\//i.test(link) ? link : ''
+}
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Search, CheckSquare, Loader2 } from 'lucide-vue-next'
 import { getGroupLibrary, joinLibraryGroups, importLibraryGroups, confirmImportLibraryGroups, getGroupLibraryImportJob, listGroupLibraryImportJobs, cancelGroupLibraryImportJob, deleteGroupLibraryImportJob, retryFailedGroupLibraryImportJob } from '@/api/groups'

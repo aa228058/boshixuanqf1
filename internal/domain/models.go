@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
+	"tg-sender/internal/crypto"
 	"time"
 
 	"github.com/google/uuid"
@@ -175,6 +177,24 @@ type Tenant struct {
 	NotifySMTP json.RawMessage `json:"notify_smtp" db:"notify_smtp"`
 }
 
+// NotifySMTPPassPrefix 标记 SMTP 授权码已加密。
+// 历史行是明文（没有前缀），读取时按明文兼容，写入时一律加密。
+const NotifySMTPPassPrefix = "enc:v1:"
+
+// DecryptNotifySMTPPass 把存储值还原成明文；无前缀视为历史明文原样返回。
+// 加密失败（例如密钥轮换后解不开）时返回空串，让发信失败而不是带着密文去认证。
+func DecryptNotifySMTPPass(stored string) string {
+	if !strings.HasPrefix(stored, NotifySMTPPassPrefix) {
+		return stored
+	}
+	raw, err := crypto.Decrypt(strings.TrimPrefix(stored, NotifySMTPPassPrefix))
+	if err != nil {
+		log.Printf("[smtp] 授权码解密失败: %v", err)
+		return ""
+	}
+	return string(raw)
+}
+
 // NotifySMTPConfig 租户 SMTP 配置结构
 type NotifySMTPConfig struct {
 	Provider string `json:"provider"` // qq / 163 / gmail / outlook / tinkmail / custom
@@ -197,6 +217,8 @@ func (t *Tenant) SMTPConfig() *NotifySMTPConfig {
 	if cfg.Port == 0 {
 		cfg.Port = 465
 	}
+	// 授权码与 AI Key 同口径加密存储，读出来再还原成明文供 SMTP 登录使用。
+	cfg.Pass = DecryptNotifySMTPPass(cfg.Pass)
 	return &cfg
 }
 

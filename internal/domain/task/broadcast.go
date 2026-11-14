@@ -1016,12 +1016,7 @@ var dictVarRe = regexp.MustCompile(`\{\{([A-Za-z0-9_\-\x{4e00}-\x{9fa5}]{1,32})\
 
 // isLegacyMessageVariable marks retired built-in placeholders; custom dictionary names remain supported.
 func isLegacyMessageVariable(name string) bool {
-	switch strings.ToLower(name) {
-	case "first_name", "group_name", "user_id", "now", "username", "phone":
-		return true
-	default:
-		return false
-	}
+	return domain.IsLegacyMessageVariable(name)
 }
 
 // dictBag 文案变量替换池: 任务开始时一次加载, 发送时每个目标随机取词
