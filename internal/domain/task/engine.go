@@ -800,6 +800,38 @@ func (e *Engine) claimAndExecute(ctx context.Context) {
 
 // runTask executes a task with idempotency, concurrency limit, and per-task cancellation support.
 
+// keepLeaseAlive 周期性刷新 locked_at, 直到任务结束(done 关闭)或引擎停止。
+func (e *Engine) keepLeaseAlive(task *domain.Task, done <-chan struct{}) {
+	ticker := time.NewTicker(leaseHeartbeatInterval(e.cfg.TaskLockTimeoutMin))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-e.stopCh:
+			return
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := e.repo.TouchLease(ctx, task.TaskID, e.taskLeaseID(task)); err != nil {
+				taskLog.Printf("[task] 续租失败 %s: %v", task.TaskID, err)
+			}
+			cancel()
+		}
+	}
+}
+
+// leaseHeartbeatInterval 取锁超时的三分之一作为心跳间隔, 夹在 [30s, 5min]。
+func leaseHeartbeatInterval(lockTimeoutMin int) time.Duration {
+	interval := time.Duration(lockTimeoutMin) * time.Minute / 3
+	if interval < 30*time.Second {
+		return 30 * time.Second
+	}
+	if interval > 5*time.Minute {
+		return 5 * time.Minute
+	}
+	return interval
+}
+
 func (e *Engine) taskLeaseID(task *domain.Task) string {
 	if task != nil && task.WorkerID != nil && *task.WorkerID != "" {
 		return *task.WorkerID
@@ -847,6 +879,13 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 		}
 		return
 	}
+
+	// 租约心跳: 认领只在开始时写一次 locked_at, 而 ClaimTimeoutTasks 按 locked_at
+	// 判定过期(TaskLockTimeoutMin, 默认 40 分钟)。没有续租时, 任何跑超时的长任务
+	// 都会被另一个 worker 当成"超时任务"重新认领, 两边并发发同一批目标。
+	leaseDone := make(chan struct{})
+	defer close(leaseDone)
+	safego.Go(func() { e.keepLeaseAlive(task, leaseDone) })
 
 	e.wg.Add(1)
 	safego.Go(func() {

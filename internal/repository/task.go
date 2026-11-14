@@ -277,6 +277,16 @@ func (r *TaskRepository) ClaimTasks(ctx context.Context, workerID string, limit 
 	return r.claimTasksWithStatus(ctx, workerID, limit, "queued", lockTimeoutMin)
 }
 
+// TouchLease 续租: 只刷新 locked_at, 不改任务状态。
+// 只对"当前持有者"生效(worker_id 匹配且仍在 running), 任务被别的 worker 重新认领后
+// 心跳不会再篡改对方的租约。
+func (r *TaskRepository) TouchLease(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE tasks SET locked_at = NOW()
+		WHERE task_id = $1 AND worker_id = $2 AND status = 'running'`, taskID, workerID)
+	return err
+}
+
 // ClaimTimeoutTasks claims tasks whose lock has expired.
 func (r *TaskRepository) ClaimTimeoutTasks(ctx context.Context, workerID string, limit int, lockTimeoutMin int) ([]*domain.Task, error) {
 	rows, err := r.db.Query(ctx, `
