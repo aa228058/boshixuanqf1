@@ -30,11 +30,6 @@ type ImportJob struct {
 	FinishedAt     *time.Time `json:"finished_at,omitempty"`
 }
 
-// CreateImportPreview 先做纯格式筛选并保存为待确认任务；此阶段不会访问 Telegram 或写入群库。
-func (e *Engine) CreateImportPreview(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
-	return e.CreateImportPreviewWithAccount(ctx, tenantID, uuid.Nil, fileName, payload)
-}
-
 // CreateImportPreviewWithAccount stores an optional tenant-owned account for MTProto-assisted resolution.
 func (e *Engine) CreateImportPreviewWithAccount(ctx context.Context, tenantID, accountID uuid.UUID, fileName, payload string) (*ImportJob, error) {
 	filtered := filterImportLinks(payload)
@@ -193,34 +188,6 @@ func (e *Engine) persistImportFailures(ctx context.Context, jobID uuid.UUID, fai
 		SET error_text=EXCLUDED.error_text, updated_at=NOW()
 	`, jobID, links, details)
 	return err
-}
-
-func (e *Engine) CreateImportJob(ctx context.Context, tenantID uuid.UUID, fileName, payload string) (*ImportJob, error) {
-	// Keep the legacy one-step API on the same normalized payload path as the
-	// preview/confirm flow. Worker offsets are candidate-line offsets, so raw
-	// invalid, duplicate, and bot lines must never be stored in the job payload.
-	filtered := filterImportLinks(payload)
-	if len(filtered.Links) == 0 {
-		return nil, fmt.Errorf("没有筛选出有效的 Telegram 群组链接")
-	}
-	skipped := filtered.Duplicate + filtered.Invalid
-	var job ImportJob
-	err := e.pool.QueryRow(ctx, `
-		INSERT INTO group_library_import_jobs
-			(tenant_id, file_name, payload, total_count, skipped_count, raw_count, duplicate_count, invalid_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING job_id, task_number, file_name, status, total_count, processed_count, imported_count,
-		          failed_count, skipped_count, raw_count, duplicate_count, invalid_count, created_at, finished_at`,
-		tenantID, fileName, strings.Join(filtered.Links, "\n"), len(filtered.Links), skipped,
-		filtered.RawCount, filtered.Duplicate, filtered.Invalid).Scan(
-		&job.JobID, &job.TaskNumber, &job.FileName, &job.Status, &job.TotalCount, &job.ProcessedCount,
-		&job.ImportedCount, &job.FailedCount, &job.SkippedCount, &job.RawCount,
-		&job.DuplicateCount, &job.InvalidCount, &job.CreatedAt, &job.FinishedAt)
-	if err != nil {
-		return nil, err
-	}
-	job.ValidCount = job.TotalCount
-	return &job, nil
 }
 
 // DeleteImportJob removes only an inactive import-job history row owned by the tenant.

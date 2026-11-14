@@ -352,19 +352,6 @@ func (s *TaskService) CreateBroadcast(ctx context.Context, tenantID uuid.UUID, a
 	return s.CreateBroadcastWithMapping(ctx, tenantID, nil, accountIDs, targetIDs, message, scheduledAt, intervalMin, intervalMax, extraPayload)
 }
 
-// CreateScheduledBroadcast is the legacy interval-based wrapper. Its first
-// run happens immediately; use CreateScheduledBroadcastWithSchedule for calendar modes.
-func (s *TaskService) CreateScheduledBroadcast(ctx context.Context, tenantID uuid.UUID, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool) (*domain.Task, error) {
-	return s.CreateScheduledBroadcastWithMapping(ctx, tenantID, nil, accountIDs, targetIDs, message, loopIntervalMinutes, intervalMin, intervalMax, isLoop, 0, nil)
-}
-
-// CreateScheduledBroadcastWithMapping creates a recurring broadcast using the same
-// explicit account-to-target assignments as a one-time broadcast.
-func (s *TaskService) CreateScheduledBroadcastWithMapping(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool, maxRounds int, endAt *time.Time) (*domain.Task, error) {
-	return s.CreateScheduledBroadcastWithSchedule(ctx, tenantID, mappings, accountIDs, targetIDs, message,
-		loopIntervalMinutes, intervalMin, intervalMax, isLoop, maxRounds, endAt, map[string]any{"schedule_mode": "interval"}, nil)
-}
-
 // CreateScheduledBroadcastWithSchedule supports interval, daily and weekly recurrence.
 // firstRunAt is optional; calendar modes calculate the next local slot when it is nil.
 func (s *TaskService) CreateScheduledBroadcastWithSchedule(ctx context.Context, tenantID uuid.UUID, mappings []domain.AccountTargetMapping, accountIDs []uuid.UUID, targetIDs []string, message string, loopIntervalMinutes, intervalMin, intervalMax int, isLoop bool, maxRounds int, endAt *time.Time, schedule map[string]any, firstRunAt *time.Time) (*domain.Task, error) {

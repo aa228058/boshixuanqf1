@@ -825,17 +825,6 @@ func (s *AccountService) SetProxy(ctx context.Context, tenantID, accountID uuid.
 	return nil
 }
 
-// TestProxy 代理连通性检测(经代理连 TG DC, 返回耗时)。
-// UpdateRemark 更新备注(批量资料功能附带)
-func (s *AccountService) UpdateRemark(ctx context.Context, tenantID, accountID uuid.UUID, remark string) error {
-	return s.repo.UpdateRemark(ctx, tenantID, accountID, remark)
-}
-
-// UpdateProfile 修改账号 TG 资料(名字/姓/签名/用户名)——复用引擎既有实现(import.go)
-func (s *AccountService) UpdateProfile(ctx context.Context, tenantID, accountID uuid.UUID, firstName, lastName, about, username string) error {
-	return s.engine.UpdateProfile(ctx, tenantID, accountID, firstName, lastName, about, username)
-}
-
 // CloneProfile 批量克隆他人资料: sourceUsername=@对方用户名, 应用到 targetIDs 所有勾选号
 func (s *AccountService) CloneProfile(ctx context.Context, tenantID uuid.UUID, sourceUsername string, targetIDs []uuid.UUID) (int, int, error) {
 	return s.engine.CloneProfile(ctx, tenantID, sourceUsername, targetIDs)

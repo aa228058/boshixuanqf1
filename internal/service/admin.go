@@ -725,11 +725,6 @@ func (s *AdminService) GetCode(ctx context.Context, codeID uuid.UUID) (*domain.A
 	return s.codeRepo.GetByID(ctx, codeID)
 }
 
-// DeleteCode hard-deletes an activation code.
-func (s *AdminService) DeleteCode(ctx context.Context, codeID uuid.UUID) error {
-	return s.codeRepo.Delete(ctx, codeID)
-}
-
 // BatchRevokeCodes revokes multiple codes.
 func (s *AdminService) BatchRevokeCodes(ctx context.Context, ids []uuid.UUID) error {
 	return s.codeRepo.BatchRevoke(ctx, ids)
