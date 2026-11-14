@@ -73,7 +73,7 @@
           <div class="flex items-center gap-2 -mt-1"><span class="text-[10.5px] font-semibold text-text-muted uppercase tracking-wider">基础信息</span><span class="flex-1 h-px bg-border/60"></span></div>
           <div>
             <label class="block text-sm text-text-secondary mb-1">规则名称</label>
-            <input v-model="ruleForm.name" class="ui-input" />
+            <input v-model="ruleForm.name" class="ui-input" / aria-label="规则名称">
           </div>
           <div>
             <label class="block text-sm text-text-secondary mb-2">源群组（监控来源）</label>
@@ -159,9 +159,9 @@
               </select>
               <p v-if="contactPick && !ruleForm.dm_contact_phone" class="text-xs text-[var(--t-warn)]">该联系人资料未返回手机号，Telegram 名片发送必须提供手机号；请手动补充，或选择有手机号的联系人。</p>
               <div class="grid grid-cols-2 gap-2">
-                <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码（自动带入；缺失时需补充）" class="ui-input col-span-2" />
-                <input v-model="ruleForm.dm_contact_first_name" placeholder="名(必填)" class="ui-input" />
-                <input v-model="ruleForm.dm_contact_last_name" placeholder="姓(可空)" class="ui-input" />
+                <input v-model="ruleForm.dm_contact_phone" placeholder="电话号码（自动带入；缺失时需补充）" class="ui-input col-span-2" / aria-label="名片电话">
+                <input v-model="ruleForm.dm_contact_first_name" placeholder="名(必填)" class="ui-input" / aria-label="名片名">
+                <input v-model="ruleForm.dm_contact_last_name" placeholder="姓(可空)" class="ui-input" / aria-label="名片姓">
               </div>
             </div>
             <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
@@ -171,7 +171,7 @@
             <div v-if="ruleForm.dmCallEnabled" class="flex items-center gap-2 text-sm text-text-muted">
               响铃
               <input type="number" v-model.number="ruleForm.dm_call_seconds" min="1" max="60"
-                     class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" />
+                     class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" / aria-label="振铃时长（秒）">
               秒后自动挂断(对方显示未接来电)
             </div>
             <p class="text-[11px] leading-relaxed" style="color: var(--t-text-3);">

@@ -270,7 +270,7 @@
           <!-- 单号输入(2026-10-20 清理: 原多行批量加号使用率低已移除, 队列逻辑保留恒为 1) -->
           <div class="flex items-center">
             <span class="inline-flex items-center px-3 h-[44px] rounded-l-lg bg-bg-card border border-r-0 border-border text-text-secondary text-sm">+</span>
-            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" />
+            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" / aria-label="手机号">
           </div>
           <p class="text-xs text-text-secondary mt-1">只需输入号码数字（+ 前缀已自带）</p>
         </div>
