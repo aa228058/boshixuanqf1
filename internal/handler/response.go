@@ -6,6 +6,23 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const (
+	defaultPageSize = 20
+	maxPageSize     = 100
+)
+
+// clampPageSize 把客户端传入的分页大小夹到 [1, maxPageSize]。
+// 原先只有下限没有上限：GET /admin/tenants?page_size=1000000 会把整表拉进内存。
+func clampPageSize(n int) int {
+	if n < 1 {
+		return defaultPageSize
+	}
+	if n > maxPageSize {
+		return maxPageSize
+	}
+	return n
+}
+
 // Response represents a unified API response.
 type Response struct {
 	Code    int    `json:"code"`

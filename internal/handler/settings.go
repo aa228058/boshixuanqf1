@@ -7,13 +7,14 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/notify"
 	"tg-sender/internal/repository"
 	"tg-sender/internal/service"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 // SettingsHandler handles settings, activation, templates, groups, exports, and notification center.

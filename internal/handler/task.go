@@ -14,9 +14,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/labstack/echo/v4"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/domain/task"
 	"tg-sender/internal/middleware"
@@ -24,6 +21,10 @@ import (
 	"tg-sender/internal/safego"
 	"tg-sender/internal/service"
 	"tg-sender/internal/sse"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/labstack/echo/v4"
 )
 
 // TaskHandler handles task APIs.

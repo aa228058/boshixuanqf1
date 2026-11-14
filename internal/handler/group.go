@@ -120,7 +120,7 @@ func (h *GroupHandler) List(c echo.Context) error {
 		if err != nil || ps < 1 {
 			return echo.NewHTTPError(http.StatusBadRequest, "每页数量参数错误")
 		}
-		pageSize = ps
+		pageSize = clampPageSize(ps)
 	} else if accountIDStr != "" {
 		// 按账号查询群组时（GroupSelector），默认返回全部
 		pageSize = 10000
@@ -331,6 +331,7 @@ func (h *GroupHandler) GetMembers(c echo.Context) error {
 		}
 		pageSize = ps
 	}
+	pageSize = clampPageSize(pageSize)
 
 	members, total, err := h.svc.GetMembers(c.Request().Context(), tenantID, groupID, page, pageSize)
 	if err != nil {

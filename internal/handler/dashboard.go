@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/labstack/echo/v4"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/service"
+
+	"github.com/labstack/echo/v4"
 )
 
 // DashboardHandler handles dashboard APIs.
