@@ -773,6 +773,15 @@ function featureLabel(key: string): string {
 
 async function deleteTemplate(id: string) {
   if (templateDeletingIds.value.has(id) || templateSavingIds.value.has(id)) return
+  // 模板是租户自建内容，删了不可恢复——必须走确认，和字典删除保持同一门槛。
+  const target = templates.value.find(t => t.template_id === id)
+  const confirmed = await ask('确定删除这个模板吗？', {
+    title: '删除模板',
+    detail: `「${target?.name || '未命名模板'}」删除后无法恢复。`,
+    danger: true,
+    confirmText: '删除',
+  })
+  if (!settingsPageActive || !confirmed) return
   templateDeletingIds.value = new Set(templateDeletingIds.value).add(id)
   try {
     await settingsApi.deleteTemplate(id)
