@@ -33,6 +33,19 @@ type AdminService struct {
 	auditRepo    *repository.AuditRepository // F-12: admin 平面审计
 	cfg          *config.Config
 	db           *pgxpool.Pool
+	quotaSyncer  TenantQuotaSyncer
+}
+
+// TenantQuotaSyncer 把租户并发配额同步进任务调度器。
+// 管理端建号/改套餐此前只改库, 调度器在首次 TryAcquire 时按 MaxConcurrent=1
+// 兜底注册 → 付费租户被压到 1 并发, 且 GlobalLimit 被低估, 重启前不会纠正。
+type TenantQuotaSyncer interface {
+	RegisterTenantQuota(tenantID [16]byte, maxConcurrent int)
+}
+
+// SetQuotaSyncer 注入调度器配额同步器(由 container 在装配阶段调用)。
+func (s *AdminService) SetQuotaSyncer(q TenantQuotaSyncer) {
+	s.quotaSyncer = q
 }
 
 // NewAdminService creates a new admin service.
@@ -313,6 +326,9 @@ func (s *AdminService) CreateTenant(ctx context.Context, name, username, passwor
 	if err := s.tenantRepo.Create(ctx, t, apiKey); err != nil {
 		return nil, "", err
 	}
+	if s.quotaSyncer != nil {
+		s.quotaSyncer.RegisterTenantQuota(t.TenantID, t.MaxConcurrentTasks)
+	}
 	return t, apiKey, nil
 }
 
@@ -365,6 +381,12 @@ func (s *AdminService) UpdateTenant(ctx context.Context, tenantID uuid.UUID, pla
 	// F-04: 封禁/改期/改套餐后立即失效租户状态缓存（原最长 60s 窗口）。
 	// 注：API key 认证原语已随 F-29 移除，无对应缓存可失效。
 	middleware.InvalidateTenantCache(tenantID)
+	// 改套餐/单独调并发上限后立刻同步调度器, 否则新配额要等重启才生效。
+	if s.quotaSyncer != nil && (planID != "" || maxConcurrent != nil) {
+		if updated, err := s.tenantRepo.GetByID(ctx, tenantID); err == nil && updated != nil {
+			s.quotaSyncer.RegisterTenantQuota(updated.TenantID, updated.MaxConcurrentTasks)
+		}
+	}
 	s.writeAudit(ctx, tenantID, "admin_tenant_update", fmt.Sprintf("plan_id=%q status=%q", planID, status))
 	return nil
 }

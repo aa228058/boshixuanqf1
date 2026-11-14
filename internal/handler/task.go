@@ -1585,7 +1585,11 @@ func (h *TaskHandler) StreamProgress(c echo.Context) error {
 		select {
 		case <-c.Request().Context().Done():
 			return nil
-		case ev := <-evCh:
+		case ev, ok := <-evCh:
+			if !ok {
+				// broker 关闭后 channel 会被关闭, 不判 ok 会拿到零值事件并空转刷屏。
+				return nil
+			}
 			// R98: 实时事件转发(仅本任务) —— 解包 BroadcastToTenant 的双层包装
 			if outer, ok := ev.Payload.(map[string]interface{}); ok {
 				m, _ := outer["payload"].(map[string]interface{})

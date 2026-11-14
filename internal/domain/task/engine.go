@@ -843,12 +843,20 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 	// P1-01: 全局并发原子锁(count+claim非原子会突破上限; 信号量保证任何时刻running<=上限)
 	select {
 	case e.globalSem <- struct{}{}:
-		defer func() { <-e.globalSem }()
 	case <-ctx.Done():
 		return
 	case <-e.stopCh:
 		return
 	}
+	// 释放责任默认在本函数: 之前的写法是 `defer <-globalSem`, 但任务真正执行在下面
+	// 派发的 goroutine 里, runTask 立刻返回 → 闸门瞬间释放, 并发上限形同虚设。
+	// 只在任务被交给执行 goroutine 后才转移释放责任(semReleased=true)。
+	semReleased := false
+	defer func() {
+		if !semReleased {
+			<-e.globalSem
+		}
+	}()
 	// Idempotency: skip if already running (memory + DB)
 	taskKey := task.TaskID.String()
 	if _, loaded := e.runningTasks.LoadOrStore(taskKey, true); loaded {
@@ -884,12 +892,24 @@ func (e *Engine) runTask(ctx context.Context, task *domain.Task) {
 	// 判定过期(TaskLockTimeoutMin, 默认 40 分钟)。没有续租时, 任何跑超时的长任务
 	// 都会被另一个 worker 当成"超时任务"重新认领, 两边并发发同一批目标。
 	leaseDone := make(chan struct{})
-	defer close(leaseDone)
 	safego.Go(func() { e.keepLeaseAlive(task, leaseDone) })
 
+	// wg.Add 与 Stop 里的 wg.Wait 必须由 lifecycleMu 串行化, 否则停机时
+	// "Add called concurrently with Wait" 会让任务被漏等或触发运行时 panic。
+	e.lifecycleMu.Lock()
+	if e.stopped {
+		e.lifecycleMu.Unlock()
+		close(leaseDone)
+		return
+	}
 	e.wg.Add(1)
+	e.lifecycleMu.Unlock()
+
+	semReleased = true
 	safego.Go(func() {
 		defer e.wg.Done()
+		defer close(leaseDone) // 心跳只在任务真正结束时停
+		defer func() { <-e.globalSem }()
 		// 任务结束(完成/失败/取消)时广播状态事件, 前端列表实时刷新
 		defer func() {
 			if e.sseBroker != nil {

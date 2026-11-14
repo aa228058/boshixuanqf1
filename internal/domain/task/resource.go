@@ -38,7 +38,7 @@ func (e *Engine) checkAndAlertResources(ctx context.Context) {
 
 	// Memory alert: > threshold
 	if e.cfg.MemAlertThresholdMB > 0 && memMB > uint64(e.cfg.MemAlertThresholdMB) {
-		e.sseBroker.Broadcast("resource_alert", map[string]any{
+		e.sseBroker.BroadcastGlobal("resource_alert", map[string]any{
 			"type":    "memory_high",
 			"message": fmt.Sprintf("内存占用过高: %d MB，建议降低并发或重启服务", memMB),
 			"value":   memMB,
@@ -64,7 +64,7 @@ func (e *Engine) checkAndAlertResources(ctx context.Context) {
 		openConns := stats.AcquiredConns()
 		maxConns := stats.MaxConns()
 		if maxConns > 0 && float64(openConns)/float64(maxConns) > 0.9 {
-			e.sseBroker.Broadcast("resource_alert", map[string]any{
+			e.sseBroker.BroadcastGlobal("resource_alert", map[string]any{
 				"type":    "db_pool_high",
 				"message": fmt.Sprintf("数据库连接池紧张: %d/%d", openConns, maxConns),
 				"value":   openConns,

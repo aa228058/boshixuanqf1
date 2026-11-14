@@ -729,6 +729,12 @@ func (h *AuthHandler) Renew(c echo.Context) error {
 		log.Printf("[auth] 续费更新租户失败: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "续费失败，请稍后重试")
 	}
+	// 续费/升级后必须立刻失效鉴权缓存, 否则 JWTAuth 的 60s 租户缓存仍按旧状态
+	// 判定"已过期", 用户付完钱还要被 403 挡一分钟。
+	middleware.InvalidateTenantCache(tenant.TenantID)
+	if h.taskEngine != nil {
+		h.taskEngine.RegisterTenantQuota(tenant.TenantID, plan.MaxConcurrent)
+	}
 
 	return c.JSON(http.StatusOK, map[string]any{
 		"message":    "续费成功",

@@ -229,6 +229,10 @@ func (c *Container) initEngines() error {
 	// campaigns 表的定期清理 SQL 由 account engine 内联保留, 不依赖任何 campaign 代码)
 	c.AccountEngine = accEngine
 
+	// 群库仓库必须在使用前创建: 原实现把它放在下面第 383 行才赋值, 这里注入的是
+	// nil。nil 短路让"加群失败回写已失效"和"入群后写入群库"两条逻辑静默失效。
+	c.SystemGroupRepo = repository.NewSystemGroupRepository(c.DB.Pool)
+
 	taskEngine := task.NewEngine(c.Cfg, c.DB, c.TaskRepo, c.TaskLogRepo, c.QuotaRepo, c.RiskRepo)
 	taskEngine.SetAccountEngine(accEngine)
 	taskEngine.SetMemberRepo(c.MemberRepo)
@@ -380,7 +384,6 @@ func (c *Container) initServices() {
 	c.TaskService = service.NewTaskService(c.Cfg, c.TaskRepo, c.TaskLogRepo, c.QuotaRepo, c.AccountRepo, c.TenantRepo, c.GroupRepo, c.MemberRepo, c.BatchTaskRepo, c.SSEBroker, c.TaskEngine, c.ScrapedLinkRepo, c.RaffleResultRepo)
 	c.TaskService.SetLinkScraper(c.LinkScraper)
 	// 群组库(找群): 平台级聚合器 + 接口
-	c.SystemGroupRepo = repository.NewSystemGroupRepository(c.DB.Pool)
 	c.GroupLibEngine = grouplib.NewEngine(c.DB.Pool, c.SystemGroupRepo, c.AccountEngine)
 	c.GroupLibEngine.Start()
 	// P0-6 审计修复(2026-10-22): 此处的 LinkScraper.Start 已删——原来 container 和
@@ -611,6 +614,7 @@ func (c *Container) initServices() {
 	c.DashboardService = service.NewDashboardService(c.AccountRepo, c.TaskRepo, c.GroupRepo, c.RiskRepo, c.AuditRepo, c.TaskLogRepo)
 	c.SettingsService = service.NewSettingsService(c.TenantRepo, c.PlanRepo, c.CodeRepo, c.SupportRepo, c.AnnounceRepo, c.TemplateRepo, c.AccountGroupRepo, c.MemberRepo)
 	c.AdminService = service.NewAdminService(c.AdminRepo, c.TenantRepo, c.PlanRepo, c.CodeRepo, c.SupportRepo, c.AnnounceRepo, c.AuditRepo, c.ProbeRepo, c.Cfg, c.DB.Pool)
+	c.AdminService.SetQuotaSyncer(c.TaskEngine)
 }
 
 func (c *Container) initHandlers() {
