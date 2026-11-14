@@ -31,7 +31,7 @@
       </div>
       <div>
         <label class="block text-sm font-medium mb-2">选择要采集的群组</label>
-        <div @click="showGroupSelector = true"
+        <div role="button" tabindex="0" @click="showGroupSelector = true" @keydown.enter="showGroupSelector = true" @keydown.space.prevent="showGroupSelector = true"
              class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
           <MessageSquare class="w-5 h-5 text-text-muted" />
           <span v-if="!selectedGroup" class="text-text-muted">点击选择群组</span>

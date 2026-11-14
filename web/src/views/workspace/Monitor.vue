@@ -85,7 +85,7 @@
               </span>
             </label>
             <template v-if="!monitorAllMessages">
-              <div @click="showSourceSelector = true"
+              <div role="button" tabindex="0" @click="showSourceSelector = true" @keydown.enter="showSourceSelector = true" @keydown.space.prevent="showSourceSelector = true"
                    class="flex items-center gap-2 p-3 mt-2 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
                 <Users class="w-4 h-4 text-text-muted" />
                 <span v-if="!selectedSourceGroups.length" class="text-text-muted text-sm">点击选择源群组</span>
@@ -180,7 +180,7 @@
           </div>
           <div v-if="ruleForm.type === 'forward'">
             <label class="block text-sm text-text-secondary mb-1">目标群组（转发目的地）</label>
-            <div @click="showTargetSelector = true"
+            <div role="button" tabindex="0" @click="showTargetSelector = true" @keydown.enter="showTargetSelector = true" @keydown.space.prevent="showTargetSelector = true"
                  class="flex items-center gap-2 p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
               <Users class="w-4 h-4 text-text-muted" />
               <span v-if="!selectedTargetGroups.length" class="text-text-muted text-sm">点击选择目标群组</span>
