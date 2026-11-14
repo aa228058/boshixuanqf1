@@ -87,7 +87,7 @@
       <!-- 移动端卡片 -->
       <div class="md:hidden divide-y divide-border/30">
         <div v-for="acc in filteredAccounts" :key="acc.account_id" class="p-3 flex items-center gap-3">
-          <input type="checkbox" :checked="selected.has(acc.account_id)" @change="toggleSelect(acc.account_id)" class="accent-primary shrink-0" / aria-label="选择账号">
+          <input type="checkbox" :checked="selected.has(acc.account_id)" @change="toggleSelect(acc.account_id)" class="accent-primary shrink-0" aria-label="选择账号" />
           <img v-if="avatarOf(acc)" :src="avatarOf(acc)!" class="w-10 h-10 rounded-full object-cover shrink-0" />
           <div v-else class="w-10 h-10 rounded-full bg-[var(--t-brand)]/20 flex items-center justify-center text-sm font-bold shrink-0">
             {{ (acc.first_name || acc.phone || '?').slice(0, 1).toUpperCase() }}
@@ -129,7 +129,7 @@
           </div>
         </div>
         <input ref="sessionFileInput" type="file" accept=".session" multiple class="hidden"
-          @change="onSessionFilesPicked" / aria-label="选择 .session 文件">
+          @change="onSessionFilesPicked" aria-label="选择 .session 文件" />
 
         <div class="flex items-center gap-3 text-xs text-text-secondary">
           <div class="flex-1 h-px bg-border/50"></div>或粘贴 session 字符串<div class="flex-1 h-px bg-border/50"></div>
@@ -173,7 +173,7 @@
     </Modal>
 
     <!-- 隐藏的文件选择 -->
-    <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onAvatarPicked" / aria-label="选择头像图片">
+    <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onAvatarPicked" aria-label="选择头像图片" />
   </div>
 </template>
 

@@ -155,12 +155,12 @@
         <div class="sm:col-span-2">
           <label class="block text-xs text-text-secondary mb-1">API Key{{ ai.has_key ? '（已保存，留空则不修改）' : '' }}</label>
           <input v-model="aiForm.api_key" type="password" placeholder="智谱免费key: open.bigmodel.cn 注册即得"
-            class="ui-input !text-sm font-mono" / aria-label="AI API 密钥">
+            class="ui-input !text-sm font-mono" aria-label="AI API 密钥" />
         </div>
         <div class="sm:col-span-3">
           <label class="block text-xs text-text-secondary mb-1">模型名（留空用默认）</label>
           <input v-model="aiForm.model" :placeholder="aiForm.provider === 'qwen' ? 'qwen-vl-max' : 'glm-4v-flash'"
-            class="ui-input !text-sm font-mono" / aria-label="AI 模型">
+            class="ui-input !text-sm font-mono" aria-label="AI 模型" />
         </div>
       </div>
       <div class="flex items-center gap-3">
@@ -211,7 +211,7 @@
     <div v-if="authStore.tenant?.plan_features?.dict" v-show="activeTab === 'textdicts'" class="glass rounded-[var(--t-r-md)] p-3.5 sm:p-5 lift space-y-4">
       <div><h3 class="text-sm font-medium text-text-secondary">文本素材分组</h3><p class="text-xs text-text-muted mt-1">管理完整消息字典。字典和每条消息都可独立启停；停用内容会保留，但不会出现在可用素材中。</p></div>
       <div class="rounded-lg bg-bg-card p-3 space-y-2">
-        <input v-model="newDictName" class="ui-input w-full" maxlength="64" placeholder="字典名称，例如：活动通知" / aria-label="词典名称">
+        <input v-model="newDictName" class="ui-input w-full" maxlength="64" placeholder="字典名称，例如：活动通知" aria-label="词典名称" />
         <textarea v-model="newDictItems" class="ui-input w-full min-h-[110px] resize-y" placeholder="每行一条完整消息（创建后可逐条编辑和启停）" />
         <div class="flex justify-end"><t-button theme="primary" class="ui-t-button ui-t-button--primary ui-t-button--sm" :disabled="dictSaving || !newDictName.trim()" :loading="dictSaving" @click="createTextDict">新建字典</t-button></div>
       </div>
