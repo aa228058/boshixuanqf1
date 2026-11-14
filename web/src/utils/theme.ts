@@ -14,7 +14,9 @@ function readStored(): ThemeMode {
     // 兼容旧的 dark 标记
     if (localStorage.getItem('theme') === 'dark' || localStorage.getItem('tg_theme_dark') === '1') return 'dark'
   } catch { /* SSR/隐私模式 */ }
-  return 'normal'
+  // 产品要求默认深色（运营后台长时间盯屏，浅色刺眼）；用户手动切到浅色会被存下来，
+  // 下次仍按他自己的选择走。
+  return 'dark'
 }
 
 export function apply(mode: ThemeMode) {

@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-[100dvh] bg-bg-secondary flex items-center justify-center px-4">
-    <div class="w-full max-w-full max-w-[380px] animate-fade-in-scale">
+    <div class="w-full max-w-[420px] animate-fade-in-scale">
       <!-- Logo -->
       <div class="text-center mb-10">
         <div class="w-16 h-16 rounded-[var(--t-r-lg)] bg-cyan-glow/50 flex items-center justify-center mx-auto mb-5">
@@ -79,7 +79,7 @@
 
           <div>
             <label class="block text-sm font-medium text-text-primary mb-2">
-              卡密 <span class="text-rose">*</span>
+              卡密
             </label>
             <input
               v-model="form.code"

@@ -309,8 +309,8 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
   transition: background-color var(--t-duration-normal) ease, border-color var(--t-duration-normal) ease, color var(--t-duration-normal) ease, transform var(--t-duration-fast) ease;
 }
 .t-button.ui-t-button--sm { min-height: var(--t-control-height-sm); padding-inline: var(--t-space-3); font-size: var(--t-font-xs); }
-.t-button.ui-t-button--primary { color: var(--t-brand-ink); background: var(--t-brand); border-color: var(--t-brand); }
-.t-button.ui-t-button--primary:not(.t-is-disabled):hover { color: var(--t-brand-ink); background: var(--t-brand-hover); border-color: var(--t-brand-hover); }
+.t-button.ui-t-button--primary { color: var(--t-brand-ink); background: var(--t-brand-fill, var(--t-brand)); border-color: var(--t-brand-fill, var(--t-brand)); }
+.t-button.ui-t-button--primary:not(.t-is-disabled):hover { color: var(--t-brand-ink); background: var(--t-brand-fill-hover, var(--t-brand-hover)); border-color: var(--t-brand-fill-hover, var(--t-brand-hover)); }
 .t-button.ui-t-button--secondary { color: var(--t-button-secondary-text); background: var(--t-button-secondary-bg); border-color: var(--t-button-secondary-border); }
 .t-button.ui-t-button--secondary:not(.t-is-disabled):hover { color: var(--t-button-secondary-text); background: var(--t-button-secondary-hover); border-color: var(--t-button-secondary-border); }
 .t-button.ui-t-button--danger { color: #fff; background: var(--t-err); border-color: var(--t-err); }
@@ -436,7 +436,7 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 /* 主操作按钮：前景、背景、悬停和按下状态全部使用当前主题语义令牌。 */
 .ui-native-button--primary {
   color: var(--t-brand-ink);
-  background: var(--t-brand);
+  background: var(--t-brand-fill, var(--t-brand));
   border-color: var(--t-brand);
   box-shadow: var(--t-shadow-sm);
 }
