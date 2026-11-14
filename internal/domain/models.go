@@ -272,13 +272,6 @@ func (a *Account) fillDerived() {
 	}
 }
 
-// avatarURLPath 由 MarshalJSON 生成, 便于前端 <img> 直接引用(需带认证, 前端走 axios blob)。
-func (a *Account) fillAvatarURL() {
-	if a.AvatarPath != "" {
-		a.AvatarURL = "/accounts/" + a.AccountID.String() + "/avatar"
-	}
-}
-
 func (a Account) MarshalJSON() ([]byte, error) {
 	a.fillDerived()
 	type Alias Account

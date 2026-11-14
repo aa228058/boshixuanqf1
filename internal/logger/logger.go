@@ -69,19 +69,7 @@ func (l *Logger) Error(msg string, fields map[string]any) {
 	l.log(ErrorLevel, msg, fields)
 }
 
-// Fatal logs and exits.
-func (l *Logger) Fatal(msg string, fields map[string]any) {
-	l.log(ErrorLevel, msg, fields)
-	os.Exit(1)
-}
-
 // Printf is a compatibility wrapper for standard log.Printf.
 func (l *Logger) Printf(format string, v ...any) {
 	l.Info(fmt.Sprintf(format, v...), nil)
-}
-
-// Write implements io.Writer so Logger can be used as Echo's log output.
-func (l *Logger) Write(p []byte) (n int, err error) {
-	l.Info(string(p), nil)
-	return len(p), nil
 }

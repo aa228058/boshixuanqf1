@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mtgo-labs/mtgo/telegram"
 	"github.com/mtgo-labs/mtgo/tg"
 	"github.com/mtgo-labs/storage"
-	"tg-sender/internal/safego"
 )
 
 // MigrateDC 把账号会话从当前 DC 迁移到目标 DC（救活被机房路由封死的 DC，如 DC1→DC2）。
@@ -134,97 +131,4 @@ func (e *Engine) migrateDCWithSource(ctx context.Context, tenantID, accountID uu
 	}
 	log.Printf("[migrate] 账号 %s 已从 DC%d 迁移到 DC%d\n", accountID, oldDC, targetDC)
 	return nil
-}
-
-// autoMigrateInfo 迁移判定缓存条目: 会话名+DC 5分钟内免查库。
-type autoMigrateInfo struct {
-	sessionName string
-	dc          int32
-	at          time.Time
-}
-
-// maybeAutoMigrate 保活账号在线时的自动迁移判定（全自动，无需手动点按钮）。
-// 会话 DC ∈ TG_AUTO_MIGRATE_FROM 黑名单 → 后台 MigrateDC（每账号 10 分钟冷却）。
-// 迁移成功后 MigrateDC 内部 DisconnectAccount，保活循环随 stillManaged 检查退出，
-// 账号转为新 DC 的按需模式（HTTP 传输直达）。
-//
-// Q修复: 原实现每次判定 2 次 DB 查询(账号+DC), 保活每 30s 触发一次,
-// 且冷却检查在查询之后 —— 未命中黑名单的账号(绝大多数)每次都白查。
-// 100 个协议号 = 200 次查询/30s。现改为: 冷却检查(纯内存)提前,
-// 会话名+DC 判定结果缓存 5 分钟(TTL 内零 DB)。
-func (e *Engine) maybeAutoMigrate(tenantID, accountID uuid.UUID) {
-	from := strings.TrimSpace(e.cfg.TGAutoMigrateFrom)
-	if from == "" {
-		return
-	}
-
-	key := accountKey(tenantID, accountID)
-
-	// 冷却检查先行(纯内存, 零 DB): 命中过黑名单且在冷却期内直接返回
-	e.migrateMu.Lock()
-	if e.migrateAttempts == nil {
-		e.migrateAttempts = make(map[string]time.Time)
-	}
-	if last, ok := e.migrateAttempts[key]; ok && time.Since(last) < 10*time.Minute {
-		e.migrateMu.Unlock()
-		return
-	}
-	e.migrateMu.Unlock()
-
-	// 判定缓存: 会话名+DC, 5 分钟 TTL, 热路径零 DB
-	e.autoMigrateMu.Lock()
-	info, cached := e.autoMigrateCache[key]
-	e.autoMigrateMu.Unlock()
-	if !cached || time.Since(info.at) > 5*time.Minute {
-		qCtx, qCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		acc, err := e.repo.GetByID(qCtx, tenantID, accountID)
-		if err != nil || acc == nil || acc.SessionName == "" {
-			qCancel()
-			return
-		}
-		var dc int32
-		if err := e.pool.QueryRow(qCtx,
-			`SELECT dc FROM sessions WHERE session_id = $1`, acc.SessionName).Scan(&dc); err != nil {
-			qCancel()
-			return
-		}
-		qCancel()
-		info = autoMigrateInfo{sessionName: acc.SessionName, dc: dc, at: time.Now()}
-		e.autoMigrateMu.Lock()
-		if e.autoMigrateCache == nil { // 防御: 测试等场景下未走 NewEngine 构造
-			e.autoMigrateCache = make(map[string]autoMigrateInfo)
-		}
-		e.autoMigrateCache[key] = info
-		e.autoMigrateMu.Unlock()
-	}
-
-	hit := false
-	for _, s := range strings.Split(from, ",") {
-		if n, err := strconv.Atoi(strings.TrimSpace(s)); err == nil && int64(n) == int64(info.dc) {
-			hit = true
-			break
-		}
-	}
-	if !hit {
-		return
-	}
-
-	e.migrateMu.Lock()
-	e.migrateAttempts[key] = time.Now()
-	e.migrateMu.Unlock()
-
-	target := e.cfg.TGAutoMigrateTo
-	if target < 1 || target > 5 {
-		target = 2
-	}
-	log.Printf("[migrate] 账号 %s (DC%d) 命中迁移黑名单，后台自动迁移到 DC%d\n", accountID, info.dc, target)
-	safego.Go(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-		defer cancel()
-		if err := e.MigrateDC(ctx, tenantID, accountID, target); err != nil {
-			log.Printf("[migrate] 账号 %s 自动迁移失败(10分钟后重试): %v\n", accountID, err)
-		} else {
-			log.Printf("[migrate] 账号 %s 自动迁移完成，已切换到按需模式\n", accountID)
-		}
-	})
 }

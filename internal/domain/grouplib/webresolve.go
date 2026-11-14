@@ -122,11 +122,6 @@ func applyTelegramWebHeaders(req *http.Request) {
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9,zh-CN;q=0.8")
 }
 
-func resolveInviteTitleViaWeb(ctx context.Context, hash string) (string, error) {
-	title, _, _, err := resolveInviteInfoViaWeb(ctx, hash)
-	return title, err
-}
-
 func resolveInviteInfoViaWeb(ctx context.Context, hash string) (string, int, string, error) {
 	hash = strings.TrimSpace(hash)
 	if !telegramInviteHashRe.MatchString(hash) {

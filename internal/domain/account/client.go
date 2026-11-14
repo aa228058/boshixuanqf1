@@ -632,14 +632,6 @@ func (e *Engine) evictOldestIdleClient() bool {
 	return pc != nil
 }
 
-// StartPoolCleaner starts a background goroutine that cleans up idle connections.
-
-func (e *Engine) removeClient(key string) {
-	e.mu.Lock()
-	delete(e.clients, key)
-	e.mu.Unlock()
-}
-
 // removeClientIfSame prevents a cancelled, older auth goroutine from deleting
 // a newer auth flow that has already registered under the same account key.
 func (e *Engine) removeClientIfSame(key string, expected *managedClient) {

@@ -55,11 +55,6 @@ func (b *Batcher) Draw(tenantID uuid.UUID, chatID int64, activityName, text stri
 	b.addText(EventRaffleWinner, "draw", tenantID, chatID, activityName, text)
 }
 
-// Winner 账号中奖(聚合, 5s 窗口 —— 同一条开奖消息所有账号几乎同时解析)
-func (b *Batcher) Winner(tenantID uuid.UUID, chatID int64, keyword, account, prize string) {
-	b.add(EventRaffleWinner, "winner", tenantID, chatID, keyword, account, prize)
-}
-
 // addText: draw 专用 —— 无账号维度, 键=租户|draw|群|活动名, 攒 5s 发一封原文转发
 func (b *Batcher) addText(event, kind string, tenantID uuid.UUID, chatID int64, keyword, text string) {
 	if b == nil || b.mailer == nil || text == "" {

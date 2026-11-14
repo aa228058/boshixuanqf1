@@ -1092,12 +1092,6 @@ func (s *TaskService) GetLogsByAccount(ctx context.Context, tenantID, accountID 
 	return s.logRepo.ListByAccount(ctx, tenantID, accountID, "", page, pageSize)
 }
 
-// CountLogsByAccount returns total log count for an account.
-func (s *TaskService) CountLogsByAccount(ctx context.Context, tenantID, accountID uuid.UUID) (int, error) {
-	_, count, err := s.logRepo.ListByAccount(ctx, tenantID, accountID, "", 1, 1)
-	return count, err
-}
-
 // GetByID returns a task by ID.
 func (s *TaskService) GetByID(ctx context.Context, tenantID, taskID uuid.UUID) (*domain.Task, error) {
 	return s.repo.GetByID(ctx, tenantID, taskID)

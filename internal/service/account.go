@@ -24,11 +24,6 @@ import (
 	"tg-sender/internal/safego"
 )
 
-// GroupSyncer syncs joined Telegram groups for an account.
-type GroupSyncer interface {
-	SyncJoinedGroups(ctx context.Context, tenantID, accountID uuid.UUID) error
-}
-
 // AccountService handles account business logic.
 type AccountService struct {
 	cfg         *config.Config
@@ -37,7 +32,6 @@ type AccountService struct {
 	quota       *repository.QuotaRepository
 	risk        *repository.RiskRepository
 	engine      AccountEngine
-	groupSyncer GroupSyncer
 	tenantRepo  domain.TenantRepository
 	taskLogRepo *repository.TaskLogRepository
 }

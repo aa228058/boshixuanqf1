@@ -37,14 +37,6 @@ type Engine struct {
 	poolMu      sync.RWMutex
 	maxPoolSize int
 
-	// DC 自动迁移冷却(每账号 10 分钟最多试一次, 防失败死循环)
-	migrateMu       sync.Mutex
-	migrateAttempts map[string]time.Time
-
-	// 自动迁移判定缓存(治每30s每号2次DB查询): key → 会话名+DC, 5分钟TTL
-	autoMigrateMu    sync.Mutex
-	autoMigrateCache map[string]autoMigrateInfo
-
 	// 孤儿锁表: 池内 entry 被断开/清理摘除后, 持有者仍握着 pc.mu。
 	// 按 client 指针登记, ReleaseClient 兜底认领解锁 —— 否则锁永久泄漏
 	// (表现: 该账号之后所有 GetClient 永远阻塞, 只能重启进程)。
@@ -91,7 +83,6 @@ type Engine struct {
 // If caching is reintroduced, use a TTL-backed map with proper locking.
 
 type managedClient struct {
-	keepOnline    bool // 导入协议号时置 true: 认证成功后不断开, 保活常驻(用于连通性验证)
 	client        *telegram.Client
 	accountID     uuid.UUID
 	tenantID      uuid.UUID
@@ -186,7 +177,6 @@ func NewEngine(cfg *config.Config, pool *pgxpool.Pool, repo domain.AccountReposi
 		// 并发建连去重/传输缓存/迁移冷却: 构造时显式初始化(nil map 写入会 panic)
 		connectInflight: make(map[string]chan struct{}),
 		transportCache:  make(map[int32]string),
-		migrateAttempts: make(map[string]time.Time),
 		deadKey:         make(map[uuid.UUID]time.Time),
 		authGrace:       make(map[uuid.UUID]time.Time),
 		backupDir:       backupDir,

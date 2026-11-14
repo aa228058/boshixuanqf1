@@ -79,7 +79,6 @@ type Engine struct {
 	done            chan struct{}
 	// Rule cache: tenantID -> []MonitorRule + lastUpdate
 	ruleCache   map[uuid.UUID][]domain.MonitorRule
-	ruleCacheMu sync.RWMutex
 	ruleCacheTS map[uuid.UUID]time.Time
 	// tenantID -> accountID -> monitor session (cancel + done channel)
 	sessions map[uuid.UUID]map[uuid.UUID]*monitorSession
