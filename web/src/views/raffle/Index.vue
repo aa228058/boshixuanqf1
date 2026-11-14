@@ -203,7 +203,7 @@
              class="rounded-[var(--t-r-md)] border border-border overflow-hidden" style="background: var(--t-surface-2);">
           <div class="flex items-center gap-2 px-3 py-2" style="border-bottom: 1px solid var(--t-line-light);">
             <span class="text-[11px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0"
-                  style="background: var(--t-brand-dim); color: var(--t-brand);">活动{{ gi + 1 }}</span>
+                  style="background: var(--t-brand-dim); color: var(--t-brand-on-dim, var(--t-brand));">活动{{ gi + 1 }}</span>
             <span class="text-small font-semibold truncate" style="color: var(--t-text-1);">{{ g.keyword || '未命名活动' }}</span>
             <span class="ml-auto flex items-center gap-1.5 shrink-0 text-caption">
               <span class="px-1.5 py-0.5 rounded-full" style="background: var(--t-surface-3); color: var(--t-text-3);">{{ g.items.length }}个号</span>
