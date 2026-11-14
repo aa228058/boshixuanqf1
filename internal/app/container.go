@@ -177,8 +177,19 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 }
 
 func runMigrations(db *database.DB) error {
-	sqlDB := stdlib.OpenDBFromPool(db.Pool)
+	// 迁移必须用独立连接并关掉 statement_timeout：连接池统一设了 15s 上限(见
+	// database.New)，而 84 个迁移里有大量非 CONCURRENTLY 的建索引和 CHECK 约束重建，
+	// 表一大就会在 DDL 阶段被超时打断 —— 表现为"部署后启动即 Fatal"，且库停在半路。
+	migCfg := db.Pool.Config().ConnConfig.Copy()
+	if migCfg.RuntimeParams == nil {
+		migCfg.RuntimeParams = map[string]string{}
+	}
+	migCfg.RuntimeParams["statement_timeout"] = "0"
+	migCfg.RuntimeParams["idle_in_transaction_session_timeout"] = "0"
+
+	sqlDB := stdlib.OpenDB(*migCfg)
 	defer sqlDB.Close()
+	sqlDB.SetMaxOpenConns(1)
 	// R86 修复: goose v3 全局 dialect 默认 sqlite3, 会按分号朴素切分 SQL。
 	// 065_groups_updated_at.sql 含 $$...$$ dollar-quoted 函数体(内部有分号),
 	// 被切断后报 "unterminated dollar-quoted string"(2026-10-23 运行时实证)。
