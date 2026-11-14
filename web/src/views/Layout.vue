@@ -308,20 +308,20 @@
       <!-- footer 按步骤切换(footer 插槽必须在 Modal 直接子层级, 不能嵌套在条件分支内) -->
       <template #footer>
         <template v-if="addStep === 'phone'">
-          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
+          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="cancelAddFlow">取消</t-button>
           <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!phoneInputs.some(p => p.trim()) || adding || resendCountdown > 0" @click="getVerificationCode">
             <Loader2 v-if="adding" class="w-4 h-4 animate-spin" />
             {{ adding ? '发送中...' : resendCountdown > 0 ? `已发送(${resendCountdown}s)` : '获取验证码' }}
           </t-button>
         </template>
         <template v-else-if="addStep === 'code'">
-          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
+          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="cancelAddFlow">取消</t-button>
           <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!authCode || submitting" @click="submitVerificationCode">
             {{ submitting ? '提交中...' : '提交验证码' }}
           </t-button>
         </template>
         <template v-else>
-          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="showAddAccount = false">取消</t-button>
+          <t-button type="button" variant="outline" class="ui-t-button ui-t-button--secondary" @click="cancelAddFlow">取消</t-button>
           <t-button type="button" theme="primary" class="ui-t-button ui-t-button--primary" :disabled="!twoFAPassword || submitting" @click="submit2FA">
             {{ submitting ? '验证中...' : '完成登录' }}
           </t-button>
@@ -478,6 +478,9 @@ const phoneInputs = ref<string[]>([''])
 const phoneQueue = ref<QueueItem[]>([])
 const queueIndex = ref(-1)
 const queueProcessing = ref(false)
+// 用户点「取消」后置 true：批量队列必须立刻停手，已建出来的号码也要断开认证，
+// 否则关窗后后台仍继续 create/connect（占用套餐额度、触发 TG 风控）。
+const queueCancelled = ref(false)
 const currentQueuePhone = computed(() => phoneQueue.value[queueIndex.value]?.phone || phoneInputs.value[0] || '')
 const newRemark = ref('')
 const authCode = ref('')
@@ -500,6 +503,18 @@ function openAddModal() {
   newAccountId.value = ''
 }
 
+// cancelAddFlow 由弹窗的「取消」按钮调用：停队列 + 断开当前号码的认证。
+function cancelAddFlow() {
+  queueCancelled.value = true
+  queueProcessing.value = false
+  const current = phoneQueue.value[queueIndex.value]
+  if (current?.accountId) {
+    void accountApi.disconnect(current.accountId).catch(() => {})
+  }
+  showAddAccount.value = false
+  toast({ type: 'info', title: '已取消', message: '已停止批量添加，正在进行的号码已中断' })
+}
+
 // 批量入口: 解析多行手机号(每行一个) → 建队列 → 串行逐个发起
 async function getVerificationCode() {
   const phones = phoneInputs.value.map(s => s.trim()).filter(s => /^\+?\d{6,15}$/.test(s.replace(/\s/g, '')))
@@ -511,6 +526,7 @@ async function getVerificationCode() {
     toast({ type: 'warning', title: '单次最多 10 个', message: '分批添加可防止批量触发 TG 风控' })
     return
   }
+  queueCancelled.value = false
   phoneQueue.value = phones.map(p => ({ phone: p.startsWith('+') ? p : '+' + p.replace(/\s/g, ''), accountId: '', step: 'awaiting_code', error: '' }))
   queueIndex.value = 0
   queueProcessing.value = true
@@ -524,6 +540,7 @@ async function waitForAuthPhase(accountId: string, timeoutMs: number): Promise<{
   const start = Date.now()
   const interval = 2000
   while (Date.now() - start < timeoutMs) {
+    if (queueCancelled.value) return { phase: 'cancelled' }
     await new Promise(r => setTimeout(r, interval))
     try {
       const state = await accountApi.getAuthState(accountId)
@@ -559,6 +576,11 @@ async function processQueueItem() {
   try {
     const acc = await accountStore.createAccount(item.phone, newRemark.value || undefined)
     item.accountId = acc.account_id
+    if (queueCancelled.value) {
+      // 用户在创建请求飞行中点了取消：把刚建出来的号码断掉，避免后台空转
+      void accountApi.disconnect(acc.account_id).catch(() => {})
+      return
+    }
     newAccountId.value = acc.account_id
     await accountApi.connect(acc.account_id)
     const result = await waitForAuthPhase(acc.account_id, 75000)
@@ -595,6 +617,7 @@ async function processQueueItem() {
 
 // 当前号完成/失败后推进队列
 function nextQueueItem() {
+  if (queueCancelled.value) return
   queueIndex.value++
   if (queueIndex.value < phoneQueue.value.length) {
     processQueueItem()

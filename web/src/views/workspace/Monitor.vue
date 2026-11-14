@@ -54,10 +54,10 @@
             </div>
             <div class="flex items-center gap-1">
               <t-switch :model-value="rule.is_active" @update:model-value="(v: boolean) => toggleRule(rule.rule_id, v)" />
-              <button type="button" @click="editRule(rule)" class="ui-icon-btn" title="编辑">
+              <button type="button" @click="editRule(rule)" class="ui-icon-btn" title="编辑" aria-label="编辑规则">
                 <Edit3 class="w-4 h-4 text-text-muted" />
               </button>
-              <button type="button" @click="deleteRule(rule.rule_id)" class="ui-icon-btn ui-icon-btn--danger" title="删除">
+              <button type="button" @click="deleteRule(rule.rule_id)" class="ui-icon-btn ui-icon-btn--danger" title="删除" aria-label="删除规则">
                 <Trash2 class="w-4 h-4 text-[var(--t-err)]" />
               </button>
             </div>

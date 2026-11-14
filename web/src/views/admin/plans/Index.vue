@@ -18,8 +18,24 @@
       {{ loadError }}
     </div>
 
+    <!-- 加载骨架 -->
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div v-for="n in 4" :key="n" class="glass rounded-[var(--t-r-md)] p-4 space-y-3 lift">
+        <div class="h-4 w-1/2 rounded bg-bg-hover animate-pulse-soft" />
+        <div class="h-3 w-2/3 rounded bg-bg-hover animate-pulse-soft" />
+        <div class="h-9 w-full rounded bg-bg-hover animate-pulse-soft" />
+      </div>
+    </div>
+    <!-- 空态 -->
+    <EmptyState
+      v-else-if="!plans.length"
+      icon="Inbox"
+      title="还没有套餐配置"
+      description="套餐数据来自 plans 表。新部署请先确认迁移已执行，或联系平台管理员创建套餐。"
+    />
+
     <!-- 数值区: 每档一卡 -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
       <div v-for="p in plans" :key="p.plan_id" class="glass rounded-[var(--t-r-md)] p-4 space-y-2.5 lift">
         <div class="flex items-center justify-between">
           <span class="font-semibold text-sm">{{ p.name }}</span>
@@ -86,6 +102,7 @@ import { Loader2 } from 'lucide-vue-next'
 import { adminApiMod } from '@/api/admin'
 import { toast } from '@/utils/toast'
 import { normalizePlanFeatures } from '@/utils/adminPageGuards'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 interface PlanRow {
   plan_id: string
@@ -100,6 +117,8 @@ interface PlanRow {
 
 const plans = ref<PlanRow[]>([])
 const saving = ref(false)
+// 首屏还没有数据时必须显示骨架：否则用户先看到空网格，几秒后才"长出"卡片。
+const loading = ref(true)
 
 // 套餐功能矩阵(2026-10-20 适配): 已随 UI 重构清理——
 // 删: 关键词搜群(search 并入 discover)/邀请入群(并入加群)/账号检测/代理设置/AI图片验证/数据导出
@@ -142,6 +161,7 @@ async function load() {
   plansController = controller
   const requestId = ++plansRequestId
   loadError.value = ''
+  loading.value = true
   try {
     const res = await adminApiMod.listPlans({ signal: controller.signal })
     if (!plansPageActive || requestId !== plansRequestId) return
@@ -155,10 +175,12 @@ async function load() {
       loadError.value = '套餐列表为空 —— 请检查迁移 051 是否已执行(plans 表结构是否含 daily_search_limit 列)'
     }
   } catch (e: any) {
+    loading.value = false
     if (controller.signal.aborted || !plansPageActive || requestId !== plansRequestId) return
     loadError.value = e?.message || '请求失败(401/500?)'
     toast({ type: 'error', message: '套餐加载失败: ' + loadError.value })
   } finally {
+    if (plansPageActive) loading.value = false
     if (plansController === controller) plansController = null
   }
 }

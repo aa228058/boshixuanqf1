@@ -121,7 +121,7 @@
       <!-- 目标选择 -->
       <div>
         <!-- R98 表单分组① -->
-      <div class="flex items-center gap-2 mb-3 -mt-1"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">1</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送目标</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
+      <div class="flex items-center gap-2 mb-3 -mt-1"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand-fill, var(--t-brand));">1</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送目标</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <label class="block text-sm font-medium mb-2">发送目标</label>
         <div @click="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
           <div class="flex items-center gap-2">
@@ -200,7 +200,7 @@
       </div>
 
       <!-- R98 表单分组② -->
-      <div class="flex items-center gap-2 mb-3 mt-5"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">2</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">消息内容</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
+      <div class="flex items-center gap-2 mb-3 mt-5"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand-fill, var(--t-brand));">2</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">消息内容</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <!-- 消息内容 -->
       <div>
       <label class="block text-sm font-medium mb-2">消息内容</label>
@@ -245,7 +245,7 @@
       </div>
 
       <!-- R98 表单分组③ -->
-      <div class="flex items-center gap-2 mb-3 mt-5"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand);">3</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送设置</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
+      <div class="flex items-center gap-2 mb-3 mt-5"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand-fill, var(--t-brand));">3</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送设置</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <!-- 发送间隔设置 -->
       <div>
         <label class="block text-sm font-medium mb-2">发送间隔（秒）</label>

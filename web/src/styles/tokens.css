@@ -29,6 +29,11 @@
   --t-brand-active:#3d43c4;
   --t-brand-dim:   rgba(91, 98, 246, 0.10);
   --t-brand-ink:   #ffffff;
+  /* 填充型主按钮专用：白字必须压在足够深的底色上。
+     深色主题的 --t-brand(#8b7bff) 是给"文字/描边"用的亮紫，直接做按钮底色
+     白字对比度只有 2.4:1（WCAG AA 需要 4.5:1），所以单独给一组填充色。 */
+  --t-brand-fill:       #5b62f6;
+  --t-brand-fill-hover: #4a51e0;
   --t-button-secondary-bg: #e9edf6;
   --t-button-secondary-hover: #dfe5f1;
   --t-button-secondary-border: #cbd3e2;
@@ -62,6 +67,8 @@ html.theme-eye {
   --t-line-light:  #efe8de;
   --t-brand:       #c45d3c;
   --t-brand-hover: #a94e32;
+  --t-brand-fill:       #b8542f;
+  --t-brand-fill-hover: #a34a29;
   --t-brand-active:#8f4229;
   --t-brand-dim:   rgba(196, 93, 60, 0.10);
   --t-brand-ink:   #ffffff;
@@ -94,6 +101,8 @@ html.theme-dark {
   --t-line-light:  rgba(255, 255, 255, 0.06);
   --t-brand:       #8b7bff;
   --t-brand-hover: #a193ff;
+  --t-brand-fill:       #6b5bff;
+  --t-brand-fill-hover: #5b4bea;
   --t-brand-active:#6b5bff;
   --t-brand-dim:   rgba(107, 91, 255, 0.16);
   --t-brand-ink:   #ffffff;

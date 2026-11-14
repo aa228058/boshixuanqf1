@@ -3,7 +3,14 @@
   <main class="relative space-y-6">
     <span class="absolute top-2 right-2 text-xs text-[var(--t-warn)] bg-[color:var(--t-warn-dim)] px-2 py-0.5 rounded-full z-10">演示数据</span>
     <!-- 首页不显示面包屑 -->
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <!-- 加载骨架：首屏失败或慢时不再显示一排 0 让人误判为"数据就是 0" -->
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div v-for="n in 6" :key="n" class="glass rounded-[var(--t-r-md)] p-4 space-y-3 lift">
+        <div class="h-3 w-1/2 rounded bg-bg-hover animate-pulse-soft" />
+        <div class="h-6 w-2/3 rounded bg-bg-hover animate-pulse-soft" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <StatCard
         v-for="stat in stats"
         :key="stat.label"
@@ -99,6 +106,7 @@ import { finiteMetric, formatValidDate } from '@/utils/adminPageGuards'
 
 use([CanvasRenderer, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
+const loading = ref(true)
 const stats = ref([
   { label: '总租户', value: '0', icon: 'Users', color: 'cyan', trend: '+0' },
   { label: '活跃租户', value: '0', icon: 'Activity', color: 'cyan', trend: '+0' },
@@ -173,7 +181,9 @@ onMounted(async () => {
     const res = await adminApiMod.listTenants({ limit: 5 }, { signal: controller.signal })
     if (!dashboardPageActive || requestId !== dashboardRequestId) return
     recentTenants.value = res.list || []
+    loading.value = false
   } catch (e: unknown) {
+    loading.value = false
     if (controller.signal.aborted || !dashboardPageActive || requestId !== dashboardRequestId) return
     // P2-60: 原空 catch 静默——管理仪表盘首屏失败只显示全 0 数字, 管理员无感知
     console.error('[admin-dashboard] 加载失败:', e)
