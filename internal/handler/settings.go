@@ -20,7 +20,7 @@ import (
 
 // SettingsHandler handles settings, activation, templates, groups, exports, and notification center.
 type SettingsHandler struct {
-	svc    *service.SettingsService
+	svc    settingsService
 	mailer *notify.Mailer // R119: 通知中心(可为 nil)
 	dicts  *repository.TextDictRepository
 }

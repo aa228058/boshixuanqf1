@@ -10,13 +10,14 @@ import (
 	"tg-sender/internal/safego"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/labstack/echo/v4"
 	"tg-sender/internal/config"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/middleware"
 	"tg-sender/internal/service"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/labstack/echo/v4"
 )
 
 // GroupSyncer syncs joined Telegram groups for an account.
@@ -27,8 +28,8 @@ type GroupSyncer interface {
 // GroupHandler handles group APIs.
 type GroupHandler struct {
 	cfg         *config.Config
-	svc         *service.GroupService
-	taskSvc     *service.TaskService
+	svc         groupService
+	taskSvc     groupTaskCreator
 	syncer      GroupSyncer
 	accountRepo domain.AccountRepository
 }

@@ -31,8 +31,8 @@ import (
 
 // AccountHandler handles account APIs.
 type AccountHandler struct {
-	svc        *service.AccountService
-	taskSvc    *service.TaskService // R181 群转移: 导出链接后用目标账号创建 join_groups 任务
+	svc        accountService
+	taskSvc    accountTaskCreator // R181 群转移: 导出链接后用目标账号创建 join_groups 任务
 	memberRepo domain.MemberRepository
 	auditRepo  *repository.AuditRepository
 }

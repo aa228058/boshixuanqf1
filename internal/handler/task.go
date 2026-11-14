@@ -25,7 +25,7 @@ import (
 
 // TaskHandler handles task APIs.
 type TaskHandler struct {
-	svc         *service.TaskService
+	svc         taskService
 	planChecker *middleware.PlanChecker
 	auditRepo   *repository.AuditRepository
 	engine      *task.Engine

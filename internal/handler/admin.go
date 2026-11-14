@@ -86,7 +86,7 @@ func checkAdminLoginRateLimit(ip string) error {
 
 // AdminHandler handles admin routes.
 type AdminHandler struct {
-	adminService *service.AdminService
+	adminService adminPlaneService
 }
 
 // NewAdminHandler creates a new admin handler.
