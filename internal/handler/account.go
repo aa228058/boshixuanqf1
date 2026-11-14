@@ -489,6 +489,9 @@ func (h *AccountHandler) Update(c echo.Context) error {
 // @Security BearerAuth
 // @Router /accounts/{id}/quotas [get]
 // GetQuotas returns account quotas.
+// GetQuotas 返回账号的日配额行。
+// 注意: 日限额 enforcement 已按产品决策关闭（额度恒为 0，见 domain/models.go:471），
+// 这里只做展示/兼容外部调用；要恢复拦截需在任务执行侧重新接 AddUsage。
 func (h *AccountHandler) GetQuotas(c echo.Context) error {
 	tenantID, err := middleware.GetTenantID(c)
 	if err != nil {

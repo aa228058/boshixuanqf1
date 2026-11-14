@@ -494,26 +494,8 @@ func (s *AdminService) PurgeTenant(ctx context.Context, tenantID uuid.UUID) erro
 			return fmt.Errorf("delete account_quotas: %w", err)
 		}
 
-		// F-05: 以下关联表无 tenant_id 列（或仅有 NOT VALID 外键），必须经
-		// accounts/campaigns 子查询删除，否则删租户后残留孤儿数据（含 PII）。
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM squad_members
-			WHERE account_id IN (SELECT account_id FROM accounts WHERE tenant_id = $1)
-		`, tenantID); err != nil {
-			return fmt.Errorf("delete squad_members: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM campaign_accounts
-			WHERE campaign_id IN (SELECT id FROM campaigns WHERE tenant_id = $1)
-		`, tenantID); err != nil {
-			return fmt.Errorf("delete campaign_accounts: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM campaign_targets
-			WHERE campaign_id IN (SELECT id FROM campaigns WHERE tenant_id = $1)
-		`, tenantID); err != nil {
-			return fmt.Errorf("delete campaign_targets: %w", err)
-		}
+		// campaigns / squads 整套业务在 R114 已删除，相关表由迁移 101 一并清掉，
+		// 这里不能再引用——否则清理事务会因 "relation does not exist" 整体回滚。
 
 		// batch_tasks/contacts/tenant_subscriptions/refresh_tokens/audit_logs/ai_configs/
 		// raffle_results/text_dicts/account_group_categories 已带 ON DELETE CASCADE 外键，
@@ -527,11 +509,10 @@ func (s *AdminService) PurgeTenant(ctx context.Context, tenantID uuid.UUID) erro
 			"risk_events", "task_logs", "pending_approvals",
 			"scraped_links", "tasks",
 			"accounts", "monitor_rules",
-			"members", "groups", "message_templates",
-			"squads", "campaigns", "token_blacklist",
+			"members", "groups", "message_templates", "token_blacklist",
 			"plan_daily_counters", "verification_logs",
 		}
-		allowedTables := map[string]bool{"risk_events": true, "task_logs": true, "pending_approvals": true, "scraped_links": true, "tasks": true, "accounts": true, "monitor_rules": true, "members": true, "groups": true, "message_templates": true, "squads": true, "campaigns": true, "token_blacklist": true, "plan_daily_counters": true, "verification_logs": true}
+		allowedTables := map[string]bool{"risk_events": true, "task_logs": true, "pending_approvals": true, "scraped_links": true, "tasks": true, "accounts": true, "monitor_rules": true, "members": true, "groups": true, "message_templates": true, "token_blacklist": true, "plan_daily_counters": true, "verification_logs": true}
 		for _, table := range tables {
 			if !allowedTables[table] {
 				return fmt.Errorf("invalid table: %s", table)
