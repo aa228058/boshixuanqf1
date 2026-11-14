@@ -52,7 +52,7 @@
           <button type="button"
             role="switch"
             :aria-checked="replyEnabled"
-            :disabled="replySaving"
+            :disabled="replySaving || statusLoading" :aria-busy="statusLoading"
             class="relative w-10 h-6 rounded-full transition-colors duration-200 shrink-0"
             :style="replyEnabled ? 'background: var(--t-brand);' : 'background: var(--t-surface-3);'"
             @click="saveReply(!replyEnabled, replyText)"
@@ -98,7 +98,7 @@
           <button type="button"
             role="switch"
             :aria-checked="pingEnabled"
-            :disabled="pingSaving"
+            :disabled="pingSaving || statusLoading" :aria-busy="statusLoading"
             class="relative w-10 h-6 rounded-full transition-colors duration-200 shrink-0"
             :style="pingEnabled ? 'background: var(--t-brand);' : 'background: var(--t-surface-3);'"
             @click="savePing(!pingEnabled, pingText)"
@@ -243,6 +243,9 @@ import { toast } from '@/utils/toast'
 import { ask } from '@/utils/confirm'
 
 const raffleEnabled = ref(false)
+// 状态未拉回之前开关显示的是默认 false，看起来像"已关闭"；
+// 这期间禁止点击，避免用户把"还没加载"当成"关着"去点一下反而打开。
+const statusLoading = ref(true)
 const toggling = ref(false)
 const accountTogglePending = ref(new Set<string>())
 const toggleAllPending = ref(false)
@@ -267,6 +270,7 @@ async function savePing(enabled: boolean, text: string) {
     pingText.value = text
     toast({ type: 'success', message: '私聊激活设置已保存' })
   } catch (e: any) {
+    statusLoading.value = false
     if (rafflePageActive) toast({ type: 'error', message: e?.message || '保存失败' })
   } finally {
     if (rafflePageActive) pingSaving.value = false
@@ -304,6 +308,7 @@ async function saveReply(enabled: boolean, text: string) {
     replyText.value = text
     toast({ type: 'success', message: '中奖回复设置已保存' })
   } catch (e: any) {
+    statusLoading.value = false
     if (rafflePageActive) toast({ type: 'error', message: e?.message || '保存失败' })
   } finally {
     if (rafflePageActive) replySaving.value = false
@@ -330,6 +335,7 @@ async function loadRaffleStatus() {
   raffleStatusController = controller
   try {
     const res = await request.get<{ enabled: boolean; reply_enabled?: boolean; reply_text?: string; ping_enabled?: boolean; ping_text?: string }>('/raffle/status', { signal: controller.signal })
+    statusLoading.value = false
     if (!rafflePageActive) return
     raffleEnabled.value = !!res.enabled
     replyEnabled.value = !!res.reply_enabled

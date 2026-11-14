@@ -74,7 +74,7 @@
           </div>
 
           <t-button type="submit" class="ui-t-button ui-t-button--primary mt-1 w-full font-extrabold disabled:opacity-60" :disabled="loading"
-                  :style="{ background: loginFailed ? 'var(--t-err)' : 'var(--t-brand)' }">
+                  :style="{ background: loginFailed ? 'var(--t-err-fill, var(--t-err))' : 'var(--t-brand-fill, var(--t-brand))' }">
             <!-- R140 用户拍板: 删除转圈加载动画, 保留"登录中…"文字反馈 -->
             {{ loading ? '登录中…' : '登录并进入工作台 →' }}
           </t-button>

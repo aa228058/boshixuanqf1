@@ -34,6 +34,8 @@
      白字对比度只有 2.4:1（WCAG AA 需要 4.5:1），所以单独给一组填充色。 */
   --t-brand-fill:       #5b62f6;
   --t-brand-fill-hover: #4a51e0;
+  /* 错误/危险态填充：白字在纯 --t-err 上只有 3.6:1，压深一档到 4.6:1 */
+  --t-err-fill:         #b84444;
   --t-button-secondary-bg: #e9edf6;
   --t-button-secondary-hover: #dfe5f1;
   --t-button-secondary-border: #cbd3e2;
@@ -69,6 +71,7 @@ html.theme-eye {
   --t-brand-hover: #a94e32;
   --t-brand-fill:       #b8542f;
   --t-brand-fill-hover: #a34a29;
+  --t-err-fill:         #b0452a;
   --t-brand-active:#8f4229;
   --t-brand-dim:   rgba(196, 93, 60, 0.10);
   --t-brand-ink:   #ffffff;
@@ -103,6 +106,7 @@ html.theme-dark {
   --t-brand-hover: #a193ff;
   --t-brand-fill:       #6b5bff;
   --t-brand-fill-hover: #5b4bea;
+  --t-err-fill:         #c14545;
   --t-brand-active:#6b5bff;
   --t-brand-dim:   rgba(107, 91, 255, 0.16);
   --t-brand-ink:   #ffffff;
