@@ -368,8 +368,13 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
       // R168: refresh 接口自身的 401 = refresh token 也过期。原逻辑会走"等待刷新"分支,
       // await 的是同一个进行中的 promise → 自等待死锁 → 全站 API 挂起, 页面永久空白。
       // 这里直接登出并踢回登录页。
-      if (endpoint === '/auth/refresh') {
-        authStore.logout()
+      // /auth/logout 与 /auth/refresh 同属"会话终结"路径：它们的 401 不能再触发一次
+      // 登出，否则"登出请求 401 → 登出 → 登出请求 401"会无限递归。本地凭据已清空时
+      // 直接收尾，不再重复清理。
+      if (endpoint === '/auth/refresh' || endpoint === '/auth/logout') {
+        if (authStore.token) {
+          authStore.logout()
+        }
         const publicPaths = ['/login', '/register', '/admin/login']
         if (!publicPaths.includes(window.location.pathname)) {
           router.push('/login')
@@ -482,7 +487,10 @@ export async function adminRequest<T>(endpoint: string, options: RequestOptions 
       if (endpoint === '/admin/auth/login') {
         throw new Error(translateError(errData.message) || '用户名或密码错误')
       }
-      adminStore.logout()
+      // 登出流程中 token 已清空，此时再调一次 logout 会重复发起注销请求（401 → logout → 401）。
+      if (adminStore.token) {
+        adminStore.logout()
+      }
       const publicPaths = ['/login', '/register', '/admin/login']
       if (!publicPaths.includes(window.location.pathname)) {
         router.push('/admin/login')

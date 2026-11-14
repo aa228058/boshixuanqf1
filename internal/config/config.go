@@ -325,7 +325,9 @@ func Load() *Config {
 		ReadTimeout:    getDuration("READ_TIMEOUT", 30*time.Second),
 		WriteTimeout:   getDuration("WRITE_TIMEOUT", 30*time.Second),
 		MaxHeaderBytes: getInt("MAX_HEADER_BYTES", 1<<20),
-		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
+		// 默认不放开跨域: SPA 由 nginx 同源提供, 不需要 CORS。旧的默认值 "*"
+		// 与 AllowCredentials 组合等于对任意站点放开带凭证请求。
+		AllowedOrigins: getEnv("ALLOWED_ORIGINS", ""),
 
 		DBHost:        dbHost,
 		DBPort:        dbPort,

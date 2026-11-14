@@ -4,6 +4,7 @@ APP_NAME=tg-sender
 BUILD_DIR=./build
 
 build:
+	mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o $(BUILD_DIR)/$(APP_NAME) ./cmd/server
 
 run:

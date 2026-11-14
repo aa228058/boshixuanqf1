@@ -27,10 +27,14 @@ services:
       - TG_API_ID=${TG_API_ID}
       - TG_API_HASH=${TG_API_HASH}
       - ENV=${ENV:-production}
+      # 备份落进已挂载的 data 卷, 否则重建容器时历史备份一并消失
+      - DB_BACKUP_DIR=${DB_BACKUP_DIR:-/app/data/backups}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     # 审计P1-12: 容器内监听8080, 映射到宿主8081(与应用实际端口一致)
+    # 安全: 默认只绑回环, 公网流量必须走 nginx。直连 8081 会绕过 nginx 的
+    # 安全响应头, 且 RealIP 可被伪造从而绕过限流。需要直连时显式设 APP_BIND=0.0.0.0。
     ports:
-      - "8081:8080"
+      - "${APP_BIND:-127.0.0.1}:8081:8080"
     # R170: 数据目录挂载到宿主机 —— 头像等文件原存在容器内, 每次重建即丢失(前端 404 的根)
     volumes:
       - ./data:/app/data

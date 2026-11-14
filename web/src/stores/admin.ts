@@ -43,14 +43,15 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function logout() {
     // 使在途登录响应失效；若登出请求期间用户重新登录，旧登出不得清除新会话。
-    const generation = ++sessionGeneration
-    try {
-      await adminApiMod.logout()
-    } catch { /* 后端不可达时仅本地登出 */ }
-    if (generation !== sessionGeneration) return
+    sessionGeneration++
+    // 先清本地凭据再请求服务端注销：原顺序(try 里 await 注销 → 之后再清)会让
+    // 注销请求返回 401，401 处理器又调用 logout，形成无上限的递归请求。
     token.value = ''
     admin.value = null
     safeRemoveItem(SESSION_KEY)
+    try {
+      await adminApiMod.logout()
+    } catch { /* 后端不可达时仅本地登出 */ }
   }
 
   return { token, admin, loading, isLoggedIn, login, logout }

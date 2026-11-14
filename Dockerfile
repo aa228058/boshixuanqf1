@@ -3,10 +3,11 @@
 FROM node:20-alpine AS webbuild
 WORKDIR /build
 COPY web/package*.json ./
-# BUG#6 修复: 包内 lock 文件过期(缺 esbuild@0.28.2), npm ci 一致性校验失败; install 按 package.json 重新解析
 # R87: npm 缓存挂载到 BuildKit 缓存目录, 二次构建跳过下载
+# lock 已重新生成并通过 npm ci 校验(285 包), 用 ci 而不是 install:
+# install 会按 package.json 重新解析版本, 构建出的依赖与 CI 测过的不是同一份。
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --no-audit --no-fund
+    npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
