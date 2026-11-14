@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"tg-sender/internal/safego"
 	"time"
 
 	"github.com/google/uuid"
@@ -345,7 +346,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 		leaseCtx, stopLease := context.WithCancel(ctx)
 		leaseLost := make(chan struct{})
 		heartbeatDone := make(chan struct{})
-		go func() {
+		safego.Go(func() {
 			defer close(heartbeatDone)
 			ticker := time.NewTicker(importJobHeartbeatInterval)
 			defer ticker.Stop()
@@ -368,10 +369,10 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					}
 				}
 			}
-		}()
+		})
 
 		cancelWatchDone := make(chan struct{})
-		go func() {
+		safego.Go(func() {
 			defer close(cancelWatchDone)
 			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
@@ -396,7 +397,7 @@ func (e *Engine) processImportJobs(ctx context.Context) {
 					cancel()
 				}
 			}
-		}()
+		})
 		lines := splitImportLines(payload)
 		if offset >= len(lines) {
 			_, _ = e.pool.Exec(leaseCtx, `

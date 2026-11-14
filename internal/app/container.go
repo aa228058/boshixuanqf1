@@ -11,10 +11,6 @@ import (
 	"tg-sender/internal/safego"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
-	"golang.org/x/crypto/bcrypt"
 	"tg-sender/internal/adaptive"
 	"tg-sender/internal/backup"
 	"tg-sender/internal/config"
@@ -23,6 +19,12 @@ import (
 	"tg-sender/internal/domain"
 	"tg-sender/internal/domain/account"
 	"tg-sender/internal/domain/grouplib"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+	"golang.org/x/crypto/bcrypt"
+
 	// R114: domain/campaign 导入已删(协议协同旧系统整包移除)
 	"tg-sender/internal/domain/monitor"
 	"tg-sender/internal/domain/task"
@@ -246,13 +248,13 @@ func (c *Container) initEngines() error {
 	// M-03: 引擎根 ctx 原本传 Background（ctx.Done 分支是死代码，停止全靠 stopCh）。
 	// 改为随 stopCh 取消的 ctx，使引擎内 DB/RPC 操作在停机时能被真正取消。
 	engineCtx, cancelEngines := context.WithCancel(context.Background())
-	go func() {
+	safego.Go(func() {
 		select {
 		case <-c.stopCh:
 			cancelEngines()
 		case <-engineCtx.Done():
 		}
-	}()
+	})
 	if err := taskEngine.Start(engineCtx); err != nil {
 		return fmt.Errorf("task engine: %w", err)
 	}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"tg-sender/internal/domain"
+	"tg-sender/internal/safego"
 )
 
 // 事件键 —— 前端设置页/后端订阅检查共用
@@ -175,11 +176,11 @@ func (m *Mailer) Notify(t *domain.Tenant, event, subject, body string) {
 		return
 	}
 	email := t.NotifyEmail
-	go func() {
+	safego.Go(func() {
 		if err := m.Send(cfg, email, subject, body); err != nil {
 			log.Printf("[notify] 发送失败 tenant=%s event=%s err=%v", t.TenantID, event, err)
 			return
 		}
 		log.Printf("[notify] 已发送 tenant=%s event=%s subject=%q", t.TenantID, event, subject)
-	}()
+	})
 }
