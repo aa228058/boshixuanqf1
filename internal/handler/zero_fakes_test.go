@@ -15,7 +15,10 @@ import (
 // 自动生成的零值假对象：让 handler 主干路径在无数据库时也能执行。
 // 需要特定行为的测试自行覆写对应方法。
 
-type zeroAccountSvc struct{ accountService }
+type zeroAccountSvc struct {
+	//lint:ignore U1000 嵌入接口以继承全部方法签名（未覆写的方法会 panic，用于提示测试缺口）
+	accountService
+}
 
 func (f *zeroAccountSvc) BatchSetPool(p0 context.Context, p1 uuid.UUID, p2 []uuid.UUID, p3 string) (map[string]interface{}, error) {
 	return *new(map[string]interface{}), nil
@@ -115,7 +118,10 @@ func (f *zeroAccountSvc) VerifyCode(p0 context.Context, p1 uuid.UUID, p2 uuid.UU
 	return nil
 }
 
-type zeroTaskSvc struct{ taskService }
+type zeroTaskSvc struct {
+	//lint:ignore U1000 同上：嵌入接口以继承方法签名
+	taskService
+}
 
 func (f *zeroTaskSvc) BatchCancel(p0 context.Context, p1 uuid.UUID, p2 []uuid.UUID) (int, int, error) {
 	return *new(int), *new(int), nil
