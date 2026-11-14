@@ -27,7 +27,7 @@
         :pagination="{ current: page, pageSize: 20, total: total, onChange: onPageChange }"
       >
         <template #select="{ row }">
-          <input type="checkbox" :value="row.code_id" v-model="selectedIds" class="accent-[var(--t-brand)]" @click.stop />
+          <input type="checkbox" aria-label="选择激活码" :value="row.code_id" v-model="selectedIds" class="accent-[var(--t-brand)]" @click.stop />
         </template>
         <template #used_by="{ row }">
           <span v-if="row.used_by_tenant_name" class="text-sm">{{ row.used_by_tenant_name }}</span>
@@ -65,7 +65,7 @@
       >
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
-            <input type="checkbox" :value="c.code_id" v-model="selectedIds" class="accent-[var(--t-brand)] shrink-0" />
+            <input type="checkbox" aria-label="选择激活码" :value="c.code_id" v-model="selectedIds" class="accent-[var(--t-brand)] shrink-0" />
             <span class="font-mono text-sm truncate">{{ c.code }}</span>
           </div>
           <span class="text-xs px-2 py-0.5 rounded-full shrink-0" :class="codeStatusClass(c.status)">

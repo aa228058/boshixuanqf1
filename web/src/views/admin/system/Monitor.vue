@@ -1,8 +1,22 @@
 <template>
   <main class="space-y-6">
     <Breadcrumb :items="[{ path: '/admin/dashboard', label: '仪表盘' }, { path: '', label: '系统监控' }]" />
+
+    <!-- 首次拉取失败必须说清楚，否则整页 0.0% 会被误读成"系统完全空闲" -->
+    <div v-if="metricsError" class="glass rounded-[var(--t-r-md)] p-4 border border-[color:var(--t-err)]/30 text-sm text-[var(--t-err)] lift flex items-center justify-between gap-3">
+      <span>系统指标加载失败：{{ metricsError }}</span>
+      <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary" @click="fetchMetrics()">重试</t-button>
+    </div>
+    <!-- 骨架：避免首屏把 0 当成真实值 -->
+    <div v-if="metricsLoading" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div v-for="n in 3" :key="n" class="glass rounded-[var(--t-r-md)] p-5 lift space-y-4">
+        <div class="h-3 w-1/3 rounded bg-bg-hover animate-pulse-soft" />
+        <div class="h-8 w-1/2 rounded bg-bg-hover animate-pulse-soft" />
+        <div class="h-2 w-full rounded bg-bg-hover animate-pulse-soft" />
+      </div>
+    </div>
     <!-- 资源监控 -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div v-if="!metricsLoading" class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="glass rounded-[var(--t-r-md)] p-5 lift">
         <div class="flex items-center justify-between mb-4">
           <span class="text-sm text-text-secondary">CPU 使用率</span>
@@ -165,6 +179,11 @@ function usageBarColor(percent: number): string {
   return 'bg-[var(--t-brand)]'
 }
 
+// 首屏还没有数据时，页面上是一排 0.0%——看起来像"系统空闲"，
+// 实际是"还没拉到"。用 loading/error 两个状态把这件事说清楚。
+const metricsLoading = ref(true)
+const metricsError = ref('')
+
 let metricsRequestPending = false
 let metricsMounted = false
 let metricsController: AbortController | null = null
@@ -177,6 +196,8 @@ async function fetchMetrics() {
   try {
     const data = await adminApiMod.getSystemMetrics({ signal: controller.signal })
     if (!metricsMounted) return
+    metricsLoading.value = false
+    metricsError.value = ''
     metrics.value = { ...metrics.value, ...data }
     metrics.value.cpu = clampPercentage(data.cpu)
     metrics.value.memory = clampPercentage(data.memory)
@@ -199,7 +220,11 @@ async function fetchMetrics() {
     // 每次成功拉取记一条 DEBUG(50 条环形缓冲, 不堆积)。
     pushLog('DEBUG', `指标已更新 CPU ${metrics.value.cpu}% 内存 ${metrics.value.memory}%`)
   } catch (e: unknown) {
-    if (metricsMounted) pushLog('ERROR', `指标拉取失败: ${(e as Error)?.message || e}`)
+    if (metricsMounted) {
+      metricsLoading.value = false
+      metricsError.value = (e as Error)?.message || '指标拉取失败'
+      pushLog('ERROR', `指标拉取失败: ${metricsError.value}`)
+    }
   } finally {
     if (metricsController === controller) metricsController = null
     metricsRequestPending = false

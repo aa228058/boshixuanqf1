@@ -234,7 +234,7 @@
       <div class="space-y-3 pb-2">
         <label class="block text-xs font-medium text-text-secondary">选择 TXT / CSV 文件（最大 20MB）</label>
         <input type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-xs" :disabled="importFileReading || importing"
-          @change="onImportFile" />
+          @change="onImportFile" aria-label="选择导入文件" />
         <p v-if="importFileReading" class="text-xs text-text-muted" role="status">正在读取文件…</p>
         <p v-if="importFileName" class="text-xs text-text-secondary">已选择：{{ importFileName }}</p>
         <div class="text-xs text-text-muted">也可以直接粘贴链接，每行一条或使用逗号分隔。</div>
@@ -291,7 +291,7 @@
           </label>
           <div v-if="joinBatchEnabled" class="col-span-2 flex items-center gap-2 text-xs text-text-secondary">
             每个账号分配
-            <input type="number" v-model.number="joinPerAccount" min="1" max="100" class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" />
+            <input type="number" v-model.number="joinPerAccount" min="1" max="100" class="ui-input !w-20 !min-h-[36px] !px-2 !py-1.5 !text-center" aria-label="每个账号分配的群数" />
             个群（共 {{ selected.size }} 个群 / {{ joinAccounts.length || 0 }} 个账号）
           </div>
           <label class="col-span-2 text-xs text-text-secondary">

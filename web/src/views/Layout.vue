@@ -270,13 +270,13 @@
           <!-- 单号输入(2026-10-20 清理: 原多行批量加号使用率低已移除, 队列逻辑保留恒为 1) -->
           <div class="flex items-center">
             <span class="inline-flex items-center px-3 h-[44px] rounded-l-lg bg-bg-card border border-r-0 border-border text-text-secondary text-sm">+</span>
-            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" />
+            <input v-model="phoneInputs[0]" placeholder="8613800138000" class="ui-input !w-auto flex-1 !min-h-[44px] !px-3 !py-2 !rounded-l-none !text-sm" inputmode="numeric" aria-label="手机号" />
           </div>
           <p class="text-xs text-text-secondary mt-1">只需输入号码数字（+ 前缀已自带）</p>
         </div>
         <div>
           <label class="block text-sm text-text-secondary mb-1.5">备注（可选）</label>
-          <input v-model="newRemark" placeholder="如：主号-客服" class="ui-input !min-h-[44px] !text-sm" aria-label="如：主号-客服" />
+          <input v-model="newRemark" placeholder="如：主号-客服" class="ui-input !min-h-[44px] !text-sm" aria-label="备注（可选）" />
         </div>
       </div>
       <!-- 步骤2：验证码 -->

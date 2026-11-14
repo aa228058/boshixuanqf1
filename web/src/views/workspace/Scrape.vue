@@ -92,7 +92,7 @@
       </div>
       <div class="flex items-center justify-end gap-3 pt-2">
         <t-button type="button" @click="showCreate = false" class="ui-t-button--secondary ui-t-button">取消</t-button>
-        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting">
+        <t-button type="button" class="ui-t-button ui-t-button--primary flex items-center gap-2" @click="submit" :disabled="(!selectedGroup || !scrapeAccId) || submitting" :loading="submitting">
           <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
           {{ submitting ? '创建中...' : '开始采集' }}
         </t-button>

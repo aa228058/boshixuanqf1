@@ -232,7 +232,7 @@
         ]" />
         <div v-if="mediaType" class="space-y-2">
           <input v-model="mediaUrl" placeholder="媒体 URL (https://...)，或上传本地文件"
-                 class="ui-input !text-sm" />
+                 class="ui-input !text-sm" aria-label="媒体链接" />
           <div class="flex items-center gap-2">
             <label class="px-3 py-1.5 rounded-lg border border-border text-xs cursor-pointer hover:border-[color:var(--t-brand)] transition-colors">
               上传文件<input type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov" class="hidden" @change="onMediaFile">
@@ -307,7 +307,7 @@
             </div>
             <div>
               <label class="block text-xs font-semibold text-text-secondary mb-1">固定执行时间</label>
-              <input v-model="scheduleLocalTime" type="time" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+              <input v-model="scheduleLocalTime" type="time" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" aria-label="固定执行时间" />
             </div>
             <div v-if="loopScheduleMode === 'weekly'">
               <label class="block text-xs font-semibold text-text-secondary mb-1">执行星期</label>
@@ -321,7 +321,7 @@
           </div>
           <div>
             <label class="block text-xs font-semibold text-text-secondary mb-1">首次执行时间（可选）</label>
-            <input v-model="firstRunLocal" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+            <input v-model="firstRunLocal" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" aria-label="首次执行日期时间" />
             <p class="text-[10px] text-text-muted mt-1">留空时，日历模式自动计算下一次符合条件的时间；间隔模式立即开始。</p>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -332,7 +332,7 @@
             </div>
             <div>
               <label class="block text-xs font-semibold text-text-secondary mb-1">自动结束时间（可选）</label>
-              <input v-model="loopEndAt" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" />
+              <input v-model="loopEndAt" type="datetime-local" class="w-full rounded-lg border border-border bg-bg-card px-3 py-2 text-sm text-text-primary" aria-label="循环结束时间" />
               <p class="text-[10px] text-text-muted mt-1">到期后不再安排下一轮</p>
             </div>
           </div>
