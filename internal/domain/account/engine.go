@@ -260,15 +260,8 @@ func (e *Engine) cleanupOnce() {
 	if _, err := e.pool.Exec(ctx, fmt.Sprintf(`DELETE FROM audit_logs WHERE created_at < NOW() - %s`, fmtSprintf(e.cfg.AuditRetentionDays))); err != nil {
 		log.Printf("[cleanup] audit_logs: %v", err)
 	}
-	if _, err := e.pool.Exec(ctx, fmt.Sprintf(`DELETE FROM campaigns WHERE created_at < NOW() - %s`, fmtSprintf(e.cfg.CampaignRetentionDays))); err != nil {
-		log.Printf("[cleanup] campaigns: %v", err)
-	}
-	// 删号残留: 参战记录里账号已不存在 → 标阵亡(显示准确)
-	if _, err := e.pool.Exec(ctx,
-		`UPDATE campaign_accounts SET status='dead'
-		 WHERE status != 'dead' AND account_id NOT IN (SELECT account_id FROM accounts)`); err != nil {
-		log.Printf("[cleanup] campaign orphan: %v", err)
-	}
+	// campaigns/campaign_accounts 两套表已由迁移 101 删除（业务代码 R114 就没了），
+	// 这里不再做保留期清理与孤儿标记。
 }
 
 // refreshBanRateLoop refreshes the global 24h ban rate every 5 minutes.

@@ -239,7 +239,7 @@ func (c *Container) initEngines() error {
 	accEngine.StartSessionBackup()
 	backup.StartDBBackup(c.Cfg)
 	// R114: Campaign 子系统整建制删除(引擎/服务/处理器/仓库/路由——前端零调用;
-	// campaigns 表的定期清理 SQL 由 account engine 内联保留, 不依赖任何 campaign 代码)
+	// campaigns 相关表已由迁移 101 删除)
 	c.AccountEngine = accEngine
 
 	// 群库仓库必须在使用前创建: 原实现把它放在下面第 383 行才赋值, 这里注入的是
