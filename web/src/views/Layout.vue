@@ -42,6 +42,8 @@
                 :to="item.path"
                 class="relative flex items-center gap-3 px-3.5 py-2 rounded-[var(--t-r-md)] text-sm font-medium transition-[transform,opacity,border-color,background-color] duration-200"
                 :class="[$route.path === item.path ? 'menu-on' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover', item.locked ? 'opacity-60' : '']"
+                :aria-current="$route.path === item.path ? 'page' : undefined"
+                :aria-disabled="item.locked ? 'true' : undefined"
                 @click="onGlobalItemClick(item, $event)"
               >
                 <!-- 激活指示条: 弹性滑入滑出 + 高度过渡(2026-10-21 侧边栏精修) -->
@@ -434,7 +436,6 @@ const notifStore = useNotificationStore()
 
 const showAnnouncements = ref(false)
 const showNotifications = ref(false)
-const sidebarOpen = ref(false)
 const isScrolled = ref(false)
 // R113 已删 avatarLoaded/currentAccId/showAccountSwitcher/accountSwitcherEl(死侧栏切换器残留)
 const mainRef = ref<HTMLElement | null>(null)
@@ -924,19 +925,6 @@ function onGlobalItemClick(item: any, evt: MouseEvent) {
     toast({ type: 'warning', title: '协议号系统已锁定', message: '仅限专业版/企业版套餐，请联系管理员升级' })
     return
   }
-  closeSidebarOnMobile()
-}
-
-// Phase 7 移动端底部 Tab: 主导航 4 项 + 高亮匹配(工作区页归入"任务")
-const mobileTabs = [
-  { path: '/dashboard', label: '仪表盘', icon: LayoutDashboard },
-  { path: '/accounts', label: '账号', icon: Users, match: ['/accounts', '/workspace'] },
-  { path: '/workspace', label: '任务', icon: ListTodo, match: ['/workspace', '/tasks'] },
-  { path: '/settings', label: '设置', icon: Settings },
-]
-function isTabActive(t: any) {
-  const m: string[] = t.match || [t.path]
-  return m.some((p: string) => route.path.startsWith(p))
 }
 
 // P2-67 审计修复: visibleGlobalMenu 已死——模板零引用(侧边栏实际渲染 menuSections),
@@ -1018,7 +1006,6 @@ function handleMenuClick(item: any) {
     return
   }
   router.push(item.path)
-  closeSidebarOnMobile()
 }
 
 // P2-67 审计修复: bottomNavItems 模板零引用(移动端底部导航已改走 menuSections 方案),
@@ -1055,10 +1042,6 @@ const isExpiringSoon = computed(() => {
 const accountCount = computed(() => accountStore.accounts.length)
 const maxAccounts = computed(() => authStore.tenant?.max_accounts || 1)
 const accountUsage = computed(() => accountCount.value / maxAccounts.value)
-
-function closeSidebarOnMobile() {
-  if (window.innerWidth < 768) sidebarOpen.value = false
-}
 
 function logout() {
   authStore.logout()
