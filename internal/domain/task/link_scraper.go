@@ -10,14 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/mtgo-labs/mtgo/telegram"
-	"github.com/mtgo-labs/mtgo/telegram/types"
-	"github.com/mtgo-labs/mtgo/tg"
 	"tg-sender/internal/config"
 	"tg-sender/internal/domain"
 	"tg-sender/internal/repository"
 	"tg-sender/internal/safego"
+
+	"github.com/google/uuid"
+	"github.com/mtgo-labs/mtgo/telegram"
+	"github.com/mtgo-labs/mtgo/telegram/types"
+	"github.com/mtgo-labs/mtgo/tg"
 )
 
 // rawLink represents a link extracted from a message before processing.
@@ -78,6 +79,9 @@ type LinkScraper struct {
 	accountRepo AccountLister
 	memberRepo  domain.MemberRepository
 
+	// linksPersisted 在批量落库成功后触发（由 container 接到群库聚合器的 TriggerMerge）。
+	linksPersisted atomic.Value // func()
+
 	bioEnabled sync.Map // accountID(string) -> bool
 	bioQueue   chan *rawBio
 	bioQueued  sync.Map // tenant:chat:user -> bool
@@ -118,6 +122,14 @@ func NewLinkScraper(cfg *config.Config, accEngine AccountEngine, linkRepo domain
 		stopCh:       make(chan struct{}),
 		consumerDone: make(chan struct{}),
 	}
+}
+
+// SetLinksPersistedHook 注册"链接批量落库成功"回调，用于立刻唤醒群库聚合。
+func (ls *LinkScraper) SetLinksPersistedHook(fn func()) {
+	if fn == nil {
+		return
+	}
+	ls.linksPersisted.Store(fn)
 }
 
 // SetMemberRepository injects member persistence for live Bio collection.
@@ -675,6 +687,13 @@ func (ls *LinkScraper) flushBatch(ctx context.Context) bool {
 	}
 	atomic.AddInt64(&ls.pendingLinkCount, -int64(len(batch)))
 	log.Printf("[link-scraper] 已批量写入 %d 条链接", len(batch))
+	// 新链接落库后立刻唤醒群库聚合，不必等 2 分钟兜底轮询。
+	// 回调内部自带去抖与非阻塞投递，这里直接在写入 goroutine 里调用是安全的。
+	if hook := ls.linksPersisted.Load(); hook != nil {
+		if fn, ok := hook.(func()); ok {
+			fn()
+		}
+	}
 	return true
 }
 

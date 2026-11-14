@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"tg-sender/internal/domain"
@@ -64,6 +65,25 @@ type Engine struct {
 	slW aggregationCursor // scraped_links 复合游标
 	gW  aggregationCursor // groups 复合游标
 	mW  aggregationCursor // members 复合游标
+
+	// kickCh 由写入路径(链接采集落库)触发，让聚合不必傻等 2 分钟轮询。
+	// 带去抖：两次触发之间至少隔 mergeKickMinGap，避免高频落库把扫描打爆。
+	kickCh  chan struct{}
+	lastRun atomic.Int64 // unix nano，供去抖判断
+}
+
+// mergeKickMinGap 是"被唤醒"后的最小间隔。落库可能每秒一批，而一次聚合要扫三路来源，
+// 15 秒足够把突发批量合并成一轮，又不会明显拖慢新链接可见时间。
+const mergeKickMinGap = 15 * time.Second
+
+// TriggerMerge 请求尽快跑一轮聚合(非阻塞，已排队时直接丢弃)。
+// 调用方：链接采集批量落库成功后。聚合循环本身仍在跑 2 分钟兜底轮询，
+// 所以即使这里丢了事件也只是晚一点，不会漏。
+func (e *Engine) TriggerMerge() {
+	select {
+	case e.kickCh <- struct{}{}:
+	default:
+	}
 }
 
 func (e *Engine) loadAggregationCursor(ctx context.Context, source string, local aggregationCursor) (aggregationCursor, error) {
@@ -146,7 +166,8 @@ func (e *Engine) acquireAggregationLock(ctx context.Context) (func(), bool, erro
 	return unlock, true, nil
 }
 func NewEngine(pool *pgxpool.Pool, repo *repository.SystemGroupRepository, acc accountEngine) *Engine {
-	return &Engine{repo: repo, pool: pool, acc: acc, interval: 2 * time.Minute, stopCh: make(chan struct{})}
+	return &Engine{repo: repo, pool: pool, acc: acc, interval: 2 * time.Minute,
+		stopCh: make(chan struct{}), kickCh: make(chan struct{}, 1)}
 }
 
 func (e *Engine) Start() {
@@ -171,6 +192,10 @@ func (e *Engine) Start() {
 			select {
 			case <-e.stopCh:
 				return
+			case <-e.kickCh:
+				if e.mergeKickAllowed() {
+					e.runOnce()
+				}
 			case <-t.C:
 				e.runOnce()
 			}
@@ -220,7 +245,17 @@ func (e *Engine) Stop() {
 	e.wg.Wait()
 }
 
+// mergeKickAllowed 判断被唤醒的这一轮是否值得马上跑（去抖）。
+func (e *Engine) mergeKickAllowed() bool {
+	last := e.lastRun.Load()
+	if last == 0 {
+		return true
+	}
+	return time.Since(time.Unix(0, last)) >= mergeKickMinGap
+}
+
 func (e *Engine) runOnce() {
+	e.lastRun.Store(time.Now().UnixNano())
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	done := make(chan struct{})
 	safego.Go(func() {
