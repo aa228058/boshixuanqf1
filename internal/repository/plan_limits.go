@@ -82,6 +82,19 @@ func (r *PlanLimitRepository) TryAddDailyUsage(ctx context.Context, tenantID uui
 	return true, nil
 }
 
+// GetDailyUsage 返回某租户今天某类用量的当前值（0 表示今天还没用过）。
+// 集成测试用它断言配额扣减，线上也可用于展示"今日已用"。
+func (r *PlanLimitRepository) GetDailyUsage(ctx context.Context, tenantID uuid.UUID, kind string) (int, error) {
+	var used int
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(used, 0) FROM plan_daily_counters
+		WHERE tenant_id = $1 AND day = CURRENT_DATE AND kind = $2`, tenantID, kind).Scan(&used)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil // 今日还没用过
+	}
+	return used, err
+}
+
 // Kind 常量
 const (
 	KindBroadcastMsgs = "broadcast_msgs"
