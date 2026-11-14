@@ -136,7 +136,7 @@ textarea.ui-input { min-height: 88px; resize: vertical; line-height: 1.55; }
 .ui-badge--ok    { background: var(--t-ok-dim); color: var(--t-ok); }
 .ui-badge--warn  { background: var(--t-warn-dim); color: var(--t-warn); }
 .ui-badge--err   { background: var(--t-err-dim); color: var(--t-err); }
-.ui-badge--info  { background: var(--t-brand-dim);         color: var(--t-brand); }
+.ui-badge--info  { background: var(--t-brand-dim);         color: var(--t-brand-on-dim, var(--t-brand)); }
 .ui-badge--mute  { background: var(--t-surface-2);         color: var(--t-text-3); }
 .ui-badge i { width: var(--t-space-1); height: var(--t-space-1); border-radius: 50%; background: currentColor; opacity: 0.85; }
 

@@ -6,9 +6,9 @@
     <div class="hidden lg:block">
       <div class="w-16 h-16 rounded-[22px] grid place-items-center text-white text-2xl font-black"
            style="background: var(--t-brand); box-shadow: 0 12px 36px color-mix(in srgb, var(--t-brand) 30%, transparent);">➤</div>
-      <div class="mt-7 text-[11px] font-extrabold tracking-[0.14em] uppercase" style="color: var(--t-brand);">TG SENDER · CONTROL CENTER</div>
+      <div class="mt-7 text-[11px] font-extrabold tracking-[0.14em] uppercase" style="color: var(--t-brand-on-dim, var(--t-brand));">TG SENDER · CONTROL CENTER</div>
       <h1 class="mt-4 text-[clamp(38px,4.5vw,64px)] font-black leading-[1.06] tracking-[-0.05em]">
-        把 Telegram<br><span style="color: var(--t-brand);">运营效率</span>交还给你。
+        把 Telegram<br><span style="color: var(--t-brand-on-dim, var(--t-brand));">运营效率</span>交还给你。
       </h1>
       <p class="mt-5 text-[16px] leading-relaxed max-w-[520px]" style="color: var(--t-text-2);">
         账号、群发、采集、任务与监控，一处掌控。从手机体验出发的轻量界面，触控友好、卡片柔和。
@@ -30,10 +30,10 @@
           <span class="text-[19px] font-black tracking-tight">博士轩TG助手</span>
           <!-- R130 版本徽章(令牌色): 一眼确认部署的包版本 -->
           <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold"
-                style="background: var(--t-brand-dim); color: var(--t-brand);">{{ BUILD_TAG }}</span>
+                style="background: var(--t-brand-dim); color: var(--t-brand-on-dim, var(--t-brand));">{{ BUILD_TAG }}</span>
         </div>
         <h1 class="mt-5 text-[26px] font-black leading-tight tracking-[-0.03em] whitespace-nowrap">
-          把<span style="color: var(--t-brand);">营销效率</span>还给你
+          把<span style="color: var(--t-brand-on-dim, var(--t-brand));">营销效率</span>还给你
         </h1>
         <p class="mt-2.5 text-[13.5px] leading-relaxed" style="color: var(--t-text-2);">
           账号、群发、采集、任务与监控，一处掌控
@@ -100,7 +100,7 @@
         <div class="mt-6 pt-5 flex items-center justify-between text-[13.5px]"
              style="border-top: 1px solid var(--t-line-light);">
           <span style="color: var(--t-text-3);">还没有账号？</span>
-          <router-link to="/register" class="font-bold" style="color: var(--t-brand);">立即注册 →</router-link>
+          <router-link to="/register" class="font-bold" style="color: var(--t-brand-on-dim, var(--t-brand));">立即注册 →</router-link>
         </div>
       </div>
 

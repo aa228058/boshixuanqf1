@@ -22,7 +22,7 @@
         <router-link v-for="(item, i) in g.items" :key="item.path" :to="item.path"
                      class="flex items-center gap-3 px-4 py-3.5 active:opacity-70 transition-opacity"
                      :style="i < g.items.length - 1 ? 'border-bottom: 1px solid var(--t-line-light);' : ''">
-          <span class="w-9 h-9 rounded-[var(--t-r-md)] grid place-items-center shrink-0" style="background: var(--t-brand-dim); color: var(--t-brand);">
+          <span class="w-9 h-9 rounded-[var(--t-r-md)] grid place-items-center shrink-0" style="background: var(--t-brand-dim); color: var(--t-brand-on-dim, var(--t-brand));">
             <component :is="item.icon" class="w-[18px] h-[18px]" stroke-width="2" />
           </span>
           <span class="flex-1 min-w-0">

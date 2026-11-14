@@ -41,7 +41,7 @@
                   <i class="w-1.5 h-1.5 rounded-full bg-current"></i>{{ rule.is_active ? '启用' : '停用' }}
                 </span>
                 <!-- 2026-09-22 隔离改造: 显示规则归属账号 -->
-                <span v-if="rule.account_id" class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style="background: var(--t-brand-dim); color: var(--t-brand);">
+                <span v-if="rule.account_id" class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style="background: var(--t-brand-dim); color: var(--t-brand-on-dim, var(--t-brand));">
                   账号: {{ accName(accountStore.accounts.find(a => a.account_id === rule.account_id)) }}
                 </span>
                 <span v-else class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-text-muted/10 text-text-muted">全部账号</span>

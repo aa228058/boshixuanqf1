@@ -166,7 +166,7 @@
           <span class="text-caption font-extrabold tracking-tight whitespace-nowrap shrink-0 leading-none">博士轩 TG 助手</span>
           <!-- R130 版本徽章: 构建号一眼可见(部署验证), 令牌色跟主题 -->
           <span class="hidden sm:inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0"
-                style="background: var(--t-brand-dim); color: var(--t-brand);">{{ BUILD_TAG }}</span>
+                style="background: var(--t-brand-dim); color: var(--t-brand-on-dim, var(--t-brand));">{{ BUILD_TAG }}</span>
         </div>
         <div class="flex items-center gap-2">
           <!-- R126 三主题循环: 正常(靛蓝) → 护眼(陶土) → 深色(玻璃紫) -->
@@ -178,7 +178,7 @@
           >
             <Sun v-if="themeMode === 'normal'" class="w-5 h-5 text-text-secondary" stroke-width="2" />
             <Leaf v-else-if="themeMode === 'eye'" class="w-5 h-5" style="color: var(--t-ok);" stroke-width="2" />
-            <Moon v-else class="w-5 h-5" style="color: var(--t-brand);" stroke-width="2" />
+            <Moon v-else class="w-5 h-5" style="color: var(--t-brand-on-dim, var(--t-brand));" stroke-width="2" />
             <!-- R182.6: 手机上隐藏主题文字(图标已够, 窄屏与版本徽标挤压重叠) -->
             <span class="text-[11px] font-bold hidden sm:inline" style="color: var(--t-text-3);">{{ themeLabel }}</span>
           </button>
