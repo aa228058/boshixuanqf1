@@ -40,7 +40,7 @@
       </div>
     </div>
     <template v-else>
-      <EmptyState v-if="tasksError" role="alert" icon="MessageSquare" :title="tasksError" description="点击重试">
+      <EmptyState v-if="tasksError" role="alert" icon="MessageSquare" :title="tasksError" description="加载失败，可重新拉取">
         <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3" @click="fetchTasks">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
