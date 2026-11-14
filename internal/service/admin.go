@@ -518,17 +518,20 @@ func (s *AdminService) PurgeTenant(ctx context.Context, tenantID uuid.UUID) erro
 		// batch_tasks/contacts/tenant_subscriptions/refresh_tokens/audit_logs/ai_configs/
 		// raffle_results/text_dicts/account_group_categories 已带 ON DELETE CASCADE 外键，
 		// 删 tenants 时自动清理；此处仅补无级联外键的表。
-		// P1-14: announcements/plan_daily_counters/verification_logs 有 tenant_id 列
-		// 但无外键, 删租户后残留——补进显式清单。
+		// P1-14: plan_daily_counters/verification_logs 有 tenant_id 列但无外键，
+		// 删租户后会残留——补进显式清单。
+		// 注意: announcements 是平台级表(007 迁移里没有 tenant_id 列)，不要放进本
+		// 列表——`DELETE FROM announcements WHERE tenant_id = $1` 会因列不存在报错，
+		// 整个清理事务随之回滚，表现为"清理过期租户"永远失败。
 		tables := []string{
 			"risk_events", "task_logs", "pending_approvals",
 			"scraped_links", "tasks",
 			"accounts", "monitor_rules",
 			"members", "groups", "message_templates",
 			"squads", "campaigns", "token_blacklist",
-			"announcements", "plan_daily_counters", "verification_logs",
+			"plan_daily_counters", "verification_logs",
 		}
-		allowedTables := map[string]bool{"risk_events": true, "task_logs": true, "pending_approvals": true, "scraped_links": true, "tasks": true, "accounts": true, "monitor_rules": true, "members": true, "groups": true, "message_templates": true, "squads": true, "campaigns": true, "token_blacklist": true, "announcements": true, "plan_daily_counters": true, "verification_logs": true}
+		allowedTables := map[string]bool{"risk_events": true, "task_logs": true, "pending_approvals": true, "scraped_links": true, "tasks": true, "accounts": true, "monitor_rules": true, "members": true, "groups": true, "message_templates": true, "squads": true, "campaigns": true, "token_blacklist": true, "plan_daily_counters": true, "verification_logs": true}
 		for _, table := range tables {
 			if !allowedTables[table] {
 				return fmt.Errorf("invalid table: %s", table)
