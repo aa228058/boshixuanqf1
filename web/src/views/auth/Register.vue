@@ -100,7 +100,7 @@
           </t-button>
         </form>
 
-        <div v-if="error" class="mt-4 p-3.5 bg-rose/5 border border-rose/10 rounded-[var(--t-r-md)] text-rose text-sm text-center">
+        <div v-if="error" role="alert" class="mt-4 p-3.5 bg-rose/5 border border-rose/10 rounded-[var(--t-r-md)] text-rose text-sm text-center">
           {{ error }}
         </div>
 

@@ -8,7 +8,7 @@
       <t-button size="small" variant="outline" class="ui-t-button ui-t-button--secondary ui-t-button--sm" @click="load" :loading="loading" :disabled="loading">刷新</t-button>
     </div>
 
-    <div v-if="error && !list.length && !loading" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-[var(--t-err)] lift">
+    <div v-if="error && !list.length && !loading" role="alert" class="glass rounded-[var(--t-r-md)] p-8 text-center text-sm text-[var(--t-err)] lift">
       {{ error }}
       <div class="mt-3"><t-button size="small" class="ui-t-button ui-t-button--secondary" @click="load">重新加载</t-button></div>
     </div>

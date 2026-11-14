@@ -242,8 +242,11 @@
   }
   /* 聚焦 glow 不再作用于 TDesign 组件内部(它们自带 focus 描边, 叠加会出双框) */
   :focus-visible:not(.t-input__inner):not(.t-textarea__inner):not([class*="t-"]) {
-    outline: none;
-    box-shadow: 0 0 0 2px var(--t-brand-dim);
+    /* 原来用 16% 透明度的 brand-dim 做 box-shadow，深色背景上几乎看不见；
+       键盘用户需要明确的焦点指示，改实色描边（WCAG 2.4.11）。 */
+    outline: 2px solid var(--t-brand-fill, var(--t-brand));
+    outline-offset: 2px;
+    box-shadow: none;
   }
 }
 

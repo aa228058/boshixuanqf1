@@ -295,7 +295,7 @@
           </div>
         </div>
         <input v-model="authCode" placeholder="请输入验证码" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="ui-input !min-h-[48px] !px-4 !py-3 !text-center !text-lg font-mono tracking-widest" @keyup.enter="submitVerificationCode" aria-label="请输入验证码" />
-        <p v-if="codeError" class="text-sm text-rose">{{ codeError }}</p>
+        <p v-if="codeError" role="alert" class="text-sm text-rose">{{ codeError }}</p>
         <button type="button" @click="resendCode" class="text-xs text-cyan hover:text-cyan-bright transition-colors">没收到？重新获取</button>
       </div>
       <!-- 步骤3：2FA -->
@@ -305,7 +305,7 @@
         </div>
         <p class="text-text-secondary">该账号开启了两步验证</p>
         <input v-model="twoFAPassword" type="password" placeholder="请输入两步验证密码" class="ui-input !min-h-[48px] !px-4 !py-3 !text-center" @keyup.enter="submit2FA" aria-label="请输入两步验证密码" />
-        <p v-if="twoFAError" class="text-sm text-rose">{{ twoFAError }}</p>
+        <p v-if="twoFAError" role="alert" class="text-sm text-rose">{{ twoFAError }}</p>
       </div>
       <!-- footer 按步骤切换(footer 插槽必须在 Modal 直接子层级, 不能嵌套在条件分支内) -->
       <template #footer>

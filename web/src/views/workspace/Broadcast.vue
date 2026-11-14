@@ -40,7 +40,7 @@
       </div>
     </div>
     <template v-else>
-      <EmptyState v-if="tasksError" icon="MessageSquare" :title="tasksError" description="点击重试">
+      <EmptyState v-if="tasksError" role="alert" icon="MessageSquare" :title="tasksError" description="点击重试">
         <t-button theme="default" variant="outline" size="sm" class="ui-t-button ui-t-button--secondary ui-t-button--sm mt-3" @click="fetchTasks">重新加载</t-button>
       </EmptyState>
       <EmptyState v-else-if="!tasks.length" icon="MessageSquare" title="暂无群发任务" description="点击右上角「新建群发任务」开始发送" />
@@ -123,7 +123,7 @@
         <!-- R98 表单分组① -->
       <div class="flex items-center gap-2 mb-3 -mt-1"><span class="w-[18px] h-[18px] rounded-full grid place-items-center text-[10px] font-black text-white shrink-0" style="background: var(--t-brand-fill, var(--t-brand));">1</span><span class="text-[11.5px] font-extrabold uppercase tracking-wider" style="color: var(--t-text-2);">发送目标</span><span class="flex-1 h-px" style="background: var(--t-line);"></span></div>
       <label class="block text-sm font-medium mb-2">发送目标</label>
-        <div @click="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
+        <div role="button" tabindex="0" @click="showTargetSelector = true" @keydown.enter="showTargetSelector = true" @keydown.space.prevent="showTargetSelector = true" class="p-3 rounded-lg border border-border cursor-pointer hover:border-[color:var(--t-brand)]/30 transition-colors">
           <div class="flex items-center gap-2">
             <MessageSquare class="w-5 h-5 text-text-muted shrink-0" />
             <span v-if="!selectedTargets.length" class="text-text-muted">点击选择发送目标</span>
