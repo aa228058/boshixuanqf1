@@ -4,12 +4,29 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// getDailyUsage 直接查表读取当日用量。
+// 原先是仓储上的生产方法，但它只被集成测试使用（生产侧日限额已按产品决策关闭），
+// 放在测试文件里可以保持生产代码零死代码。
+func getDailyUsage(pool *pgxpool.Pool, tenantID uuid.UUID, kind string) (int, error) {
+	var used int
+	err := pool.QueryRow(context.Background(), `
+		SELECT COALESCE(used, 0) FROM plan_daily_counters
+		WHERE tenant_id = $1 AND day = CURRENT_DATE AND kind = $2`, tenantID, kind).Scan(&used)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return used, err
+}
 
 func TestTryAddDailyUsageDoesNotExceedLimitUnderConcurrency(t *testing.T) {
 	pool := setupTestDB(t)
@@ -51,7 +68,7 @@ func TestTryAddDailyUsageDoesNotExceedLimitUnderConcurrency(t *testing.T) {
 	if got := allowed.Load(); got != limit {
 		t.Fatalf("allowed requests = %d, want exactly %d", got, limit)
 	}
-	used, err := repo.GetDailyUsage(ctx, tenantID, KindGroupSearch)
+	used, err := getDailyUsage(pool, tenantID, KindGroupSearch)
 	if err != nil {
 		t.Fatalf("GetDailyUsage: %v", err)
 	}
@@ -101,7 +118,7 @@ func TestTryAddDailyUsageAmountReservesWholeBatchAtomically(t *testing.T) {
 	if got := allowed.Load(); got != 2 {
 		t.Fatalf("allowed batches = %d, want 2 complete batches", got)
 	}
-	used, err := repo.GetDailyUsage(ctx, tenantID, KindBroadcastMsgs)
+	used, err := getDailyUsage(pool, tenantID, KindBroadcastMsgs)
 	if err != nil {
 		t.Fatalf("GetDailyUsage: %v", err)
 	}
@@ -114,7 +131,7 @@ func TestTryAddDailyUsageAmountReservesWholeBatchAtomically(t *testing.T) {
 	if err != nil || ok {
 		t.Fatalf("oversized batch reservation = (%v, %v), want (false, nil)", ok, err)
 	}
-	used, err = repo.GetDailyUsage(ctx, tenantID, KindBroadcastMsgs)
+	used, err = getDailyUsage(pool, tenantID, KindBroadcastMsgs)
 	if err != nil || used != 4 {
 		t.Fatalf("usage after rejected oversized batch = (%d, %v), want (4, nil)", used, err)
 	}
@@ -140,7 +157,7 @@ func TestReleaseDailyUsageAmountRefundsReservation(t *testing.T) {
 	if err := repo.ReleaseDailyUsageAmount(ctx, tenantID, KindBroadcastMsgs, 3); err != nil {
 		t.Fatalf("refund reservation: %v", err)
 	}
-	used, err := repo.GetDailyUsage(ctx, tenantID, KindBroadcastMsgs)
+	used, err := getDailyUsage(pool, tenantID, KindBroadcastMsgs)
 	if err != nil || used != 1 {
 		t.Fatalf("usage after refund = (%d, %v), want (1, nil)", used, err)
 	}

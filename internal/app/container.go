@@ -398,6 +398,10 @@ func (c *Container) initServices() {
 	c.TaskService.SetLinkScraper(c.LinkScraper)
 	// 群组库(找群): 平台级聚合器 + 接口
 	c.GroupLibEngine = grouplib.NewEngine(c.DB.Pool, c.SystemGroupRepo, c.AccountEngine)
+	// 新链接落库后立刻唤醒聚合，不必等 2 分钟兜底轮询（回调自带 15 秒去抖）。
+	if c.LinkScraper != nil {
+		c.LinkScraper.SetLinksPersistedHook(c.GroupLibEngine.TriggerMerge)
+	}
 	c.GroupLibEngine.Start()
 	// P0-6 审计修复(2026-10-22): 此处的 LinkScraper.Start 已删——原来 container 和
 	// task/engine.go 各调一次 Start, 4 个常驻 goroutine 双份空转。保留 engine 内的
@@ -700,9 +704,23 @@ func (c *Container) initHandlers() {
 	c.AdminHandler = handler.NewAdminHandler(c.AdminService)
 }
 
+// 补拉水位线: 每账号记录上次补拉时间。原来是"每进程每账号只补一次"，
+// 服务不重启但某账号中途掉线一小时，那段窗口的开奖就永远补不回来。
+// 现在对账循环（60 秒一轮）会按断档窗口增量补拉。
+var (
+	raffleBackfillMu   sync.Mutex
+	raffleBackfillAt   = map[uuid.UUID]time.Time{}
+	raffleBackfillBusy = map[uuid.UUID]bool{}
+)
+
+const (
+	// raffleBackfillInterval 两次补拉的最短间隔：太频繁等于对同一批消息反复扫描。
+	raffleBackfillInterval = 30 * time.Minute
+	// raffleBackfillMinGap 补拉失败后的最短重试间隔。
+	raffleBackfillMinGap = monitor.RaffleBackfillMinWindow
+)
+
 // reconcileRaffleWatch 全租户对账: 总开关开启的租户, 其勾选账号必须在线监听。
-// raffleBackfillOnce 保证每个账号每个进程只补拉一次（对账循环会反复调用本函数）。
-var raffleBackfillOnce sync.Map
 
 func (c *Container) reconcileRaffleWatch(ctx context.Context) {
 	// P2-67 审计修复: 原来硬编码 List(1,1000)——超 1000 租户时漏对账。
@@ -742,18 +760,44 @@ func (c *Container) reconcileRaffleWatchForTenant(ctx context.Context, tenantID 
 		if err := c.MonitorEngine.EnsureSession(ctx, tenantID, acc.AccountID, active); err != nil {
 			continue
 		}
-		// 重启后补收 12 小时内漏掉的开奖/中奖事件（每账号每进程一次）。
-		if _, loaded := raffleBackfillOnce.LoadOrStore(acc.AccountID, struct{}{}); loaded {
-			continue
-		}
-		backfillTenant := tenantID
-		backfillAccount := acc.AccountID
-		safego.Go(func() {
-			bctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			defer cancel()
-			c.MonitorEngine.BackfillRaffleHistory(bctx, backfillTenant, backfillAccount)
-		})
+		// 按断档窗口补收漏掉的开奖/中奖事件（见 maybeBackfillRaffle 的水位线逻辑）。
+		c.maybeBackfillRaffle(tenantID, acc.AccountID)
 	}
+}
+
+// maybeBackfillRaffle 按水位线决定是否补拉，以及补多远。
+// 首次（本进程内）补 12 小时；之后每次补"距上次补拉"的断档窗口，夹在 [5m, 12h]。
+func (c *Container) maybeBackfillRaffle(tenantID, accountID uuid.UUID) {
+	raffleBackfillMu.Lock()
+	if raffleBackfillBusy[accountID] {
+		raffleBackfillMu.Unlock()
+		return
+	}
+	last := raffleBackfillAt[accountID]
+	if !last.IsZero() && time.Since(last) < raffleBackfillInterval {
+		raffleBackfillMu.Unlock()
+		return
+	}
+	raffleBackfillBusy[accountID] = true
+	raffleBackfillMu.Unlock()
+
+	window := monitor.RaffleBackfillWindow(last, time.Now())
+
+	go func() {
+		bctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		ok := c.MonitorEngine.BackfillRaffleHistory(bctx, tenantID, accountID, window)
+
+		raffleBackfillMu.Lock()
+		delete(raffleBackfillBusy, accountID)
+		if ok {
+			raffleBackfillAt[accountID] = time.Now()
+		} else {
+			// 失败(例如客户端暂时取不到)不要立刻重试，5 分钟后再来一轮。
+			raffleBackfillAt[accountID] = time.Now().Add(-raffleBackfillInterval + raffleBackfillMinGap)
+		}
+		raffleBackfillMu.Unlock()
+	}()
 }
 
 func (c *Container) seedData(ctx context.Context) error {
